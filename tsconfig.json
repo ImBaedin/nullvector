@@ -1,0 +1,3 @@
+{
+  "extends": "@nullvector/config/tsconfig.base.json"
+}

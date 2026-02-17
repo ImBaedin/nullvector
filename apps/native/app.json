@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "scheme": "nullvector",
+    "userInterfaceStyle": "automatic",
+    "orientation": "default",
+    "web": {
+      "bundler": "metro"
+    },
+    "name": "nullvector",
+    "slug": "nullvector",
+    "plugins": ["expo-font"],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
