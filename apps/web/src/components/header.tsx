@@ -8,6 +8,7 @@ export default function Header() {
     { to: "/dashboard", label: "Dashboard" },
     { to: "/gravity-demo", label: "Gravity Demo" },
     { to: "/universe-explorer", label: "Universe Explorer" },
+    { to: "/universe-explorer-realdata", label: "Universe Explorer Real Data" },
   ] as const;
 
   return (

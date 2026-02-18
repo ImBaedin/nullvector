@@ -52,6 +52,8 @@ export default defineSchema({
     // Absolute time anchor for orbit simulation:
     // angle = phase + velocity * ((nowMs - orbitEpochMs) / 1000).
     orbitEpochMs: v.number(),
+    // Root deterministic seed for all generation branches in this universe.
+    seed: v.optional(v.string()),
     // Rendering-space conventions for galaxy/sector maps.
     coordinateConfig: v.object({
       sectorWidth: v.number(),
@@ -64,7 +66,22 @@ export default defineSchema({
       systemsPerSector: v.number(),
       minPlanetsPerSystem: v.number(),
       maxPlanetsPerSystem: v.number(),
+      // Optional policy defaults for lazy core-capacity generation.
+      minCoreSectors: v.optional(v.number()),
+      minUnclaimedColonizablePlanets: v.optional(v.number()),
+      maxSectorsPerRun: v.optional(v.number()),
     }),
+    // Lazy generation progress counters for bounded/resumable expansion.
+    generationState: v.optional(
+      v.object({
+        schemaVersion: v.number(),
+        nextCoreSectorIndexByGalaxy: v.array(v.number()),
+        nextGalaxyCursor: v.number(),
+        coreSectorsGenerated: v.number(),
+        colonizablePlanetsGenerated: v.number(),
+        lastRunAt: v.number(),
+      })
+    ),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

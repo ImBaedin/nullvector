@@ -9,11 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UniverseExplorerRealdataRouteImport } from './routes/universe-explorer-realdata'
 import { Route as UniverseExplorerRouteImport } from './routes/universe-explorer'
 import { Route as GravityDemoRouteImport } from './routes/gravity-demo'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 
+const UniverseExplorerRealdataRoute =
+  UniverseExplorerRealdataRouteImport.update({
+    id: '/universe-explorer-realdata',
+    path: '/universe-explorer-realdata',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const UniverseExplorerRoute = UniverseExplorerRouteImport.update({
   id: '/universe-explorer',
   path: '/universe-explorer',
@@ -40,12 +47,14 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/gravity-demo': typeof GravityDemoRoute
   '/universe-explorer': typeof UniverseExplorerRoute
+  '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/gravity-demo': typeof GravityDemoRoute
   '/universe-explorer': typeof UniverseExplorerRoute
+  '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +62,30 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/gravity-demo': typeof GravityDemoRoute
   '/universe-explorer': typeof UniverseExplorerRoute
+  '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/gravity-demo' | '/universe-explorer'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/gravity-demo'
+    | '/universe-explorer'
+    | '/universe-explorer-realdata'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/gravity-demo' | '/universe-explorer'
-  id: '__root__' | '/' | '/dashboard' | '/gravity-demo' | '/universe-explorer'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/gravity-demo'
+    | '/universe-explorer'
+    | '/universe-explorer-realdata'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/gravity-demo'
+    | '/universe-explorer'
+    | '/universe-explorer-realdata'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,10 +93,18 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   GravityDemoRoute: typeof GravityDemoRoute
   UniverseExplorerRoute: typeof UniverseExplorerRoute
+  UniverseExplorerRealdataRoute: typeof UniverseExplorerRealdataRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/universe-explorer-realdata': {
+      id: '/universe-explorer-realdata'
+      path: '/universe-explorer-realdata'
+      fullPath: '/universe-explorer-realdata'
+      preLoaderRoute: typeof UniverseExplorerRealdataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/universe-explorer': {
       id: '/universe-explorer'
       path: '/universe-explorer'
@@ -107,6 +141,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   GravityDemoRoute: GravityDemoRoute,
   UniverseExplorerRoute: UniverseExplorerRoute,
+  UniverseExplorerRealdataRoute: UniverseExplorerRealdataRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

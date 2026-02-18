@@ -11,7 +11,14 @@
 import type * as auth from "../auth.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as http from "../http.js";
+import type * as lib_worldgen_config from "../lib/worldgen/config.js";
+import type * as lib_worldgen_layout from "../lib/worldgen/layout.js";
+import type * as lib_worldgen_pipeline from "../lib/worldgen/pipeline.js";
+import type * as lib_worldgen_planet from "../lib/worldgen/planet.js";
+import type * as lib_worldgen_prng from "../lib/worldgen/prng.js";
 import type * as privateData from "../privateData.js";
+import type * as universeExplorer from "../universeExplorer.js";
+import type * as worldGeneration from "../worldGeneration.js";
 
 import type {
   ApiFromModules,
@@ -23,7 +30,14 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   healthCheck: typeof healthCheck;
   http: typeof http;
+  "lib/worldgen/config": typeof lib_worldgen_config;
+  "lib/worldgen/layout": typeof lib_worldgen_layout;
+  "lib/worldgen/pipeline": typeof lib_worldgen_pipeline;
+  "lib/worldgen/planet": typeof lib_worldgen_planet;
+  "lib/worldgen/prng": typeof lib_worldgen_prng;
   privateData: typeof privateData;
+  universeExplorer: typeof universeExplorer;
+  worldGeneration: typeof worldGeneration;
 }>;
 
 /**
