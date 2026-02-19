@@ -1,10 +1,17 @@
 import { MapControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState, type RefObject } from "react";
-import type { Group, Material, Object3D, OrthographicCamera, Vector3 } from "three";
+import type {
+  Group,
+  Material,
+  Object3D,
+  OrthographicCamera,
+  Vector3,
+} from "three";
 
 import { CameraFocusController } from "../hooks/use-camera-focus";
 import type { CameraFocusTarget } from "../types";
+import { NebulaBackground } from "./nebula-background";
 
 type BasicMapControls = {
   target: Vector3;
@@ -180,14 +187,18 @@ function getGridConfigKey(config: AdaptiveGridConfig) {
   ].join("|");
 }
 
-function AdaptiveGrid({ controlsRef }: { controlsRef: RefObject<BasicMapControls | null> }) {
+function AdaptiveGrid({
+  controlsRef,
+}: {
+  controlsRef: RefObject<BasicMapControls | null>;
+}) {
   const camera = useThree((state) => state.camera);
   const [gridConfig, setGridConfig] = useState<AdaptiveGridConfig>(() =>
     getGridConfig({
       zoom: 0.08,
       centerX: 0,
       centerY: 0,
-    }),
+    })
   );
   const gridKeyRef = useRef(getGridConfigKey(gridConfig));
 
@@ -212,7 +223,12 @@ function AdaptiveGrid({ controlsRef }: { controlsRef: RefObject<BasicMapControls
     <>
       <gridHelper
         key={`minor-${gridConfig.size}-${gridConfig.minorDivisions}`}
-        args={[gridConfig.size, gridConfig.minorDivisions, "#27374d", "#121c2d"]}
+        args={[
+          gridConfig.size,
+          gridConfig.minorDivisions,
+          "#27374d",
+          "#121c2d",
+        ]}
         position={[gridConfig.centerX, gridConfig.centerY, GRID_Z]}
         rotation={[Math.PI / 2, 0, 0]}
         renderOrder={1}
@@ -221,7 +237,12 @@ function AdaptiveGrid({ controlsRef }: { controlsRef: RefObject<BasicMapControls
       />
       <gridHelper
         key={`major-${gridConfig.size}-${gridConfig.majorDivisions}`}
-        args={[gridConfig.size, gridConfig.majorDivisions, "#3e5a78", "#1f3048"]}
+        args={[
+          gridConfig.size,
+          gridConfig.majorDivisions,
+          "#3e5a78",
+          "#1f3048",
+        ]}
         position={[gridConfig.centerX, gridConfig.centerY, GRID_Z + 0.1]}
         rotation={[Math.PI / 2, 0, 0]}
         renderOrder={2}
@@ -348,6 +369,7 @@ export function ExplorerCanvas({
       onPointerMissed={onPointerMissed}
     >
       <color attach="background" args={["#030812"]} />
+      <NebulaBackground controlsRef={controlsRef} />
       <ambientLight intensity={0.85} />
       <directionalLight intensity={0.5} position={[0, 0, 500]} />
       <AdaptiveGrid controlsRef={controlsRef} />
@@ -389,7 +411,6 @@ export function ExplorerCanvas({
         }}
         makeDefault
         enableRotate={false}
-        screenSpacePanning
         minZoom={0.015}
         maxZoom={24}
         zoomSpeed={0.8}
