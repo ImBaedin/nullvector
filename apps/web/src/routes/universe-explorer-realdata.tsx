@@ -358,6 +358,7 @@ function UniverseExplorerScene() {
         <ExplorerCanvas
           focusTarget={explorer.focusTarget}
           onPointerMissed={clearHover}
+          sceneKey={explorer.level}
         >
           {sceneContent}
         </ExplorerCanvas>

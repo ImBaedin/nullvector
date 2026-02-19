@@ -1,7 +1,7 @@
 import { MapControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useRef, useState, type RefObject } from "react";
-import type { OrthographicCamera, Vector3 } from "three";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import type { Group, Material, Object3D, OrthographicCamera, Vector3 } from "three";
 
 import { CameraFocusController } from "../hooks/use-camera-focus";
 import type { CameraFocusTarget } from "../types";
@@ -14,6 +14,7 @@ type BasicMapControls = {
 type ExplorerCanvasProps = {
   focusTarget: CameraFocusTarget | null;
   onPointerMissed: () => void;
+  sceneKey: string | number;
   children: React.ReactNode;
 };
 
@@ -26,6 +27,99 @@ const ISOMETRIC_CAMERA_OFFSET = {
   y: -3_000,
   z: 3_000,
 } as const;
+const LEVEL_FADE_DURATION_SECONDS = 0.24;
+
+type MaterialState = {
+  opacity: number;
+  transparent: boolean;
+  depthWrite: boolean;
+};
+type SceneSnapshot = {
+  id: number;
+  node: React.ReactNode;
+};
+
+const materialStateRegistry = new WeakMap<Material, MaterialState>();
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function forEachObjectMaterial(
+  object: Object3D,
+  callback: (material: Material) => void
+) {
+  object.traverse((child) => {
+    const material = (child as { material?: Material | Material[] }).material;
+    if (!material) {
+      return;
+    }
+
+    if (Array.isArray(material)) {
+      material.forEach((entry) => callback(entry));
+      return;
+    }
+
+    callback(material);
+  });
+}
+
+function getMaterialState(material: Material) {
+  const existing = materialStateRegistry.get(material);
+  if (existing) {
+    return existing;
+  }
+
+  const snapshot = {
+    opacity: material.opacity,
+    transparent: material.transparent,
+    depthWrite: material.depthWrite,
+  };
+  materialStateRegistry.set(material, snapshot);
+  return snapshot;
+}
+
+function applyFadeOpacity(object: Object3D, opacity: number) {
+  const alpha = clamp01(opacity);
+
+  forEachObjectMaterial(object, (material) => {
+    const original = getMaterialState(material);
+    const nextDepthWrite = original.depthWrite && alpha >= 0.999;
+
+    if (!material.transparent) {
+      material.transparent = true;
+      material.needsUpdate = true;
+    }
+
+    if (material.depthWrite !== nextDepthWrite) {
+      material.depthWrite = nextDepthWrite;
+      material.needsUpdate = true;
+    }
+
+    material.opacity = original.opacity * alpha;
+  });
+}
+
+function restoreMaterialState(object: Object3D) {
+  forEachObjectMaterial(object, (material) => {
+    const original = materialStateRegistry.get(material);
+    if (!original) {
+      return;
+    }
+
+    material.opacity = original.opacity;
+
+    if (material.transparent !== original.transparent) {
+      material.transparent = original.transparent;
+      material.needsUpdate = true;
+    }
+
+    if (material.depthWrite !== original.depthWrite) {
+      material.depthWrite = original.depthWrite;
+      material.needsUpdate = true;
+    }
+  });
+}
 
 type AdaptiveGridConfig = {
   centerX: number;
@@ -138,12 +232,104 @@ function AdaptiveGrid({ controlsRef }: { controlsRef: RefObject<BasicMapControls
   );
 }
 
+function FadingSceneGroup({
+  direction,
+  transitionKey,
+  animate,
+  children,
+  onFadeOutComplete,
+}: {
+  direction: "in" | "out";
+  transitionKey: string | number;
+  animate: boolean;
+  children: React.ReactNode;
+  onFadeOutComplete?: () => void;
+}) {
+  const groupRef = useRef<Group | null>(null);
+  const opacityRef = useRef(1);
+  const completedRef = useRef(false);
+
+  useEffect(() => {
+    const initialOpacity = animate ? (direction === "in" ? 0 : 1) : 1;
+    opacityRef.current = initialOpacity;
+    completedRef.current = !animate;
+
+    if (groupRef.current) {
+      applyFadeOpacity(groupRef.current, initialOpacity);
+      if (!animate) {
+        restoreMaterialState(groupRef.current);
+      }
+    }
+
+    return () => {
+      if (groupRef.current) {
+        restoreMaterialState(groupRef.current);
+      }
+    };
+  }, [animate, direction, transitionKey]);
+
+  useFrame((_, delta) => {
+    if (!animate || completedRef.current || !groupRef.current) {
+      return;
+    }
+
+    const targetOpacity = direction === "in" ? 1 : 0;
+    const step = delta / LEVEL_FADE_DURATION_SECONDS;
+    const nextOpacity =
+      direction === "in"
+        ? Math.min(targetOpacity, opacityRef.current + step)
+        : Math.max(targetOpacity, opacityRef.current - step);
+
+    opacityRef.current = nextOpacity;
+    applyFadeOpacity(groupRef.current, nextOpacity);
+
+    if (nextOpacity !== targetOpacity) {
+      return;
+    }
+
+    completedRef.current = true;
+    if (direction === "in") {
+      restoreMaterialState(groupRef.current);
+      return;
+    }
+
+    onFadeOutComplete?.();
+  });
+
+  return <group ref={groupRef}>{children}</group>;
+}
+
 export function ExplorerCanvas({
   focusTarget,
   onPointerMissed,
+  sceneKey,
   children,
 }: ExplorerCanvasProps) {
   const controlsRef = useRef<BasicMapControls | null>(null);
+  const [exitingScene, setExitingScene] = useState<SceneSnapshot | null>(null);
+  const [enterTransitionId, setEnterTransitionId] = useState(0);
+  const previousSceneRef = useRef({
+    key: sceneKey,
+    node: children,
+  });
+  const sceneCounterRef = useRef(0);
+
+  useEffect(() => {
+    const previousScene = previousSceneRef.current;
+    if (sceneKey !== previousScene.key) {
+      sceneCounterRef.current += 1;
+      setExitingScene({
+        id: sceneCounterRef.current,
+        node: previousScene.node,
+      });
+      setEnterTransitionId((currentId) => currentId + 1);
+    }
+
+    previousSceneRef.current = {
+      key: sceneKey,
+      node: children,
+    };
+  }, [children, sceneKey]);
 
   return (
     <Canvas
@@ -172,7 +358,30 @@ export function ExplorerCanvas({
         cameraOffset={ISOMETRIC_CAMERA_OFFSET}
       />
 
-      {children}
+      {exitingScene ? (
+        <FadingSceneGroup
+          key={`out-${exitingScene.id}`}
+          direction="out"
+          transitionKey={exitingScene.id}
+          animate
+          onFadeOutComplete={() => {
+            setExitingScene((currentScene) =>
+              currentScene?.id === exitingScene.id ? null : currentScene
+            );
+          }}
+        >
+          {exitingScene.node}
+        </FadingSceneGroup>
+      ) : null}
+
+      <FadingSceneGroup
+        key={`in-${String(sceneKey)}`}
+        direction="in"
+        transitionKey={enterTransitionId}
+        animate={enterTransitionId > 0}
+      >
+        {children}
+      </FadingSceneGroup>
 
       <MapControls
         ref={(instance) => {
