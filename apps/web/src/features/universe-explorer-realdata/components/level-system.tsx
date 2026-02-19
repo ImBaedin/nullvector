@@ -1,9 +1,9 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { BufferGeometry, Float32BufferAttribute, type Mesh } from "three";
+import { BufferGeometry, Float32BufferAttribute, type Group } from "three";
 
 import { computeOrbitWorldPosition } from "../lib/orbits";
-import { EntitySphere } from "./entity-sphere";
+import { EntitySphere, EntitySphereVisual } from "./entity-sphere";
 import type { RenderableEntity } from "../types";
 
 type LevelSystemProps = {
@@ -98,20 +98,20 @@ function OrbitingPlanetSphere({
   onHoverEnd: () => void;
 }) {
   const orbit = entity.orbit;
-  const meshRef = useRef<Mesh | null>(null);
+  const groupRef = useRef<Group | null>(null);
   const currentPositionRef = useRef({
     x: entity.x,
     y: entity.y,
   });
 
   useFrame(() => {
-    if (!orbit || !meshRef.current) {
+    if (!orbit || !groupRef.current) {
       return;
     }
 
     const nextPosition = computeOrbitWorldPosition(orbit, Date.now());
     currentPositionRef.current = nextPosition;
-    meshRef.current.position.set(nextPosition.x, nextPosition.y, 0);
+    groupRef.current.position.set(nextPosition.x, nextPosition.y, 0);
   });
 
   if (!orbit) {
@@ -120,6 +120,8 @@ function OrbitingPlanetSphere({
         x={entity.x}
         y={entity.y}
         radius={entity.sphereRadius}
+        entityType={entity.entityType}
+        seedKey={entity.sourceId}
         isSelected={isSelected}
         isHovered={isHovered}
         onSelect={() => onSelect(entity)}
@@ -131,39 +133,34 @@ function OrbitingPlanetSphere({
   }
 
   const scale = isSelected ? 1.35 : isHovered ? 1.2 : 1;
-  const emissiveIntensity = isSelected ? 0.65 : isHovered ? 0.35 : 0.12;
 
   return (
-    <mesh
-      ref={meshRef}
-      position={[entity.x, entity.y, 0]}
-      scale={scale}
-      onClick={(event) => {
-        event.stopPropagation();
-        onSelect(entity, currentPositionRef.current);
-      }}
-      onPointerMove={(event) => {
-        event.stopPropagation();
-        onHover(entity, event.nativeEvent.clientX, event.nativeEvent.clientY);
-      }}
-      onPointerOut={(event) => {
-        event.stopPropagation();
-        onHoverEnd();
-      }}
-      onPointerOver={(event) => {
-        event.stopPropagation();
-        onHover(entity, event.nativeEvent.clientX, event.nativeEvent.clientY);
-      }}
-    >
-      <sphereGeometry args={[entity.sphereRadius, 18, 18]} />
-      <meshStandardMaterial
-        color="#ffffff"
-        emissive="#ffffff"
-        emissiveIntensity={emissiveIntensity}
-        roughness={0.28}
-        metalness={0.05}
+    <group ref={groupRef} position={[entity.x, entity.y, 0]} scale={scale}>
+      <EntitySphereVisual
+        radius={entity.sphereRadius}
+        entityType={entity.entityType}
+        seedKey={entity.sourceId}
+        isSelected={isSelected}
+        isHovered={isHovered}
+        detailLevel="compact"
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelect(entity, currentPositionRef.current);
+        }}
+        onPointerMove={(event) => {
+          event.stopPropagation();
+          onHover(entity, event.nativeEvent.clientX, event.nativeEvent.clientY);
+        }}
+        onPointerOut={(event) => {
+          event.stopPropagation();
+          onHoverEnd();
+        }}
+        onPointerOver={(event) => {
+          event.stopPropagation();
+          onHover(entity, event.nativeEvent.clientX, event.nativeEvent.clientY);
+        }}
       />
-    </mesh>
+    </group>
   );
 }
 

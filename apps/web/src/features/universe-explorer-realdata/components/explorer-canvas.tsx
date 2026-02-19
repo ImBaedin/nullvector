@@ -226,12 +226,15 @@ function AdaptiveGrid({
         args={[
           gridConfig.size,
           gridConfig.minorDivisions,
-          "#27374d",
-          "#121c2d",
+          "#6ea8ff",
+          "#3c5f8f",
         ]}
         position={[gridConfig.centerX, gridConfig.centerY, GRID_Z]}
         rotation={[Math.PI / 2, 0, 0]}
         renderOrder={1}
+        material-transparent
+        material-opacity={0.2}
+        material-depthTest={false}
         material-depthWrite={false}
         raycast={() => {}}
       />
@@ -240,12 +243,15 @@ function AdaptiveGrid({
         args={[
           gridConfig.size,
           gridConfig.majorDivisions,
-          "#3e5a78",
-          "#1f3048",
+          "#b4d6ff",
+          "#6ea8ff",
         ]}
         position={[gridConfig.centerX, gridConfig.centerY, GRID_Z + 0.1]}
         rotation={[Math.PI / 2, 0, 0]}
         renderOrder={2}
+        material-transparent
+        material-opacity={0.5}
+        material-depthTest={false}
         material-depthWrite={false}
         raycast={() => {}}
       />

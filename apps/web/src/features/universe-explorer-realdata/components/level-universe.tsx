@@ -24,6 +24,8 @@ export function LevelUniverse({
           x={entity.x}
           y={entity.y}
           radius={entity.sphereRadius}
+          entityType={entity.entityType}
+          seedKey={entity.sourceId}
           isSelected={false}
           isHovered={hoveredId === entity.id}
           onSelect={() => onSelect(entity)}
