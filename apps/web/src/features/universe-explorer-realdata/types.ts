@@ -25,6 +25,12 @@ export type RenderableEntity = {
   x: number;
   y: number;
   sphereRadius: number;
+  bounds?: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  };
   orbit?: {
     centerX: number;
     centerY: number;

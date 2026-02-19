@@ -70,6 +70,12 @@ export function useExplorerData() {
       x: sector.centerX,
       y: sector.centerY,
       sphereRadius: SECTOR_RADIUS,
+      bounds: {
+        minX: sector.minX,
+        maxX: sector.maxX,
+        minY: sector.minY,
+        maxY: sector.maxY,
+      },
     }));
   }, [galaxyData]);
 
