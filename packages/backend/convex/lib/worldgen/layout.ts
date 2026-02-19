@@ -57,12 +57,16 @@ export function spiralIndexToGrid(index: number) {
 }
 
 export function buildSectorBounds(
+  galaxyIndex: number,
   sectorIndex: number,
   coordinateConfig: CoordinateConfig
 ): SectorBounds {
-  const grid = spiralIndexToGrid(sectorIndex);
-  const minX = grid.x * coordinateConfig.sectorWidth;
-  const minY = grid.y * coordinateConfig.sectorHeight;
+  const sectorGrid = spiralIndexToGrid(sectorIndex);
+  const galaxyOffset = computeGalaxyOffset(galaxyIndex, coordinateConfig);
+  const centerX = galaxyOffset.gx + sectorGrid.x * coordinateConfig.sectorWidth;
+  const centerY = galaxyOffset.gy + sectorGrid.y * coordinateConfig.sectorHeight;
+  const minX = centerX - coordinateConfig.sectorWidth / 2;
+  const minY = centerY - coordinateConfig.sectorHeight / 2;
 
   return {
     minX,
@@ -80,9 +84,22 @@ export function computeGalaxyOffset(
     coordinateConfig.sectorWidth,
     coordinateConfig.sectorHeight
   );
+  const galaxySpacing = baseSpan * 12;
+  if (galaxyIndex === 0) {
+    return {
+      gx: 0,
+      gy: 0,
+    };
+  }
+
+  // Smooth deterministic spiral using the golden angle.
+  const goldenAngleRad = Math.PI * (3 - Math.sqrt(5));
+  const radius = galaxySpacing * Math.sqrt(galaxyIndex);
+  const angle = galaxyIndex * goldenAngleRad;
+
   return {
-    gx: galaxyIndex * baseSpan * 12,
-    gy: 0,
+    gx: Math.cos(angle) * radius,
+    gy: Math.sin(angle) * radius,
   };
 }
 

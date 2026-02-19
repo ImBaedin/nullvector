@@ -88,13 +88,13 @@ export default defineSchema({
     .index("by_slug", ["slug"])
     .index("by_is_active", ["isActive"]),
 
-  // Top-level world partitions. gx/gy are render offsets, not physics data.
+  // Top-level world partitions. gx/gy are world-space anchors for each galaxy.
   galaxies: defineTable({
     universeId: v.id("universes"),
     // Logical address component, 0-based inside a universe.
     galaxyIndex: v.number(),
     name: v.string(),
-    // Galaxy-space visual offset.
+    // Galaxy world-space anchor offset.
     gx: v.number(),
     gy: v.number(),
     // Deterministic generation seed for child structures.
@@ -114,7 +114,7 @@ export default defineSchema({
     sectorIndex: v.number(),
     sectorType: sectorTypeValidator,
     seed: v.string(),
-    // Sector-space bounding box used for placement and map rendering.
+    // World-space bounding box used for placement and map rendering.
     minX: v.number(),
     maxX: v.number(),
     minY: v.number(),
@@ -139,7 +139,7 @@ export default defineSchema({
     sectorIndex: v.number(),
     // Logical address component, 0-based inside a sector.
     systemIndex: v.number(),
-    // Sector-local coordinates used in map views and distance calculations.
+    // Universe-space coordinates derived from galaxy-anchored sector bounds.
     x: v.number(),
     y: v.number(),
     // Minimal star descriptor for presentation and future rules.

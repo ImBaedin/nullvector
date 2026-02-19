@@ -264,8 +264,9 @@ async function ensureGalaxies(args: {
   normalizedConfig: NormalizedGenerationConfig;
   universeSeed: string;
   dryRun: boolean;
+  now: number;
 }) {
-  const { ctx, universe, normalizedConfig, universeSeed, dryRun } = args;
+  const { ctx, universe, normalizedConfig, universeSeed, dryRun, now } = args;
 
   const existingGalaxies = await ctx.db
     .query("galaxies")
@@ -307,7 +308,7 @@ async function ensureGalaxies(args: {
       gx: offset.gx,
       gy: offset.gy,
       seed: `${universeSeed}:galaxy:${galaxyIndex}`,
-      createdAt: Date.now(),
+      createdAt: now,
     });
 
     refs.push({ galaxyIndex, galaxyId });
@@ -379,7 +380,11 @@ async function generateOneCoreSector(args: {
   } = args;
 
   const sectorSeed = `${universeSeed}:galaxy:${galaxyRef.galaxyIndex}:sector:${sectorIndex}`;
-  const bounds = buildSectorBounds(sectorIndex, universe.coordinateConfig);
+  const bounds = buildSectorBounds(
+    galaxyRef.galaxyIndex,
+    sectorIndex,
+    universe.coordinateConfig
+  );
   const systemPositions = generateSystemPositions({
     sectorSeed,
     bounds,
@@ -541,6 +546,7 @@ export async function ensureCoreCapacityPipeline(
     normalizedConfig,
     universeSeed,
     dryRun: params.dryRun,
+    now,
   });
   created.galaxies += ensuredGalaxies.created.galaxies;
 

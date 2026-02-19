@@ -7,7 +7,7 @@ import { useExplorerContext } from "../context/explorer-context";
 import { computeOrbitWorldPosition } from "../lib/orbits";
 import type { RenderableEntity } from "../types";
 
-const GALAXY_RADIUS = 140;
+const GALAXY_RADIUS = 500;
 const SECTOR_RADIUS = 46;
 const SYSTEM_RADIUS = 16;
 const PLANET_RADIUS = 6;
@@ -50,8 +50,8 @@ export function useExplorerData() {
       entityType: "galaxy",
       name: galaxy.displayName,
       addressLabel: galaxy.addressLabel,
-      x: galaxy.gx,
-      y: galaxy.gy,
+      x: galaxy.worldX,
+      y: galaxy.worldY,
       sphereRadius: GALAXY_RADIUS,
     }));
   }, [overview]);
@@ -67,14 +67,14 @@ export function useExplorerData() {
       entityType: "sector",
       name: sector.displayName,
       addressLabel: sector.addressLabel,
-      x: sector.centerX,
-      y: sector.centerY,
+      x: sector.worldCenterX,
+      y: sector.worldCenterY,
       sphereRadius: SECTOR_RADIUS,
       bounds: {
-        minX: sector.minX,
-        maxX: sector.maxX,
-        minY: sector.minY,
-        maxY: sector.maxY,
+        minX: sector.worldMinX,
+        maxX: sector.worldMaxX,
+        minY: sector.worldMinY,
+        maxY: sector.worldMaxY,
       },
     }));
   }, [galaxyData]);
@@ -90,8 +90,8 @@ export function useExplorerData() {
       entityType: "system",
       name: system.displayName,
       addressLabel: system.addressLabel,
-      x: system.x,
-      y: system.y,
+      x: system.worldX,
+      y: system.worldY,
       sphereRadius: SYSTEM_RADIUS,
     }));
   }, [sectorData]);
@@ -105,8 +105,8 @@ export function useExplorerData() {
 
     return systemData.planets.map((planet) => {
       const orbit = {
-        centerX: systemData.system.x,
-        centerY: systemData.system.y,
+        centerX: systemData.system.worldX,
+        centerY: systemData.system.worldY,
         orbitRadius: planet.orbitRadius,
         orbitPhaseRad: planet.orbitPhaseRad,
         orbitAngularVelocityRadPerSec: planet.orbitAngularVelocityRadPerSec,

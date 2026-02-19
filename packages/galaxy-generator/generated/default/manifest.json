@@ -1,0 +1,569 @@
+{
+  "version": "2.0.0",
+  "profile": "spiral-volumetric-v2",
+  "librarySeed": "nullvector-galaxy-library-v1",
+  "createdAt": "2026-02-19T17:06:49.462Z",
+  "count": 16,
+  "models": [
+    {
+      "id": "galaxy-000",
+      "seed": "nullvector-galaxy-library-v1:0",
+      "file": "models/galaxy-000.glb",
+      "bounds": {
+        "radius": 82.237,
+        "thickness": 17.772
+      },
+      "stats": {
+        "vertexCount": 3468,
+        "triangleCount": 1156,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.2161,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.38,
+        "twist": 0.69,
+        "coreScale": 0.213,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 26.821,
+        "armWidthEnd": 5.696,
+        "thicknessScale": 0.128
+      },
+      "animationHints": {
+        "coreRps": 0.00256,
+        "armsRps": 0.01111,
+        "dustRps": 0.00734
+      }
+    },
+    {
+      "id": "galaxy-001",
+      "seed": "nullvector-galaxy-library-v1:1",
+      "file": "models/galaxy-001.glb",
+      "bounds": {
+        "radius": 57.958,
+        "thickness": 10.739
+      },
+      "stats": {
+        "vertexCount": 3096,
+        "triangleCount": 1032,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.1853,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.446,
+        "twist": 0.723,
+        "coreScale": 0.219,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 16.92,
+        "armWidthEnd": 2.667,
+        "thicknessScale": 0.141
+      },
+      "animationHints": {
+        "coreRps": 0.00316,
+        "armsRps": 0.00909,
+        "dustRps": 0.00562
+      }
+    },
+    {
+      "id": "galaxy-002",
+      "seed": "nullvector-galaxy-library-v1:2",
+      "file": "models/galaxy-002.glb",
+      "bounds": {
+        "radius": 66.287,
+        "thickness": 18.484
+      },
+      "stats": {
+        "vertexCount": 4644,
+        "triangleCount": 1548,
+        "materialCount": 1,
+        "componentCount": 4,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.2788,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 3,
+        "turns": 1.331,
+        "twist": 0.444,
+        "coreScale": 0.205,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 18.743,
+        "armWidthEnd": 3.491,
+        "thicknessScale": 0.132
+      },
+      "animationHints": {
+        "coreRps": 0.00527,
+        "armsRps": 0.01365,
+        "dustRps": 0.00733
+      }
+    },
+    {
+      "id": "galaxy-003",
+      "seed": "nullvector-galaxy-library-v1:3",
+      "file": "models/galaxy-003.glb",
+      "bounds": {
+        "radius": 91.741,
+        "thickness": 19.866
+      },
+      "stats": {
+        "vertexCount": 3168,
+        "triangleCount": 1056,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.2165,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.068,
+        "twist": 0.534,
+        "coreScale": 0.202,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 23.769,
+        "armWidthEnd": 6.093,
+        "thicknessScale": 0.116
+      },
+      "animationHints": {
+        "coreRps": 0.00422,
+        "armsRps": 0.0136,
+        "dustRps": 0.00632
+      }
+    },
+    {
+      "id": "galaxy-004",
+      "seed": "nullvector-galaxy-library-v1:4",
+      "file": "models/galaxy-004.glb",
+      "bounds": {
+        "radius": 65.212,
+        "thickness": 12.88
+      },
+      "stats": {
+        "vertexCount": 3582,
+        "triangleCount": 1194,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.1975,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.14,
+        "twist": 0.57,
+        "coreScale": 0.179,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 17.267,
+        "armWidthEnd": 4.551,
+        "thicknessScale": 0.117
+      },
+      "animationHints": {
+        "coreRps": 0.00588,
+        "armsRps": 0.01355,
+        "dustRps": 0.00965
+      }
+    },
+    {
+      "id": "galaxy-005",
+      "seed": "nullvector-galaxy-library-v1:5",
+      "file": "models/galaxy-005.glb",
+      "bounds": {
+        "radius": 67.417,
+        "thickness": 16.436
+      },
+      "stats": {
+        "vertexCount": 3690,
+        "triangleCount": 1230,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.2438,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.373,
+        "twist": 0.687,
+        "coreScale": 0.169,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 18.669,
+        "armWidthEnd": 3.516,
+        "thicknessScale": 0.131
+      },
+      "animationHints": {
+        "coreRps": 0.00596,
+        "armsRps": 0.00883,
+        "dustRps": 0.00998
+      }
+    },
+    {
+      "id": "galaxy-006",
+      "seed": "nullvector-galaxy-library-v1:6",
+      "file": "models/galaxy-006.glb",
+      "bounds": {
+        "radius": 75.503,
+        "thickness": 15.249
+      },
+      "stats": {
+        "vertexCount": 3384,
+        "triangleCount": 1128,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.202,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.095,
+        "twist": 0.547,
+        "coreScale": 0.175,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 21.115,
+        "armWidthEnd": 3.23,
+        "thicknessScale": 0.117
+      },
+      "animationHints": {
+        "coreRps": 0.00559,
+        "armsRps": 0.01331,
+        "dustRps": 0.00598
+      }
+    },
+    {
+      "id": "galaxy-007",
+      "seed": "nullvector-galaxy-library-v1:7",
+      "file": "models/galaxy-007.glb",
+      "bounds": {
+        "radius": 89.741,
+        "thickness": 21.38
+      },
+      "stats": {
+        "vertexCount": 3714,
+        "triangleCount": 1238,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.2382,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.248,
+        "twist": 0.624,
+        "coreScale": 0.153,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 23.04,
+        "armWidthEnd": 6.367,
+        "thicknessScale": 0.115
+      },
+      "animationHints": {
+        "coreRps": 0.00436,
+        "armsRps": 0.00893,
+        "dustRps": 0.00573
+      }
+    },
+    {
+      "id": "galaxy-008",
+      "seed": "nullvector-galaxy-library-v1:8",
+      "file": "models/galaxy-008.glb",
+      "bounds": {
+        "radius": 83.914,
+        "thickness": 16.598
+      },
+      "stats": {
+        "vertexCount": 4860,
+        "triangleCount": 1620,
+        "materialCount": 1,
+        "componentCount": 4,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.1978,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 3,
+        "turns": 1.14,
+        "twist": 0.38,
+        "coreScale": 0.14,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 24.754,
+        "armWidthEnd": 5.363,
+        "thicknessScale": 0.118
+      },
+      "animationHints": {
+        "coreRps": 0.00282,
+        "armsRps": 0.01248,
+        "dustRps": 0.00526
+      }
+    },
+    {
+      "id": "galaxy-009",
+      "seed": "nullvector-galaxy-library-v1:9",
+      "file": "models/galaxy-009.glb",
+      "bounds": {
+        "radius": 69.897,
+        "thickness": 19.416
+      },
+      "stats": {
+        "vertexCount": 3024,
+        "triangleCount": 1008,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.2778,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.286,
+        "twist": 0.643,
+        "coreScale": 0.188,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 18.076,
+        "armWidthEnd": 4.341,
+        "thicknessScale": 0.113
+      },
+      "animationHints": {
+        "coreRps": 0.00589,
+        "armsRps": 0.01172,
+        "dustRps": 0.0089
+      }
+    },
+    {
+      "id": "galaxy-010",
+      "seed": "nullvector-galaxy-library-v1:10",
+      "file": "models/galaxy-010.glb",
+      "bounds": {
+        "radius": 91.155,
+        "thickness": 26.282
+      },
+      "stats": {
+        "vertexCount": 3876,
+        "triangleCount": 1292,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.2883,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.291,
+        "twist": 0.646,
+        "coreScale": 0.159,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 29.192,
+        "armWidthEnd": 5.382,
+        "thicknessScale": 0.143
+      },
+      "animationHints": {
+        "coreRps": 0.00598,
+        "armsRps": 0.01146,
+        "dustRps": 0.00698
+      }
+    },
+    {
+      "id": "galaxy-011",
+      "seed": "nullvector-galaxy-library-v1:11",
+      "file": "models/galaxy-011.glb",
+      "bounds": {
+        "radius": 71.891,
+        "thickness": 13.001
+      },
+      "stats": {
+        "vertexCount": 3456,
+        "triangleCount": 1152,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.1808,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.118,
+        "twist": 0.559,
+        "coreScale": 0.2,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 22.659,
+        "armWidthEnd": 3.796,
+        "thicknessScale": 0.122
+      },
+      "animationHints": {
+        "coreRps": 0.00331,
+        "armsRps": 0.01411,
+        "dustRps": 0.00791
+      }
+    },
+    {
+      "id": "galaxy-012",
+      "seed": "nullvector-galaxy-library-v1:12",
+      "file": "models/galaxy-012.glb",
+      "bounds": {
+        "radius": 90.274,
+        "thickness": 21.657
+      },
+      "stats": {
+        "vertexCount": 3060,
+        "triangleCount": 1020,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.2399,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.132,
+        "twist": 0.566,
+        "coreScale": 0.153,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 25.826,
+        "armWidthEnd": 4.846,
+        "thicknessScale": 0.143
+      },
+      "animationHints": {
+        "coreRps": 0.00598,
+        "armsRps": 0.00933,
+        "dustRps": 0.00785
+      }
+    },
+    {
+      "id": "galaxy-013",
+      "seed": "nullvector-galaxy-library-v1:13",
+      "file": "models/galaxy-013.glb",
+      "bounds": {
+        "radius": 80.638,
+        "thickness": 16.722
+      },
+      "stats": {
+        "vertexCount": 3348,
+        "triangleCount": 1116,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.2074,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.652,
+        "twist": 0.826,
+        "coreScale": 0.164,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 25.325,
+        "armWidthEnd": 4.999,
+        "thicknessScale": 0.142
+      },
+      "animationHints": {
+        "coreRps": 0.00255,
+        "armsRps": 0.01328,
+        "dustRps": 0.00606
+      }
+    },
+    {
+      "id": "galaxy-014",
+      "seed": "nullvector-galaxy-library-v1:14",
+      "file": "models/galaxy-014.glb",
+      "bounds": {
+        "radius": 58.813,
+        "thickness": 15.459
+      },
+      "stats": {
+        "vertexCount": 2952,
+        "triangleCount": 984,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.2629,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.136,
+        "twist": 0.568,
+        "coreScale": 0.149,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 16.558,
+        "armWidthEnd": 3.465,
+        "thicknessScale": 0.118
+      },
+      "animationHints": {
+        "coreRps": 0.00345,
+        "armsRps": 0.00944,
+        "dustRps": 0.00861
+      }
+    },
+    {
+      "id": "galaxy-015",
+      "seed": "nullvector-galaxy-library-v1:15",
+      "file": "models/galaxy-015.glb",
+      "bounds": {
+        "radius": 86.619,
+        "thickness": 18.475
+      },
+      "stats": {
+        "vertexCount": 3168,
+        "triangleCount": 1056,
+        "materialCount": 1,
+        "componentCount": 3,
+        "openEdgeCount": 0,
+        "degenerateTriangleCount": 0,
+        "thicknessRatio": 0.2133,
+        "watertight": true
+      },
+      "style": {
+        "armCount": 2,
+        "turns": 1.453,
+        "twist": 0.726,
+        "coreScale": 0.169,
+        "paletteId": "spiral-volumetric-v2",
+        "profileVersion": "spiral-volumetric-v2",
+        "armWidthStart": 27.062,
+        "armWidthEnd": 6.24,
+        "thicknessScale": 0.142
+      },
+      "animationHints": {
+        "coreRps": 0.00361,
+        "armsRps": 0.00955,
+        "dustRps": 0.00737
+      }
+    }
+  ]
+}

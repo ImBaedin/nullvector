@@ -10,13 +10,13 @@ export const DEFAULT_COORDINATE_CONFIG = {
 } as const;
 
 export const DEFAULT_GENERATION_CONFIG = {
-  galaxyCount: 1,
+  galaxyCount: 5,
   systemsPerSector: 8,
   minPlanetsPerSystem: 4,
   maxPlanetsPerSystem: 8,
-  minCoreSectors: 4,
+  minCoreSectors: 20,
   minUnclaimedColonizablePlanets: 80,
-  maxSectorsPerRun: 3,
+  maxSectorsPerRun: 30,
 } as const;
 
 export type GenerationOverrides = {

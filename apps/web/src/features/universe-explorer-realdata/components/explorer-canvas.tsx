@@ -25,7 +25,7 @@ type ExplorerCanvasProps = {
   children: React.ReactNode;
 };
 
-const GRID_Z = -150;
+const GRID_Z = -300;
 const TARGET_MINOR_CELL_PIXELS = 56;
 const MAJOR_GRID_MULTIPLIER = 5;
 const MAJOR_DIVISIONS = 28;
