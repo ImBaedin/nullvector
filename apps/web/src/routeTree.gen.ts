@@ -11,9 +11,16 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UniverseExplorerRealdataRouteImport } from './routes/universe-explorer-realdata'
 import { Route as UniverseExplorerRouteImport } from './routes/universe-explorer'
+import { Route as UiMockupsRouteImport } from './routes/ui-mockups'
 import { Route as GravityDemoRouteImport } from './routes/gravity-demo'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as UiMockupsIndexRouteImport } from './routes/ui-mockups.index'
+import { Route as UiMockups5RouteImport } from './routes/ui-mockups.5'
+import { Route as UiMockups4RouteImport } from './routes/ui-mockups.4'
+import { Route as UiMockups3RouteImport } from './routes/ui-mockups.3'
+import { Route as UiMockups2RouteImport } from './routes/ui-mockups.2'
+import { Route as UiMockups1RouteImport } from './routes/ui-mockups.1'
 
 const UniverseExplorerRealdataRoute =
   UniverseExplorerRealdataRouteImport.update({
@@ -24,6 +31,11 @@ const UniverseExplorerRealdataRoute =
 const UniverseExplorerRoute = UniverseExplorerRouteImport.update({
   id: '/universe-explorer',
   path: '/universe-explorer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UiMockupsRoute = UiMockupsRouteImport.update({
+  id: '/ui-mockups',
+  path: '/ui-mockups',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GravityDemoRoute = GravityDemoRouteImport.update({
@@ -41,13 +53,50 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UiMockupsIndexRoute = UiMockupsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => UiMockupsRoute,
+} as any)
+const UiMockups5Route = UiMockups5RouteImport.update({
+  id: '/5',
+  path: '/5',
+  getParentRoute: () => UiMockupsRoute,
+} as any)
+const UiMockups4Route = UiMockups4RouteImport.update({
+  id: '/4',
+  path: '/4',
+  getParentRoute: () => UiMockupsRoute,
+} as any)
+const UiMockups3Route = UiMockups3RouteImport.update({
+  id: '/3',
+  path: '/3',
+  getParentRoute: () => UiMockupsRoute,
+} as any)
+const UiMockups2Route = UiMockups2RouteImport.update({
+  id: '/2',
+  path: '/2',
+  getParentRoute: () => UiMockupsRoute,
+} as any)
+const UiMockups1Route = UiMockups1RouteImport.update({
+  id: '/1',
+  path: '/1',
+  getParentRoute: () => UiMockupsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/gravity-demo': typeof GravityDemoRoute
+  '/ui-mockups': typeof UiMockupsRouteWithChildren
   '/universe-explorer': typeof UniverseExplorerRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
+  '/ui-mockups/1': typeof UiMockups1Route
+  '/ui-mockups/2': typeof UiMockups2Route
+  '/ui-mockups/3': typeof UiMockups3Route
+  '/ui-mockups/4': typeof UiMockups4Route
+  '/ui-mockups/5': typeof UiMockups5Route
+  '/ui-mockups/': typeof UiMockupsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -55,14 +104,27 @@ export interface FileRoutesByTo {
   '/gravity-demo': typeof GravityDemoRoute
   '/universe-explorer': typeof UniverseExplorerRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
+  '/ui-mockups/1': typeof UiMockups1Route
+  '/ui-mockups/2': typeof UiMockups2Route
+  '/ui-mockups/3': typeof UiMockups3Route
+  '/ui-mockups/4': typeof UiMockups4Route
+  '/ui-mockups/5': typeof UiMockups5Route
+  '/ui-mockups': typeof UiMockupsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/gravity-demo': typeof GravityDemoRoute
+  '/ui-mockups': typeof UiMockupsRouteWithChildren
   '/universe-explorer': typeof UniverseExplorerRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
+  '/ui-mockups/1': typeof UiMockups1Route
+  '/ui-mockups/2': typeof UiMockups2Route
+  '/ui-mockups/3': typeof UiMockups3Route
+  '/ui-mockups/4': typeof UiMockups4Route
+  '/ui-mockups/5': typeof UiMockups5Route
+  '/ui-mockups/': typeof UiMockupsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -70,8 +132,15 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/gravity-demo'
+    | '/ui-mockups'
     | '/universe-explorer'
     | '/universe-explorer-realdata'
+    | '/ui-mockups/1'
+    | '/ui-mockups/2'
+    | '/ui-mockups/3'
+    | '/ui-mockups/4'
+    | '/ui-mockups/5'
+    | '/ui-mockups/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -79,19 +148,33 @@ export interface FileRouteTypes {
     | '/gravity-demo'
     | '/universe-explorer'
     | '/universe-explorer-realdata'
+    | '/ui-mockups/1'
+    | '/ui-mockups/2'
+    | '/ui-mockups/3'
+    | '/ui-mockups/4'
+    | '/ui-mockups/5'
+    | '/ui-mockups'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
     | '/gravity-demo'
+    | '/ui-mockups'
     | '/universe-explorer'
     | '/universe-explorer-realdata'
+    | '/ui-mockups/1'
+    | '/ui-mockups/2'
+    | '/ui-mockups/3'
+    | '/ui-mockups/4'
+    | '/ui-mockups/5'
+    | '/ui-mockups/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
   GravityDemoRoute: typeof GravityDemoRoute
+  UiMockupsRoute: typeof UiMockupsRouteWithChildren
   UniverseExplorerRoute: typeof UniverseExplorerRoute
   UniverseExplorerRealdataRoute: typeof UniverseExplorerRealdataRoute
 }
@@ -110,6 +193,13 @@ declare module '@tanstack/react-router' {
       path: '/universe-explorer'
       fullPath: '/universe-explorer'
       preLoaderRoute: typeof UniverseExplorerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ui-mockups': {
+      id: '/ui-mockups'
+      path: '/ui-mockups'
+      fullPath: '/ui-mockups'
+      preLoaderRoute: typeof UiMockupsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gravity-demo': {
@@ -133,13 +223,78 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ui-mockups/': {
+      id: '/ui-mockups/'
+      path: '/'
+      fullPath: '/ui-mockups/'
+      preLoaderRoute: typeof UiMockupsIndexRouteImport
+      parentRoute: typeof UiMockupsRoute
+    }
+    '/ui-mockups/5': {
+      id: '/ui-mockups/5'
+      path: '/5'
+      fullPath: '/ui-mockups/5'
+      preLoaderRoute: typeof UiMockups5RouteImport
+      parentRoute: typeof UiMockupsRoute
+    }
+    '/ui-mockups/4': {
+      id: '/ui-mockups/4'
+      path: '/4'
+      fullPath: '/ui-mockups/4'
+      preLoaderRoute: typeof UiMockups4RouteImport
+      parentRoute: typeof UiMockupsRoute
+    }
+    '/ui-mockups/3': {
+      id: '/ui-mockups/3'
+      path: '/3'
+      fullPath: '/ui-mockups/3'
+      preLoaderRoute: typeof UiMockups3RouteImport
+      parentRoute: typeof UiMockupsRoute
+    }
+    '/ui-mockups/2': {
+      id: '/ui-mockups/2'
+      path: '/2'
+      fullPath: '/ui-mockups/2'
+      preLoaderRoute: typeof UiMockups2RouteImport
+      parentRoute: typeof UiMockupsRoute
+    }
+    '/ui-mockups/1': {
+      id: '/ui-mockups/1'
+      path: '/1'
+      fullPath: '/ui-mockups/1'
+      preLoaderRoute: typeof UiMockups1RouteImport
+      parentRoute: typeof UiMockupsRoute
+    }
   }
 }
+
+interface UiMockupsRouteChildren {
+  UiMockups1Route: typeof UiMockups1Route
+  UiMockups2Route: typeof UiMockups2Route
+  UiMockups3Route: typeof UiMockups3Route
+  UiMockups4Route: typeof UiMockups4Route
+  UiMockups5Route: typeof UiMockups5Route
+  UiMockupsIndexRoute: typeof UiMockupsIndexRoute
+}
+
+const UiMockupsRouteChildren: UiMockupsRouteChildren = {
+  UiMockups1Route: UiMockups1Route,
+  UiMockups2Route: UiMockups2Route,
+  UiMockups3Route: UiMockups3Route,
+  UiMockups4Route: UiMockups4Route,
+  UiMockups5Route: UiMockups5Route,
+  UiMockupsIndexRoute: UiMockupsIndexRoute,
+}
+
+const UiMockupsRouteWithChildren = UiMockupsRoute._addFileChildren(
+  UiMockupsRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   GravityDemoRoute: GravityDemoRoute,
+  UiMockupsRoute: UiMockupsRouteWithChildren,
   UniverseExplorerRoute: UniverseExplorerRoute,
   UniverseExplorerRealdataRoute: UniverseExplorerRealdataRoute,
 }
