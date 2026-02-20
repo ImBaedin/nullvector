@@ -1,0 +1,176 @@
+:root {
+  --nv-dur-fast: 120ms;
+  --nv-dur-base: 180ms;
+  --nv-dur-slow: 280ms;
+  --nv-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --nv-ease-emphasis: cubic-bezier(0.21, 1, 0.34, 1);
+}
+
+@keyframes nv-alert-edge-pulse {
+  0% {
+    opacity: 0.24;
+    box-shadow: inset 0 0 0 0 rgba(255, 111, 136, 0.2);
+  }
+  50% {
+    opacity: 0.88;
+    box-shadow: inset 0 0 0 1px rgba(255, 111, 136, 0.5);
+  }
+  100% {
+    opacity: 0.24;
+    box-shadow: inset 0 0 0 0 rgba(255, 111, 136, 0.2);
+  }
+}
+
+@keyframes nv-loading-sweep {
+  0% {
+    background-position: 170% 0;
+  }
+  100% {
+    background-position: -80% 0;
+  }
+}
+
+@keyframes nv-progress-stripes {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 20px 0;
+  }
+}
+
+@keyframes nv-progress-scan {
+  0% {
+    transform: translateX(-130%);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.45;
+  }
+  60% {
+    opacity: 0.15;
+  }
+  100% {
+    transform: translateX(160%);
+    opacity: 0;
+  }
+}
+
+@keyframes nv-starfield-drift {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: -56px 0;
+  }
+}
+
+.nv-transition {
+  transition-property: color, background-color, border-color, opacity, transform, box-shadow;
+  transition-duration: var(--nv-dur-base);
+  transition-timing-function: var(--nv-ease-standard);
+}
+
+.nv-alert-emphasis {
+  position: relative;
+  isolation: isolate;
+}
+
+.nv-alert-emphasis::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 111, 136, 0.34);
+  pointer-events: none;
+  animation: nv-alert-edge-pulse 1.6s ease-in-out infinite;
+}
+
+.nv-loading-sweep {
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.05));
+  background-size: 220% 100%;
+  animation: nv-loading-sweep 1.3s linear infinite;
+}
+
+.nv-progress-stripes {
+  background-image: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.22) 25%,
+    rgba(255, 255, 255, 0.06) 25%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.22) 75%,
+    rgba(255, 255, 255, 0.06) 75%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  background-repeat: repeat;
+  background-size: 20px 20px;
+  will-change: background-position;
+  animation: nv-progress-stripes 900ms linear infinite;
+}
+
+.nv-progress-scan {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0));
+  animation: nv-progress-scan 2.1s var(--nv-ease-emphasis) infinite;
+}
+
+.nv-starmap-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.nv-starmap-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(5, 10, 20, 0.94),
+    rgba(5, 10, 20, 0.28) 28%,
+    rgba(5, 10, 20, 0.28) 72%,
+    rgba(5, 10, 20, 0.94)
+  );
+  pointer-events: none;
+}
+
+.nv-starmap-stars {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 8px 10px, rgba(215, 244, 255, 0.8) 1.1px, transparent 1.2px),
+    radial-gradient(circle at 25px 18px, rgba(158, 226, 255, 0.68) 0.9px, transparent 1px),
+    radial-gradient(circle at 42px 7px, rgba(102, 209, 255, 0.52) 0.8px, transparent 0.9px),
+    radial-gradient(circle at 54px 22px, rgba(198, 240, 255, 0.56) 0.8px, transparent 0.9px);
+  background-size: 56px 28px;
+  background-repeat: repeat;
+  background-position: 0 0;
+  animation: nv-starfield-drift 2.6s linear infinite;
+  opacity: 0.5;
+}
+
+.nv-starmap-stars.is-slower {
+  background-image:
+    radial-gradient(circle at 14px 6px, rgba(198, 240, 255, 0.52) 0.9px, transparent 1px),
+    radial-gradient(circle at 33px 15px, rgba(145, 221, 255, 0.5) 0.8px, transparent 0.9px),
+    radial-gradient(circle at 49px 24px, rgba(108, 211, 255, 0.45) 0.75px, transparent 0.85px);
+  background-size: 68px 34px;
+  background-position: 19px 11px;
+  animation-duration: 4.2s;
+  opacity: 0.28;
+  filter: blur(0.2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nv-transition {
+    transition-duration: 0ms;
+  }
+
+  .nv-alert-emphasis::after,
+  .nv-loading-sweep,
+  .nv-progress-stripes,
+  .nv-progress-scan,
+  .nv-starmap-stars {
+    animation: none;
+  }
+}

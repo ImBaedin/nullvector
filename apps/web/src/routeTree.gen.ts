@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as UniverseExplorerRealdataRouteImport } from './routes/universe-explorer-realdata'
 import { Route as UniverseExplorerRouteImport } from './routes/universe-explorer'
 import { Route as UiMockupsRouteImport } from './routes/ui-mockups'
+import { Route as StyleLabRouteImport } from './routes/style-lab'
 import { Route as GravityDemoRouteImport } from './routes/gravity-demo'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
@@ -36,6 +37,11 @@ const UniverseExplorerRoute = UniverseExplorerRouteImport.update({
 const UiMockupsRoute = UiMockupsRouteImport.update({
   id: '/ui-mockups',
   path: '/ui-mockups',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StyleLabRoute = StyleLabRouteImport.update({
+  id: '/style-lab',
+  path: '/style-lab',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GravityDemoRoute = GravityDemoRouteImport.update({
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/gravity-demo': typeof GravityDemoRoute
+  '/style-lab': typeof StyleLabRoute
   '/ui-mockups': typeof UiMockupsRouteWithChildren
   '/universe-explorer': typeof UniverseExplorerRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/gravity-demo': typeof GravityDemoRoute
+  '/style-lab': typeof StyleLabRoute
   '/universe-explorer': typeof UniverseExplorerRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
   '/ui-mockups/1': typeof UiMockups1Route
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/gravity-demo': typeof GravityDemoRoute
+  '/style-lab': typeof StyleLabRoute
   '/ui-mockups': typeof UiMockupsRouteWithChildren
   '/universe-explorer': typeof UniverseExplorerRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/gravity-demo'
+    | '/style-lab'
     | '/ui-mockups'
     | '/universe-explorer'
     | '/universe-explorer-realdata'
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/gravity-demo'
+    | '/style-lab'
     | '/universe-explorer'
     | '/universe-explorer-realdata'
     | '/ui-mockups/1'
@@ -159,6 +170,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/gravity-demo'
+    | '/style-lab'
     | '/ui-mockups'
     | '/universe-explorer'
     | '/universe-explorer-realdata'
@@ -174,6 +186,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
   GravityDemoRoute: typeof GravityDemoRoute
+  StyleLabRoute: typeof StyleLabRoute
   UiMockupsRoute: typeof UiMockupsRouteWithChildren
   UniverseExplorerRoute: typeof UniverseExplorerRoute
   UniverseExplorerRealdataRoute: typeof UniverseExplorerRealdataRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/ui-mockups'
       fullPath: '/ui-mockups'
       preLoaderRoute: typeof UiMockupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/style-lab': {
+      id: '/style-lab'
+      path: '/style-lab'
+      fullPath: '/style-lab'
+      preLoaderRoute: typeof StyleLabRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gravity-demo': {
@@ -294,6 +314,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   GravityDemoRoute: GravityDemoRoute,
+  StyleLabRoute: StyleLabRoute,
   UiMockupsRoute: UiMockupsRouteWithChildren,
   UniverseExplorerRoute: UniverseExplorerRoute,
   UniverseExplorerRealdataRoute: UniverseExplorerRealdataRoute,

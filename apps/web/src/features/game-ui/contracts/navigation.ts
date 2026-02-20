@@ -1,0 +1,43 @@
+export type ContextNavId =
+  | "defenses"
+  | "facilities"
+  | "fleet"
+  | "overview"
+  | "resources"
+  | "shipyard";
+
+export type ContextNavItem = {
+  badgeCount?: number;
+  icon?: React.ReactNode;
+  id: ContextNavId;
+  isDisabled?: boolean;
+  label: string;
+  to: string;
+};
+
+export type ColonyOption = {
+  addressLabel?: string;
+  details?: string;
+  id: string;
+  imageUrl?: string;
+  isFavorite?: boolean;
+  name: string;
+  status?: string;
+};
+
+export type ResourceDatum = {
+  deltaPerMinute?: string;
+  energyDeficit?: number;
+  key: "alloy" | "crystal" | "energy" | "fuel";
+  storageCapLabel?: string;
+  storageCurrentLabel?: string;
+  storagePercent?: number;
+  tone?: "danger" | "neutral" | "positive" | "warning";
+  value: string;
+};
+
+export type AlertDatum = {
+  id: string;
+  message: string;
+  severity: "danger" | "info" | "warning";
+};
