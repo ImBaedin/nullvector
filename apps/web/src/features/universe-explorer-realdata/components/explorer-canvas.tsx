@@ -20,6 +20,7 @@ type BasicMapControls = {
 
 type ExplorerCanvasProps = {
   focusTarget: CameraFocusTarget | null;
+  maxFps?: number;
   onPointerMissed: () => void;
   sceneKey: string | number;
   children: React.ReactNode;
@@ -326,8 +327,30 @@ function FadingSceneGroup({
   return <group ref={groupRef}>{children}</group>;
 }
 
+function DemandFrameTicker({ fps }: { fps: number }) {
+  const invalidate = useThree((state) => state.invalidate);
+
+  useEffect(() => {
+    if (!Number.isFinite(fps) || fps <= 0) {
+      return;
+    }
+
+    const intervalMs = Math.max(16, Math.round(1_000 / fps));
+    const id = window.setInterval(() => {
+      invalidate();
+    }, intervalMs);
+
+    return () => {
+      window.clearInterval(id);
+    };
+  }, [fps, invalidate]);
+
+  return null;
+}
+
 export function ExplorerCanvas({
   focusTarget,
+  maxFps = 60,
   onPointerMissed,
   sceneKey,
   children,
@@ -360,6 +383,7 @@ export function ExplorerCanvas({
 
   return (
     <Canvas
+      frameloop={maxFps >= 50 ? "always" : "demand"}
       orthographic
       camera={{
         position: [
@@ -374,6 +398,7 @@ export function ExplorerCanvas({
       }}
       onPointerMissed={onPointerMissed}
     >
+      {maxFps < 50 ? <DemandFrameTicker fps={maxFps} /> : null}
       <color attach="background" args={["#030812"]} />
       <NebulaBackground controlsRef={controlsRef} />
       <ambientLight intensity={0.85} />

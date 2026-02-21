@@ -11,6 +11,13 @@ import { cn } from "@/lib/utils";
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";
 import { getHeaderConfigPlaceholder } from "./header-config";
 
+type AppHeaderProps = {
+  collapseContextNav?: boolean;
+  collapseResources?: boolean;
+  isStarMapOpen?: boolean;
+  onToggleStarMap?: () => void;
+};
+
 function useCompactHeaderMode() {
   const [isCompact, setIsCompact] = useState(false);
 
@@ -29,7 +36,12 @@ function useCompactHeaderMode() {
   return isCompact;
 }
 
-export function AppHeader() {
+export function AppHeader({
+  collapseContextNav = false,
+  collapseResources = false,
+  isStarMapOpen = false,
+  onToggleStarMap,
+}: AppHeaderProps = {}) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -39,6 +51,7 @@ export function AppHeader() {
     [pathname]
   );
   const isCompact = useCompactHeaderMode();
+  const handleStarMapToggle = onToggleStarMap ?? config.onOpenStarMap;
 
   const notificationsBadge = useMemo(() => {
     if (!config.notificationsCount || config.notificationsCount <= 0) {
@@ -98,9 +111,12 @@ export function AppHeader() {
               <button
                 className={cn(
                   "nv-starmap-hero nv-transition relative flex min-w-[170px] items-center justify-center gap-2 rounded-[var(--nv-r-sm)] border border-[color:rgba(61,217,255,0.42)] bg-[linear-gradient(165deg,rgba(61,217,255,0.18),rgba(61,217,255,0.06))] px-4 font-semibold text-[color:#e9fbff] shadow-[0_0_0_1px_rgba(61,217,255,0.12),0_8px_22px_rgba(4,8,20,0.46)] hover:border-[color:rgba(61,217,255,0.6)]",
+                  isStarMapOpen
+                    ? "border-[color:rgba(61,217,255,0.74)] shadow-[0_0_0_1px_rgba(61,217,255,0.28),0_10px_24px_rgba(4,8,20,0.56)]"
+                    : null,
                   isCompact ? "h-10 text-xs" : "h-12 text-sm"
                 )}
-                onClick={config.onOpenStarMap}
+                onClick={handleStarMapToggle}
                 type="button"
               >
                 <span className="nv-starmap-stars" />
@@ -158,25 +174,47 @@ export function AppHeader() {
           {config.resources?.length ? (
             <div
               className={cn(
-                "border-t border-[color:var(--nv-glass-stroke)] bg-[rgba(255,255,255,0.015)] px-3 lg:px-4",
-                isCompact ? "py-1.5" : "py-2"
+                "grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-out",
+                collapseResources
+                  ? "pointer-events-none grid-rows-[0fr] opacity-0"
+                  : "grid-rows-[1fr] opacity-100"
               )}
             >
-              <ResourceStrip resources={config.resources} />
+              <div className="min-h-0">
+                <div
+                  className={cn(
+                    "border-t border-[color:var(--nv-glass-stroke)] bg-[rgba(255,255,255,0.015)] px-3 lg:px-4",
+                    isCompact ? "py-1.5" : "py-2"
+                  )}
+                >
+                  <ResourceStrip resources={config.resources} />
+                </div>
+              </div>
             </div>
           ) : null}
 
           {config.contextTabs?.length && config.activeTabId ? (
             <div
               className={cn(
-                "bg-[rgba(255,255,255,0.01)] px-3 lg:px-4",
-                isCompact ? "py-0" : "py-0.5"
+                "grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-out",
+                collapseContextNav
+                  ? "pointer-events-none grid-rows-[0fr] opacity-0"
+                  : "grid-rows-[1fr] opacity-100"
               )}
             >
-              <ContextNav
-                activeId={config.activeTabId}
-                items={config.contextTabs}
-              />
+              <div className="min-h-0">
+                <div
+                  className={cn(
+                    "bg-[rgba(255,255,255,0.01)] px-3 lg:px-4",
+                    isCompact ? "py-0" : "py-0.5"
+                  )}
+                >
+                  <ContextNav
+                    activeId={config.activeTabId}
+                    items={config.contextTabs}
+                  />
+                </div>
+              </div>
             </div>
           ) : null}
         </NvPanel>
@@ -184,6 +222,7 @@ export function AppHeader() {
 
       <AppHeaderMobileDrawer
         config={config}
+        onOpenStarMap={handleStarMapToggle}
         onClose={() => setDrawerOpen(false)}
         open={drawerOpen}
       />

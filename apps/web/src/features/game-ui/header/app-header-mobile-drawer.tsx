@@ -7,10 +7,12 @@ import { NvBadge, NvButton, NvPanel } from "@/features/game-ui/primitives";
 export function AppHeaderMobileDrawer({
   config,
   onClose,
+  onOpenStarMap,
   open,
 }: {
   config: HeaderConfig;
   onClose: () => void;
+  onOpenStarMap?: () => void;
   open: boolean;
 }) {
   if (!open) {
@@ -33,7 +35,14 @@ export function AppHeaderMobileDrawer({
         </div>
 
         <div className="mt-3 space-y-2">
-          <NvButton className="w-full justify-start" onClick={config.onOpenStarMap} variant="ghost">
+          <NvButton
+            className="w-full justify-start"
+            onClick={() => {
+              onOpenStarMap?.();
+              onClose();
+            }}
+            variant="ghost"
+          >
             Star Map
           </NvButton>
           <NvButton className="w-full justify-start" onClick={config.onOpenNotifications} variant="ghost">
