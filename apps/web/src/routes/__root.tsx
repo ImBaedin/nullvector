@@ -1,7 +1,6 @@
 import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
-import { HeaderConfigProvider } from "@/features/game-ui/header";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -40,11 +39,9 @@ function RootComponent() {
         disableTransitionOnChange
         storageKey="vite-ui-theme"
       >
-        <HeaderConfigProvider>
-          <div className="h-svh min-h-0">
-            <Outlet />
-          </div>
-        </HeaderConfigProvider>
+        <div className="h-svh min-h-0">
+          <Outlet />
+        </div>
         <Toaster richColors />
       </ThemeProvider>
       <TanStackRouterDevtools position="bottom-left" />

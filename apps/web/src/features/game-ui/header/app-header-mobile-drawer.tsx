@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 
-import type { HeaderConfig } from "./header-config-context";
+import type { HeaderConfig } from "./header-config";
 
 import { NvBadge, NvButton, NvPanel } from "@/features/game-ui/primitives";
 

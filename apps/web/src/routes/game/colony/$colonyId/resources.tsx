@@ -4,11 +4,6 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
-import type {
-  ContextNavItem,
-  ResourceDatum,
-} from "@/features/game-ui/contracts/navigation";
-import { useSetHeaderConfig } from "@/features/game-ui/header";
 import { UpgradeButton } from "@/features/ui-mockups/components/upgrade-button";
 import { Gauge, Info, LayersPlus, Settings, X } from "lucide-react";
 
@@ -39,80 +34,6 @@ type GeneratorDatum = {
   group: GeneratorGroup;
   upgradeCost: Partial<Record<UpgradeResourceKey, number>>;
 };
-
-function createContextTabs(basePath: string): ContextNavItem[] {
-  return [
-    {
-      id: "overview",
-      label: "Overview",
-      to: basePath,
-      icon: <NavIcon src="/game-icons/nav/overview.png" alt="Overview" />,
-    },
-    {
-      id: "resources",
-      label: "Resources",
-      to: basePath,
-      icon: <NavIcon src="/game-icons/nav/resources.png" alt="Resources" />,
-    },
-    {
-      id: "facilities",
-      label: "Facilities",
-      to: basePath,
-      icon: <NavIcon src="/game-icons/nav/facilities.png" alt="Facilities" />,
-    },
-    {
-      id: "shipyard",
-      label: "Shipyard",
-      to: basePath,
-      icon: <NavIcon src="/game-icons/nav/shipyard.png" alt="Shipyard" />,
-    },
-    {
-      id: "defenses",
-      label: "Defenses",
-      to: basePath,
-      icon: <NavIcon src="/game-icons/nav/defenses.png" alt="Defenses" />,
-      badgeCount: 1,
-    },
-    {
-      id: "fleet",
-      label: "Fleet",
-      to: basePath,
-      icon: <NavIcon src="/game-icons/nav/fleet.png" alt="Fleet" />,
-    },
-  ];
-}
-
-const topResources: ResourceDatum[] = [
-  {
-    key: "alloy",
-    value: "143.2k",
-    deltaPerMinute: "+394/m",
-    storagePercent: 71,
-    storageCurrentLabel: "143.2k",
-    storageCapLabel: "200k",
-  },
-  {
-    key: "crystal",
-    value: "96.5k",
-    deltaPerMinute: "+276/m",
-    storagePercent: 62,
-    storageCurrentLabel: "96.5k",
-    storageCapLabel: "155k",
-  },
-  {
-    key: "fuel",
-    value: "53.7k",
-    deltaPerMinute: "+118/m",
-    storagePercent: 41,
-    storageCurrentLabel: "53.7k",
-    storageCapLabel: "130k",
-  },
-  {
-    key: "energy",
-    value: "89%",
-    energyDeficit: 48,
-  },
-];
 
 const AVAILABLE_UPGRADE_RESOURCES: Record<UpgradeResourceKey, number> = {
   alloy: 143_200,
@@ -246,14 +167,6 @@ const STATUS_STYLES: Record<
 };
 
 function UiMockupSixRoute() {
-  const { colonyId } = Route.useParams();
-  const setHeaderConfig = useSetHeaderConfig();
-  const colonyPath = `/game/colony/${colonyId}/resources`;
-  const contextTabs = useMemo(
-    () => createContextTabs(colonyPath),
-    [colonyPath]
-  );
-
   const [scales, setScales] = useState<Record<string, number>>({
     "alloy-rig": 6,
     "aux-reactor": 0,
@@ -276,17 +189,6 @@ function UiMockupSixRoute() {
     null
   );
   const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    setHeaderConfig({
-      mode: "game",
-      title: `Colony ${colonyId} Resources`,
-      activeTabId: "resources",
-      contextTabs,
-      resources: topResources,
-      notificationsCount: 3,
-    });
-  }, [contextTabs, colonyId, setHeaderConfig]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setIsReady(true));
@@ -769,16 +671,6 @@ function GeneratorInfoPopover({
         </Popover.Positioner>
       </Popover.Portal>
     </Popover.Root>
-  );
-}
-
-function NavIcon({ alt, src }: { alt: string; src: string }) {
-  return (
-    <img
-      alt={`${alt} nav icon`}
-      className="h-10 w-10 shrink-0 object-contain"
-      src={src}
-    />
   );
 }
 

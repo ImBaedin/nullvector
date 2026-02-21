@@ -1,27 +1,15 @@
 import { Bell, Menu, Settings } from "lucide-react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ResourceStrip } from "@/features/game-ui/shell/resource-strip";
-import { GameThemeProvider } from "@/features/game-ui/theme";
-import { ModeToggle } from "@/components/mode-toggle";
-import {
-  NvBadge,
-  NvButton,
-  NvIconButton,
-  NvPanel,
-} from "@/features/game-ui/primitives";
+import { NvBadge, NvIconButton, NvPanel } from "@/features/game-ui/primitives";
 import { cn } from "@/lib/utils";
 
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";
-import { useHeaderConfig } from "./use-header-config";
-
-const MINIMAL_LINKS = [
-  { to: "/style-lab", label: "Style Lab" },
-  { to: "/universe-explorer-realdata", label: "Explorer" },
-] as const;
+import { getHeaderConfigPlaceholder } from "./header-config";
 
 function useCompactHeaderMode() {
   const [isCompact, setIsCompact] = useState(false);
@@ -42,14 +30,15 @@ function useCompactHeaderMode() {
 }
 
 export function AppHeader() {
-  const config = useHeaderConfig();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
+  const config = useMemo(
+    () => getHeaderConfigPlaceholder(pathname),
+    [pathname]
+  );
   const isCompact = useCompactHeaderMode();
-
-  const showGameMode = config.mode === "game";
 
   const notificationsBadge = useMemo(() => {
     if (!config.notificationsCount || config.notificationsCount <= 0) {
@@ -59,34 +48,12 @@ export function AppHeader() {
     return <NvBadge tone="info">{config.notificationsCount}</NvBadge>;
   }, [config.notificationsCount]);
 
-  if (!showGameMode) {
-    return (
-      <div className="border-b backdrop-blur">
-        <div className="flex items-center justify-between gap-3 px-3 py-2">
-          <nav className="flex items-center gap-3 text-sm">
-            {MINIMAL_LINKS.map((link) => (
-              <Link
-                className={cn(
-                  "rounded px-2 py-1",
-                  pathname === link.to
-                    ? "bg-foreground/10"
-                    : "hover:bg-foreground/5"
-                )}
-                key={link.to}
-                to={link.to}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-          <ModeToggle />
-        </div>
-      </div>
-    );
+  if (config.mode !== "game") {
+    return null;
   }
 
   return (
-    <GameThemeProvider>
+    <>
       <header
         className={cn(
           "sticky top-0 z-[var(--nv-z-popover)] px-2 pt-2 transition-all duration-200 lg:px-3",
@@ -94,7 +61,7 @@ export function AppHeader() {
         )}
       >
         <NvPanel
-          className="overflow-visible rounded-b-[var(--nv-r-xl)] border-x-0 border-t-0 p-0"
+          className="overflow-hidden rounded-b-[var(--nv-r-xl)] border-x-0 border-t-0 p-0"
           density="compact"
         >
           <div
@@ -220,6 +187,6 @@ export function AppHeader() {
         onClose={() => setDrawerOpen(false)}
         open={drawerOpen}
       />
-    </GameThemeProvider>
+    </>
   );
 }

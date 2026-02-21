@@ -1,15 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-
-import type {
-  ColonyOption,
-  ContextNavItem,
-} from "@/features/game-ui/contracts/navigation";
 import { MEDIA_SLOT_SPECS } from "@/features/game-ui/contracts/media-slots";
-import {
-  useResetHeaderConfig,
-  useSetHeaderConfig,
-} from "@/features/game-ui/header";
 import {
   NvBadge,
   NvButton,
@@ -20,136 +10,15 @@ import {
   NvTable,
 } from "@/features/game-ui/primitives";
 import { GameShell } from "@/features/game-ui/shell";
-import { GameThemeProvider } from "@/features/game-ui/theme";
+import "@/features/game-ui/theme";
 
 export const Route = createFileRoute("/style-lab")({
   component: StyleLabRoute,
 });
 
-const colonies: ColonyOption[] = [
-  {
-    id: "aegis-prime",
-    name: "Aegis Prime",
-    addressLabel: "G2:S5:SYS3",
-    status: "Stable Grid",
-    details: "Capital industrial world",
-    imageUrl: "/game-icons/alloy.png",
-  },
-  {
-    id: "helion-drift",
-    name: "Helion Drift",
-    addressLabel: "G2:S4:SYS8",
-    status: "Fuel Overflow",
-    details: "Refinery-heavy colony",
-    imageUrl: "/game-icons/deuterium.png",
-  },
-  {
-    id: "cinder-nest",
-    name: "Cinder Nest",
-    addressLabel: "G1:S9:SYS2",
-    status: "Raid Watch",
-    details: "Forward defense outpost",
-    imageUrl: "/game-icons/energy.png",
-  },
-];
-
-const contextTabs: ContextNavItem[] = [
-  {
-    id: "overview",
-    label: "Overview",
-    to: "/style-lab",
-    icon: <NavIcon src="/game-icons/nav/overview.png" alt="Overview" />,
-  },
-  {
-    id: "resources",
-    label: "Resources",
-    to: "/style-lab",
-    icon: <NavIcon src="/game-icons/nav/resources.png" alt="Resources" />,
-  },
-  {
-    id: "facilities",
-    label: "Facilities",
-    to: "/style-lab",
-    icon: <NavIcon src="/game-icons/nav/facilities.png" alt="Facilities" />,
-  },
-  {
-    id: "shipyard",
-    label: "Shipyard",
-    to: "/style-lab",
-    icon: <NavIcon src="/game-icons/nav/shipyard.png" alt="Shipyard" />,
-  },
-  {
-    id: "defenses",
-    label: "Defenses",
-    to: "/style-lab",
-    icon: <NavIcon src="/game-icons/nav/defenses.png" alt="Defenses" />,
-    badgeCount: 2,
-  },
-  {
-    id: "fleet",
-    label: "Fleet",
-    to: "/style-lab",
-    icon: <NavIcon src="/game-icons/nav/fleet.png" alt="Fleet" />,
-  },
-];
-
-const sampleResources = [
-  {
-    key: "alloy" as const,
-    value: "127.4k",
-    deltaPerMinute: "+412/m",
-    storagePercent: 72,
-    storageCurrentLabel: "127.4k",
-    storageCapLabel: "176k",
-  },
-  {
-    key: "crystal" as const,
-    value: "82.9k",
-    deltaPerMinute: "+259/m",
-    storagePercent: 58,
-    storageCurrentLabel: "82.9k",
-    storageCapLabel: "143k",
-  },
-  {
-    key: "fuel" as const,
-    value: "41.2k",
-    deltaPerMinute: "+148/m",
-    storagePercent: 34,
-    storageCurrentLabel: "41.2k",
-    storageCapLabel: "121k",
-  },
-  {
-    key: "energy" as const,
-    value: "74%",
-    energyDeficit: 120,
-  },
-];
-
 function StyleLabRoute() {
-  const [activeColonyId, setActiveColonyId] = useState("aegis-prime");
-  const setHeaderConfig = useSetHeaderConfig();
-  const resetHeaderConfig = useResetHeaderConfig();
-
-  useEffect(() => {
-    setHeaderConfig({
-      mode: "game",
-      title: "Style Lab",
-      activeColonyId,
-      colonies,
-      onColonyChange: setActiveColonyId,
-      activeTabId: "overview",
-      contextTabs,
-      resources: sampleResources,
-      notificationsCount: 2,
-    });
-
-    return () => {
-      resetHeaderConfig();
-    };
-  }, [activeColonyId, resetHeaderConfig, setHeaderConfig]);
-
   return (
-    <GameThemeProvider className="h-full min-h-0 overflow-hidden">
+    <div className="h-full min-h-0 overflow-hidden">
       <GameShell
         alerts={[
           {
@@ -271,16 +140,6 @@ function StyleLabRoute() {
           </NvPanel>
         </div>
       </GameShell>
-    </GameThemeProvider>
-  );
-}
-
-function NavIcon({ alt, src }: { alt: string; src: string }) {
-  return (
-    <img
-      alt={`${alt} nav icon`}
-      className="h-10 w-10 shrink-0 object-contain"
-      src={src}
-    />
+    </div>
   );
 }
