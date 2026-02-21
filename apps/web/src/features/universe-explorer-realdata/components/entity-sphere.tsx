@@ -5,7 +5,7 @@ import { AdditiveBlending, Box3, Color, DoubleSide, Sphere } from "three";
 import type { Group, ShaderMaterial } from "three";
 
 import { getEntityVisualPreset, hashStringToUnit } from "./entity-visuals";
-import type { ExplorerEntityType } from "../types";
+import type { ExplorerEntityType, ExplorerResolvedQuality } from "../types";
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
@@ -14,6 +14,7 @@ function clamp01(value: number) {
 const GALAXY_MODEL_COUNT = 16;
 const GALAXY_MODEL_BASE_PATH = "/models/galaxy";
 const GALAXY_MODEL_VISUAL_SCALE = 2;
+const galaxyBaseRadiusCache = new Map<string, number>();
 const GALAXY_VFX_TUNING = {
   glow: {
     ringScale: [1.1, 1.1, 0.2] as [number, number, number],
@@ -82,6 +83,7 @@ type EntitySphereVisualProps = {
   radius: number;
   entityType: ExplorerEntityType;
   seedKey: string;
+  quality: ExplorerResolvedQuality;
   isSelected: boolean;
   isHovered: boolean;
   detailLevel: "full" | "compact";
@@ -94,6 +96,7 @@ type EntitySphereVisualProps = {
 type GalaxyDiscVisualProps = {
   radius: number;
   detailLevel: "full" | "compact";
+  quality: ExplorerResolvedQuality;
   coreColor: string;
   emissiveColor: string;
   emissiveIntensity: number;
@@ -113,6 +116,7 @@ type GalaxyDiscVisualProps = {
 type GalaxyModelVisualProps = {
   radius: number;
   modelPath: string;
+  quality: ExplorerResolvedQuality;
   spinSpeedRadPerSec: number;
   glowColor: string;
   glowOpacity: number;
@@ -130,6 +134,7 @@ type EntitySphereProps = {
   radius: number;
   entityType: ExplorerEntityType;
   seedKey: string;
+  quality?: ExplorerResolvedQuality;
   isSelected: boolean;
   isHovered: boolean;
   detailLevel?: "full" | "compact";
@@ -142,6 +147,7 @@ type EntitySphereProps = {
 function GalaxyDiscVisual({
   radius,
   detailLevel,
+  quality,
   coreColor,
   emissiveColor,
   emissiveIntensity,
@@ -158,7 +164,8 @@ function GalaxyDiscVisual({
   onPointerOut,
 }: GalaxyDiscVisualProps) {
   const polyDetail = detailLevel === "compact" ? 0 : 1;
-  const ringSegments = detailLevel === "compact" ? 24 : 36;
+  const ringSegments =
+    quality === "high" ? (detailLevel === "compact" ? 24 : 36) : 20;
 
   return (
     <>
@@ -253,6 +260,7 @@ function GalaxyDiscVisual({
 function GalaxyModelVisual({
   radius,
   modelPath,
+  quality,
   spinSpeedRadPerSec,
   glowColor,
   glowOpacity,
@@ -268,11 +276,18 @@ function GalaxyModelVisual({
   const hazeFogMaterialRef = useRef<ShaderMaterial | null>(null);
   const gltf = useGLTF(modelPath);
   const baseRadius = useMemo(() => {
+    const cachedRadius = galaxyBaseRadiusCache.get(modelPath);
+    if (cachedRadius !== undefined) {
+      return cachedRadius;
+    }
+
     const bounds = new Box3().setFromObject(gltf.scene);
     const sphere = new Sphere();
     bounds.getBoundingSphere(sphere);
-    return Math.max(sphere.radius, Number.EPSILON);
-  }, [gltf.scene]);
+    const computedRadius = Math.max(sphere.radius, Number.EPSILON);
+    galaxyBaseRadiusCache.set(modelPath, computedRadius);
+    return computedRadius;
+  }, [gltf.scene, modelPath]);
   const modelScale = (radius / baseRadius) * GALAXY_MODEL_VISUAL_SCALE;
   const tuning = GALAXY_VFX_TUNING;
   const activeGlowOpacity = clamp01(
@@ -349,7 +364,7 @@ function GalaxyModelVisual({
           args={[
             radius * tuning.glow.ringInnerRadiusMul,
             radius * tuning.glow.ringOuterRadiusMul,
-            36,
+            quality === "high" ? 36 : 24,
           ]}
         />
         <meshBasicMaterial
@@ -363,7 +378,13 @@ function GalaxyModelVisual({
         />
       </mesh>
       <mesh scale={tuning.glow.sphereScale} renderOrder={7} raycast={() => {}}>
-        <sphereGeometry args={[radius * tuning.glow.sphereRadiusMul, 16, 12]} />
+        <sphereGeometry
+          args={[
+            radius * tuning.glow.sphereRadiusMul,
+            quality === "high" ? 16 : 12,
+            quality === "high" ? 12 : 8,
+          ]}
+        />
         <meshBasicMaterial
           color={glowColor}
           transparent
@@ -379,7 +400,11 @@ function GalaxyModelVisual({
         raycast={() => {}}
       >
         <sphereGeometry
-          args={[radius * tuning.fog.occlusion.sphereRadiusMul, 28, 18]}
+          args={[
+            radius * tuning.fog.occlusion.sphereRadiusMul,
+            quality === "high" ? 28 : 18,
+            quality === "high" ? 18 : 12,
+          ]}
         />
         <shaderMaterial
           ref={occlusionFogMaterialRef}
@@ -467,7 +492,9 @@ function GalaxyModelVisual({
         renderOrder={12}
         raycast={() => {}}
       >
-        <circleGeometry args={[radius * tuning.fog.haze.circleRadiusMul, 52]} />
+        <circleGeometry
+          args={[radius * tuning.fog.haze.circleRadiusMul, quality === "high" ? 52 : 30]}
+        />
         <shaderMaterial
           ref={hazeFogMaterialRef}
           transparent
@@ -545,6 +572,7 @@ export function EntitySphereVisual({
   radius,
   entityType,
   seedKey,
+  quality,
   isSelected,
   isHovered,
   detailLevel,
@@ -574,11 +602,37 @@ export function EntitySphereVisual({
   const shellOpacity = clamp01(
     preset.shellOpacity + (isHovered ? 0.05 : 0) + (isSelected ? 0.1 : 0)
   );
-  const segmentCount = detailLevel === "compact" ? 18 : 22;
+  const segmentCount =
+    quality === "high" ? (detailLevel === "compact" ? 18 : 22) : 14;
 
   if (entityType === "galaxy") {
     const modelPath = getGalaxyModelPath(seedKey);
     const spinSpeedRadPerSec = 0.04 + hashStringToUnit(seedKey) * 0.08;
+    const shouldUseModel = quality === "high";
+
+    if (!shouldUseModel) {
+      return (
+        <GalaxyDiscVisual
+          radius={radius}
+          detailLevel={detailLevel}
+          quality={quality}
+          coreColor={preset.coreColor}
+          emissiveColor={preset.emissiveColor}
+          emissiveIntensity={emissiveIntensity}
+          ringColor={preset.ringColor}
+          ringOpacity={ringOpacity}
+          ringRotationRad={preset.ringRotationRad}
+          haloColor={preset.haloColor}
+          haloOpacity={haloOpacity}
+          shellColor={preset.shellColor}
+          shellOpacity={shellOpacity}
+          onClick={onClick}
+          onPointerOver={onPointerOver}
+          onPointerMove={onPointerMove}
+          onPointerOut={onPointerOut}
+        />
+      );
+    }
 
     return (
       <Suspense
@@ -586,6 +640,7 @@ export function EntitySphereVisual({
           <GalaxyDiscVisual
             radius={radius}
             detailLevel={detailLevel}
+            quality={quality}
             coreColor={preset.coreColor}
             emissiveColor={preset.emissiveColor}
             emissiveIntensity={emissiveIntensity}
@@ -606,6 +661,7 @@ export function EntitySphereVisual({
         <GalaxyModelVisual
           radius={radius}
           modelPath={modelPath}
+          quality={quality}
           spinSpeedRadPerSec={spinSpeedRadPerSec}
           glowColor={preset.haloColor}
           glowOpacity={haloOpacity}
@@ -640,7 +696,7 @@ export function EntitySphereVisual({
       </mesh>
 
       <mesh scale={preset.haloScale} renderOrder={12} raycast={() => {}}>
-        <sphereGeometry args={[radius, 16, 16]} />
+        <sphereGeometry args={[radius, quality === "high" ? 16 : 12, quality === "high" ? 16 : 12]} />
         <meshBasicMaterial
           color={preset.haloColor}
           transparent
@@ -651,7 +707,7 @@ export function EntitySphereVisual({
 
       {detailLevel === "full" && preset.hasShell ? (
         <mesh scale={preset.shellScale} renderOrder={18} raycast={() => {}}>
-          <sphereGeometry args={[radius, 14, 14]} />
+          <sphereGeometry args={[radius, quality === "high" ? 14 : 10, quality === "high" ? 14 : 10]} />
           <meshBasicMaterial
             color={preset.shellColor}
             transparent
@@ -672,7 +728,7 @@ export function EntitySphereVisual({
             args={[
               radius * preset.ringInnerScale,
               radius * preset.ringOuterScale,
-              48,
+              quality === "high" ? 48 : 24,
             ]}
           />
           <meshBasicMaterial
@@ -694,6 +750,7 @@ export function EntitySphere({
   radius,
   entityType,
   seedKey,
+  quality = "high",
   isSelected,
   isHovered,
   detailLevel = "full",
@@ -730,6 +787,7 @@ export function EntitySphere({
         radius={radius}
         entityType={entityType}
         seedKey={seedKey}
+        quality={quality}
         isSelected={isSelected}
         isHovered={isHovered}
         detailLevel={detailLevel}

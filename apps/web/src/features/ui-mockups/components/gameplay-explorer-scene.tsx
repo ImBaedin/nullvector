@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
@@ -13,7 +13,11 @@ import {
   useExplorerContext,
 } from "@/features/universe-explorer-realdata/context/explorer-context";
 import { useExplorerData } from "@/features/universe-explorer-realdata/hooks/use-explorer-data";
-import type { RenderableEntity } from "@/features/universe-explorer-realdata/types";
+import { useExplorerQuality } from "@/features/universe-explorer-realdata/hooks/use-explorer-quality";
+import type {
+  HoverPanelState,
+  RenderableEntity,
+} from "@/features/universe-explorer-realdata/types";
 
 type GameplayExplorerSnapshot = {
   colonyCountEstimate: number;
@@ -47,7 +51,20 @@ export function GameplayExplorerScene({ overlay }: GameplayExplorerSceneProps) {
 function GameplayExplorerSceneInner({ overlay }: GameplayExplorerSceneProps) {
   const explorer = useExplorerContext();
   const data = useExplorerData();
+  const { antialiasEnabled, canvasDpr, resolvedQuality } = useExplorerQuality();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [hover, setHover] = useState<HoverPanelState | null>(null);
+  const hoverRafRef = useRef<number | null>(null);
+  const pendingHoverRef = useRef<HoverPanelState | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hoverRafRef.current !== null) {
+        cancelAnimationFrame(hoverRafRef.current);
+        hoverRafRef.current = null;
+      }
+    };
+  }, []);
 
   const handleHover = (
     entity: RenderableEntity,
@@ -55,20 +72,30 @@ function GameplayExplorerSceneInner({ overlay }: GameplayExplorerSceneProps) {
     screenY: number
   ) => {
     setHoveredId(entity.id);
-    explorer.setHover(
-      {
-        entityType: entity.entityType,
-        name: entity.name,
-        addressLabel: entity.addressLabel,
-      },
+    pendingHoverRef.current = {
+      entityType: entity.entityType,
+      name: entity.name,
+      addressLabel: entity.addressLabel,
       screenX,
-      screenY
-    );
+      screenY,
+    };
+    if (hoverRafRef.current !== null) {
+      return;
+    }
+    hoverRafRef.current = requestAnimationFrame(() => {
+      hoverRafRef.current = null;
+      setHover(pendingHoverRef.current);
+    });
   };
 
   const clearHover = () => {
     setHoveredId(null);
-    explorer.clearHover();
+    pendingHoverRef.current = null;
+    setHover(null);
+    if (hoverRafRef.current !== null) {
+      cancelAnimationFrame(hoverRafRef.current);
+      hoverRafRef.current = null;
+    }
   };
 
   const handleUniverseEntitySelect = (entity: RenderableEntity) => {
@@ -187,6 +214,7 @@ function GameplayExplorerSceneInner({ overlay }: GameplayExplorerSceneProps) {
         <LevelUniverse
           entities={data.galaxyEntities}
           hoveredId={hoveredId}
+          quality={resolvedQuality}
           onHover={handleHover}
           onHoverEnd={clearHover}
           onSelect={handleUniverseEntitySelect}
@@ -197,6 +225,7 @@ function GameplayExplorerSceneInner({ overlay }: GameplayExplorerSceneProps) {
         <LevelGalaxy
           entities={data.sectorEntities}
           hoveredId={hoveredId}
+          quality={resolvedQuality}
           onHover={handleHover}
           onHoverEnd={clearHover}
           onSelect={handleGalaxyEntitySelect}
@@ -207,6 +236,7 @@ function GameplayExplorerSceneInner({ overlay }: GameplayExplorerSceneProps) {
         <LevelSector
           entities={data.systemEntities}
           hoveredId={hoveredId}
+          quality={resolvedQuality}
           onHover={handleHover}
           onHoverEnd={clearHover}
           onSelect={handleSectorEntitySelect}
@@ -217,6 +247,7 @@ function GameplayExplorerSceneInner({ overlay }: GameplayExplorerSceneProps) {
         <LevelSystem
           entities={data.planetEntities}
           hoveredId={hoveredId}
+          quality={resolvedQuality}
           selectedPlanetId={explorer.path.planetId}
           starCenter={
             data.selectedSystem
@@ -236,14 +267,17 @@ function GameplayExplorerSceneInner({ overlay }: GameplayExplorerSceneProps) {
   return (
     <div className="relative h-full min-h-0">
       <ExplorerCanvas
+        antialias={antialiasEnabled}
+        dpr={canvasDpr}
         focusTarget={explorer.focusTarget}
         onPointerMissed={clearHover}
+        quality={resolvedQuality}
         sceneKey={explorer.level}
       >
         {sceneContent}
       </ExplorerCanvas>
       {extraOverlay}
-      <HoverPanel />
+      <HoverPanel hover={hover} />
       <MiniSystemReadout
         currentLevel={snapshot.currentLevel}
         selectedPathLabel={snapshot.selectedPathLabel}

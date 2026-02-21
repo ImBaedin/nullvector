@@ -1,8 +1,6 @@
-import { useExplorerContext } from "../context/explorer-context";
+import type { HoverPanelState } from "../types";
 
-export function HoverPanel() {
-  const explorer = useExplorerContext();
-  const hover = explorer.hover;
+export function HoverPanel({ hover }: { hover: HoverPanelState | null }) {
 
   if (!hover) {
     return null;

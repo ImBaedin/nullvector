@@ -4,11 +4,12 @@ import { BufferGeometry, Float32BufferAttribute, type Group } from "three";
 
 import { computeOrbitWorldPosition } from "../lib/orbits";
 import { EntitySphere, EntitySphereVisual } from "./entity-sphere";
-import type { RenderableEntity } from "../types";
+import type { ExplorerResolvedQuality, RenderableEntity } from "../types";
 
 type LevelSystemProps = {
   entities: RenderableEntity[];
   hoveredId: string | null;
+  quality: ExplorerResolvedQuality;
   selectedPlanetId: string | undefined;
   starCenter?: {
     x: number;
@@ -25,21 +26,32 @@ type LevelSystemProps = {
   onHoverEnd: () => void;
 };
 
-const ORBIT_SEGMENTS = 96;
+function getOrbitSegments(quality: ExplorerResolvedQuality) {
+  if (quality === "low") {
+    return 48;
+  }
+  if (quality === "medium") {
+    return 72;
+  }
+  return 96;
+}
 
 function OrbitPath({
   centerX,
   centerY,
+  quality,
   radius,
 }: {
   centerX: number;
   centerY: number;
+  quality: ExplorerResolvedQuality;
   radius: number;
 }) {
+  const segmentCount = getOrbitSegments(quality);
   const positions = useMemo(() => {
     const values: number[] = [];
-    for (let index = 0; index < ORBIT_SEGMENTS; index += 1) {
-      const angle = (index / ORBIT_SEGMENTS) * Math.PI * 2;
+    for (let index = 0; index < segmentCount; index += 1) {
+      const angle = (index / segmentCount) * Math.PI * 2;
       values.push(
         centerX + Math.cos(angle) * radius,
         centerY + Math.sin(angle) * radius,
@@ -47,7 +59,7 @@ function OrbitPath({
       );
     }
     return values;
-  }, [centerX, centerY, radius]);
+  }, [centerX, centerY, radius, segmentCount]);
 
   const geometry = useMemo(() => {
     const nextGeometry = new BufferGeometry();
@@ -80,6 +92,7 @@ function OrbitingPlanetSphere({
   entity,
   isSelected,
   isHovered,
+  quality,
   onSelect,
   onHover,
   onHoverEnd,
@@ -87,6 +100,7 @@ function OrbitingPlanetSphere({
   entity: RenderableEntity;
   isSelected: boolean;
   isHovered: boolean;
+  quality: ExplorerResolvedQuality;
   onSelect: (
     entity: RenderableEntity,
     position?: {
@@ -99,17 +113,21 @@ function OrbitingPlanetSphere({
 }) {
   const orbit = entity.orbit;
   const groupRef = useRef<Group | null>(null);
+  const startMsRef = useRef(Date.now());
   const currentPositionRef = useRef({
     x: entity.x,
     y: entity.y,
   });
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     if (!orbit || !groupRef.current) {
       return;
     }
 
-    const nextPosition = computeOrbitWorldPosition(orbit, Date.now());
+    const nextPosition = computeOrbitWorldPosition(
+      orbit,
+      startMsRef.current + clock.elapsedTime * 1_000
+    );
     currentPositionRef.current = nextPosition;
     groupRef.current.position.set(nextPosition.x, nextPosition.y, 0);
   });
@@ -122,6 +140,7 @@ function OrbitingPlanetSphere({
         radius={entity.sphereRadius}
         entityType={entity.entityType}
         seedKey={entity.sourceId}
+        quality={quality}
         isSelected={isSelected}
         isHovered={isHovered}
         onSelect={() => onSelect(entity)}
@@ -140,6 +159,7 @@ function OrbitingPlanetSphere({
         radius={entity.sphereRadius}
         entityType={entity.entityType}
         seedKey={entity.sourceId}
+        quality={quality}
         isSelected={isSelected}
         isHovered={isHovered}
         detailLevel="compact"
@@ -167,6 +187,7 @@ function OrbitingPlanetSphere({
 export function LevelSystem({
   entities,
   hoveredId,
+  quality,
   selectedPlanetId,
   starCenter,
   onSelect,
@@ -193,6 +214,7 @@ export function LevelSystem({
             key={`orbit:${entity.id}`}
             centerX={entity.orbit.centerX}
             centerY={entity.orbit.centerY}
+            quality={quality}
             radius={entity.orbit.orbitRadius}
           />
         ) : null
@@ -203,6 +225,7 @@ export function LevelSystem({
           entity={entity}
           isSelected={selectedPlanetId === entity.sourceId}
           isHovered={hoveredId === entity.id}
+          quality={quality}
           onSelect={onSelect}
           onHover={onHover}
           onHoverEnd={onHoverEnd}

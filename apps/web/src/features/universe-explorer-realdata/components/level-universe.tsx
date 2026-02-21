@@ -1,9 +1,10 @@
 import { EntitySphere } from "./entity-sphere";
-import type { RenderableEntity } from "../types";
+import type { ExplorerResolvedQuality, RenderableEntity } from "../types";
 
 type LevelUniverseProps = {
   entities: RenderableEntity[];
   hoveredId: string | null;
+  quality: ExplorerResolvedQuality;
   onSelect: (entity: RenderableEntity) => void;
   onHover: (entity: RenderableEntity, screenX: number, screenY: number) => void;
   onHoverEnd: () => void;
@@ -12,6 +13,7 @@ type LevelUniverseProps = {
 export function LevelUniverse({
   entities,
   hoveredId,
+  quality,
   onSelect,
   onHover,
   onHoverEnd,
@@ -26,6 +28,7 @@ export function LevelUniverse({
           radius={entity.sphereRadius}
           entityType={entity.entityType}
           seedKey={entity.sourceId}
+          quality={quality}
           isSelected={false}
           isHovered={hoveredId === entity.id}
           onSelect={() => onSelect(entity)}

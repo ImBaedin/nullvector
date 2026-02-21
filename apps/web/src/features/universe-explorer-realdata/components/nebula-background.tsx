@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { type OrthographicCamera, Vector2, type Vector3 } from "three";
 
 import { createNebulaMaterial } from "./nebula-shader";
+import type { ExplorerResolvedQuality } from "../types";
 
 type BasicMapControls = {
   target: Vector3;
@@ -10,6 +11,7 @@ type BasicMapControls = {
 
 type NebulaBackgroundProps = {
   controlsRef: RefObject<BasicMapControls | null>;
+  quality: ExplorerResolvedQuality;
 };
 
 const SCREEN_QUAD_SIZE = 2; // Full-screen clip-space quad size.
@@ -48,7 +50,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function NebulaBackground({ controlsRef }: NebulaBackgroundProps) {
+export function NebulaBackground({ controlsRef, quality }: NebulaBackgroundProps) {
   const camera = useThree((state) => state.camera as OrthographicCamera);
   const size = useThree((state) => state.size);
   const previousCameraRef = useRef<{ x: number; y: number; z: number } | null>(
@@ -56,20 +58,27 @@ export function NebulaBackground({ controlsRef }: NebulaBackgroundProps) {
   );
   const baseZoomRef = useRef<number | null>(null);
   const previousTargetRef = useRef<Vector2 | null>(null);
-  const appearanceDetailRef = useRef(1);
+  const baseAppearanceDetailRef = useRef<number | null>(null);
   const parallaxOffsetRef = useRef(new Vector2(0, 0));
   const viewScaleRef = useRef(1);
+  const frameCounterRef = useRef(0);
   const material = useMemo(() => createNebulaMaterial(), []);
+  const qualityDetailMultiplier = quality === "high" ? 1 : quality === "medium" ? 0.68 : 0;
+  const updateEveryNFrames = quality === "high" ? 1 : 2;
 
   useEffect(() => {
     material.depthWrite = false;
     material.depthTest = false;
     material.transparent = false;
-    appearanceDetailRef.current = material.uniforms.uDetail.value;
+    if (baseAppearanceDetailRef.current === null) {
+      baseAppearanceDetailRef.current = material.uniforms.uDetail.value;
+    }
     material.uniforms.uResolution.value.set(size.width, size.height);
     material.uniforms.uDetail.value =
-      appearanceDetailRef.current * getDetailSetting(size.width);
-  }, [material, size.height, size.width]);
+      (baseAppearanceDetailRef.current ?? 1) *
+      getDetailSetting(size.width) *
+      qualityDetailMultiplier;
+  }, [material, qualityDetailMultiplier, size.height, size.width]);
 
   useEffect(() => {
     return () => {
@@ -78,6 +87,15 @@ export function NebulaBackground({ controlsRef }: NebulaBackgroundProps) {
   }, [material]);
 
   useFrame((_, delta) => {
+    if (quality === "low") {
+      return;
+    }
+
+    frameCounterRef.current += 1;
+    if (frameCounterRef.current % updateEveryNFrames !== 0) {
+      return;
+    }
+
     const matrix = camera.matrixWorld.elements;
     const rightX = matrix[0];
     const rightY = matrix[1];
@@ -170,6 +188,7 @@ export function NebulaBackground({ controlsRef }: NebulaBackgroundProps) {
       position={[0, 0, 0]}
       raycast={() => {}}
       renderOrder={-100}
+      visible={quality !== "low"}
     >
       <planeGeometry args={[SCREEN_QUAD_SIZE, SCREEN_QUAD_SIZE]} />
       <primitive attach="material" object={material} />

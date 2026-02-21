@@ -25,6 +25,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "convex": "catalog:",
+    "detect-gpu": "^5.0.70",
     "dotenv": "catalog:",
     "lucide-react": "^0.575.0",
     "motion": "^12.34.2",

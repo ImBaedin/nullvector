@@ -654,9 +654,9 @@ function GeneratorInfoPopover({
         <Info className="size-3.5" strokeWidth={2.8} />
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Positioner align="end" sideOffset={8}>
+        <Popover.Positioner align="end" className="z-[90]" sideOffset={8}>
           <Popover.Popup
-            className={`z-40 w-[244px] rounded-xl border border-white/25 p-3 text-xs text-white/90 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none ${panelClassName}`}
+            className={`origin-[var(--transform-origin)] w-[244px] rounded-xl border border-white/30 bg-[rgba(5,10,18,0.78)] p-3 text-xs text-white/90 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0 ${panelClassName}`}
           >
             <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">
               Flow Detail

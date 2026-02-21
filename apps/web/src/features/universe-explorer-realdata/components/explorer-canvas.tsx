@@ -10,7 +10,7 @@ import type {
 } from "three";
 
 import { CameraFocusController } from "../hooks/use-camera-focus";
-import type { CameraFocusTarget } from "../types";
+import type { CameraFocusTarget, ExplorerResolvedQuality } from "../types";
 import { NebulaBackground } from "./nebula-background";
 
 type BasicMapControls = {
@@ -19,9 +19,12 @@ type BasicMapControls = {
 };
 
 type ExplorerCanvasProps = {
+  antialias: boolean;
+  dpr: [number, number];
   focusTarget: CameraFocusTarget | null;
   maxFps?: number;
   onPointerMissed: () => void;
+  quality: ExplorerResolvedQuality;
   sceneKey: string | number;
   children: React.ReactNode;
 };
@@ -158,23 +161,31 @@ function getGridConfig({
   zoom,
   centerX,
   centerY,
+  quality,
 }: {
   zoom: number;
   centerX: number;
   centerY: number;
+  quality: ExplorerResolvedQuality;
 }): AdaptiveGridConfig {
   const safeZoom = Math.max(zoom, Number.EPSILON);
   const minorStep = getNiceStep(TARGET_MINOR_CELL_PIXELS / safeZoom);
   const majorStep = minorStep * MAJOR_GRID_MULTIPLIER;
   const majorDivisions = MAJOR_DIVISIONS;
   const size = majorDivisions * majorStep;
+  const minorDivisions =
+    quality === "low"
+      ? majorDivisions
+      : quality === "medium"
+        ? majorDivisions * 3
+        : majorDivisions * MAJOR_GRID_MULTIPLIER;
 
   return {
     centerX: snapToStep(centerX, majorStep),
     centerY: snapToStep(centerY, majorStep),
     size,
     majorDivisions,
-    minorDivisions: majorDivisions * MAJOR_GRID_MULTIPLIER,
+    minorDivisions,
   };
 }
 
@@ -190,8 +201,10 @@ function getGridConfigKey(config: AdaptiveGridConfig) {
 
 function AdaptiveGrid({
   controlsRef,
+  quality,
 }: {
   controlsRef: RefObject<BasicMapControls | null>;
+  quality: ExplorerResolvedQuality;
 }) {
   const camera = useThree((state) => state.camera);
   const [gridConfig, setGridConfig] = useState<AdaptiveGridConfig>(() =>
@@ -199,6 +212,7 @@ function AdaptiveGrid({
       zoom: 0.08,
       centerX: 0,
       centerY: 0,
+      quality,
     })
   );
   const gridKeyRef = useRef(getGridConfigKey(gridConfig));
@@ -212,6 +226,7 @@ function AdaptiveGrid({
       zoom: orthographicCamera.zoom,
       centerX: target?.x ?? 0,
       centerY: target?.y ?? 0,
+      quality,
     });
     const nextGridKey = getGridConfigKey(nextGridConfig);
     if (nextGridKey === gridKeyRef.current) return;
@@ -222,23 +237,25 @@ function AdaptiveGrid({
 
   return (
     <>
-      <gridHelper
-        key={`minor-${gridConfig.size}-${gridConfig.minorDivisions}`}
-        args={[
-          gridConfig.size,
-          gridConfig.minorDivisions,
-          "#6ea8ff",
-          "#3c5f8f",
-        ]}
-        position={[gridConfig.centerX, gridConfig.centerY, GRID_Z]}
-        rotation={[Math.PI / 2, 0, 0]}
-        renderOrder={1}
-        material-transparent
-        material-opacity={0.2}
-        material-depthTest={false}
-        material-depthWrite={false}
-        raycast={() => {}}
-      />
+      {quality === "low" ? null : (
+        <gridHelper
+          key={`minor-${gridConfig.size}-${gridConfig.minorDivisions}`}
+          args={[
+            gridConfig.size,
+            gridConfig.minorDivisions,
+            "#6ea8ff",
+            "#3c5f8f",
+          ]}
+          position={[gridConfig.centerX, gridConfig.centerY, GRID_Z]}
+          rotation={[Math.PI / 2, 0, 0]}
+          renderOrder={1}
+          material-transparent
+          material-opacity={0.2}
+          material-depthTest={false}
+          material-depthWrite={false}
+          raycast={() => {}}
+        />
+      )}
       <gridHelper
         key={`major-${gridConfig.size}-${gridConfig.majorDivisions}`}
         args={[
@@ -349,9 +366,12 @@ function DemandFrameTicker({ fps }: { fps: number }) {
 }
 
 export function ExplorerCanvas({
+  antialias,
+  dpr,
   focusTarget,
   maxFps = 60,
   onPointerMissed,
+  quality,
   sceneKey,
   children,
 }: ExplorerCanvasProps) {
@@ -384,6 +404,11 @@ export function ExplorerCanvas({
   return (
     <Canvas
       frameloop={maxFps >= 50 ? "always" : "demand"}
+      dpr={dpr}
+      gl={{
+        antialias,
+        powerPreference: "high-performance",
+      }}
       orthographic
       camera={{
         position: [
@@ -400,10 +425,10 @@ export function ExplorerCanvas({
     >
       {maxFps < 50 ? <DemandFrameTicker fps={maxFps} /> : null}
       <color attach="background" args={["#030812"]} />
-      <NebulaBackground controlsRef={controlsRef} />
+      <NebulaBackground controlsRef={controlsRef} quality={quality} />
       <ambientLight intensity={0.85} />
       <directionalLight intensity={0.5} position={[0, 0, 500]} />
-      <AdaptiveGrid controlsRef={controlsRef} />
+      <AdaptiveGrid controlsRef={controlsRef} quality={quality} />
 
       <CameraFocusController
         controlsRef={controlsRef}

@@ -7,11 +7,12 @@ import {
   getEntityVisualPreset,
   hashStringToUnit,
 } from "./entity-visuals";
-import type { RenderableEntity } from "../types";
+import type { ExplorerResolvedQuality, RenderableEntity } from "../types";
 
 type LevelGalaxyProps = {
   entities: RenderableEntity[];
   hoveredId: string | null;
+  quality: ExplorerResolvedQuality;
   onSelect: (entity: RenderableEntity) => void;
   onHover: (entity: RenderableEntity, screenX: number, screenY: number) => void;
   onHoverEnd: () => void;
@@ -113,6 +114,7 @@ function SectorBoundingBox({
 export function LevelGalaxy({
   entities,
   hoveredId,
+  quality,
   onSelect,
   onHover,
   onHoverEnd,
@@ -141,6 +143,7 @@ export function LevelGalaxy({
             radius={entity.sphereRadius}
             entityType={entity.entityType}
             seedKey={entity.sourceId}
+            quality={quality}
             isSelected={false}
             isHovered={hoveredId === entity.id}
             onSelect={() => onSelect(entity)}

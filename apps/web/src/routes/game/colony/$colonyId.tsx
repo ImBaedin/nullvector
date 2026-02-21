@@ -1,5 +1,5 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import { X } from "lucide-react";
@@ -7,6 +7,7 @@ import { X } from "lucide-react";
 import { AppHeader } from "@/features/game-ui/header";
 import { ExplorerBreadcrumbs } from "@/features/universe-explorer-realdata/components/explorer-breadcrumbs";
 import { ExplorerCanvas } from "@/features/universe-explorer-realdata/components/explorer-canvas";
+import { ExplorerQualityControl } from "@/features/universe-explorer-realdata/components/explorer-quality-control";
 import { HoverPanel } from "@/features/universe-explorer-realdata/components/hover-panel";
 import { LevelGalaxy } from "@/features/universe-explorer-realdata/components/level-galaxy";
 import { LevelSector } from "@/features/universe-explorer-realdata/components/level-sector";
@@ -17,8 +18,12 @@ import {
   useExplorerContext,
 } from "@/features/universe-explorer-realdata/context/explorer-context";
 import { useExplorerData } from "@/features/universe-explorer-realdata/hooks/use-explorer-data";
+import { useExplorerQuality } from "@/features/universe-explorer-realdata/hooks/use-explorer-quality";
 import { computeOrbitWorldPosition } from "@/features/universe-explorer-realdata/lib/orbits";
-import type { RenderableEntity } from "@/features/universe-explorer-realdata/types";
+import type {
+  HoverPanelState,
+  RenderableEntity,
+} from "@/features/universe-explorer-realdata/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/game/colony/$colonyId")({
@@ -94,11 +99,35 @@ function ColonyStarMapLayer({
 }) {
   const explorer = useExplorerContext();
   const data = useExplorerData();
+  const {
+    antialiasEnabled,
+    canvasDpr,
+    qualityPreset,
+    resolvedQuality,
+    setQualityPreset,
+  } = useExplorerQuality();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [hover, setHover] = useState<HoverPanelState | null>(null);
+  const hoverRafRef = useRef<number | null>(null);
+  const pendingHoverRef = useRef<HoverPanelState | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hoverRafRef.current !== null) {
+        cancelAnimationFrame(hoverRafRef.current);
+        hoverRafRef.current = null;
+      }
+    };
+  }, []);
 
   const clearHover = () => {
     setHoveredId(null);
-    explorer.clearHover();
+    pendingHoverRef.current = null;
+    setHover(null);
+    if (hoverRafRef.current !== null) {
+      cancelAnimationFrame(hoverRafRef.current);
+      hoverRafRef.current = null;
+    }
   };
 
   const handleHover = (
@@ -107,15 +136,22 @@ function ColonyStarMapLayer({
     screenY: number
   ) => {
     setHoveredId(entity.id);
-    explorer.setHover(
-      {
-        entityType: entity.entityType,
-        name: entity.name,
-        addressLabel: entity.addressLabel,
-      },
+    pendingHoverRef.current = {
+      entityType: entity.entityType,
+      name: entity.name,
+      addressLabel: entity.addressLabel,
       screenX,
-      screenY
-    );
+      screenY,
+    };
+
+    if (hoverRafRef.current !== null) {
+      return;
+    }
+
+    hoverRafRef.current = requestAnimationFrame(() => {
+      hoverRafRef.current = null;
+      setHover(pendingHoverRef.current);
+    });
   };
 
   const handleUniverseEntitySelect = (entity: RenderableEntity) => {
@@ -278,6 +314,7 @@ function ColonyStarMapLayer({
         <LevelUniverse
           entities={data.galaxyEntities}
           hoveredId={hoveredId}
+          quality={resolvedQuality}
           onHover={handleHover}
           onHoverEnd={clearHover}
           onSelect={handleUniverseEntitySelect}
@@ -288,6 +325,7 @@ function ColonyStarMapLayer({
         <LevelGalaxy
           entities={data.sectorEntities}
           hoveredId={hoveredId}
+          quality={resolvedQuality}
           onHover={handleHover}
           onHoverEnd={clearHover}
           onSelect={handleGalaxyEntitySelect}
@@ -298,6 +336,7 @@ function ColonyStarMapLayer({
         <LevelSector
           entities={data.systemEntities}
           hoveredId={hoveredId}
+          quality={resolvedQuality}
           onHover={handleHover}
           onHoverEnd={clearHover}
           onSelect={handleSectorEntitySelect}
@@ -308,6 +347,7 @@ function ColonyStarMapLayer({
         <LevelSystem
           entities={data.planetEntities}
           hoveredId={hoveredId}
+          quality={resolvedQuality}
           selectedPlanetId={explorer.path.planetId}
           starCenter={
             data.selectedSystem
@@ -326,9 +366,12 @@ function ColonyStarMapLayer({
     <>
       <div className="fixed inset-0 z-0">
         <ExplorerCanvas
+          antialias={antialiasEnabled}
+          dpr={canvasDpr}
           focusTarget={explorer.focusTarget}
           maxFps={isOpen ? 60 : 10}
           onPointerMissed={clearHover}
+          quality={resolvedQuality}
           sceneKey={explorer.level}
         >
           {sceneContent}
@@ -386,6 +429,13 @@ function ColonyStarMapLayer({
         </div>
 
         <div className="mt-4">
+          <ExplorerQualityControl
+            qualityPreset={qualityPreset}
+            onQualityPresetChange={setQualityPreset}
+          />
+        </div>
+
+        <div className="mt-4">
           <p className="text-[11px] uppercase tracking-[0.2em] text-slate-300">
             Entities
           </p>
@@ -436,7 +486,7 @@ function ColonyStarMapLayer({
         </div>
       </aside>
 
-      <HoverPanel />
+      <HoverPanel hover={hover} />
     </>
   );
 }

@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import { ExplorerBreadcrumbs } from "@/features/universe-explorer-realdata/components/explorer-breadcrumbs";
 import { ExplorerCanvas } from "@/features/universe-explorer-realdata/components/explorer-canvas";
 import { ExplorerLayout } from "@/features/universe-explorer-realdata/components/explorer-layout";
+import { ExplorerQualityControl } from "@/features/universe-explorer-realdata/components/explorer-quality-control";
 import { HoverPanel } from "@/features/universe-explorer-realdata/components/hover-panel";
 import { LevelGalaxy } from "@/features/universe-explorer-realdata/components/level-galaxy";
 import { LevelSector } from "@/features/universe-explorer-realdata/components/level-sector";
@@ -16,8 +17,12 @@ import {
   useExplorerContext,
 } from "@/features/universe-explorer-realdata/context/explorer-context";
 import { useExplorerData } from "@/features/universe-explorer-realdata/hooks/use-explorer-data";
+import { useExplorerQuality } from "@/features/universe-explorer-realdata/hooks/use-explorer-quality";
 import { computeOrbitWorldPosition } from "@/features/universe-explorer-realdata/lib/orbits";
-import type { RenderableEntity } from "@/features/universe-explorer-realdata/types";
+import type {
+  HoverPanelState,
+  RenderableEntity,
+} from "@/features/universe-explorer-realdata/types";
 
 export const Route = createFileRoute("/universe-explorer-realdata")({
   component: UniverseExplorerRealDataRoute,
@@ -42,8 +47,27 @@ function UniverseExplorerRealDataRoute() {
 function UniverseExplorerScene() {
   const explorer = useExplorerContext();
   const data = useExplorerData();
+  const {
+    antialiasEnabled,
+    canvasDpr,
+    qualityPreset,
+    resolvedQuality,
+    setQualityPreset,
+  } = useExplorerQuality();
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [hover, setHover] = useState<HoverPanelState | null>(null);
+  const hoverRafRef = useRef<number | null>(null);
+  const pendingHoverRef = useRef<HoverPanelState | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hoverRafRef.current !== null) {
+        cancelAnimationFrame(hoverRafRef.current);
+        hoverRafRef.current = null;
+      }
+    };
+  }, []);
 
   const handleHover = (
     entity: RenderableEntity,
@@ -51,20 +75,32 @@ function UniverseExplorerScene() {
     screenY: number
   ) => {
     setHoveredId(entity.id);
-    explorer.setHover(
-      {
-        entityType: entity.entityType,
-        name: entity.name,
-        addressLabel: entity.addressLabel,
-      },
+    pendingHoverRef.current = {
+      entityType: entity.entityType,
+      name: entity.name,
+      addressLabel: entity.addressLabel,
       screenX,
-      screenY
-    );
+      screenY,
+    };
+
+    if (hoverRafRef.current !== null) {
+      return;
+    }
+
+    hoverRafRef.current = requestAnimationFrame(() => {
+      hoverRafRef.current = null;
+      setHover(pendingHoverRef.current);
+    });
   };
 
   const clearHover = () => {
     setHoveredId(null);
-    explorer.clearHover();
+    pendingHoverRef.current = null;
+    setHover(null);
+    if (hoverRafRef.current !== null) {
+      cancelAnimationFrame(hoverRafRef.current);
+      hoverRafRef.current = null;
+    }
   };
 
   const handleUniverseEntitySelect = (entity: RenderableEntity) => {
@@ -234,6 +270,11 @@ function UniverseExplorerScene() {
 
       <ExplorerBreadcrumbs {...breadcrumbProps} />
 
+      <ExplorerQualityControl
+        qualityPreset={qualityPreset}
+        onQualityPresetChange={setQualityPreset}
+      />
+
       <div className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200">
         <p>
           <span className="text-slate-400">Universe:</span>{" "}
@@ -307,6 +348,7 @@ function UniverseExplorerScene() {
         <LevelUniverse
           entities={data.galaxyEntities}
           hoveredId={hoveredId}
+          quality={resolvedQuality}
           onHover={handleHover}
           onHoverEnd={clearHover}
           onSelect={handleUniverseEntitySelect}
@@ -317,6 +359,7 @@ function UniverseExplorerScene() {
         <LevelGalaxy
           entities={data.sectorEntities}
           hoveredId={hoveredId}
+          quality={resolvedQuality}
           onHover={handleHover}
           onHoverEnd={clearHover}
           onSelect={handleGalaxyEntitySelect}
@@ -327,6 +370,7 @@ function UniverseExplorerScene() {
         <LevelSector
           entities={data.systemEntities}
           hoveredId={hoveredId}
+          quality={resolvedQuality}
           onHover={handleHover}
           onHoverEnd={clearHover}
           onSelect={handleSectorEntitySelect}
@@ -337,6 +381,7 @@ function UniverseExplorerScene() {
         <LevelSystem
           entities={data.planetEntities}
           hoveredId={hoveredId}
+          quality={resolvedQuality}
           selectedPlanetId={explorer.path.planetId}
           starCenter={
             data.selectedSystem
@@ -356,14 +401,17 @@ function UniverseExplorerScene() {
       sidebar={sidebar}
       canvas={
         <ExplorerCanvas
+          antialias={antialiasEnabled}
+          dpr={canvasDpr}
           focusTarget={explorer.focusTarget}
           onPointerMissed={clearHover}
+          quality={resolvedQuality}
           sceneKey={explorer.level}
         >
           {sceneContent}
         </ExplorerCanvas>
       }
-      hoverPanel={<HoverPanel />}
+      hoverPanel={<HoverPanel hover={hover} />}
     />
   );
 }

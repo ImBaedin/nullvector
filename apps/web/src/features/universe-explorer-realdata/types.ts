@@ -8,6 +8,8 @@ export type ExplorerLevel =
   | "planet";
 
 export type ExplorerEntityType = "galaxy" | "sector" | "system" | "planet";
+export type ExplorerQualityPreset = "auto" | "low" | "medium" | "high";
+export type ExplorerResolvedQuality = "low" | "medium" | "high";
 
 export type ExplorerPathState = {
   galaxyId?: Id<"galaxies">;

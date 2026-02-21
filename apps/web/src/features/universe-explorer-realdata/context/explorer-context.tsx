@@ -6,8 +6,6 @@ import type {
   CameraFocusTarget,
   ExplorerLevel,
   ExplorerPathState,
-  HoverCardData,
-  HoverPanelState,
 } from "../types";
 
 type FocusRequest = {
@@ -19,10 +17,7 @@ type FocusRequest = {
 type ExplorerContextValue = {
   level: ExplorerLevel;
   path: ExplorerPathState;
-  hover: HoverPanelState | null;
   focusTarget: CameraFocusTarget | null;
-  setHover: (hoverData: HoverCardData, screenX: number, screenY: number) => void;
-  clearHover: () => void;
   setUniverseLevel: (focus?: FocusRequest) => void;
   setGalaxyLevel: (
     galaxyId: Id<"galaxies">,
@@ -59,7 +54,6 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
   const focusKey = useRef(0);
   const [level, setLevel] = useState<ExplorerLevel>("universe");
   const [path, setPath] = useState<ExplorerPathState>({});
-  const [hover, setHoverState] = useState<HoverPanelState | null>(null);
   const [focusTarget, setFocusTarget] = useState<CameraFocusTarget | null>({
     ...UNIVERSE_FOCUS,
     key: focusKey.current,
@@ -69,17 +63,6 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
     focusKey.current += 1;
     setFocusTarget({ ...focus, key: focusKey.current });
   }, []);
-
-  const clearHover = useCallback(() => {
-    setHoverState(null);
-  }, []);
-
-  const setHover = useCallback(
-    (hoverData: HoverCardData, screenX: number, screenY: number) => {
-      setHoverState({ ...hoverData, screenX, screenY });
-    },
-    []
-  );
 
   const setUniverseLevel = useCallback(
     (focus?: FocusRequest) => {
@@ -148,10 +131,7 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
     () => ({
       level,
       path,
-      hover,
       focusTarget,
-      setHover,
-      clearHover,
       setUniverseLevel,
       setGalaxyLevel,
       setSectorLevel,
@@ -159,13 +139,10 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
       setPlanetLevel,
     }),
     [
-      clearHover,
       focusTarget,
-      hover,
       level,
       path,
       setGalaxyLevel,
-      setHover,
       setPlanetLevel,
       setSectorLevel,
       setSystemLevel,
