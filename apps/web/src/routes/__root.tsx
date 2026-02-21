@@ -1,7 +1,7 @@
 import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
-import { AppHeader, HeaderConfigProvider } from "@/features/game-ui/header";
+import { HeaderConfigProvider } from "@/features/game-ui/header";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -41,8 +41,7 @@ function RootComponent() {
         storageKey="vite-ui-theme"
       >
         <HeaderConfigProvider>
-          <div className="grid grid-rows-[auto_1fr] h-svh">
-            <AppHeader />
+          <div className="h-svh min-h-0">
             <Outlet />
           </div>
         </HeaderConfigProvider>

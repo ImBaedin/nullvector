@@ -10,19 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UniverseExplorerRealdataRouteImport } from './routes/universe-explorer-realdata'
-import { Route as UniverseExplorerRouteImport } from './routes/universe-explorer'
-import { Route as UiMockupsRouteImport } from './routes/ui-mockups'
 import { Route as StyleLabRouteImport } from './routes/style-lab'
-import { Route as GravityDemoRouteImport } from './routes/gravity-demo'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as UiMockupsIndexRouteImport } from './routes/ui-mockups.index'
-import { Route as UiMockups6RouteImport } from './routes/ui-mockups.6'
-import { Route as UiMockups5RouteImport } from './routes/ui-mockups.5'
-import { Route as UiMockups4RouteImport } from './routes/ui-mockups.4'
-import { Route as UiMockups3RouteImport } from './routes/ui-mockups.3'
-import { Route as UiMockups2RouteImport } from './routes/ui-mockups.2'
-import { Route as UiMockups1RouteImport } from './routes/ui-mockups.1'
+import { Route as GameColonyColonyIdRouteImport } from './routes/game/colony/$colonyId'
+import { Route as GameColonyColonyIdResourcesRouteImport } from './routes/game/colony/$colonyId/resources'
 
 const UniverseExplorerRealdataRoute =
   UniverseExplorerRealdataRouteImport.update({
@@ -30,178 +20,67 @@ const UniverseExplorerRealdataRoute =
     path: '/universe-explorer-realdata',
     getParentRoute: () => rootRouteImport,
   } as any)
-const UniverseExplorerRoute = UniverseExplorerRouteImport.update({
-  id: '/universe-explorer',
-  path: '/universe-explorer',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const UiMockupsRoute = UiMockupsRouteImport.update({
-  id: '/ui-mockups',
-  path: '/ui-mockups',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const StyleLabRoute = StyleLabRouteImport.update({
   id: '/style-lab',
   path: '/style-lab',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GravityDemoRoute = GravityDemoRouteImport.update({
-  id: '/gravity-demo',
-  path: '/gravity-demo',
+const GameColonyColonyIdRoute = GameColonyColonyIdRouteImport.update({
+  id: '/game/colony/$colonyId',
+  path: '/game/colony/$colonyId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const UiMockupsIndexRoute = UiMockupsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => UiMockupsRoute,
-} as any)
-const UiMockups6Route = UiMockups6RouteImport.update({
-  id: '/6',
-  path: '/6',
-  getParentRoute: () => UiMockupsRoute,
-} as any)
-const UiMockups5Route = UiMockups5RouteImport.update({
-  id: '/5',
-  path: '/5',
-  getParentRoute: () => UiMockupsRoute,
-} as any)
-const UiMockups4Route = UiMockups4RouteImport.update({
-  id: '/4',
-  path: '/4',
-  getParentRoute: () => UiMockupsRoute,
-} as any)
-const UiMockups3Route = UiMockups3RouteImport.update({
-  id: '/3',
-  path: '/3',
-  getParentRoute: () => UiMockupsRoute,
-} as any)
-const UiMockups2Route = UiMockups2RouteImport.update({
-  id: '/2',
-  path: '/2',
-  getParentRoute: () => UiMockupsRoute,
-} as any)
-const UiMockups1Route = UiMockups1RouteImport.update({
-  id: '/1',
-  path: '/1',
-  getParentRoute: () => UiMockupsRoute,
-} as any)
+const GameColonyColonyIdResourcesRoute =
+  GameColonyColonyIdResourcesRouteImport.update({
+    id: '/resources',
+    path: '/resources',
+    getParentRoute: () => GameColonyColonyIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
-  '/gravity-demo': typeof GravityDemoRoute
   '/style-lab': typeof StyleLabRoute
-  '/ui-mockups': typeof UiMockupsRouteWithChildren
-  '/universe-explorer': typeof UniverseExplorerRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
-  '/ui-mockups/1': typeof UiMockups1Route
-  '/ui-mockups/2': typeof UiMockups2Route
-  '/ui-mockups/3': typeof UiMockups3Route
-  '/ui-mockups/4': typeof UiMockups4Route
-  '/ui-mockups/5': typeof UiMockups5Route
-  '/ui-mockups/6': typeof UiMockups6Route
-  '/ui-mockups/': typeof UiMockupsIndexRoute
+  '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
+  '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
-  '/gravity-demo': typeof GravityDemoRoute
   '/style-lab': typeof StyleLabRoute
-  '/universe-explorer': typeof UniverseExplorerRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
-  '/ui-mockups/1': typeof UiMockups1Route
-  '/ui-mockups/2': typeof UiMockups2Route
-  '/ui-mockups/3': typeof UiMockups3Route
-  '/ui-mockups/4': typeof UiMockups4Route
-  '/ui-mockups/5': typeof UiMockups5Route
-  '/ui-mockups/6': typeof UiMockups6Route
-  '/ui-mockups': typeof UiMockupsIndexRoute
+  '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
+  '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
-  '/gravity-demo': typeof GravityDemoRoute
   '/style-lab': typeof StyleLabRoute
-  '/ui-mockups': typeof UiMockupsRouteWithChildren
-  '/universe-explorer': typeof UniverseExplorerRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
-  '/ui-mockups/1': typeof UiMockups1Route
-  '/ui-mockups/2': typeof UiMockups2Route
-  '/ui-mockups/3': typeof UiMockups3Route
-  '/ui-mockups/4': typeof UiMockups4Route
-  '/ui-mockups/5': typeof UiMockups5Route
-  '/ui-mockups/6': typeof UiMockups6Route
-  '/ui-mockups/': typeof UiMockupsIndexRoute
+  '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
+  '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
-    | '/dashboard'
-    | '/gravity-demo'
     | '/style-lab'
-    | '/ui-mockups'
-    | '/universe-explorer'
     | '/universe-explorer-realdata'
-    | '/ui-mockups/1'
-    | '/ui-mockups/2'
-    | '/ui-mockups/3'
-    | '/ui-mockups/4'
-    | '/ui-mockups/5'
-    | '/ui-mockups/6'
-    | '/ui-mockups/'
+    | '/game/colony/$colonyId'
+    | '/game/colony/$colonyId/resources'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
-    | '/dashboard'
-    | '/gravity-demo'
     | '/style-lab'
-    | '/universe-explorer'
     | '/universe-explorer-realdata'
-    | '/ui-mockups/1'
-    | '/ui-mockups/2'
-    | '/ui-mockups/3'
-    | '/ui-mockups/4'
-    | '/ui-mockups/5'
-    | '/ui-mockups/6'
-    | '/ui-mockups'
+    | '/game/colony/$colonyId'
+    | '/game/colony/$colonyId/resources'
   id:
     | '__root__'
-    | '/'
-    | '/dashboard'
-    | '/gravity-demo'
     | '/style-lab'
-    | '/ui-mockups'
-    | '/universe-explorer'
     | '/universe-explorer-realdata'
-    | '/ui-mockups/1'
-    | '/ui-mockups/2'
-    | '/ui-mockups/3'
-    | '/ui-mockups/4'
-    | '/ui-mockups/5'
-    | '/ui-mockups/6'
-    | '/ui-mockups/'
+    | '/game/colony/$colonyId'
+    | '/game/colony/$colonyId/resources'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  DashboardRoute: typeof DashboardRoute
-  GravityDemoRoute: typeof GravityDemoRoute
   StyleLabRoute: typeof StyleLabRoute
-  UiMockupsRoute: typeof UiMockupsRouteWithChildren
-  UniverseExplorerRoute: typeof UniverseExplorerRoute
   UniverseExplorerRealdataRoute: typeof UniverseExplorerRealdataRoute
+  GameColonyColonyIdRoute: typeof GameColonyColonyIdRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -213,20 +92,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UniverseExplorerRealdataRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/universe-explorer': {
-      id: '/universe-explorer'
-      path: '/universe-explorer'
-      fullPath: '/universe-explorer'
-      preLoaderRoute: typeof UniverseExplorerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ui-mockups': {
-      id: '/ui-mockups'
-      path: '/ui-mockups'
-      fullPath: '/ui-mockups'
-      preLoaderRoute: typeof UiMockupsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/style-lab': {
       id: '/style-lab'
       path: '/style-lab'
@@ -234,111 +99,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StyleLabRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/gravity-demo': {
-      id: '/gravity-demo'
-      path: '/gravity-demo'
-      fullPath: '/gravity-demo'
-      preLoaderRoute: typeof GravityDemoRouteImport
+    '/game/colony/$colonyId': {
+      id: '/game/colony/$colonyId'
+      path: '/game/colony/$colonyId'
+      fullPath: '/game/colony/$colonyId'
+      preLoaderRoute: typeof GameColonyColonyIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ui-mockups/': {
-      id: '/ui-mockups/'
-      path: '/'
-      fullPath: '/ui-mockups/'
-      preLoaderRoute: typeof UiMockupsIndexRouteImport
-      parentRoute: typeof UiMockupsRoute
-    }
-    '/ui-mockups/6': {
-      id: '/ui-mockups/6'
-      path: '/6'
-      fullPath: '/ui-mockups/6'
-      preLoaderRoute: typeof UiMockups6RouteImport
-      parentRoute: typeof UiMockupsRoute
-    }
-    '/ui-mockups/5': {
-      id: '/ui-mockups/5'
-      path: '/5'
-      fullPath: '/ui-mockups/5'
-      preLoaderRoute: typeof UiMockups5RouteImport
-      parentRoute: typeof UiMockupsRoute
-    }
-    '/ui-mockups/4': {
-      id: '/ui-mockups/4'
-      path: '/4'
-      fullPath: '/ui-mockups/4'
-      preLoaderRoute: typeof UiMockups4RouteImport
-      parentRoute: typeof UiMockupsRoute
-    }
-    '/ui-mockups/3': {
-      id: '/ui-mockups/3'
-      path: '/3'
-      fullPath: '/ui-mockups/3'
-      preLoaderRoute: typeof UiMockups3RouteImport
-      parentRoute: typeof UiMockupsRoute
-    }
-    '/ui-mockups/2': {
-      id: '/ui-mockups/2'
-      path: '/2'
-      fullPath: '/ui-mockups/2'
-      preLoaderRoute: typeof UiMockups2RouteImport
-      parentRoute: typeof UiMockupsRoute
-    }
-    '/ui-mockups/1': {
-      id: '/ui-mockups/1'
-      path: '/1'
-      fullPath: '/ui-mockups/1'
-      preLoaderRoute: typeof UiMockups1RouteImport
-      parentRoute: typeof UiMockupsRoute
+    '/game/colony/$colonyId/resources': {
+      id: '/game/colony/$colonyId/resources'
+      path: '/resources'
+      fullPath: '/game/colony/$colonyId/resources'
+      preLoaderRoute: typeof GameColonyColonyIdResourcesRouteImport
+      parentRoute: typeof GameColonyColonyIdRoute
     }
   }
 }
 
-interface UiMockupsRouteChildren {
-  UiMockups1Route: typeof UiMockups1Route
-  UiMockups2Route: typeof UiMockups2Route
-  UiMockups3Route: typeof UiMockups3Route
-  UiMockups4Route: typeof UiMockups4Route
-  UiMockups5Route: typeof UiMockups5Route
-  UiMockups6Route: typeof UiMockups6Route
-  UiMockupsIndexRoute: typeof UiMockupsIndexRoute
+interface GameColonyColonyIdRouteChildren {
+  GameColonyColonyIdResourcesRoute: typeof GameColonyColonyIdResourcesRoute
 }
 
-const UiMockupsRouteChildren: UiMockupsRouteChildren = {
-  UiMockups1Route: UiMockups1Route,
-  UiMockups2Route: UiMockups2Route,
-  UiMockups3Route: UiMockups3Route,
-  UiMockups4Route: UiMockups4Route,
-  UiMockups5Route: UiMockups5Route,
-  UiMockups6Route: UiMockups6Route,
-  UiMockupsIndexRoute: UiMockupsIndexRoute,
+const GameColonyColonyIdRouteChildren: GameColonyColonyIdRouteChildren = {
+  GameColonyColonyIdResourcesRoute: GameColonyColonyIdResourcesRoute,
 }
 
-const UiMockupsRouteWithChildren = UiMockupsRoute._addFileChildren(
-  UiMockupsRouteChildren,
-)
+const GameColonyColonyIdRouteWithChildren =
+  GameColonyColonyIdRoute._addFileChildren(GameColonyColonyIdRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  DashboardRoute: DashboardRoute,
-  GravityDemoRoute: GravityDemoRoute,
   StyleLabRoute: StyleLabRoute,
-  UiMockupsRoute: UiMockupsRouteWithChildren,
-  UniverseExplorerRoute: UniverseExplorerRoute,
   UniverseExplorerRealdataRoute: UniverseExplorerRealdataRoute,
+  GameColonyColonyIdRoute: GameColonyColonyIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

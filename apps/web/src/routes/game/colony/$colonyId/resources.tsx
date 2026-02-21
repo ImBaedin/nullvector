@@ -8,15 +8,11 @@ import type {
   ContextNavItem,
   ResourceDatum,
 } from "@/features/game-ui/contracts/navigation";
-import {
-  useResetHeaderConfig,
-  useSetHeaderConfig,
-} from "@/features/game-ui/header";
-import { MockupRouteNav } from "@/features/ui-mockups/components/mockup-route-nav";
+import { useSetHeaderConfig } from "@/features/game-ui/header";
 import { UpgradeButton } from "@/features/ui-mockups/components/upgrade-button";
 import { Gauge, Info, LayersPlus, Settings, X } from "lucide-react";
 
-export const Route = createFileRoute("/ui-mockups/6")({
+export const Route = createFileRoute("/game/colony/$colonyId/resources")({
   component: UiMockupSixRoute,
 });
 
@@ -44,45 +40,47 @@ type GeneratorDatum = {
   upgradeCost: Partial<Record<UpgradeResourceKey, number>>;
 };
 
-const contextTabs: ContextNavItem[] = [
-  {
-    id: "overview",
-    label: "Overview",
-    to: "/ui-mockups/6",
-    icon: <NavIcon src="/game-icons/nav/overview.png" alt="Overview" />,
-  },
-  {
-    id: "resources",
-    label: "Resources",
-    to: "/ui-mockups/6",
-    icon: <NavIcon src="/game-icons/nav/resources.png" alt="Resources" />,
-  },
-  {
-    id: "facilities",
-    label: "Facilities",
-    to: "/ui-mockups/6",
-    icon: <NavIcon src="/game-icons/nav/facilities.png" alt="Facilities" />,
-  },
-  {
-    id: "shipyard",
-    label: "Shipyard",
-    to: "/ui-mockups/6",
-    icon: <NavIcon src="/game-icons/nav/shipyard.png" alt="Shipyard" />,
-  },
-  {
-    id: "defenses",
-    label: "Defenses",
-    to: "/ui-mockups/6",
-    icon: <NavIcon src="/game-icons/nav/defenses.png" alt="Defenses" />,
-    badgeCount: 1,
-  },
-  {
-    id: "fleet",
-    label: "Fleet",
-    to: "/ui-mockups/6",
-    icon: <NavIcon src="/game-icons/nav/fleet.png" alt="Fleet" />,
-  },
-];
+function createContextTabs(basePath: string): ContextNavItem[] {
+  return [
+    {
+      id: "overview",
+      label: "Overview",
+      to: basePath,
+      icon: <NavIcon src="/game-icons/nav/overview.png" alt="Overview" />,
+    },
+    {
+      id: "resources",
+      label: "Resources",
+      to: basePath,
+      icon: <NavIcon src="/game-icons/nav/resources.png" alt="Resources" />,
+    },
+    {
+      id: "facilities",
+      label: "Facilities",
+      to: basePath,
+      icon: <NavIcon src="/game-icons/nav/facilities.png" alt="Facilities" />,
+    },
+    {
+      id: "shipyard",
+      label: "Shipyard",
+      to: basePath,
+      icon: <NavIcon src="/game-icons/nav/shipyard.png" alt="Shipyard" />,
+    },
+    {
+      id: "defenses",
+      label: "Defenses",
+      to: basePath,
+      icon: <NavIcon src="/game-icons/nav/defenses.png" alt="Defenses" />,
+      badgeCount: 1,
+    },
+    {
+      id: "fleet",
+      label: "Fleet",
+      to: basePath,
+      icon: <NavIcon src="/game-icons/nav/fleet.png" alt="Fleet" />,
+    },
+  ];
+}
 
 const topResources: ResourceDatum[] = [
   {
@@ -248,8 +246,13 @@ const STATUS_STYLES: Record<
 };
 
 function UiMockupSixRoute() {
+  const { colonyId } = Route.useParams();
   const setHeaderConfig = useSetHeaderConfig();
-  const resetHeaderConfig = useResetHeaderConfig();
+  const colonyPath = `/game/colony/${colonyId}/resources`;
+  const contextTabs = useMemo(
+    () => createContextTabs(colonyPath),
+    [colonyPath]
+  );
 
   const [scales, setScales] = useState<Record<string, number>>({
     "alloy-rig": 6,
@@ -277,17 +280,13 @@ function UiMockupSixRoute() {
   useEffect(() => {
     setHeaderConfig({
       mode: "game",
-      title: "Resource Generators",
+      title: `Colony ${colonyId} Resources`,
       activeTabId: "resources",
       contextTabs,
       resources: topResources,
       notificationsCount: 3,
     });
-
-    return () => {
-      resetHeaderConfig();
-    };
-  }, [resetHeaderConfig, setHeaderConfig]);
+  }, [contextTabs, colonyId, setHeaderConfig]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setIsReady(true));
@@ -705,12 +704,8 @@ function UiMockupSixRoute() {
 
   return (
     <div
-      className="h-full overflow-y-auto text-white"
-      style={{
-        background:
-          "linear-gradient(180deg, #15263f 0 250px, #070f1c 250px), radial-gradient(circle at 14% 42%, rgba(72,180,255,0.16), transparent 30%), radial-gradient(circle at 85% 46%, rgba(74,233,255,0.14), transparent 32%), radial-gradient(circle at 42% 52%, rgba(31,112,176,0.16), transparent 36%), linear-gradient(180deg, #070f1c 35%, #040910 58%, #060c15 100%)",
-        fontFamily: '"Rajdhani","Sora","Avenir Next",sans-serif',
-      }}
+      className="text-white"
+      style={{ fontFamily: '"Rajdhani","Sora","Avenir Next",sans-serif' }}
     >
       <div className="mx-auto w-full max-w-[1380px] px-4 pb-10 pt-5 sm:px-6 lg:px-8">
         <section className="mt-6 space-y-7">

@@ -7,17 +7,20 @@ import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ResourceStrip } from "@/features/game-ui/shell/resource-strip";
 import { GameThemeProvider } from "@/features/game-ui/theme";
 import { ModeToggle } from "@/components/mode-toggle";
-import { NvBadge, NvButton, NvIconButton, NvPanel } from "@/features/game-ui/primitives";
+import {
+  NvBadge,
+  NvButton,
+  NvIconButton,
+  NvPanel,
+} from "@/features/game-ui/primitives";
 import { cn } from "@/lib/utils";
 
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";
 import { useHeaderConfig } from "./use-header-config";
 
 const MINIMAL_LINKS = [
-  { to: "/", label: "Home" },
-  { to: "/dashboard", label: "Dashboard" },
   { to: "/style-lab", label: "Style Lab" },
-  { to: "/ui-mockups", label: "UI Mockups" },
+  { to: "/universe-explorer-realdata", label: "Explorer" },
 ] as const;
 
 function useCompactHeaderMode() {
@@ -41,7 +44,9 @@ function useCompactHeaderMode() {
 export function AppHeader() {
   const config = useHeaderConfig();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
   const isCompact = useCompactHeaderMode();
 
   const showGameMode = config.mode === "game";
@@ -56,14 +61,16 @@ export function AppHeader() {
 
   if (!showGameMode) {
     return (
-      <div className="border-b bg-background/95 backdrop-blur">
+      <div className="border-b backdrop-blur">
         <div className="flex items-center justify-between gap-3 px-3 py-2">
           <nav className="flex items-center gap-3 text-sm">
             {MINIMAL_LINKS.map((link) => (
               <Link
                 className={cn(
                   "rounded px-2 py-1",
-                  pathname === link.to ? "bg-foreground/10" : "hover:bg-foreground/5"
+                  pathname === link.to
+                    ? "bg-foreground/10"
+                    : "hover:bg-foreground/5"
                 )}
                 key={link.to}
                 to={link.to}
@@ -86,7 +93,10 @@ export function AppHeader() {
           isCompact ? "pb-1" : "pb-2"
         )}
       >
-        <NvPanel className="overflow-visible rounded-b-[var(--nv-r-xl)] border-x-0 border-t-0 p-0" density="compact">
+        <NvPanel
+          className="overflow-visible rounded-b-[var(--nv-r-xl)] border-x-0 border-t-0 p-0"
+          density="compact"
+        >
           <div
             className={cn(
               "grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-[rgba(255,255,255,0.02)] px-3 transition-all duration-200 lg:px-4",
@@ -103,7 +113,9 @@ export function AppHeader() {
                 src="/game-icons/logo.png"
               />
               <div>
-                <p className="nv-caps text-[10px] text-[color:var(--nv-text-muted)]">NullVector</p>
+                <p className="nv-caps text-[10px] text-[color:var(--nv-text-muted)]">
+                  NullVector
+                </p>
                 <h1
                   className={cn(
                     "nv-display font-semibold text-[color:var(--nv-text-primary)] transition-all",
@@ -139,44 +151,75 @@ export function AppHeader() {
             </div>
 
             <div className="hidden items-center gap-2 justify-self-end lg:flex">
-              {config.colonies && config.activeColonyId && config.onColonyChange ? (
+              {config.colonies &&
+              config.activeColonyId &&
+              config.onColonyChange ? (
                 <ColonySwitcher
                   activeColonyId={config.activeColonyId}
                   colonies={config.colonies}
                   onColonyChange={config.onColonyChange}
                 />
               ) : null}
-              <NvIconButton label="Notifications" onClick={config.onOpenNotifications} variant="ghost">
+              <NvIconButton
+                label="Notifications"
+                onClick={config.onOpenNotifications}
+                variant="ghost"
+              >
                 <Bell className="size-4" />
               </NvIconButton>
               {notificationsBadge}
-              <NvIconButton label="Settings" onClick={config.onOpenSettings} variant="ghost">
+              <NvIconButton
+                label="Settings"
+                onClick={config.onOpenSettings}
+                variant="ghost"
+              >
                 <Settings className="size-4" />
               </NvIconButton>
             </div>
 
             <div className="flex justify-self-end lg:hidden">
-              <NvIconButton label="Open Menu" onClick={() => setDrawerOpen(true)} variant="ghost">
+              <NvIconButton
+                label="Open Menu"
+                onClick={() => setDrawerOpen(true)}
+                variant="ghost"
+              >
                 <Menu className="size-4" />
               </NvIconButton>
             </div>
           </div>
 
           {config.resources?.length ? (
-            <div className={cn("border-t border-[color:var(--nv-glass-stroke)] bg-[rgba(255,255,255,0.015)] px-3 lg:px-4", isCompact ? "py-1.5" : "py-2")}>
+            <div
+              className={cn(
+                "border-t border-[color:var(--nv-glass-stroke)] bg-[rgba(255,255,255,0.015)] px-3 lg:px-4",
+                isCompact ? "py-1.5" : "py-2"
+              )}
+            >
               <ResourceStrip resources={config.resources} />
             </div>
           ) : null}
 
           {config.contextTabs?.length && config.activeTabId ? (
-            <div className={cn("bg-[rgba(255,255,255,0.01)] px-3 lg:px-4", isCompact ? "py-0" : "py-0.5")}>
-              <ContextNav activeId={config.activeTabId} items={config.contextTabs} />
+            <div
+              className={cn(
+                "bg-[rgba(255,255,255,0.01)] px-3 lg:px-4",
+                isCompact ? "py-0" : "py-0.5"
+              )}
+            >
+              <ContextNav
+                activeId={config.activeTabId}
+                items={config.contextTabs}
+              />
             </div>
           ) : null}
         </NvPanel>
       </header>
 
-      <AppHeaderMobileDrawer config={config} onClose={() => setDrawerOpen(false)} open={drawerOpen} />
+      <AppHeaderMobileDrawer
+        config={config}
+        onClose={() => setDrawerOpen(false)}
+        open={drawerOpen}
+      />
     </GameThemeProvider>
   );
 }

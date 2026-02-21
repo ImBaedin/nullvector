@@ -1,12 +1,8 @@
 import { Link } from "@tanstack/react-router";
 
 const mockupLinks = [
-  { label: "Mockup 1", to: "/ui-mockups/1" },
-  { label: "Mockup 2", to: "/ui-mockups/2" },
-  { label: "Mockup 3", to: "/ui-mockups/3" },
-  { label: "Mockup 4", to: "/ui-mockups/4" },
-  { label: "Mockup 5", to: "/ui-mockups/5" },
-  { label: "Mockup 6", to: "/ui-mockups/6" },
+  { label: "Style Lab", to: "/style-lab" },
+  { label: "Explorer", to: "/universe-explorer-realdata" },
 ] as const;
 
 export function MockupRouteNav({ className }: { className?: string }) {

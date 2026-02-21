@@ -10,9 +10,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 
 export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () => void }) {
-  const navigate = useNavigate({
-    from: "/",
-  });
+  const navigate = useNavigate();
 
   const form = useForm({
     defaultValues: {
@@ -28,7 +26,8 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
         {
           onSuccess: () => {
             navigate({
-              to: "/dashboard",
+              to: "/game/colony/$colonyId/resources",
+              params: { colonyId: "10" },
             });
             toast.success("Sign in successful");
           },
