@@ -16,7 +16,7 @@ function UiMockupsIndexRoute() {
         <p className="text-xs uppercase tracking-[0.28em] text-cyan-100/80">Game UI Mockups</p>
         <h1 className="mt-2 text-4xl font-semibold tracking-[0.04em]">Universe Operations Variants</h1>
         <p className="mt-3 text-sm text-slate-300/85">
-          Five different dashboard concepts using the same explorer canvas and MVP gameplay HUD:
+          Six different dashboard concepts using the same explorer canvas and MVP gameplay HUD:
           colonies, resources, transport state, attack indicators, and history.
         </p>
         <MockupRouteNav className="mt-6" />

@@ -17,6 +17,7 @@ import { Route as GravityDemoRouteImport } from './routes/gravity-demo'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UiMockupsIndexRouteImport } from './routes/ui-mockups.index'
+import { Route as UiMockups6RouteImport } from './routes/ui-mockups.6'
 import { Route as UiMockups5RouteImport } from './routes/ui-mockups.5'
 import { Route as UiMockups4RouteImport } from './routes/ui-mockups.4'
 import { Route as UiMockups3RouteImport } from './routes/ui-mockups.3'
@@ -64,6 +65,11 @@ const UiMockupsIndexRoute = UiMockupsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => UiMockupsRoute,
 } as any)
+const UiMockups6Route = UiMockups6RouteImport.update({
+  id: '/6',
+  path: '/6',
+  getParentRoute: () => UiMockupsRoute,
+} as any)
 const UiMockups5Route = UiMockups5RouteImport.update({
   id: '/5',
   path: '/5',
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/ui-mockups/3': typeof UiMockups3Route
   '/ui-mockups/4': typeof UiMockups4Route
   '/ui-mockups/5': typeof UiMockups5Route
+  '/ui-mockups/6': typeof UiMockups6Route
   '/ui-mockups/': typeof UiMockupsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/ui-mockups/3': typeof UiMockups3Route
   '/ui-mockups/4': typeof UiMockups4Route
   '/ui-mockups/5': typeof UiMockups5Route
+  '/ui-mockups/6': typeof UiMockups6Route
   '/ui-mockups': typeof UiMockupsIndexRoute
 }
 export interface FileRoutesById {
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/ui-mockups/3': typeof UiMockups3Route
   '/ui-mockups/4': typeof UiMockups4Route
   '/ui-mockups/5': typeof UiMockups5Route
+  '/ui-mockups/6': typeof UiMockups6Route
   '/ui-mockups/': typeof UiMockupsIndexRoute
 }
 export interface FileRouteTypes {
@@ -150,6 +159,7 @@ export interface FileRouteTypes {
     | '/ui-mockups/3'
     | '/ui-mockups/4'
     | '/ui-mockups/5'
+    | '/ui-mockups/6'
     | '/ui-mockups/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
     | '/ui-mockups/3'
     | '/ui-mockups/4'
     | '/ui-mockups/5'
+    | '/ui-mockups/6'
     | '/ui-mockups'
   id:
     | '__root__'
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '/ui-mockups/3'
     | '/ui-mockups/4'
     | '/ui-mockups/5'
+    | '/ui-mockups/6'
     | '/ui-mockups/'
   fileRoutesById: FileRoutesById
 }
@@ -250,6 +262,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UiMockupsIndexRouteImport
       parentRoute: typeof UiMockupsRoute
     }
+    '/ui-mockups/6': {
+      id: '/ui-mockups/6'
+      path: '/6'
+      fullPath: '/ui-mockups/6'
+      preLoaderRoute: typeof UiMockups6RouteImport
+      parentRoute: typeof UiMockupsRoute
+    }
     '/ui-mockups/5': {
       id: '/ui-mockups/5'
       path: '/5'
@@ -294,6 +313,7 @@ interface UiMockupsRouteChildren {
   UiMockups3Route: typeof UiMockups3Route
   UiMockups4Route: typeof UiMockups4Route
   UiMockups5Route: typeof UiMockups5Route
+  UiMockups6Route: typeof UiMockups6Route
   UiMockupsIndexRoute: typeof UiMockupsIndexRoute
 }
 
@@ -303,6 +323,7 @@ const UiMockupsRouteChildren: UiMockupsRouteChildren = {
   UiMockups3Route: UiMockups3Route,
   UiMockups4Route: UiMockups4Route,
   UiMockups5Route: UiMockups5Route,
+  UiMockups6Route: UiMockups6Route,
   UiMockupsIndexRoute: UiMockupsIndexRoute,
 }
 

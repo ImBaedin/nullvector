@@ -6,6 +6,7 @@ const mockupLinks = [
   { label: "Mockup 3", to: "/ui-mockups/3" },
   { label: "Mockup 4", to: "/ui-mockups/4" },
   { label: "Mockup 5", to: "/ui-mockups/5" },
+  { label: "Mockup 6", to: "/ui-mockups/6" },
 ] as const;
 
 export function MockupRouteNav({ className }: { className?: string }) {
