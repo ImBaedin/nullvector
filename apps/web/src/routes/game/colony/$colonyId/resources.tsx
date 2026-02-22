@@ -28,6 +28,7 @@ type GeneratorDatum = {
   };
   id: string;
   imageUrl: string;
+  isBuilt?: boolean;
   name: string;
   status: GeneratorStatus;
   unit: string;
@@ -132,6 +133,7 @@ const generatorData: GeneratorDatum[] = [
     },
     id: "aux-reactor",
     imageUrl: "/game-icons/energy.png",
+    isBuilt: false,
     name: "Auxiliary Reactor",
     status: "Paused",
     unit: "MW",
@@ -226,10 +228,19 @@ function UiMockupSixRoute() {
     );
   };
 
+  const formatActionDuration = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    if (minutes === 0) {
+      return `${remainingSeconds}s`;
+    }
+    return `${minutes}m ${remainingSeconds}s`;
+  };
+
   const renderCard = (generator: GeneratorDatum, index: number) => {
+    const isBuilt = generator.isBuilt ?? true;
     const scale = scales[generator.id] ?? 0;
     const draftScale = draftScales[generator.id] ?? scale;
-    const scalePercent = scale * 10;
     const draftScalePercent = draftScale * 10;
     const output = getProductionAtScale(generator, scale);
     const draftOutput = getProductionAtScale(generator, draftScale);
@@ -241,6 +252,9 @@ function UiMockupSixRoute() {
     const isLevelsOpen = openLevelsCardId === generator.id;
     const isSavedFlash = savedSettingsCardId === generator.id;
     const statusStyle = STATUS_STYLES[generator.status];
+    const cardBorderClass = isBuilt ? statusStyle.card : "border-slate-200/20";
+    const cardAccent = isBuilt ? generator.accent : "rgba(148, 163, 184, 0.2)";
+    const infoPanelClass = isBuilt ? statusStyle.panel : "bg-slate-400/10";
     const upgradeCostEntries = Object.entries(generator.upgradeCost) as [
       UpgradeResourceKey,
       number
@@ -249,10 +263,30 @@ function UiMockupSixRoute() {
       ([resourceKey, requiredAmount]) =>
         AVAILABLE_UPGRADE_RESOURCES[resourceKey] >= requiredAmount
     );
+    const actionTargetLevel = isBuilt ? Math.min(scale + 1, 10) : 1;
+    const actionNextOutput = getProductionAtScale(generator, actionTargetLevel);
+    const actionNextEnergy = getEnergyAtScale(generator, actionTargetLevel);
+    const actionOutputDelta = actionNextOutput - (isBuilt ? output : 0);
+    const actionEnergyDelta = actionNextEnergy - (isBuilt ? currentEnergy : 0);
+    const actionOutputDeltaLabel =
+      generator.unit === "MW"
+        ? `+${actionOutputDelta.toLocaleString()} MW`
+        : `+${actionOutputDelta.toLocaleString()}/min`;
+    const actionEnergyDeltaLabel = `+${actionEnergyDelta} MW`;
+    const actionDurationSeconds = Math.max(
+      24,
+      Math.round(
+        (isBuilt ? 34 : 58) +
+          actionTargetLevel * 7 +
+          generator.baseEnergy * 0.82 +
+          generator.baseRate * 0.045
+      )
+    );
+    const actionDurationLabel = formatActionDuration(actionDurationSeconds);
 
     return (
       <article
-        className={`group relative overflow-hidden rounded-2xl border ${statusStyle.card} bg-[#060f1a] shadow-[0_16px_34px_rgba(0,0,0,0.4)]`}
+        className={`group relative overflow-hidden rounded-2xl border ${cardBorderClass} bg-[#060f1a] shadow-[0_16px_34px_rgba(0,0,0,0.4)]`}
         key={generator.id}
         style={{
           opacity: isReady ? 1 : 0,
@@ -265,13 +299,20 @@ function UiMockupSixRoute() {
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage: `radial-gradient(circle at 78% 24%, ${generator.accent}, transparent 38%), linear-gradient(164deg, rgba(9,17,29,0.74), rgba(1,5,12,0.94) 62%), url(${generator.imageUrl})`,
+            backgroundImage: `radial-gradient(circle at 78% 24%, ${cardAccent}, transparent 38%), linear-gradient(164deg, rgba(9,17,29,0.74), rgba(1,5,12,0.94) 62%), url(${generator.imageUrl})`,
             backgroundPosition: "center, center, calc(100% + 35px) 52%",
             backgroundRepeat: "no-repeat, no-repeat, no-repeat",
             backgroundSize: "cover, cover, 56%",
+            filter: isBuilt ? "none" : "saturate(0.56) brightness(0.58)",
           }}
         />
-        <div className="absolute inset-0 bg-[repeating-linear-gradient(125deg,rgba(255,255,255,0.05)_0,rgba(255,255,255,0.05)_1px,transparent_1px,transparent_11px)] opacity-20" />
+        <div
+          className="absolute inset-0 bg-[repeating-linear-gradient(125deg,rgba(255,255,255,0.05)_0,rgba(255,255,255,0.05)_1px,transparent_1px,transparent_11px)]"
+          style={{ opacity: isBuilt ? 0.2 : 0.1 }}
+        />
+        {!isBuilt ? (
+          <div className="absolute inset-0 bg-black/28" />
+        ) : null}
         <div className="relative z-10 p-3.5 sm:p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -283,49 +324,59 @@ function UiMockupSixRoute() {
               </h3>
             </div>
             <div className="flex items-center gap-2">
-              <span
-                className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${statusStyle.badge}`}
-              >
-                {generator.status}
-              </span>
+              {isBuilt ? (
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${statusStyle.badge}`}
+                >
+                  {generator.status}
+                </span>
+              ) : (
+                <span className="rounded-full border border-white/35 bg-white/15 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-100">
+                  Unbuilt
+                </span>
+              )}
               <GeneratorInfoPopover
                 details={generator.details}
-                panelClassName={statusStyle.panel}
+                panelClassName={infoPanelClass}
               />
-              <button
-                className="rounded-full border border-white/30 bg-black/35 p-1.5 text-white transition hover:bg-black/55"
-                onClick={() => {
-                  setOpenLevelsCardId(null);
-                  setOpenSettingsCardId((current) =>
-                    current === generator.id ? null : generator.id
-                  );
-                  setDraftScales((prev) => ({
-                    ...prev,
-                    [generator.id]: scale,
-                  }));
-                }}
-                type="button"
-              >
-                <Settings className="size-3.5" strokeWidth={2.4} />
-              </button>
-              <button
-                className="relative rounded-full border border-white/30 bg-black/35 p-1.5 text-white transition hover:bg-black/55"
-                onClick={() => {
-                  setOpenSettingsCardId(null);
-                  setOpenLevelsCardId((current) =>
-                    current === generator.id ? null : generator.id
-                  );
-                }}
-                type="button"
-              >
-                <LayersPlus className="size-3.5" strokeWidth={2.4} />
-              </button>
+              {isBuilt ? (
+                <>
+                  <button
+                    className="rounded-full border border-white/30 bg-black/35 p-1.5 text-white transition hover:bg-black/55"
+                    onClick={() => {
+                      setOpenLevelsCardId(null);
+                      setOpenSettingsCardId((current) =>
+                        current === generator.id ? null : generator.id
+                      );
+                      setDraftScales((prev) => ({
+                        ...prev,
+                        [generator.id]: scale,
+                      }));
+                    }}
+                    type="button"
+                  >
+                    <Settings className="size-3.5" strokeWidth={2.4} />
+                  </button>
+                  <button
+                    className="relative rounded-full border border-white/30 bg-black/35 p-1.5 text-white transition hover:bg-black/55"
+                    onClick={() => {
+                      setOpenSettingsCardId(null);
+                      setOpenLevelsCardId((current) =>
+                        current === generator.id ? null : generator.id
+                      );
+                    }}
+                    type="button"
+                  >
+                    <LayersPlus className="size-3.5" strokeWidth={2.4} />
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
 
-          <div className="mt-4 rounded-xl border border-white/20 bg-black/34 p-3 backdrop-blur-sm">
-            <div>
-              <div>
+          {isBuilt ? (
+            <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
+              <div className="rounded-xl border border-white/20 bg-black/34 p-3 backdrop-blur-sm">
                 <p className="text-[10px] uppercase tracking-[0.22em] text-slate-300/80">
                   Current Output
                 </p>
@@ -336,44 +387,72 @@ function UiMockupSixRoute() {
                   </span>
                 </p>
               </div>
-            </div>
-          </div>
-
-          <div className="mt-3 rounded-lg border border-white/18 bg-black/28 p-2.5">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-300/80">
-              Upgrade Cost
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {upgradeCostEntries.map(([resourceKey, requiredAmount]) => {
-                  const availableAmount =
-                    AVAILABLE_UPGRADE_RESOURCES[resourceKey];
-                  const isMissing = availableAmount < requiredAmount;
-                  return (
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold ${
-                        isMissing
-                          ? "border-rose-300/60 bg-rose-500/25 text-rose-100"
-                          : "border-white/20 bg-black/35 text-slate-100"
-                      }`}
-                      key={resourceKey}
-                    >
-                      <img
-                        alt={`${resourceKey} resource`}
-                        className="h-3.5 w-3.5 rounded-[2px] border border-white/25 object-cover"
-                        src={RESOURCE_ICON_BY_KEY[resourceKey]}
-                      />
-                      <span>{requiredAmount.toLocaleString()}</span>
-                    </span>
-                  );
-                })}
+              <div className="rounded-xl border border-cyan-200/26 bg-cyan-300/10 p-3 backdrop-blur-sm">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-cyan-100/80">
+                  Generator Level
+                </p>
+                <p className="mt-1 text-3xl font-semibold text-cyan-50">
+                  Lv {scale}
+                </p>
               </div>
-              <UpgradeButton disabled={!canUpgrade} label="Upgrade" />
             </div>
+          ) : null}
+
+          <div className="mt-3 flex justify-center">
+            <Popover.Root>
+              <Popover.Trigger
+                closeDelay={90}
+                delay={60}
+                openOnHover
+                render={
+                  <UpgradeButton
+                    actionDurationText={actionDurationLabel}
+                    consumptionDeltaText={actionEnergyDeltaLabel}
+                    disabled={!canUpgrade}
+                    generationDeltaText={actionOutputDeltaLabel}
+                    icon={isBuilt ? "arrow" : "hammer"}
+                    label={isBuilt ? "Upgrade" : "Build"}
+                  />
+                }
+              />
+              <Popover.Portal>
+                <Popover.Positioner align="end" className="z-[90]" sideOffset={8}>
+                  <Popover.Popup className="origin-[var(--transform-origin)] w-[240px] rounded-xl border border-white/30 bg-[rgba(5,10,18,0.82)] p-3 text-xs text-white/90 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">
+                      {isBuilt ? "Upgrade Cost" : "Build Cost"}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {upgradeCostEntries.map(([resourceKey, requiredAmount]) => {
+                        const availableAmount =
+                          AVAILABLE_UPGRADE_RESOURCES[resourceKey];
+                        const isMissing = availableAmount < requiredAmount;
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold ${
+                              isMissing
+                                ? "border-rose-300/60 bg-rose-500/25 text-rose-100"
+                                : "border-white/20 bg-black/35 text-slate-100"
+                            }`}
+                            key={resourceKey}
+                          >
+                            <img
+                              alt={`${resourceKey} resource`}
+                              className="h-3.5 w-3.5 rounded-[2px] border border-white/25 object-cover"
+                              src={RESOURCE_ICON_BY_KEY[resourceKey]}
+                            />
+                            <span>{requiredAmount.toLocaleString()}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </Popover.Popup>
+                </Popover.Positioner>
+              </Popover.Portal>
+            </Popover.Root>
           </div>
         </div>
         <AnimatePresence initial={false}>
-          {isSettingsOpen ? (
+          {isBuilt && isSettingsOpen ? (
             <motion.section
               animate={{ clipPath: "inset(0 0% 0 0 round 15px)", opacity: 1 }}
               className="absolute inset-0 z-30 overflow-hidden rounded-2xl border border-cyan-200/28 bg-[rgba(4,10,19,0.94)] shadow-[0_16px_42px_rgba(0,0,0,0.5)] backdrop-blur-md"
@@ -401,7 +480,7 @@ function UiMockupSixRoute() {
                   </p>
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] text-slate-300">
-                      Saved {scalePercent}%
+                      Saved Lv {scale}
                     </span>
                     <button
                       className="rounded-full border border-white/30 bg-black/35 p-1 text-white transition hover:bg-black/55"
@@ -449,7 +528,9 @@ function UiMockupSixRoute() {
                 <div className="mt-3">
                   <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
                     <span>Scale</span>
-                    <span>{draftScalePercent}%</span>
+                    <span>
+                      Lv {draftScale} ({draftScalePercent}%)
+                    </span>
                   </div>
                   <input
                     aria-label={`${generator.name} scale`}
@@ -494,7 +575,7 @@ function UiMockupSixRoute() {
           ) : null}
         </AnimatePresence>
         <AnimatePresence initial={false}>
-          {isLevelsOpen ? (
+          {isBuilt && isLevelsOpen ? (
             <motion.section
               animate={{ clipPath: "inset(0 0% 0 0 round 15px)", opacity: 1 }}
               className="absolute inset-0 z-30 overflow-hidden rounded-2xl border border-cyan-200/28 bg-[rgba(4,10,19,0.94)] shadow-[0_16px_42px_rgba(0,0,0,0.5)] backdrop-blur-md"
@@ -522,7 +603,7 @@ function UiMockupSixRoute() {
                   </p>
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] text-slate-300">
-                      Current {scalePercent}%
+                      Current Lv {scale}
                     </span>
                     <button
                       className="rounded-full border border-white/30 bg-black/35 p-1 text-white transition hover:bg-black/55"
