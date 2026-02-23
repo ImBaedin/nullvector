@@ -1,9 +1,10 @@
 import { Bell, Menu, Settings } from "lucide-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useConvexAuth, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
+import { toast } from "sonner";
 import type { ResourceDatum } from "@/features/game-ui/contracts/navigation";
 
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
@@ -130,6 +131,7 @@ export function AppHeader({
     select: (state) => state.location.pathname,
   });
   const colonyId = parseColonyId(pathname);
+  const renameColony = useMutation(api.gameplay.renameColony);
   const hud = useQuery(
     api.gameplay.getColonyHud,
     colonyId && isAuthenticated
@@ -137,6 +139,9 @@ export function AppHeader({
       : "skip"
   );
   const simulatedResources = useSimulatedHudResources(hud?.resources);
+  const [isRenamingColony, setIsRenamingColony] = useState(false);
+  const [isSavingColonyName, setIsSavingColonyName] = useState(false);
+  const [draftColonyName, setDraftColonyName] = useState("");
   const config = useMemo(
     () =>
       getHeaderConfig(pathname, hud
@@ -150,6 +155,19 @@ export function AppHeader({
     [hud, pathname, simulatedResources]
   );
   const isCompact = useCompactHeaderMode();
+  const activeColony = useMemo(
+    () =>
+      config.activeColonyId && config.colonies
+        ? config.colonies.find((candidate) => candidate.id === config.activeColonyId) ?? null
+        : null,
+    [config.activeColonyId, config.colonies]
+  );
+  const headerTitle = useMemo(() => {
+    if (activeColony?.name) {
+      return activeColony.name;
+    }
+    return (config.title ?? "Colony Operations").replace(/ Resources$/, "");
+  }, [activeColony?.name, config.title]);
   const handleStarMapToggle = onToggleStarMap ?? config.onOpenStarMap;
   const handleColonyChange = (nextColonyId: string) => {
     navigate({
@@ -157,6 +175,51 @@ export function AppHeader({
       params: { colonyId: nextColonyId },
     });
   };
+  const commitColonyRename = async () => {
+    if (!activeColony || isSavingColonyName) {
+      return;
+    }
+
+    const normalizedName = draftColonyName.trim().replace(/\s+/g, " ");
+    if (normalizedName.length < 3) {
+      toast.error("Colony name must be at least 3 characters");
+      return;
+    }
+    if (normalizedName.length > 40) {
+      toast.error("Colony name must be 40 characters or fewer");
+      return;
+    }
+
+    if (normalizedName === activeColony.name) {
+      setIsRenamingColony(false);
+      return;
+    }
+
+    setIsSavingColonyName(true);
+    try {
+      await renameColony({
+        colonyId: activeColony.id as Id<"colonies">,
+        name: normalizedName,
+      });
+      setIsRenamingColony(false);
+      toast.success("Colony renamed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to rename colony");
+    } finally {
+      setIsSavingColonyName(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!activeColony) {
+      setIsRenamingColony(false);
+      setDraftColonyName("");
+      return;
+    }
+    if (!isRenamingColony) {
+      setDraftColonyName(activeColony.name);
+    }
+  }, [activeColony, isRenamingColony]);
 
   const notificationsBadge = useMemo(() => {
     if (!config.notificationsCount || config.notificationsCount <= 0) {
@@ -207,7 +270,47 @@ export function AppHeader({
                     isCompact ? "text-base" : "text-xl"
                   )}
                 >
-                  {config.title ?? "Colony Operations"}
+                  {isRenamingColony && activeColony ? (
+                    <input
+                      autoFocus
+                      className="w-[min(52vw,420px)] rounded-[var(--nv-r-xs)] border border-[color:var(--nv-glass-highlight)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-inherit focus:outline-none"
+                      disabled={isSavingColonyName}
+                      maxLength={40}
+                      onBlur={() => {
+                        void commitColonyRename();
+                      }}
+                      onChange={(event) => {
+                        setDraftColonyName(event.target.value);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void commitColonyRename();
+                        }
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          setDraftColonyName(activeColony.name);
+                          setIsRenamingColony(false);
+                        }
+                      }}
+                      value={draftColonyName}
+                    />
+                  ) : (
+                    <button
+                      className="cursor-pointer text-left hover:text-white"
+                      disabled={!activeColony}
+                      onClick={() => {
+                        if (!activeColony) {
+                          return;
+                        }
+                        setDraftColonyName(activeColony.name);
+                        setIsRenamingColony(true);
+                      }}
+                      type="button"
+                    >
+                      {headerTitle}
+                    </button>
+                  )}
                 </h1>
               </div>
             </div>

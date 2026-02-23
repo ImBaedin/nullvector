@@ -1121,6 +1121,47 @@ export const getColonyHud = query({
   },
 });
 
+export const renameColony = mutation({
+  args: {
+    colonyId: v.id("colonies"),
+    name: v.string(),
+  },
+  returns: v.object({
+    colonyId: v.id("colonies"),
+    name: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const { colony } = await getOwnedColony({
+      ctx,
+      colonyId: args.colonyId,
+    });
+
+    const trimmedName = args.name.trim().replace(/\s+/g, " ");
+    if (trimmedName.length < 3) {
+      throw new ConvexError("Colony name must be at least 3 characters");
+    }
+    if (trimmedName.length > 40) {
+      throw new ConvexError("Colony name must be 40 characters or fewer");
+    }
+
+    if (trimmedName === colony.name) {
+      return {
+        colonyId: colony._id,
+        name: colony.name,
+      };
+    }
+
+    await ctx.db.patch(colony._id, {
+      name: trimmedName,
+    });
+
+    return {
+      colonyId: colony._id,
+      name: trimmedName,
+    };
+  },
+});
+
 const levelTableRowValidator = v.object({
   level: v.number(),
   outputPerMinute: v.number(),
