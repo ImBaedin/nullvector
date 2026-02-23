@@ -185,7 +185,7 @@ function ResourcesRoute() {
     isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
   );
   const syncColony = useMutation(api.gameplay.syncColony);
-  const queueUpgrade = useMutation(api.gameplay.queueUpgrade);
+  const enqueueBuildingUpgrade = useMutation(api.gameplay.enqueueBuildingUpgrade);
 
   const [activeTableBuildingKey, setActiveTableBuildingKey] = useState<BuildingKey | null>(null);
   const [upgradingKey, setUpgradingKey] = useState<BuildingKey | null>(null);
@@ -237,14 +237,16 @@ function ResourcesRoute() {
     };
   }, [isAuthenticated, sync]);
 
-  const activeUpgrade = view?.colony.activeUpgrade;
-  const remainingTimeLabel = activeUpgrade
-    ? formatDuration(Math.max(0, activeUpgrade.completesAt - nowMs))
+  const buildingQueue = view?.queues.lanes.building;
+  const activeQueueItem = buildingQueue?.activeItem;
+  const pendingQueueItems = buildingQueue?.pendingItems ?? [];
+  const remainingTimeLabel = activeQueueItem
+    ? formatDuration(Math.max(0, activeQueueItem.completesAt - nowMs))
     : null;
 
   useGameTimedSync({
     enabled: isAuthenticated,
-    events: [{ atMs: activeUpgrade?.completesAt, id: "upgrade-complete" }],
+    events: [{ atMs: view?.queues.nextEventAt, id: "colony-queue-event" }],
     onDue: () => sync(),
     scopeId: `resources-colony-${colonyIdAsId}`,
   });
@@ -271,7 +273,10 @@ function ResourcesRoute() {
         {view.buildings.map((building) => {
           const isTableOpen = activeTableBuildingKey === building.key;
           const isBusy = upgradingKey === building.key;
-          const isActiveUpgradeTarget = activeUpgrade?.buildingKey === building.key;
+          const isActiveUpgradeTarget = activeQueueItem?.payload.buildingKey === building.key;
+          const queuedForBuilding = pendingQueueItems.find(
+            (item) => item.payload.buildingKey === building.key
+          );
           const nextLevelRow =
             building.levelTable.find((row) => row.level === building.currentLevel + 1) ??
             building.levelTable[0];
@@ -341,9 +346,11 @@ function ResourcesRoute() {
                       {isActiveUpgradeTarget ? (
                         <>
                           <Clock3 className="size-3" />
-                          Upgrading to Lv {activeUpgrade.toLevel}
+                          Upgrading to Lv {activeQueueItem.payload.toLevel}
                           {remainingTimeLabel ? ` (${remainingTimeLabel})` : ""}
                         </>
+                      ) : queuedForBuilding ? (
+                        <>Queued for Lv {queuedForBuilding.payload.toLevel}</>
                       ) : (
                         cardStatus
                       )}
@@ -436,19 +443,29 @@ function ResourcesRoute() {
                           actionDurationText={formatUpgradeTime(building.nextUpgradeDurationSeconds)}
                           disabled={!building.canUpgrade || isBusy}
                           icon="arrow"
-                          label={isBusy ? "Queueing..." : "Upgrade"}
+                          label={
+                            isBusy
+                              ? "Queueing..."
+                              : buildingQueue?.isFull
+                                ? "Queue Full"
+                                : "Upgrade"
+                          }
                           onClick={() => {
                             if (!building.canUpgrade || isBusy) {
                               return;
                             }
 
                             setUpgradingKey(building.key);
-                            queueUpgrade({
+                            enqueueBuildingUpgrade({
                               colonyId: colonyIdAsId,
                               buildingKey: building.key,
                             })
-                              .then(() => {
-                                toast.success(`${building.name} upgrade queued`);
+                              .then((result) => {
+                                if (result.status === "active") {
+                                  toast.success(`${building.name} upgrade started`);
+                                } else {
+                                  toast.success(`${building.name} upgrade queued`);
+                                }
                               })
                               .catch((error) => {
                                 toast.error(

@@ -5,3 +5,4 @@
 - In this monorepo, check for and follow package-specific `AGENTS.md` files when working inside that package (for example, `packages/backend/AGENTS.md`).
 - MVP upgrade timing rule: upgrades are resolved only during explicit colony sync calls; accrual must be segmented so post-completion offline time uses upgraded production rates.
 - For Better Auth + Convex web auth, do not manually call `/api/auth/convex/token` from app code; rely on `ConvexBetterAuthProvider` + `convexClient()` plugin and gate Convex queries/mutations with `useConvexAuth()`.
+- Queueing model has moved to lane-based `colonyQueueItems`; building upgrades snapshot `fromLevel/toLevel`, cost, and timing at enqueue (cost deducted immediately), and colony/UI queue timing should be driven by `queues.nextEventAt` instead of legacy `activeUpgrade`.

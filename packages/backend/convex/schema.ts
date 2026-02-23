@@ -56,6 +56,28 @@ const activeUpgradeValidator = v.object({
   cost: resourceBucketValidator,
 });
 
+const queueLaneValidator = v.union(
+  v.literal("building"),
+  v.literal("shipyard"),
+  v.literal("research")
+);
+
+const queueItemStatusValidator = v.union(
+  v.literal("queued"),
+  v.literal("active"),
+  v.literal("completed"),
+  v.literal("cancelled"),
+  v.literal("failed")
+);
+
+const queueItemKindValidator = v.literal("buildingUpgrade");
+
+const queuePayloadValidator = v.object({
+  buildingKey: upgradeBuildingKeyValidator,
+  fromLevel: v.number(),
+  toLevel: v.number(),
+});
+
 export default defineSchema({
   // Global world config. MVP expects one active universe, but all gameplay rows
   // still carry universeId for future multi-universe support.
@@ -238,7 +260,7 @@ export default defineSchema({
     usedSlots: v.number(),
     // Tickless accrual anchor timestamp for production calculations.
     lastAccruedAt: v.number(),
-    // Single active timed upgrade queue for early-game progression.
+    // Deprecated legacy single-upgrade state. New runtime uses colonyQueueItems.
     activeUpgrade: v.optional(activeUpgradeValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -282,4 +304,28 @@ export default defineSchema({
       "status",
       "arriveAt",
     ]),
+
+  // Lane-scoped production/build queues and their history.
+  colonyQueueItems: defineTable({
+    universeId: v.id("universes"),
+    playerId: v.id("players"),
+    colonyId: v.id("colonies"),
+    lane: queueLaneValidator,
+    kind: queueItemKindValidator,
+    status: queueItemStatusValidator,
+    order: v.number(),
+    queuedAt: v.number(),
+    startsAt: v.number(),
+    completesAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    cost: resourceBucketValidator,
+    payload: queuePayloadValidator,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_col_lane_ord", ["colonyId", "lane", "order"])
+    .index("by_col_lane_st", ["colonyId", "lane", "status"])
+    .index("by_col_st_time", ["colonyId", "status", "completesAt"])
+    .index("by_col_lane_time", ["colonyId", "lane", "completesAt"])
+    .index("by_player_st_time", ["playerId", "status", "completesAt"]),
 });

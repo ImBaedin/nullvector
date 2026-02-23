@@ -84,8 +84,12 @@ type HudData = {
   resources: Array<{
     key: "alloy" | "crystal" | "fuel" | "energy";
     value: string;
+    valueAmount?: number;
     deltaPerMinute?: string;
+    deltaPerMinuteAmount?: number;
+    storageCurrentAmount?: number;
     storageCurrentLabel?: string;
+    storageCapAmount?: number;
     storageCapLabel?: string;
     storagePercent?: number;
     energyBalance?: number;

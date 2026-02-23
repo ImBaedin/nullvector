@@ -25,6 +25,10 @@ type BuildingKey =
   | "fuelRefineryLevel"
   | "powerPlantLevel";
 
+type QueueLane = "building" | "shipyard" | "research";
+type QueueItemStatus = "queued" | "active" | "completed" | "cancelled" | "failed";
+type QueueItemKind = "buildingUpgrade";
+
 type ColonyWithRelations = {
   colony: Doc<"colonies">;
   planet: Doc<"planets">;
@@ -50,6 +54,14 @@ const UPGRADE_BUILDING_KEYS = [
   "powerPlantLevel",
 ] as const satisfies readonly BuildingKey[];
 
+const OPEN_QUEUE_STATUSES: ReadonlyArray<QueueItemStatus> = ["active", "queued"];
+const BUILDING_LANE_CAPACITY = 2;
+const LANE_QUEUE_CAPACITY: Record<QueueLane, number> = {
+  building: BUILDING_LANE_CAPACITY,
+  shipyard: 2,
+  research: 2,
+};
+
 const ENERGY_BASE_CONSUMPTION: Record<Exclude<BuildingKey, "powerPlantLevel">, number> = {
   alloyMineLevel: 10,
   crystalMineLevel: 10,
@@ -68,6 +80,28 @@ const buildingKeyValidator = v.union(
   v.literal("fuelRefineryLevel"),
   v.literal("powerPlantLevel")
 );
+
+const queueLaneValidator = v.union(
+  v.literal("building"),
+  v.literal("shipyard"),
+  v.literal("research")
+);
+
+const queueItemStatusValidator = v.union(
+  v.literal("queued"),
+  v.literal("active"),
+  v.literal("completed"),
+  v.literal("cancelled"),
+  v.literal("failed")
+);
+
+const queueItemKindValidator = v.literal("buildingUpgrade");
+
+const queuePayloadValidator = v.object({
+  buildingKey: buildingKeyValidator,
+  fromLevel: v.number(),
+  toLevel: v.number(),
+});
 
 function emptyResourceBucket(): ResourceBucket {
   return {
@@ -405,6 +439,38 @@ async function getOwnedColony(args: {
   };
 }
 
+function compareQueueOrder(left: Doc<"colonyQueueItems">, right: Doc<"colonyQueueItems">) {
+  if (left.order !== right.order) {
+    return left.order - right.order;
+  }
+  if (left.queuedAt !== right.queuedAt) {
+    return left.queuedAt - right.queuedAt;
+  }
+  return left._creationTime - right._creationTime;
+}
+
+async function listOpenLaneQueueItems(args: {
+  colonyId: Id<"colonies">;
+  ctx: QueryCtx | MutationCtx;
+  lane: QueueLane;
+}) {
+  const rows = await args.ctx.db
+    .query("colonyQueueItems")
+    .withIndex("by_col_lane_ord", (q) => q.eq("colonyId", args.colonyId).eq("lane", args.lane))
+    .collect();
+
+  return rows
+    .filter((row) => OPEN_QUEUE_STATUSES.includes(row.status))
+    .sort(compareQueueOrder);
+}
+
+function queueItemFromToLevel(item: Doc<"colonyQueueItems">) {
+  return {
+    fromLevel: item.payload.fromLevel,
+    toLevel: item.payload.toLevel,
+  };
+}
+
 async function settleColonyAndPersist(args: {
   ctx: MutationCtx;
   colony: Doc<"colonies">;
@@ -420,51 +486,85 @@ async function settleColonyAndPersist(args: {
     storageCaps: cloneResourceBucket(colony.storageCaps),
     overflow: cloneResourceBucket(colony.overflow),
   };
+  const queueRows = await listOpenLaneQueueItems({
+    colonyId: colony._id,
+    ctx,
+    lane: "building",
+  });
 
-  const activeUpgrade = workingColony.activeUpgrade;
+  const queuePatchById = new Map<Id<"colonyQueueItems">, Partial<Doc<"colonyQueueItems">>>();
+  let activeQueue = queueRows.find((row) => row.status === "active") ?? null;
+  const queued = queueRows.filter((row) => row.status === "queued");
 
-  if (!activeUpgrade) {
+  const markPatch = (
+    queueId: Id<"colonyQueueItems">,
+    patch: Partial<Doc<"colonyQueueItems">>
+  ) => {
+    const existing = queuePatchById.get(queueId) ?? {};
+    queuePatchById.set(queueId, { ...existing, ...patch });
+  };
+
+  if (!activeQueue && queued.length > 0) {
+    activeQueue = queued.shift() ?? null;
+    if (activeQueue) {
+      markPatch(activeQueue._id, {
+        status: "active",
+        updatedAt: now,
+      });
+    }
+  }
+
+  const accrueTo = (segmentEndMs: number) => {
     const accrued = applyAccrualSegment({
       colony: workingColony,
       planet,
-      segmentEndMs: now,
+      segmentEndMs,
       resources: workingColony.resources,
     });
 
     workingColony.resources = accrued.resources;
     workingColony.lastAccruedAt = accrued.lastAccruedAt;
-  } else {
-    const firstSegmentEnd = Math.min(now, activeUpgrade.completesAt);
+  };
 
-    const firstAccrual = applyAccrualSegment({
-      colony: workingColony,
-      planet,
-      segmentEndMs: firstSegmentEnd,
-      resources: workingColony.resources,
+  while (activeQueue) {
+    if (activeQueue.startsAt > workingColony.lastAccruedAt) {
+      const waitSegmentEnd = Math.min(now, activeQueue.startsAt);
+      accrueTo(waitSegmentEnd);
+      if (workingColony.lastAccruedAt >= now) {
+        break;
+      }
+    }
+
+    const activeSegmentEnd = Math.min(now, activeQueue.completesAt);
+    accrueTo(activeSegmentEnd);
+    if (activeSegmentEnd < activeQueue.completesAt) {
+      break;
+    }
+
+    const { toLevel } = queueItemFromToLevel(activeQueue);
+    const buildingKey = activeQueue.payload.buildingKey;
+    workingColony.buildings[buildingKey] = Math.max(toLevel, workingColony.buildings[buildingKey]);
+    workingColony.storageCaps = storageCapsFromBuildings(workingColony.buildings);
+
+    markPatch(activeQueue._id, {
+      resolvedAt: activeQueue.completesAt,
+      status: "completed",
+      updatedAt: now,
     });
 
-    workingColony.resources = firstAccrual.resources;
-    workingColony.lastAccruedAt = firstAccrual.lastAccruedAt;
-
-    if (now >= activeUpgrade.completesAt) {
-      const toLevel = Math.max(activeUpgrade.toLevel, workingColony.buildings[activeUpgrade.buildingKey]);
-      workingColony.buildings[activeUpgrade.buildingKey] = toLevel;
-      workingColony.storageCaps = storageCapsFromBuildings(workingColony.buildings);
-
-      const secondAccrual = applyAccrualSegment({
-        colony: {
-          ...workingColony,
-          lastAccruedAt: activeUpgrade.completesAt,
-        },
-        planet,
-        segmentEndMs: now,
-        resources: workingColony.resources,
-      });
-
-      workingColony.resources = secondAccrual.resources;
-      workingColony.lastAccruedAt = secondAccrual.lastAccruedAt;
-      workingColony.activeUpgrade = undefined;
+    activeQueue = queued.shift() ?? null;
+    if (!activeQueue) {
+      break;
     }
+
+    markPatch(activeQueue._id, {
+      status: "active",
+      updatedAt: now,
+    });
+  }
+
+  if (!activeQueue && workingColony.lastAccruedAt < now) {
+    accrueTo(now);
   }
 
   await ctx.db.patch(colony._id, {
@@ -472,10 +572,14 @@ async function settleColonyAndPersist(args: {
     buildings: workingColony.buildings,
     storageCaps: workingColony.storageCaps,
     usedSlots: usedSlotsFromBuildings(workingColony.buildings),
-    activeUpgrade: workingColony.activeUpgrade,
+    activeUpgrade: undefined,
     lastAccruedAt: workingColony.lastAccruedAt,
     updatedAt: now,
   });
+
+  for (const [queueId, patch] of queuePatchById.entries()) {
+    await ctx.db.patch(queueId, patch);
+  }
 
   return workingColony;
 }
@@ -489,6 +593,16 @@ async function listPlayerColonies(args: { ctx: QueryCtx | MutationCtx; playerId:
 
   colonies.sort((left, right) => left.createdAt - right.createdAt);
   return colonies;
+}
+
+async function listColonyQueueItems(args: {
+  colonyId: Id<"colonies">;
+  ctx: QueryCtx | MutationCtx;
+}) {
+  return await args.ctx.db
+    .query("colonyQueueItems")
+    .withIndex("by_col_lane_ord", (q) => q.eq("colonyId", args.colonyId))
+    .collect();
 }
 
 function sessionStateValidator() {
@@ -737,43 +851,108 @@ export const bootstrapSession = mutation({
   },
 });
 
-function queueStatus(args: {
-  colony: Doc<"colonies">;
-  now: number;
-}) {
-  const { colony, now } = args;
-  const active = colony.activeUpgrade;
-  if (!active) {
-    return null;
-  }
-
-  const remainingMs = Math.max(0, active.completesAt - now);
-  return {
-    buildingKey: active.buildingKey,
-    fromLevel: active.fromLevel,
-    toLevel: active.toLevel,
-    queuedAt: active.queuedAt,
-    completesAt: active.completesAt,
-    remainingMs,
-    isComplete: remainingMs === 0,
-    cost: {
-      alloy: storedToWholeUnits(active.cost.alloy),
-      crystal: storedToWholeUnits(active.cost.crystal),
-      fuel: storedToWholeUnits(active.cost.fuel),
-    },
-  };
-}
-
-const upgradeStatusValidator = v.object({
-  buildingKey: buildingKeyValidator,
-  fromLevel: v.number(),
-  toLevel: v.number(),
+const queueViewItemValidator = v.object({
+  id: v.id("colonyQueueItems"),
+  lane: queueLaneValidator,
+  kind: queueItemKindValidator,
+  status: queueItemStatusValidator,
+  order: v.number(),
   queuedAt: v.number(),
+  startsAt: v.number(),
   completesAt: v.number(),
   remainingMs: v.number(),
   isComplete: v.boolean(),
   cost: resourceBucketValidator,
+  payload: queuePayloadValidator,
 });
+
+const laneQueueViewValidator = v.object({
+  lane: queueLaneValidator,
+  maxItems: v.number(),
+  totalItems: v.number(),
+  isFull: v.boolean(),
+  activeItem: v.optional(queueViewItemValidator),
+  pendingItems: v.array(queueViewItemValidator),
+});
+
+const queuesViewValidator = v.object({
+  nextEventAt: v.optional(v.number()),
+  lanes: v.object({
+    building: laneQueueViewValidator,
+    shipyard: laneQueueViewValidator,
+    research: laneQueueViewValidator,
+  }),
+});
+
+function toQueueViewItem(args: { item: Doc<"colonyQueueItems">; now: number }) {
+  const { item, now } = args;
+  const remainingMs = Math.max(0, item.completesAt - now);
+
+  return {
+    id: item._id,
+    lane: item.lane,
+    kind: item.kind,
+    status: item.status,
+    order: item.order,
+    queuedAt: item.queuedAt,
+    startsAt: item.startsAt,
+    completesAt: item.completesAt,
+    remainingMs,
+    isComplete: remainingMs === 0,
+    cost: {
+      alloy: storedToWholeUnits(item.cost.alloy),
+      crystal: storedToWholeUnits(item.cost.crystal),
+      fuel: storedToWholeUnits(item.cost.fuel),
+    },
+    payload: item.payload,
+  };
+}
+
+function queueEventsNextAt(rows: Array<Doc<"colonyQueueItems">>) {
+  let nextAt: number | null = null;
+  for (const row of rows) {
+    if (!OPEN_QUEUE_STATUSES.includes(row.status)) {
+      continue;
+    }
+    nextAt = nextAt === null ? row.completesAt : Math.min(nextAt, row.completesAt);
+  }
+
+  return nextAt;
+}
+
+function emptyLaneQueueView(lane: QueueLane) {
+  return {
+    lane,
+    maxItems: LANE_QUEUE_CAPACITY[lane],
+    totalItems: 0,
+    isFull: false,
+    activeItem: undefined,
+    pendingItems: [],
+  };
+}
+
+function buildLaneQueueView(args: {
+  lane: QueueLane;
+  now: number;
+  rows: Array<Doc<"colonyQueueItems">>;
+}) {
+  const open = args.rows
+    .filter((row) => row.lane === args.lane && OPEN_QUEUE_STATUSES.includes(row.status))
+    .sort(compareQueueOrder);
+
+  const active = open.find((row) => row.status === "active");
+  const pending = open.filter((row) => row.status === "queued");
+  const totalItems = open.length;
+
+  return {
+    lane: args.lane,
+    maxItems: LANE_QUEUE_CAPACITY[args.lane],
+    totalItems,
+    isFull: totalItems >= LANE_QUEUE_CAPACITY[args.lane],
+    activeItem: active ? toQueueViewItem({ item: active, now: args.now }) : undefined,
+    pendingItems: pending.map((item) => toQueueViewItem({ item, now: args.now })),
+  };
+}
 
 const sessionColonyValidator = v.object({
   id: v.id("colonies"),
@@ -785,8 +964,12 @@ const sessionColonyValidator = v.object({
 const resourceHudDatumValidator = v.object({
   key: v.union(v.literal("alloy"), v.literal("crystal"), v.literal("fuel"), v.literal("energy")),
   value: v.string(),
+  valueAmount: v.optional(v.number()),
   deltaPerMinute: v.optional(v.string()),
+  deltaPerMinuteAmount: v.optional(v.number()),
+  storageCurrentAmount: v.optional(v.number()),
   storageCurrentLabel: v.optional(v.string()),
+  storageCapAmount: v.optional(v.number()),
   storageCapLabel: v.optional(v.string()),
   storagePercent: v.optional(v.number()),
   energyBalance: v.optional(v.number()),
@@ -801,7 +984,7 @@ export const getColonyHud = query({
     title: v.string(),
     colonies: v.array(sessionColonyValidator),
     resources: v.array(resourceHudDatumValidator),
-    activeUpgrade: v.optional(upgradeStatusValidator),
+    queues: queuesViewValidator,
   }),
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -814,8 +997,14 @@ export const getColonyHud = query({
       ctx,
       playerId: player._id,
     });
+    const colonyQueueRows = await listColonyQueueItems({
+      colonyId: colony._id,
+      ctx,
+    });
 
     const planetsById = new Map<Id<"planets">, Doc<"planets">>();
+    const colonyStatusById = new Map<Id<"colonies">, string>();
+
     await Promise.all(
       playerColonies.map(async (entry) => {
         if (planetsById.has(entry.planetId)) {
@@ -827,6 +1016,26 @@ export const getColonyHud = query({
         }
       })
     );
+    await Promise.all(
+      playerColonies.map(async (entry) => {
+        const queueRows = await listOpenLaneQueueItems({
+          colonyId: entry._id,
+          ctx,
+          lane: "building",
+        });
+        const hasActive = queueRows.some((row) => row.status === "active");
+        const hasPending = queueRows.some((row) => row.status === "queued");
+        colonyStatusById.set(entry._id, hasActive ? "Upgrading" : hasPending ? "Queued" : "Stable");
+      })
+    );
+
+    const buildingLane = buildLaneQueueView({
+      lane: "building",
+      now,
+      rows: colonyQueueRows,
+    });
+    const shipyardLane = emptyLaneQueueView("shipyard");
+    const researchLane = emptyLaneQueueView("research");
 
     const rates = productionRatesPerMinute({
       buildings: colony.buildings,
@@ -846,16 +1055,24 @@ export const getColonyHud = query({
       {
         key: "alloy" as const,
         value: formatResourceValue(alloyUnits),
+        valueAmount: alloyUnits,
         deltaPerMinute: `+${Math.max(0, Math.floor(rates.resources.alloy)).toLocaleString()}/m`,
+        deltaPerMinuteAmount: Math.max(0, Math.floor(rates.resources.alloy)),
+        storageCurrentAmount: alloyUnits,
         storageCurrentLabel: formatResourceValue(alloyUnits),
+        storageCapAmount: alloyCap,
         storageCapLabel: formatResourceValue(alloyCap),
         storagePercent: alloyCap <= 0 ? 0 : Math.min(100, (alloyUnits / alloyCap) * 100),
       },
       {
         key: "crystal" as const,
         value: formatResourceValue(crystalUnits),
+        valueAmount: crystalUnits,
         deltaPerMinute: `+${Math.max(0, Math.floor(rates.resources.crystal)).toLocaleString()}/m`,
+        deltaPerMinuteAmount: Math.max(0, Math.floor(rates.resources.crystal)),
+        storageCurrentAmount: crystalUnits,
         storageCurrentLabel: formatResourceValue(crystalUnits),
+        storageCapAmount: crystalCap,
         storageCapLabel: formatResourceValue(crystalCap),
         storagePercent:
           crystalCap <= 0 ? 0 : Math.min(100, (crystalUnits / crystalCap) * 100),
@@ -863,8 +1080,12 @@ export const getColonyHud = query({
       {
         key: "fuel" as const,
         value: formatResourceValue(fuelUnits),
+        valueAmount: fuelUnits,
         deltaPerMinute: `+${Math.max(0, Math.floor(rates.resources.fuel)).toLocaleString()}/m`,
+        deltaPerMinuteAmount: Math.max(0, Math.floor(rates.resources.fuel)),
+        storageCurrentAmount: fuelUnits,
         storageCurrentLabel: formatResourceValue(fuelUnits),
+        storageCapAmount: fuelCap,
         storageCapLabel: formatResourceValue(fuelCap),
         storagePercent: fuelCap <= 0 ? 0 : Math.min(100, (fuelUnits / fuelCap) * 100),
       },
@@ -884,14 +1105,18 @@ export const getColonyHud = query({
           id: entry._id,
           name: entry.name,
           addressLabel: colonyPlanet ? toAddressLabel(colonyPlanet) : "Unknown",
-          status: entry.activeUpgrade ? "Upgrading" : "Stable",
+          status: colonyStatusById.get(entry._id) ?? "Stable",
         };
       }),
       resources,
-      activeUpgrade: queueStatus({
-        colony,
-        now,
-      }) ?? undefined,
+      queues: {
+        nextEventAt: queueEventsNextAt(colonyQueueRows) ?? undefined,
+        lanes: {
+          building: buildingLane,
+          shipyard: shipyardLane,
+          research: researchLane,
+        },
+      },
     };
   },
 });
@@ -913,11 +1138,13 @@ const buildingCardValidator = v.object({
   currentLevel: v.number(),
   maxLevel: v.number(),
   isUpgrading: v.boolean(),
+  isQueued: v.boolean(),
   status: v.union(
     v.literal("Running"),
     v.literal("Overflow"),
     v.literal("Paused"),
-    v.literal("Upgrading")
+    v.literal("Upgrading"),
+    v.literal("Queued")
   ),
   outputPerMinute: v.number(),
   outputLabel: v.string(),
@@ -938,8 +1165,8 @@ export const getResourceManagementView = query({
       name: v.string(),
       addressLabel: v.string(),
       lastAccruedAt: v.number(),
-      activeUpgrade: v.optional(upgradeStatusValidator),
     }),
+    queues: queuesViewValidator,
     resources: v.object({
       stored: resourceBucketValidator,
       storageCaps: resourceBucketValidator,
@@ -964,8 +1191,21 @@ export const getResourceManagementView = query({
       planet,
     });
 
-    const queue = colony.activeUpgrade;
-    const queueBlocked = !!queue;
+    const queueRows = await listColonyQueueItems({
+      colonyId: colony._id,
+      ctx,
+    });
+    const buildingLane = buildLaneQueueView({
+      lane: "building",
+      now,
+      rows: queueRows,
+    });
+    const shipyardLane = emptyLaneQueueView("shipyard");
+    const researchLane = emptyLaneQueueView("research");
+    const queueBlocked = buildingLane.isFull;
+    const openBuildingQueueRows = queueRows.filter(
+      (row) => row.lane === "building" && OPEN_QUEUE_STATUSES.includes(row.status)
+    );
 
     const affordable = (cost: ResourceBucket) =>
       RESOURCE_KEYS.every((key) => colony.resources[key] >= scaledUnits(cost[key]));
@@ -974,7 +1214,14 @@ export const getResourceManagementView = query({
       const config = BUILDING_CONFIG[key];
       const generator = getGeneratorOrThrow(config.generatorId);
       const currentLevel = colony.buildings[key];
-      const isUpgrading = queue?.buildingKey === key;
+      const projectedLevel = openBuildingQueueRows.reduce((level, row) => {
+        if (row.kind !== "buildingUpgrade" || row.payload.buildingKey !== key) {
+          return level;
+        }
+        return Math.max(level, row.payload.toLevel);
+      }, currentLevel);
+      const isUpgrading = buildingLane.activeItem?.payload.buildingKey === key;
+      const isQueued = buildingLane.pendingItems.some((item) => item.payload.buildingKey === key);
 
       const outputPerMinute =
         config.group === "Power"
@@ -993,14 +1240,16 @@ export const getResourceManagementView = query({
       let nextUpgradeDurationSeconds: number | undefined;
       let canUpgrade = false;
 
-      if (currentLevel < generator.maxLevel) {
-        nextUpgradeCost = resourceMapToWholeUnitBucket(getUpgradeCost(generator, currentLevel));
-        nextUpgradeDurationSeconds = getUpgradeDurationSeconds(generator, currentLevel);
+      if (projectedLevel < generator.maxLevel) {
+        nextUpgradeCost = resourceMapToWholeUnitBucket(getUpgradeCost(generator, projectedLevel));
+        nextUpgradeDurationSeconds = getUpgradeDurationSeconds(generator, projectedLevel);
         canUpgrade = !queueBlocked && affordable(nextUpgradeCost);
       }
 
-      const status: "Running" | "Overflow" | "Paused" | "Upgrading" = isUpgrading
+      const status: "Running" | "Overflow" | "Paused" | "Upgrading" | "Queued" = isUpgrading
         ? "Upgrading"
+        : isQueued
+          ? "Queued"
         : config.group === "Production" && colony.overflow[config.resource as keyof ResourceBucket] > 0
           ? "Overflow"
           : rates.energyRatio <= 0 && config.group === "Production"
@@ -1065,6 +1314,7 @@ export const getResourceManagementView = query({
         currentLevel,
         maxLevel: generator.maxLevel,
         isUpgrading,
+        isQueued,
         status,
         outputPerMinute,
         outputLabel: config.group === "Power" ? "MW" : `${config.resource} / min`,
@@ -1082,10 +1332,14 @@ export const getResourceManagementView = query({
         name: colony.name,
         addressLabel: toAddressLabel(planet),
         lastAccruedAt: colony.lastAccruedAt,
-        activeUpgrade: queueStatus({
-          colony,
-          now,
-        }) ?? undefined,
+      },
+      queues: {
+        nextEventAt: queueEventsNextAt(queueRows) ?? undefined,
+        lanes: {
+          building: buildingLane,
+          shipyard: shipyardLane,
+          research: researchLane,
+        },
       },
       resources: {
         stored: {
@@ -1146,22 +1400,26 @@ export const syncColony = mutation({
   },
 });
 
-export const queueUpgrade = mutation({
+export const enqueueBuildingUpgrade = mutation({
   args: {
     colonyId: v.id("colonies"),
     buildingKey: buildingKeyValidator,
   },
   returns: v.object({
     colonyId: v.id("colonies"),
+    queueItemId: v.id("colonyQueueItems"),
+    lane: queueLaneValidator,
     buildingKey: buildingKeyValidator,
     fromLevel: v.number(),
     toLevel: v.number(),
+    startsAt: v.number(),
     completesAt: v.number(),
     durationSeconds: v.number(),
+    status: queueItemStatusValidator,
   }),
   handler: async (ctx, args) => {
     const now = Date.now();
-    const { colony, planet } = await getOwnedColony({
+    const { colony, planet, player } = await getOwnedColony({
       ctx,
       colonyId: args.colonyId,
     });
@@ -1173,12 +1431,28 @@ export const queueUpgrade = mutation({
       now,
     });
 
-    if (settledColony.activeUpgrade) {
-      throw new ConvexError("Only one upgrade can run at a time");
+    const queueRows = await listOpenLaneQueueItems({
+      colonyId: settledColony._id,
+      ctx,
+      lane: "building",
+    });
+    if (queueRows.length >= BUILDING_LANE_CAPACITY) {
+      throw new ConvexError("Building queue is full");
     }
 
     const generator = getGeneratorOrThrow(BUILDING_CONFIG[args.buildingKey].generatorId);
-    const fromLevel = settledColony.buildings[args.buildingKey];
+    let projectedLevel = settledColony.buildings[args.buildingKey];
+    for (const row of queueRows) {
+      if (row.kind !== "buildingUpgrade") {
+        continue;
+      }
+      if (row.payload.buildingKey !== args.buildingKey) {
+        continue;
+      }
+      projectedLevel = Math.max(projectedLevel, row.payload.toLevel);
+    }
+
+    const fromLevel = projectedLevel;
     if (fromLevel >= generator.maxLevel) {
       throw new ConvexError("Building is already at max level");
     }
@@ -1198,28 +1472,51 @@ export const queueUpgrade = mutation({
     }
 
     const durationSeconds = getUpgradeDurationSeconds(generator, fromLevel);
-    const completesAt = now + durationSeconds * 1_000;
+    const laneTail = queueRows[queueRows.length - 1];
+    const startsAt = laneTail ? laneTail.completesAt : now;
+    const completesAt = startsAt + durationSeconds * 1_000;
 
     await ctx.db.patch(settledColony._id, {
       resources: nextResources,
-      activeUpgrade: {
+      activeUpgrade: undefined,
+      updatedAt: now,
+    });
+
+    const lane: QueueLane = "building";
+    const status: QueueItemStatus = queueRows.length === 0 ? "active" : "queued";
+    const laneOrder = (laneTail?.order ?? 0) + 1;
+    const queueItemId = await ctx.db.insert("colonyQueueItems", {
+      universeId: settledColony.universeId,
+      playerId: player._id,
+      colonyId: settledColony._id,
+      lane,
+      kind: "buildingUpgrade",
+      status,
+      order: laneOrder,
+      queuedAt: now,
+      startsAt,
+      completesAt,
+      cost: upgradeCostScaled,
+      payload: {
         buildingKey: args.buildingKey,
         fromLevel,
         toLevel,
-        queuedAt: now,
-        completesAt,
-        cost: upgradeCostScaled,
       },
+      createdAt: now,
       updatedAt: now,
     });
 
     return {
       colonyId: settledColony._id,
+      queueItemId,
+      lane,
       buildingKey: args.buildingKey,
       fromLevel,
       toLevel,
+      startsAt,
       completesAt,
       durationSeconds,
+      status,
     };
   },
 });

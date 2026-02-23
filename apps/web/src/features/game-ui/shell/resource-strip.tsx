@@ -62,7 +62,18 @@ export function ResourceStrip({
                 <p className="nv-caps text-[10px] text-[color:var(--nv-text-muted)]">
                   {resource.key}
                 </p>
-                <p className="nv-mono text-base text-[color:var(--nv-text-primary)]">
+                <p
+                  className="nv-mono text-base text-[color:var(--nv-text-primary)]"
+                  title={
+                    resource.key !== "energy"
+                      ? resource.storageCurrentAmount !== undefined
+                        ? resource.storageCurrentAmount.toLocaleString()
+                        : resource.valueAmount !== undefined
+                          ? resource.valueAmount.toLocaleString()
+                          : resource.value
+                      : resource.value
+                  }
+                >
                   {resource.value}
                   {resource.key !== "energy" &&
                   resource.storageCurrentLabel &&

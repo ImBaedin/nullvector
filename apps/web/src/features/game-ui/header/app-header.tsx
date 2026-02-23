@@ -1,9 +1,10 @@
 import { Bell, Menu, Settings } from "lucide-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
+import type { ResourceDatum } from "@/features/game-ui/contracts/navigation";
 
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
@@ -20,6 +21,83 @@ type AppHeaderProps = {
   isStarMapOpen?: boolean;
   onToggleStarMap?: () => void;
 };
+
+function formatResourceValue(units: number) {
+  if (units >= 1_000_000) {
+    return `${(units / 1_000_000).toFixed(1)}M`;
+  }
+  if (units >= 1_000) {
+    return `${(units / 1_000).toFixed(1)}k`;
+  }
+  return units.toString();
+}
+
+function useSimulatedHudResources(resources: ResourceDatum[] | undefined) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const baselineRef = useRef<{
+    atMs: number;
+    resources: ResourceDatum[];
+  } | null>(null);
+
+  const signature = useMemo(() => JSON.stringify(resources ?? []), [resources]);
+
+  useEffect(() => {
+    if (!resources) {
+      baselineRef.current = null;
+      return;
+    }
+
+    baselineRef.current = {
+      atMs: Date.now(),
+      resources,
+    };
+    setNowMs(Date.now());
+  }, [signature]);
+
+  useEffect(() => {
+    const tick = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1_000);
+
+    return () => {
+      window.clearInterval(tick);
+    };
+  }, []);
+
+  const baseline = baselineRef.current;
+  if (!baseline) {
+    return resources;
+  }
+
+  const elapsedMinutes = Math.max(0, (nowMs - baseline.atMs) / 60_000);
+
+  return baseline.resources.map((resource) => {
+    if (resource.key === "energy") {
+      return resource;
+    }
+
+    const current = resource.storageCurrentAmount;
+    const cap = resource.storageCapAmount;
+    const delta = resource.deltaPerMinuteAmount;
+    if (current === undefined || cap === undefined || delta === undefined) {
+      return resource;
+    }
+
+    const nextAmount = Math.min(cap, Math.max(0, Math.floor(current + delta * elapsedMinutes)));
+    const nextPercent = cap <= 0 ? 0 : Math.min(100, (nextAmount / cap) * 100);
+
+    return {
+      ...resource,
+      value: formatResourceValue(nextAmount),
+      valueAmount: nextAmount,
+      storageCurrentAmount: nextAmount,
+      storageCurrentLabel: formatResourceValue(nextAmount),
+      storageCapLabel: formatResourceValue(cap),
+      storagePercent: nextPercent,
+      deltaPerMinute: `+${Math.max(0, Math.floor(delta)).toLocaleString()}/m`,
+    };
+  });
+}
 
 function useCompactHeaderMode() {
   const [isCompact, setIsCompact] = useState(false);
@@ -58,17 +136,18 @@ export function AppHeader({
       ? { colonyId: colonyId as Id<"colonies"> }
       : "skip"
   );
+  const simulatedResources = useSimulatedHudResources(hud?.resources);
   const config = useMemo(
     () =>
       getHeaderConfig(pathname, hud
         ? {
             activeColonyId: hud.activeColonyId,
             colonies: hud.colonies,
-            resources: hud.resources,
+            resources: simulatedResources ?? hud.resources,
             title: hud.title,
           }
         : undefined),
-    [hud, pathname]
+    [hud, pathname, simulatedResources]
   );
   const isCompact = useCompactHeaderMode();
   const handleStarMapToggle = onToggleStarMap ?? config.onOpenStarMap;

@@ -26,13 +26,17 @@ export type ColonyOption = {
 };
 
 export type ResourceDatum = {
+  deltaPerMinuteAmount?: number;
   deltaPerMinute?: string;
   energyBalance?: number;
   key: "alloy" | "crystal" | "energy" | "fuel";
+  storageCapAmount?: number;
   storageCapLabel?: string;
+  storageCurrentAmount?: number;
   storageCurrentLabel?: string;
   storagePercent?: number;
   tone?: "danger" | "neutral" | "positive" | "warning";
+  valueAmount?: number;
   value: string;
 };
 
