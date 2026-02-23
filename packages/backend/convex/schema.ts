@@ -40,6 +40,22 @@ const buildingLevelsValidator = v.object({
   shipyardLevel: v.number(),
 });
 
+const upgradeBuildingKeyValidator = v.union(
+  v.literal("alloyMineLevel"),
+  v.literal("crystalMineLevel"),
+  v.literal("fuelRefineryLevel"),
+  v.literal("powerPlantLevel")
+);
+
+const activeUpgradeValidator = v.object({
+  buildingKey: upgradeBuildingKeyValidator,
+  fromLevel: v.number(),
+  toLevel: v.number(),
+  queuedAt: v.number(),
+  completesAt: v.number(),
+  cost: resourceBucketValidator,
+});
+
 export default defineSchema({
   // Global world config. MVP expects one active universe, but all gameplay rows
   // still carry universeId for future multi-universe support.
@@ -222,6 +238,8 @@ export default defineSchema({
     usedSlots: v.number(),
     // Tickless accrual anchor timestamp for production calculations.
     lastAccruedAt: v.number(),
+    // Single active timed upgrade queue for early-game progression.
+    activeUpgrade: v.optional(activeUpgradeValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

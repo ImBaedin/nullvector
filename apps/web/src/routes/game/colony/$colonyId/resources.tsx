@@ -1,151 +1,57 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Popover } from "@base-ui/react/popover";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import type { ReactNode } from "react";
+import { Clock3, Gauge, Info, Layers3, X } from "lucide-react";
+import { api } from "@nullvector/backend/convex/_generated/api";
+import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
+import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
 import { UpgradeButton } from "@/features/ui-mockups/components/upgrade-button";
-import { Gauge, Info, LayersPlus, Settings, X } from "lucide-react";
 
 export const Route = createFileRoute("/game/colony/$colonyId/resources")({
-  component: UiMockupSixRoute,
+  component: ResourcesRoute,
 });
 
-type GeneratorStatus = "Running" | "Shortage" | "Overflow" | "Paused";
+type BuildingKey =
+  | "alloyMineLevel"
+  | "crystalMineLevel"
+  | "fuelRefineryLevel"
+  | "powerPlantLevel";
 
-type GeneratorGroup = "Production" | "Power";
-type UpgradeResourceKey = "alloy" | "crystal" | "fuel";
+type DeltaResourceKey = "alloy" | "crystal" | "fuel" | "energy";
 
-type GeneratorDatum = {
-  accent: string;
-  baseEnergy: number;
-  baseRate: number;
-  details: {
-    efficiency: string;
-    inputs: string;
-    output: string;
-    overflow: string;
-  };
-  id: string;
-  imageUrl: string;
-  isBuilt?: boolean;
-  name: string;
-  status: GeneratorStatus;
-  unit: string;
-  group: GeneratorGroup;
-  upgradeCost: Partial<Record<UpgradeResourceKey, number>>;
-};
+type CardStatus = "Running" | "Shortage" | "Overflow" | "Paused";
 
-const AVAILABLE_UPGRADE_RESOURCES: Record<UpgradeResourceKey, number> = {
-  alloy: 143_200,
-  crystal: 96_500,
-  fuel: 53_700,
-};
-
-const RESOURCE_ICON_BY_KEY: Record<UpgradeResourceKey, string> = {
-  alloy: "/game-icons/alloy.png",
-  crystal: "/game-icons/crystal.png",
-  fuel: "/game-icons/deuterium.png",
-};
-
-const generatorData: GeneratorDatum[] = [
+const BUILDING_VISUALS: Record<
+  BuildingKey,
   {
-    accent: "rgba(74, 233, 255, 0.65)",
-    baseEnergy: 34,
-    baseRate: 220,
-    details: {
-      efficiency: "92%",
-      inputs: "Consumes 34 MW",
-      output: "Alloy ore",
-      overflow: "No overflow",
-    },
-    id: "alloy-rig",
-    imageUrl: "/game-icons/alloy.png",
-    name: "Alloy Extraction Rig",
-    status: "Running",
-    unit: "Alloy / min",
-    group: "Production",
-    upgradeCost: { alloy: 22_000, crystal: 8_000 },
-  },
-  {
-    accent: "rgba(122, 181, 255, 0.62)",
-    baseEnergy: 29,
-    baseRate: 172,
-    details: {
-      efficiency: "84%",
-      inputs: "Consumes 29 MW",
-      output: "Crystal",
-      overflow: "Transport lag 5m",
-    },
-    id: "crystal-bore",
-    imageUrl: "/game-icons/crystal.png",
-    name: "Crystal Boreline",
-    status: "Overflow",
-    unit: "Crystal / min",
-    group: "Production",
-    upgradeCost: { alloy: 20_000, crystal: 11_000, fuel: 7_000 },
-  },
-  {
-    accent: "rgba(255, 170, 106, 0.7)",
-    baseEnergy: 25,
-    baseRate: 140,
-    details: {
-      efficiency: "77%",
-      inputs: "Consumes 25 MW",
-      output: "Fuel",
-      overflow: "No overflow",
-    },
-    id: "fuel-well",
-    imageUrl: "/game-icons/deuterium.png",
-    name: "Deuterium Well",
-    status: "Shortage",
-    unit: "Fuel / min",
-    group: "Production",
-    upgradeCost: { alloy: 17_000, crystal: 6_500 },
-  },
-  {
-    accent: "rgba(255, 125, 167, 0.66)",
-    baseEnergy: 52,
-    baseRate: 360,
-    details: {
-      efficiency: "95%",
-      inputs: "Consumes deuterium",
-      output: "Grid energy",
-      overflow: "No overflow",
-    },
-    id: "fusion-stack",
-    imageUrl: "/game-icons/energy.png",
-    name: "Fusion Stack",
-    status: "Running",
-    unit: "MW",
-    group: "Power",
-    upgradeCost: { alloy: 35_000, crystal: 18_000, fuel: 14_000 },
-  },
-  {
-    accent: "rgba(255, 101, 101, 0.68)",
-    baseEnergy: 45,
-    baseRate: 220,
-    details: {
-      efficiency: "0%",
-      inputs: "Needs crystal rods",
-      output: "Emergency energy",
-      overflow: "Production paused",
-    },
-    id: "aux-reactor",
-    imageUrl: "/game-icons/energy.png",
-    isBuilt: false,
-    name: "Auxiliary Reactor",
-    status: "Paused",
-    unit: "MW",
-    group: "Power",
-    upgradeCost: { alloy: 65_000, crystal: 43_000, fuel: 72_000 },
-  },
-];
-
-const STATUS_STYLES: Record<
-  GeneratorStatus,
-  { badge: string; card: string; panel: string }
+    accent: string;
+    imageUrl: string;
+  }
 > = {
+  alloyMineLevel: {
+    accent: "rgba(74, 233, 255, 0.65)",
+    imageUrl: "/game-icons/alloy.png",
+  },
+  crystalMineLevel: {
+    accent: "rgba(122, 181, 255, 0.62)",
+    imageUrl: "/game-icons/crystal.png",
+  },
+  fuelRefineryLevel: {
+    accent: "rgba(255, 170, 106, 0.7)",
+    imageUrl: "/game-icons/deuterium.png",
+  },
+  powerPlantLevel: {
+    accent: "rgba(255, 125, 167, 0.66)",
+    imageUrl: "/game-icons/energy.png",
+  },
+};
+
+const STATUS_STYLES: Record<CardStatus, { badge: string; card: string; panel: string }> = {
   Running: {
     badge: "border-emerald-300/70 bg-emerald-300/20 text-emerald-100",
     card: "border-emerald-300/35",
@@ -168,612 +74,597 @@ const STATUS_STYLES: Record<
   },
 };
 
-function UiMockupSixRoute() {
-  const [scales, setScales] = useState<Record<string, number>>({
-    "alloy-rig": 6,
-    "aux-reactor": 0,
-    "crystal-bore": 7,
-    "fuel-well": 5,
-    "fusion-stack": 8,
-  });
-  const [draftScales, setDraftScales] = useState<Record<string, number>>({
-    "alloy-rig": 6,
-    "aux-reactor": 0,
-    "crystal-bore": 7,
-    "fuel-well": 5,
-    "fusion-stack": 8,
-  });
-  const [openSettingsCardId, setOpenSettingsCardId] = useState<string | null>(
-    null
+const DELTA_RESOURCE_META: Record<DeltaResourceKey, { icon: string; label: string; suffix: string }> =
+  {
+    alloy: { icon: "/game-icons/alloy.png", label: "Alloy", suffix: "/m" },
+    crystal: { icon: "/game-icons/crystal.png", label: "Crystal", suffix: "/m" },
+    fuel: { icon: "/game-icons/deuterium.png", label: "Fuel", suffix: "/m" },
+    energy: { icon: "/game-icons/energy.png", label: "Energy", suffix: " MW" },
+  };
+
+function formatDuration(ms: number) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1_000));
+  const hours = Math.floor(totalSeconds / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+
+  return `${seconds}s`;
+}
+
+function formatUpgradeTime(seconds?: number) {
+  if (!seconds || seconds <= 0) {
+    return "N/A";
+  }
+
+  const hours = Math.floor(seconds / 3_600);
+  const minutes = Math.floor((seconds % 3_600) / 60);
+  const remainingSeconds = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  return `${remainingSeconds}s`;
+}
+
+function formatSignedDelta(value: number, suffix: string) {
+  return `${value > 0 ? "+" : ""}${value.toLocaleString()}${suffix}`;
+}
+
+function statusFromBuilding(args: {
+  canUpgrade: boolean;
+  overflow: number;
+  energyRatio: number;
+  outputPerMinute: number;
+}): CardStatus {
+  if (args.energyRatio < 0.55) {
+    return "Shortage";
+  }
+  if (args.overflow > 0) {
+    return "Overflow";
+  }
+  if (!args.canUpgrade && args.outputPerMinute <= 0) {
+    return "Paused";
+  }
+  return "Running";
+}
+
+function resourceNameForBuilding(key: BuildingKey) {
+  if (key === "alloyMineLevel") {
+    return "Alloy";
+  }
+  if (key === "crystalMineLevel") {
+    return "Crystal";
+  }
+  if (key === "fuelRefineryLevel") {
+    return "Fuel";
+  }
+  return "Energy";
+}
+
+function efficiencyLabel(status: CardStatus, energyRatio: number) {
+  if (status === "Paused") {
+    return "0%";
+  }
+  const value = Math.max(0, Math.min(100, Math.round(energyRatio * 100)));
+  return `${value}%`;
+}
+
+function outputResourceKeyForBuilding(key: BuildingKey): DeltaResourceKey {
+  if (key === "alloyMineLevel") {
+    return "alloy";
+  }
+  if (key === "crystalMineLevel") {
+    return "crystal";
+  }
+  if (key === "fuelRefineryLevel") {
+    return "fuel";
+  }
+  return "energy";
+}
+
+function ResourcesRoute() {
+  const { colonyId } = Route.useParams();
+  const colonyIdAsId = colonyId as Id<"colonies">;
+  const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+
+  const view = useQuery(
+    api.gameplay.getResourceManagementView,
+    isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
   );
-  const [openLevelsCardId, setOpenLevelsCardId] = useState<string | null>(null);
-  const [savedSettingsCardId, setSavedSettingsCardId] = useState<string | null>(
-    null
-  );
-  const [isReady, setIsReady] = useState(false);
+  const syncColony = useMutation(api.gameplay.syncColony);
+  const queueUpgrade = useMutation(api.gameplay.queueUpgrade);
+
+  const [activeTableBuildingKey, setActiveTableBuildingKey] = useState<BuildingKey | null>(null);
+  const [upgradingKey, setUpgradingKey] = useState<BuildingKey | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const isSyncingRef = useRef(false);
+
+  const sync = useCallback(async () => {
+    if (!isAuthenticated || isSyncingRef.current) {
+      return;
+    }
+
+    isSyncingRef.current = true;
+    try {
+      await syncColony({ colonyId: colonyIdAsId });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to sync colony");
+    } finally {
+      isSyncingRef.current = false;
+    }
+  }, [colonyIdAsId, isAuthenticated, syncColony]);
 
   useEffect(() => {
-    const frame = requestAnimationFrame(() => setIsReady(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
-
-  const groupedGenerators = useMemo(() => {
-    return {
-      Production: generatorData.filter((item) => item.group === "Production"),
-      Power: generatorData.filter((item) => item.group === "Power"),
-    };
-  }, []);
-
-  const updateScale = (id: string, nextValue: number) => {
-    const clamped = Math.max(0, Math.min(10, nextValue));
-    setScales((prev) => ({ ...prev, [id]: clamped }));
-  };
-
-  const updateDraftScale = (id: string, nextValue: number) => {
-    const clamped = Math.max(0, Math.min(10, nextValue));
-    setDraftScales((prev) => ({ ...prev, [id]: clamped }));
-  };
-
-  const getProductionAtScale = (
-    generator: GeneratorDatum,
-    scaleLevel: number
-  ) => {
-    return Math.round((generator.baseRate * scaleLevel) / 5);
-  };
-
-  const getEnergyAtScale = (generator: GeneratorDatum, scaleLevel: number) => {
-    return Math.max(
-      0,
-      Math.round(generator.baseEnergy * (0.45 + scaleLevel * 0.115))
-    );
-  };
-
-  const formatActionDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    if (minutes === 0) {
-      return `${remainingSeconds}s`;
+    if (!isAuthenticated) {
+      return;
     }
-    return `${minutes}m ${remainingSeconds}s`;
-  };
 
-  const renderCard = (generator: GeneratorDatum, index: number) => {
-    const isBuilt = generator.isBuilt ?? true;
-    const scale = scales[generator.id] ?? 0;
-    const draftScale = draftScales[generator.id] ?? scale;
-    const draftScalePercent = draftScale * 10;
-    const output = getProductionAtScale(generator, scale);
-    const draftOutput = getProductionAtScale(generator, draftScale);
-    const currentEnergy = getEnergyAtScale(generator, scale);
-    const draftEnergy = getEnergyAtScale(generator, draftScale);
-    const productionDelta = draftOutput - output;
-    const energyDelta = draftEnergy - currentEnergy;
-    const isSettingsOpen = openSettingsCardId === generator.id;
-    const isLevelsOpen = openLevelsCardId === generator.id;
-    const isSavedFlash = savedSettingsCardId === generator.id;
-    const statusStyle = STATUS_STYLES[generator.status];
-    const cardBorderClass = isBuilt ? statusStyle.card : "border-slate-200/20";
-    const cardAccent = isBuilt ? generator.accent : "rgba(148, 163, 184, 0.2)";
-    const infoPanelClass = isBuilt ? statusStyle.panel : "bg-slate-400/10";
-    const upgradeCostEntries = Object.entries(generator.upgradeCost) as [
-      UpgradeResourceKey,
-      number
-    ][];
-    const canUpgrade = upgradeCostEntries.every(
-      ([resourceKey, requiredAmount]) =>
-        AVAILABLE_UPGRADE_RESOURCES[resourceKey] >= requiredAmount
-    );
-    const actionTargetLevel = isBuilt ? Math.min(scale + 1, 10) : 1;
-    const actionNextOutput = getProductionAtScale(generator, actionTargetLevel);
-    const actionNextEnergy = getEnergyAtScale(generator, actionTargetLevel);
-    const actionOutputDelta = actionNextOutput - (isBuilt ? output : 0);
-    const actionEnergyDelta = actionNextEnergy - (isBuilt ? currentEnergy : 0);
-    const actionOutputDeltaLabel =
-      generator.unit === "MW"
-        ? `+${actionOutputDelta.toLocaleString()} MW`
-        : `+${actionOutputDelta.toLocaleString()}/min`;
-    const actionEnergyDeltaLabel = `+${actionEnergyDelta} MW`;
-    const actionDurationSeconds = Math.max(
-      24,
-      Math.round(
-        (isBuilt ? 34 : 58) +
-          actionTargetLevel * 7 +
-          generator.baseEnergy * 0.82 +
-          generator.baseRate * 0.045
-      )
-    );
-    const actionDurationLabel = formatActionDuration(actionDurationSeconds);
+    void sync();
 
+    const tick = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1_000);
+
+    const syncInterval = window.setInterval(() => {
+      void sync();
+    }, 20_000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void sync();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.clearInterval(tick);
+      window.clearInterval(syncInterval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [isAuthenticated, sync]);
+
+  const activeUpgrade = view?.colony.activeUpgrade;
+  const remainingTimeLabel = activeUpgrade
+    ? formatDuration(Math.max(0, activeUpgrade.completesAt - nowMs))
+    : null;
+
+  useGameTimedSync({
+    enabled: isAuthenticated,
+    events: [{ atMs: activeUpgrade?.completesAt, id: "upgrade-complete" }],
+    onDue: () => sync(),
+    scopeId: `resources-colony-${colonyIdAsId}`,
+  });
+
+  if (isAuthLoading || (isAuthenticated && !view)) {
     return (
-      <article
-        className={`group relative overflow-hidden rounded-2xl border ${cardBorderClass} bg-[#060f1a] shadow-[0_16px_34px_rgba(0,0,0,0.4)]`}
-        key={generator.id}
-        style={{
-          opacity: isReady ? 1 : 0,
-          transform: isReady ? "translateY(0px)" : "translateY(20px)",
-          transition: `opacity 460ms ease, transform 520ms ease ${
-            index * 60
-          }ms`,
-        }}
-      >
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `radial-gradient(circle at 78% 24%, ${cardAccent}, transparent 38%), linear-gradient(164deg, rgba(9,17,29,0.74), rgba(1,5,12,0.94) 62%), url(${generator.imageUrl})`,
-            backgroundPosition: "center, center, calc(100% + 35px) 52%",
-            backgroundRepeat: "no-repeat, no-repeat, no-repeat",
-            backgroundSize: "cover, cover, 56%",
-            filter: isBuilt ? "none" : "saturate(0.56) brightness(0.58)",
-          }}
-        />
-        <div
-          className="absolute inset-0 bg-[repeating-linear-gradient(125deg,rgba(255,255,255,0.05)_0,rgba(255,255,255,0.05)_1px,transparent_1px,transparent_11px)]"
-          style={{ opacity: isBuilt ? 0.2 : 0.1 }}
-        />
-        {!isBuilt ? (
-          <div className="absolute inset-0 bg-black/28" />
-        ) : null}
-        <div className="relative z-10 p-3.5 sm:p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.26em] text-slate-200/70">
-                {generator.group}
-              </p>
-              <h3 className="mt-1 max-w-[23ch] text-lg font-semibold leading-tight text-slate-50">
-                {generator.name}
-              </h3>
-            </div>
-            <div className="flex items-center gap-2">
-              {isBuilt ? (
-                <span
-                  className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${statusStyle.badge}`}
-                >
-                  {generator.status}
-                </span>
-              ) : (
-                <span className="rounded-full border border-white/35 bg-white/15 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-100">
-                  Unbuilt
-                </span>
-              )}
-              <GeneratorInfoPopover
-                details={generator.details}
-                panelClassName={infoPanelClass}
-              />
-              {isBuilt ? (
-                <>
-                  <button
-                    className="rounded-full border border-white/30 bg-black/35 p-1.5 text-white transition hover:bg-black/55"
-                    onClick={() => {
-                      setOpenLevelsCardId(null);
-                      setOpenSettingsCardId((current) =>
-                        current === generator.id ? null : generator.id
-                      );
-                      setDraftScales((prev) => ({
-                        ...prev,
-                        [generator.id]: scale,
-                      }));
-                    }}
-                    type="button"
-                  >
-                    <Settings className="size-3.5" strokeWidth={2.4} />
-                  </button>
-                  <button
-                    className="relative rounded-full border border-white/30 bg-black/35 p-1.5 text-white transition hover:bg-black/55"
-                    onClick={() => {
-                      setOpenSettingsCardId(null);
-                      setOpenLevelsCardId((current) =>
-                        current === generator.id ? null : generator.id
-                      );
-                    }}
-                    type="button"
-                  >
-                    <LayersPlus className="size-3.5" strokeWidth={2.4} />
-                  </button>
-                </>
-              ) : null}
-            </div>
-          </div>
-
-          {isBuilt ? (
-            <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
-              <div className="rounded-xl border border-white/20 bg-black/34 p-3 backdrop-blur-sm">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-slate-300/80">
-                  Current Output
-                </p>
-                <p className="mt-1 text-3xl font-semibold text-white">
-                  {output.toLocaleString()}{" "}
-                  <span className="text-sm font-medium text-slate-300">
-                    {generator.unit}
-                  </span>
-                </p>
-              </div>
-              <div className="rounded-xl border border-cyan-200/26 bg-cyan-300/10 p-3 backdrop-blur-sm">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-cyan-100/80">
-                  Generator Level
-                </p>
-                <p className="mt-1 text-3xl font-semibold text-cyan-50">
-                  Lv {scale}
-                </p>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="mt-3 flex justify-center">
-            <Popover.Root>
-              <Popover.Trigger
-                closeDelay={90}
-                delay={60}
-                openOnHover
-                render={
-                  <UpgradeButton
-                    actionDurationText={actionDurationLabel}
-                    consumptionDeltaText={actionEnergyDeltaLabel}
-                    disabled={!canUpgrade}
-                    generationDeltaText={actionOutputDeltaLabel}
-                    icon={isBuilt ? "arrow" : "hammer"}
-                    label={isBuilt ? "Upgrade" : "Build"}
-                  />
-                }
-              />
-              <Popover.Portal>
-                <Popover.Positioner align="end" className="z-[90]" sideOffset={8}>
-                  <Popover.Popup className="origin-[var(--transform-origin)] w-[240px] rounded-xl border border-white/30 bg-[rgba(5,10,18,0.82)] p-3 text-xs text-white/90 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">
-                      {isBuilt ? "Upgrade Cost" : "Build Cost"}
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      {upgradeCostEntries.map(([resourceKey, requiredAmount]) => {
-                        const availableAmount =
-                          AVAILABLE_UPGRADE_RESOURCES[resourceKey];
-                        const isMissing = availableAmount < requiredAmount;
-                        return (
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold ${
-                              isMissing
-                                ? "border-rose-300/60 bg-rose-500/25 text-rose-100"
-                                : "border-white/20 bg-black/35 text-slate-100"
-                            }`}
-                            key={resourceKey}
-                          >
-                            <img
-                              alt={`${resourceKey} resource`}
-                              className="h-3.5 w-3.5 rounded-[2px] border border-white/25 object-cover"
-                              src={RESOURCE_ICON_BY_KEY[resourceKey]}
-                            />
-                            <span>{requiredAmount.toLocaleString()}</span>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </Popover.Popup>
-                </Popover.Positioner>
-              </Popover.Portal>
-            </Popover.Root>
-          </div>
-        </div>
-        <AnimatePresence initial={false}>
-          {isBuilt && isSettingsOpen ? (
-            <motion.section
-              animate={{ clipPath: "inset(0 0% 0 0 round 15px)", opacity: 1 }}
-              className="absolute inset-0 z-30 overflow-hidden rounded-2xl border border-cyan-200/28 bg-[rgba(4,10,19,0.94)] shadow-[0_16px_42px_rgba(0,0,0,0.5)] backdrop-blur-md"
-              exit={{
-                clipPath: "inset(0 0% 0 100% round 15px)",
-                opacity: 0.95,
-              }}
-              initial={{
-                clipPath: "inset(0 0% 0 100% round 15px)",
-                opacity: 0.95,
-              }}
-              transition={{ duration: 0.34, ease: [0.24, 0.84, 0.32, 1] }}
-            >
-              <motion.div
-                animate={{ x: ["0%", "-100%"], opacity: [0.85, 0] }}
-                className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-[linear-gradient(90deg,rgba(113,233,255,0),rgba(113,233,255,0.45),rgba(113,233,255,0))]"
-                initial={{ x: "0%", opacity: 0.85 }}
-                transition={{ duration: 0.34, ease: "easeOut" }}
-              />
-              <div className="h-full overflow-y-auto p-3.5 sm:p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-slate-200/90">
-                    <Gauge className="size-3.5" strokeWidth={2.5} />
-                    Production Scaling
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-slate-300">
-                      Saved Lv {scale}
-                    </span>
-                    <button
-                      className="rounded-full border border-white/30 bg-black/35 p-1 text-white transition hover:bg-black/55"
-                      onClick={() => setOpenSettingsCardId(null)}
-                      type="button"
-                    >
-                      <X className="size-3.5" strokeWidth={2.4} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-3 grid gap-2 rounded-md border border-white/12 bg-black/30 p-2 text-xs sm:grid-cols-2">
-                  <p className="text-slate-200">
-                    Production:{" "}
-                    <span className="font-semibold text-white">
-                      {draftOutput.toLocaleString()} {generator.unit}
-                    </span>{" "}
-                    <span
-                      className={
-                        productionDelta >= 0
-                          ? "text-emerald-300"
-                          : "text-rose-300"
-                      }
-                    >
-                      ({productionDelta >= 0 ? "+" : ""}
-                      {productionDelta.toLocaleString()})
-                    </span>
-                  </p>
-                  <p className="text-slate-200">
-                    Energy:{" "}
-                    <span className="font-semibold text-white">
-                      {draftEnergy} MW
-                    </span>{" "}
-                    <span
-                      className={
-                        energyDelta <= 0 ? "text-emerald-300" : "text-amber-300"
-                      }
-                    >
-                      ({energyDelta >= 0 ? "+" : ""}
-                      {energyDelta} MW)
-                    </span>
-                  </p>
-                </div>
-
-                <div className="mt-3">
-                  <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-                    <span>Scale</span>
-                    <span>
-                      Lv {draftScale} ({draftScalePercent}%)
-                    </span>
-                  </div>
-                  <input
-                    aria-label={`${generator.name} scale`}
-                    className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/20 accent-cyan-200"
-                    max={10}
-                    min={0}
-                    onChange={(event) =>
-                      updateDraftScale(generator.id, Number(event.target.value))
-                    }
-                    step={1}
-                    type="range"
-                    value={draftScale}
-                  />
-                  <div className="mt-3 flex items-center justify-between">
-                    <p className="text-[11px] text-slate-300">
-                      Apply new operating scale to balance output and draw.
-                    </p>
-                    <button
-                      className="rounded-md border border-cyan-200/45 bg-cyan-300/16 px-3 py-1.5 text-xs uppercase tracking-[0.14em] text-cyan-50 transition hover:bg-cyan-300/24"
-                      onClick={() => {
-                        updateScale(generator.id, draftScale);
-                        setSavedSettingsCardId(generator.id);
-                        window.setTimeout(() => {
-                          setSavedSettingsCardId((current) =>
-                            current === generator.id ? null : current
-                          );
-                        }, 1400);
-                      }}
-                      type="button"
-                    >
-                      Save Setting
-                    </button>
-                  </div>
-                  {isSavedFlash ? (
-                    <p className="mt-1 text-[11px] text-emerald-300">
-                      Scale saved.
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </motion.section>
-          ) : null}
-        </AnimatePresence>
-        <AnimatePresence initial={false}>
-          {isBuilt && isLevelsOpen ? (
-            <motion.section
-              animate={{ clipPath: "inset(0 0% 0 0 round 15px)", opacity: 1 }}
-              className="absolute inset-0 z-30 overflow-hidden rounded-2xl border border-cyan-200/28 bg-[rgba(4,10,19,0.94)] shadow-[0_16px_42px_rgba(0,0,0,0.5)] backdrop-blur-md"
-              exit={{
-                clipPath: "inset(0 0% 0 100% round 15px)",
-                opacity: 0.95,
-              }}
-              initial={{
-                clipPath: "inset(0 0% 0 100% round 15px)",
-                opacity: 0.95,
-              }}
-              transition={{ duration: 0.34, ease: [0.24, 0.84, 0.32, 1] }}
-            >
-              <motion.div
-                animate={{ x: ["0%", "-100%"], opacity: [0.85, 0] }}
-                className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-[linear-gradient(90deg,rgba(113,233,255,0),rgba(113,233,255,0.45),rgba(113,233,255,0))]"
-                initial={{ x: "0%", opacity: 0.85 }}
-                transition={{ duration: 0.34, ease: "easeOut" }}
-              />
-              <div className="h-full overflow-y-auto p-3.5 sm:p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-slate-200/90">
-                    <LayersPlus className="size-3.5" strokeWidth={2.5} />
-                    Level Planner
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-slate-300">
-                      Current Lv {scale}
-                    </span>
-                    <button
-                      className="rounded-full border border-white/30 bg-black/35 p-1 text-white transition hover:bg-black/55"
-                      onClick={() => setOpenLevelsCardId(null)}
-                      type="button"
-                    >
-                      <X className="size-3.5" strokeWidth={2.4} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-3 overflow-hidden rounded-md border border-white/12 bg-black/25">
-                  <table className="w-full text-left text-[11px]">
-                    <thead className="bg-white/6 text-slate-300">
-                      <tr>
-                        <th className="px-2 py-1.5">Lvl</th>
-                        <th className="px-2 py-1.5">Prod.</th>
-                        <th className="px-2 py-1.5">Energy</th>
-                        <th className="px-2 py-1.5">dProd</th>
-                        <th className="px-2 py-1.5">dEnergy</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Array.from({ length: 10 }, (_, levelIndex) => {
-                        const level = levelIndex + 1;
-                        const levelProd = getProductionAtScale(
-                          generator,
-                          level
-                        );
-                        const levelEnergy = getEnergyAtScale(generator, level);
-                        const deltaProd = levelProd - output;
-                        const deltaEnergy = levelEnergy - currentEnergy;
-                        const isCurrent = level === scale;
-                        return (
-                          <tr
-                            className={
-                              isCurrent
-                                ? "bg-cyan-300/10 text-cyan-50"
-                                : "text-slate-200/90"
-                            }
-                            key={level}
-                          >
-                            <td className="px-2 py-1.5">{level}</td>
-                            <td className="px-2 py-1.5">
-                              {levelProd.toLocaleString()}
-                            </td>
-                            <td className="px-2 py-1.5">{levelEnergy} MW</td>
-                            <td
-                              className={
-                                deltaProd >= 0
-                                  ? "px-2 py-1.5 text-emerald-300"
-                                  : "px-2 py-1.5 text-rose-300"
-                              }
-                            >
-                              {deltaProd >= 0 ? "+" : ""}
-                              {deltaProd.toLocaleString()}
-                            </td>
-                            <td
-                              className={
-                                deltaEnergy <= 0
-                                  ? "px-2 py-1.5 text-emerald-300"
-                                  : "px-2 py-1.5 text-amber-300"
-                              }
-                            >
-                              {deltaEnergy >= 0 ? "+" : ""}
-                              {deltaEnergy}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </motion.section>
-          ) : null}
-        </AnimatePresence>
-      </article>
+      <div className="mx-auto w-full max-w-[1200px] px-4 py-8 text-white/80">
+        Loading colony resources...
+      </div>
     );
-  };
+  }
+
+  if (!view) {
+    return (
+      <div className="mx-auto w-full max-w-[1200px] px-4 py-8 text-white/80">
+        Unable to load colony resources. Please sign in again.
+      </div>
+    );
+  }
 
   return (
-    <div
-      className="text-white"
-      style={{ fontFamily: '"Rajdhani","Sora","Avenir Next",sans-serif' }}
-    >
-      <div className="mx-auto w-full max-w-[1380px] px-4 pb-10 pt-5 sm:px-6 lg:px-8">
-        <section className="mt-6 space-y-7">
-          <GeneratorSection
-            title="Production"
-            description="All extraction and harvesting generators."
-            cards={groupedGenerators.Production}
-            renderCard={renderCard}
-          />
-          <GeneratorSection
-            title="Power"
-            description="Grid-facing energy generation and reserve systems."
-            cards={groupedGenerators.Power}
-            renderCard={renderCard}
-          />
-        </section>
-      </div>
+    <div className="mx-auto w-full max-w-[1200px] px-4 pb-10 pt-6 text-white">
+      <section className="grid gap-4 md:grid-cols-2">
+        {view.buildings.map((building) => {
+          const isTableOpen = activeTableBuildingKey === building.key;
+          const isBusy = upgradingKey === building.key;
+          const isActiveUpgradeTarget = activeUpgrade?.buildingKey === building.key;
+          const nextLevelRow =
+            building.levelTable.find((row) => row.level === building.currentLevel + 1) ??
+            building.levelTable[0];
+          const resourceOverflow =
+            building.key === "alloyMineLevel"
+              ? view.resources.overflow.alloy
+              : building.key === "crystalMineLevel"
+                ? view.resources.overflow.crystal
+                : building.key === "fuelRefineryLevel"
+                  ? view.resources.overflow.fuel
+                  : 0;
+          const cardStatus = statusFromBuilding({
+            canUpgrade: building.canUpgrade,
+            energyRatio: view.resources.energyRatio,
+            overflow: resourceOverflow,
+            outputPerMinute: building.outputPerMinute,
+          });
+          const statusStyle = STATUS_STYLES[cardStatus];
+          const visual = BUILDING_VISUALS[building.key];
+          const cardAccent = visual.accent;
+          const outputDeltaPerMinute = nextLevelRow?.deltaOutputPerMinute ?? 0;
+          const energyDeltaPerMinute = nextLevelRow?.deltaEnergyPerMinute ?? 0;
+          const energyImpactDeltaPerMinute = -energyDeltaPerMinute;
+          const outputResourceKey = outputResourceKeyForBuilding(building.key);
+          const nextLevelDeltas: Array<{ key: DeltaResourceKey; value: number }> = [];
+
+          if (outputDeltaPerMinute !== 0) {
+            nextLevelDeltas.push({
+              key: outputResourceKey,
+              value: outputDeltaPerMinute,
+            });
+          }
+
+          if (outputResourceKey !== "energy" && energyImpactDeltaPerMinute !== 0) {
+            nextLevelDeltas.push({
+              key: "energy",
+              value: energyImpactDeltaPerMinute,
+            });
+          }
+
+          return (
+            <article
+              className={`group relative overflow-hidden rounded-2xl border ${statusStyle.card} bg-[#060f1a] shadow-[0_16px_34px_rgba(0,0,0,0.4)]`}
+              key={building.key}
+            >
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundImage: `radial-gradient(circle at 78% 24%, ${cardAccent}, transparent 38%), linear-gradient(164deg, rgba(9,17,29,0.74), rgba(1,5,12,0.94) 62%), url(${visual.imageUrl})`,
+                  backgroundPosition: "center, center, calc(100% + 35px) 52%",
+                  backgroundRepeat: "no-repeat, no-repeat, no-repeat",
+                  backgroundSize: "cover, cover, 56%",
+                }}
+              />
+              <div className="absolute inset-0 bg-[repeating-linear-gradient(125deg,rgba(255,255,255,0.05)_0,rgba(255,255,255,0.05)_1px,transparent_1px,transparent_11px)] opacity-20" />
+
+              <div className="relative z-10 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/60">
+                      {building.group}
+                    </p>
+                    <h3 className="text-xl font-semibold">{building.name}</h3>
+                    <p
+                      className={`mt-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${statusStyle.badge}`}
+                    >
+                      {isActiveUpgradeTarget ? (
+                        <>
+                          <Clock3 className="size-3" />
+                          Upgrading to Lv {activeUpgrade.toLevel}
+                          {remainingTimeLabel ? ` (${remainingTimeLabel})` : ""}
+                        </>
+                      ) : (
+                        cardStatus
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <GeneratorInfoPopover
+                      details={
+                        <div className="grid gap-1.5 text-[11px]">
+                          <p>
+                            Efficiency:{" "}
+                            <span className="font-semibold text-white">
+                              {efficiencyLabel(cardStatus, view.resources.energyRatio)}
+                            </span>
+                          </p>
+                          <p>
+                            Output:{" "}
+                            <span className="font-semibold text-white">
+                              {building.outputPerMinute.toLocaleString()} {building.outputLabel}/m
+                            </span>
+                          </p>
+                          <p>
+                            Energy Draw:{" "}
+                            <span className="font-semibold text-white">
+                              {building.energyUsePerMinute.toLocaleString()} MW
+                            </span>
+                          </p>
+                          {resourceOverflow > 0 ? (
+                            <p>
+                              Overflow:{" "}
+                              <span className="font-semibold text-amber-200">
+                                {resourceOverflow.toLocaleString()} {resourceNameForBuilding(building.key)}
+                              </span>
+                            </p>
+                          ) : (
+                            <p>
+                              Overflow: <span className="font-semibold text-white">None</span>
+                            </p>
+                          )}
+                        </div>
+                      }
+                    />
+                    <button
+                      className="rounded-md border border-white/25 bg-white/5 px-2.5 py-1 text-xs text-white/80 transition hover:bg-white/10"
+                      onClick={() =>
+                        setActiveTableBuildingKey((current) =>
+                          current === building.key ? null : building.key
+                        )
+                      }
+                      type="button"
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        <Layers3 className="size-3.5" />
+                        Levels
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className={`rounded-lg border border-white/15 ${statusStyle.panel} p-3`}>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/60">
+                      Current Level
+                    </p>
+                    <p className="mt-1 text-xl font-semibold">Lv {building.currentLevel}</p>
+                  </div>
+                  <div className={`rounded-lg border border-white/15 ${statusStyle.panel} p-3`}>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/60">Output</p>
+                    <p className="mt-1 text-xl font-semibold">
+                      {building.outputPerMinute.toLocaleString()} {building.outputLabel}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/75">
+                  <p className="inline-flex items-center gap-1.5">
+                    <Gauge className="size-3.5 text-cyan-200/80" />
+                    Energy use: {building.energyUsePerMinute.toLocaleString()} MW
+                  </p>
+                </div>
+
+                <div className="mt-3 flex justify-center">
+                  <Popover.Root>
+                    <Popover.Trigger
+                      closeDelay={90}
+                      delay={60}
+                      openOnHover
+                      render={
+                        <UpgradeButton
+                          actionDurationText={formatUpgradeTime(building.nextUpgradeDurationSeconds)}
+                          disabled={!building.canUpgrade || isBusy}
+                          icon="arrow"
+                          label={isBusy ? "Queueing..." : "Upgrade"}
+                          onClick={() => {
+                            if (!building.canUpgrade || isBusy) {
+                              return;
+                            }
+
+                            setUpgradingKey(building.key);
+                            queueUpgrade({
+                              colonyId: colonyIdAsId,
+                              buildingKey: building.key,
+                            })
+                              .then(() => {
+                                toast.success(`${building.name} upgrade queued`);
+                              })
+                              .catch((error) => {
+                                toast.error(
+                                  error instanceof Error ? error.message : "Failed to queue upgrade"
+                                );
+                              })
+                              .finally(() => {
+                                setUpgradingKey(null);
+                              });
+                          }}
+                        />
+                      }
+                    />
+                    <Popover.Portal>
+                      <Popover.Positioner align="end" className="z-[90]" sideOffset={8}>
+                        <Popover.Popup className="origin-[var(--transform-origin)] w-[240px] rounded-xl border border-white/30 bg-[rgba(5,10,18,0.82)] p-3 text-xs text-white/90 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">
+                            Next Upgrade Cost
+                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <CostPill
+                              amount={building.nextUpgradeCost.alloy}
+                              icon="/game-icons/alloy.png"
+                              label="Alloy"
+                            />
+                            <CostPill
+                              amount={building.nextUpgradeCost.crystal}
+                              icon="/game-icons/crystal.png"
+                              label="Crystal"
+                            />
+                            <CostPill
+                              amount={building.nextUpgradeCost.fuel}
+                              icon="/game-icons/deuterium.png"
+                              label="Fuel"
+                            />
+                          </div>
+                          {nextLevelDeltas.length > 0 ? (
+                            <div className="mt-3 border-t border-white/15 pt-3">
+                              <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">
+                                Next Level Delta
+                              </p>
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                {nextLevelDeltas.map((delta) => (
+                                  <DeltaPill
+                                    icon={DELTA_RESOURCE_META[delta.key].icon}
+                                    key={`${building.key}-${delta.key}`}
+                                    label={DELTA_RESOURCE_META[delta.key].label}
+                                    tone={delta.value > 0 ? "positive" : "negative"}
+                                    value={formatSignedDelta(
+                                      delta.value,
+                                      DELTA_RESOURCE_META[delta.key].suffix
+                                    )}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                        </Popover.Popup>
+                      </Popover.Positioner>
+                    </Popover.Portal>
+                  </Popover.Root>
+                </div>
+
+                <AnimatePresence initial={false}>
+                  {isTableOpen ? (
+                    <motion.section
+                      animate={{ clipPath: "inset(0 0% 0 0 round 14px)", opacity: 1 }}
+                      className="absolute inset-0 z-30 overflow-hidden rounded-2xl border border-cyan-200/28 bg-[rgba(4,10,19,0.94)] shadow-[0_16px_42px_rgba(0,0,0,0.5)] backdrop-blur-md"
+                      exit={{
+                        clipPath: "inset(0 0% 0 100% round 14px)",
+                        opacity: 0.95,
+                      }}
+                      initial={{
+                        clipPath: "inset(0 0% 0 100% round 14px)",
+                        opacity: 0.95,
+                      }}
+                      transition={{ duration: 0.34, ease: [0.24, 0.84, 0.32, 1] }}
+                    >
+                      <motion.div
+                        animate={{ x: ["0%", "-100%"], opacity: [0.85, 0] }}
+                        className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-[linear-gradient(90deg,rgba(113,233,255,0),rgba(113,233,255,0.45),rgba(113,233,255,0))]"
+                        initial={{ x: "0%", opacity: 0.85 }}
+                        transition={{ duration: 0.34, ease: "easeOut" }}
+                      />
+                      <div className="h-full overflow-y-auto p-3.5 sm:p-4">
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                          <p className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-slate-200/90">
+                            <Layers3 className="size-3.5" strokeWidth={2.5} />
+                            Level Planner
+                          </p>
+                          <button
+                            className="rounded-full border border-white/30 bg-black/35 p-1 text-white transition hover:bg-black/55"
+                            onClick={() => setActiveTableBuildingKey(null)}
+                            type="button"
+                          >
+                            <X className="size-3.5" strokeWidth={2.4} />
+                          </button>
+                        </div>
+                        <div className="overflow-hidden rounded-md border border-white/12 bg-black/25">
+                          <table className="w-full text-left text-[11px]">
+                            <thead className="bg-white/6 text-slate-300">
+                              <tr>
+                                <th className="px-2 py-1.5">Lv</th>
+                                <th className="px-2 py-1.5">Output</th>
+                                <th className="px-2 py-1.5">Energy</th>
+                                <th className="px-2 py-1.5">Cost</th>
+                                <th className="px-2 py-1.5">Time</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {building.levelTable.map((row) => (
+                                <tr
+                                  className={
+                                    row.level === building.currentLevel
+                                      ? "bg-cyan-300/10 text-cyan-50"
+                                      : "text-white/85"
+                                  }
+                                  key={`${building.key}-${row.level}`}
+                                >
+                                  <td className="px-2 py-1.5">{row.level}</td>
+                                  <td className="px-2 py-1.5">
+                                    {row.outputPerMinute.toLocaleString()} (
+                                    {row.deltaOutputPerMinute >= 0 ? "+" : ""}
+                                    {row.deltaOutputPerMinute.toLocaleString()})
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    {row.energyUsePerMinute.toLocaleString()} (
+                                    {row.deltaEnergyPerMinute >= 0 ? "+" : ""}
+                                    {row.deltaEnergyPerMinute.toLocaleString()})
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    A {row.cost.alloy.toLocaleString()} / C{" "}
+                                    {row.cost.crystal.toLocaleString()} / F {row.cost.fuel.toLocaleString()}
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    {formatUpgradeTime(row.durationSeconds)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </motion.section>
+                  ) : null}
+                </AnimatePresence>
+              </div>
+            </article>
+          );
+        })}
+      </section>
     </div>
   );
 }
 
-type GeneratorSectionProps = {
-  cards: GeneratorDatum[];
-  description: string;
-  renderCard: (generator: GeneratorDatum, index: number) => ReactNode;
-  title: string;
-};
+function CostPill(props: { amount: number; icon: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-black/35 px-2 py-1 text-[11px] font-semibold text-slate-100">
+      <img
+        alt={`${props.label} resource`}
+        className="h-3.5 w-3.5 rounded-[2px] border border-white/25 object-cover"
+        src={props.icon}
+      />
+      <span>{props.amount.toLocaleString()}</span>
+    </span>
+  );
+}
 
-function GeneratorInfoPopover({
-  details,
-  panelClassName,
-}: {
-  details: GeneratorDatum["details"];
-  panelClassName: string;
+function DeltaPill(props: {
+  icon: string;
+  label: string;
+  tone: "negative" | "positive";
+  value: string;
 }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold ${
+        props.tone === "positive"
+          ? "border-emerald-300/30 bg-emerald-400/12 text-emerald-100"
+          : "border-rose-300/35 bg-rose-400/14 text-rose-100"
+      }`}
+    >
+      <img
+        alt={`${props.label} resource`}
+        className="h-3.5 w-3.5 rounded-[2px] border border-white/25 object-cover"
+        src={props.icon}
+      />
+      <span>{props.value}</span>
+    </span>
+  );
+}
+
+function GeneratorInfoPopover({ details }: { details: ReactNode }) {
   return (
     <Popover.Root>
       <Popover.Trigger
-        className="rounded-full border border-white/30 bg-black/35 px-1.5 py-1.5 text-[10px] uppercase tracking-[0.18em] text-white transition hover:bg-black/55"
-        closeDelay={80}
-        delay={60}
+        closeDelay={120}
+        delay={70}
         openOnHover
-      >
-        <Info className="size-3.5" strokeWidth={2.8} />
-      </Popover.Trigger>
+        render={
+          <button
+            className="rounded-full border border-white/30 bg-black/35 p-1.5 text-white transition hover:bg-black/55"
+            type="button"
+          >
+            <Info className="size-3.5" strokeWidth={2.8} />
+          </button>
+        }
+      />
       <Popover.Portal>
         <Popover.Positioner align="end" className="z-[90]" sideOffset={8}>
-          <Popover.Popup
-            className={`origin-[var(--transform-origin)] w-[244px] rounded-xl border border-white/30 bg-[rgba(5,10,18,0.78)] p-3 text-xs text-white/90 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0 ${panelClassName}`}
-          >
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">
-              Flow Detail
-            </p>
-            <div className="mt-2 grid gap-1.5">
-              <p>Input: {details.inputs}</p>
-              <p>Output: {details.output}</p>
-              <p>Efficiency: {details.efficiency}</p>
-              <p>Overflow: {details.overflow}</p>
-            </div>
+          <Popover.Popup className="origin-[var(--transform-origin)] w-[260px] rounded-xl border border-white/30 bg-[rgba(5,10,18,0.82)] p-3 text-xs text-white/90 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">Details</p>
+            <div className="mt-2">{details}</div>
           </Popover.Popup>
         </Popover.Positioner>
       </Popover.Portal>
     </Popover.Root>
-  );
-}
-
-function GeneratorSection({
-  cards,
-  description,
-  renderCard,
-  title,
-}: GeneratorSectionProps) {
-  return (
-    <section>
-      <div className="mb-3 flex items-end justify-between gap-3 px-1">
-        <div>
-          <h2 className="text-2xl font-semibold text-slate-100">{title}</h2>
-          <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">
-            {description}
-          </p>
-        </div>
-      </div>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3.5">
-        {cards.map((card, index) => renderCard(card, index))}
-      </div>
-    </section>
   );
 }

@@ -81,14 +81,14 @@ export function ResourceStrip({
                   <p
                     className={cn(
                       "text-[11px]",
-                      resource.energyDeficit && resource.energyDeficit > 0
+                      (resource.energyBalance ?? 0) < 0
                         ? "text-[color:var(--nv-danger)]"
                         : "text-[color:var(--nv-success)]"
                     )}
                   >
-                    {resource.energyDeficit && resource.energyDeficit > 0
-                      ? `Deficit ${resource.energyDeficit} MW`
-                      : "Demand Met"}
+                    {(resource.energyBalance ?? 0) < 0
+                      ? `${resource.energyBalance} MW`
+                      : `${resource.energyBalance ?? 0} MW`}
                   </p>
                 ) : null}
               </div>

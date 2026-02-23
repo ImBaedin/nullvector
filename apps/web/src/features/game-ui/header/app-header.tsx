@@ -1,6 +1,9 @@
 import { Bell, Menu, Settings } from "lucide-react";
-import { useRouterState } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useConvexAuth, useQuery } from "convex/react";
+import { api } from "@nullvector/backend/convex/_generated/api";
+import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
@@ -9,7 +12,7 @@ import { NvBadge, NvIconButton, NvPanel } from "@/features/game-ui/primitives";
 import { cn } from "@/lib/utils";
 
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";
-import { getHeaderConfigPlaceholder } from "./header-config";
+import { getHeaderConfig, parseColonyId } from "./header-config";
 
 type AppHeaderProps = {
   collapseContextNav?: boolean;
@@ -42,16 +45,39 @@ export function AppHeader({
   isStarMapOpen = false,
   onToggleStarMap,
 }: AppHeaderProps = {}) {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useConvexAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
+  const colonyId = parseColonyId(pathname);
+  const hud = useQuery(
+    api.gameplay.getColonyHud,
+    colonyId && isAuthenticated
+      ? { colonyId: colonyId as Id<"colonies"> }
+      : "skip"
+  );
   const config = useMemo(
-    () => getHeaderConfigPlaceholder(pathname),
-    [pathname]
+    () =>
+      getHeaderConfig(pathname, hud
+        ? {
+            activeColonyId: hud.activeColonyId,
+            colonies: hud.colonies,
+            resources: hud.resources,
+            title: hud.title,
+          }
+        : undefined),
+    [hud, pathname]
   );
   const isCompact = useCompactHeaderMode();
   const handleStarMapToggle = onToggleStarMap ?? config.onOpenStarMap;
+  const handleColonyChange = (nextColonyId: string) => {
+    navigate({
+      to: "/game/colony/$colonyId/resources",
+      params: { colonyId: nextColonyId },
+    });
+  };
 
   const notificationsBadge = useMemo(() => {
     if (!config.notificationsCount || config.notificationsCount <= 0) {
@@ -136,11 +162,11 @@ export function AppHeader({
             <div className="hidden items-center gap-2 justify-self-end lg:flex">
               {config.colonies &&
               config.activeColonyId &&
-              config.onColonyChange ? (
+              (config.onColonyChange || handleColonyChange) ? (
                 <ColonySwitcher
                   activeColonyId={config.activeColonyId}
                   colonies={config.colonies}
-                  onColonyChange={config.onColonyChange}
+                  onColonyChange={config.onColonyChange ?? handleColonyChange}
                 />
               ) : null}
               <NvIconButton

@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as gameplay from "../gameplay.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as http from "../http.js";
 import type * as lib_worldgen_config from "../lib/worldgen/config.js";
@@ -28,6 +29,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  gameplay: typeof gameplay;
   healthCheck: typeof healthCheck;
   http: typeof http;
   "lib/worldgen/config": typeof lib_worldgen_config;

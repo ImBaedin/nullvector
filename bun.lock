@@ -98,6 +98,7 @@
         "three": "^0.182.0",
         "tw-animate-css": "^1.2.5",
         "zod": "catalog:",
+        "zustand": "^5.0.11",
       },
       "devDependencies": {
         "@nullvector/config": "workspace:*",

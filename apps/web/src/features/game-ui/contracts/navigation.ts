@@ -27,7 +27,7 @@ export type ColonyOption = {
 
 export type ResourceDatum = {
   deltaPerMinute?: string;
-  energyDeficit?: number;
+  energyBalance?: number;
   key: "alloy" | "crystal" | "energy" | "fuel";
   storageCapLabel?: string;
   storageCurrentLabel?: string;

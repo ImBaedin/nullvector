@@ -27,38 +27,6 @@ const DEFAULT_HEADER_CONFIG: HeaderConfig = {
   title: "Nullvector",
 };
 
-const PLACEHOLDER_RESOURCES: ResourceDatum[] = [
-  {
-    key: "alloy",
-    value: "143.2k",
-    deltaPerMinute: "+394/m",
-    storagePercent: 71,
-    storageCurrentLabel: "143.2k",
-    storageCapLabel: "200k",
-  },
-  {
-    key: "crystal",
-    value: "96.5k",
-    deltaPerMinute: "+276/m",
-    storagePercent: 62,
-    storageCurrentLabel: "96.5k",
-    storageCapLabel: "155k",
-  },
-  {
-    key: "fuel",
-    value: "53.7k",
-    deltaPerMinute: "+118/m",
-    storagePercent: 41,
-    storageCurrentLabel: "53.7k",
-    storageCapLabel: "130k",
-  },
-  {
-    key: "energy",
-    value: "89%",
-    energyDeficit: 48,
-  },
-];
-
 const PLACEHOLDER_TAB_IDS: Array<ContextNavItem["id"]> = [
   "overview",
   "resources",
@@ -81,7 +49,7 @@ function buildPlaceholderTabs(basePath: string): ContextNavItem[] {
   return PLACEHOLDER_TAB_IDS.map((id) => ({
     id,
     label: id[0].toUpperCase() + id.slice(1),
-    to: basePath,
+    to: id === "resources" ? basePath : `/style-lab`,
     icon: createElement("img", {
       alt: `${id} nav icon`,
       className: "h-10 w-10 shrink-0 object-contain",
@@ -91,7 +59,7 @@ function buildPlaceholderTabs(basePath: string): ContextNavItem[] {
   }));
 }
 
-function parseColonyId(pathname: string) {
+export function parseColonyId(pathname: string) {
   const match = pathname.match(/^\/game\/colony\/([^/]+)/);
   if (!match) {
     return null;
@@ -104,7 +72,27 @@ function parseColonyId(pathname: string) {
   }
 }
 
-export function getHeaderConfigPlaceholder(pathname: string): HeaderConfig {
+type HudData = {
+  title: string;
+  activeColonyId: string;
+  colonies: Array<{
+    id: string;
+    name: string;
+    addressLabel: string;
+    status?: string;
+  }>;
+  resources: Array<{
+    key: "alloy" | "crystal" | "fuel" | "energy";
+    value: string;
+    deltaPerMinute?: string;
+    storageCurrentLabel?: string;
+    storageCapLabel?: string;
+    storagePercent?: number;
+    energyBalance?: number;
+  }>;
+};
+
+export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
   const colonyId = parseColonyId(pathname);
   if (!colonyId) {
     return DEFAULT_HEADER_CONFIG;
@@ -114,14 +102,29 @@ export function getHeaderConfigPlaceholder(pathname: string): HeaderConfig {
   const resourcesPath = `/game/colony/${encodedColonyId}/resources`;
   const isResourcesRoute = pathname === resourcesPath;
 
+  if (!hud) {
+    return {
+      mode: "game",
+      title: isResourcesRoute ? `Colony ${colonyId} Resources` : `Colony ${colonyId}`,
+      activeTabId: isResourcesRoute ? "resources" : "overview",
+      contextTabs: buildPlaceholderTabs(resourcesPath),
+      notificationsCount: 0,
+    };
+  }
+
   return {
     mode: "game",
-    title: isResourcesRoute
-      ? `Colony ${colonyId} Resources`
-      : `Colony ${colonyId}`,
+    title: hud.title,
+    activeColonyId: hud.activeColonyId,
     activeTabId: isResourcesRoute ? "resources" : "overview",
+    colonies: hud.colonies.map((colony) => ({
+      id: colony.id,
+      name: colony.name,
+      addressLabel: colony.addressLabel,
+      status: colony.status,
+    })),
     contextTabs: buildPlaceholderTabs(resourcesPath),
-    resources: PLACEHOLDER_RESOURCES,
-    notificationsCount: 3,
+    notificationsCount: 0,
+    resources: hud.resources,
   };
 }

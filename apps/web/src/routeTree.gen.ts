@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UniverseExplorerRealdataRouteImport } from './routes/universe-explorer-realdata'
 import { Route as StyleLabRouteImport } from './routes/style-lab'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthCompleteRouteImport } from './routes/auth/complete'
 import { Route as GameColonyColonyIdRouteImport } from './routes/game/colony/$colonyId'
 import { Route as GameColonyColonyIdResourcesRouteImport } from './routes/game/colony/$colonyId/resources'
 
@@ -23,6 +25,16 @@ const UniverseExplorerRealdataRoute =
 const StyleLabRoute = StyleLabRouteImport.update({
   id: '/style-lab',
   path: '/style-lab',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCompleteRoute = AuthCompleteRouteImport.update({
+  id: '/auth/complete',
+  path: '/auth/complete',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GameColonyColonyIdRoute = GameColonyColonyIdRouteImport.update({
@@ -38,48 +50,62 @@ const GameColonyColonyIdResourcesRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof IndexRoute
   '/style-lab': typeof StyleLabRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
+  '/auth/complete': typeof AuthCompleteRoute
   '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof IndexRoute
   '/style-lab': typeof StyleLabRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
+  '/auth/complete': typeof AuthCompleteRoute
   '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/style-lab': typeof StyleLabRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
+  '/auth/complete': typeof AuthCompleteRoute
   '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/'
     | '/style-lab'
     | '/universe-explorer-realdata'
+    | '/auth/complete'
     | '/game/colony/$colonyId'
     | '/game/colony/$colonyId/resources'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/style-lab'
     | '/universe-explorer-realdata'
+    | '/auth/complete'
     | '/game/colony/$colonyId'
     | '/game/colony/$colonyId/resources'
   id:
     | '__root__'
+    | '/'
     | '/style-lab'
     | '/universe-explorer-realdata'
+    | '/auth/complete'
     | '/game/colony/$colonyId'
     | '/game/colony/$colonyId/resources'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   StyleLabRoute: typeof StyleLabRoute
   UniverseExplorerRealdataRoute: typeof UniverseExplorerRealdataRoute
+  AuthCompleteRoute: typeof AuthCompleteRoute
   GameColonyColonyIdRoute: typeof GameColonyColonyIdRouteWithChildren
 }
 
@@ -97,6 +123,20 @@ declare module '@tanstack/react-router' {
       path: '/style-lab'
       fullPath: '/style-lab'
       preLoaderRoute: typeof StyleLabRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/complete': {
+      id: '/auth/complete'
+      path: '/auth/complete'
+      fullPath: '/auth/complete'
+      preLoaderRoute: typeof AuthCompleteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/game/colony/$colonyId': {
@@ -128,8 +168,10 @@ const GameColonyColonyIdRouteWithChildren =
   GameColonyColonyIdRoute._addFileChildren(GameColonyColonyIdRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   StyleLabRoute: StyleLabRoute,
   UniverseExplorerRealdataRoute: UniverseExplorerRealdataRoute,
+  AuthCompleteRoute: AuthCompleteRoute,
   GameColonyColonyIdRoute: GameColonyColonyIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport

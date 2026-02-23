@@ -8,13 +8,11 @@ type UpgradeArrow = {
   duration: number;
   id: number;
   left: number;
-  size: number;
+  scale: number;
 };
 
 type UpgradeButtonProps = ComponentPropsWithoutRef<"button"> & {
   actionDurationText?: string;
-  consumptionDeltaText?: string;
-  generationDeltaText?: string;
   disabled?: boolean;
   icon?: "arrow" | "hammer";
   label?: string;
@@ -25,9 +23,7 @@ export const UpgradeButton = forwardRef<HTMLButtonElement, UpgradeButtonProps>(
     {
       actionDurationText,
       className,
-      consumptionDeltaText,
       disabled = false,
-      generationDeltaText,
       icon = "arrow",
       label = "Upgrade generator",
       onBlur,
@@ -62,7 +58,7 @@ export const UpgradeButton = forwardRef<HTMLButtonElement, UpgradeButtonProps>(
             duration: 1.05 + Math.random() * 0.9,
             id: idRef.current++,
             left: 10 + Math.random() * 80,
-            size: 9 + Math.random() * 4,
+            scale: 0.75 + Math.random() * 0.75,
           },
         ]);
         timerRef.current = window.setTimeout(
@@ -121,11 +117,16 @@ export const UpgradeButton = forwardRef<HTMLButtonElement, UpgradeButtonProps>(
                 <motion.span
                   animate={{
                     opacity: [0, 0.95, 0.78, 0],
-                    scale: [0.9, 1, 1, 1.04],
+                    scale: [
+                      arrow.scale * 0.88,
+                      arrow.scale,
+                      arrow.scale * 0.96,
+                      arrow.scale * 1.03,
+                    ],
                     x: arrow.drift,
                     y: -72,
                   }}
-                  className="absolute bottom-[-16px] leading-none text-[rgba(255,247,226,0.94)] [text-shadow:0_0_7px_rgba(255,214,140,0.55)]"
+                  className="absolute bottom-[-16px]"
                   initial={{ opacity: 0, scale: 0.9, x: 0, y: 0 }}
                   key={arrow.id}
                   onAnimationComplete={() =>
@@ -134,18 +135,20 @@ export const UpgradeButton = forwardRef<HTMLButtonElement, UpgradeButtonProps>(
                     )
                   }
                   style={{
-                    fontSize: `${arrow.size}px`,
                     left: `${arrow.left}%`,
                   }}
                   transition={{ duration: arrow.duration, ease: "linear" }}
                 >
-                  ↑
+                  <ArrowUp
+                    className="size-3 text-[rgba(255,247,226,0.94)] drop-shadow-[0_0_6px_rgba(255,214,140,0.55)]"
+                    strokeWidth={2.8}
+                  />
                 </motion.span>
               ))
             : null}
         </span>
-        <span className="relative z-10 grid grid-cols-[auto_1fr_auto] grid-rows-2 items-center gap-x-2 gap-y-0.5 text-center">
-          <span className="row-span-2 self-center">
+        <span className="relative z-10 grid grid-cols-[auto_1fr_auto] items-center gap-x-2 text-center">
+          <span className="self-center">
             {icon === "hammer" ? (
               <Hammer className="size-4" strokeWidth={2.5} />
             ) : (
@@ -154,18 +157,8 @@ export const UpgradeButton = forwardRef<HTMLButtonElement, UpgradeButtonProps>(
           </span>
           <span className="text-xs uppercase tracking-[0.15em]">{label}</span>
           {actionDurationText ? (
-            <span className="row-span-2 justify-self-end text-right text-[10px] font-semibold tracking-[0.08em] text-amber-100/90">
+            <span className="justify-self-end text-right text-[10px] font-semibold tracking-[0.08em] text-amber-100/90">
               {actionDurationText}
-            </span>
-          ) : null}
-          {generationDeltaText || consumptionDeltaText ? (
-            <span className="flex items-center justify-center gap-2 text-[10px] font-semibold tracking-[0.06em]">
-              {generationDeltaText ? (
-                <span className="text-emerald-100">{generationDeltaText}</span>
-              ) : null}
-              {consumptionDeltaText ? (
-                <span className="text-amber-100">{consumptionDeltaText}</span>
-              ) : null}
             </span>
           ) : null}
         </span>

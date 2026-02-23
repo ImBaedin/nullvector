@@ -28,8 +28,8 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
         {
           onSuccess: () => {
             navigate({
-              to: "/game/colony/$colonyId/resources",
-              params: { colonyId: "10" },
+              to: "/auth/complete",
+              replace: true,
             });
             toast.success("Sign up successful");
           },
