@@ -1144,7 +1144,6 @@ const sessionColonyValidator = v.object({
   id: v.id("colonies"),
   name: v.string(),
   addressLabel: v.string(),
-  status: v.string(),
 });
 
 const resourceHudDatumValidator = v.object({
@@ -1166,7 +1165,137 @@ const resourceHudDatumValidator = v.object({
   energyBalance: v.optional(v.number()),
 });
 
-export const getColonyHud = query({
+const colonyQueueStatusValidator = v.union(
+  v.literal("Upgrading"),
+  v.literal("Queued"),
+  v.literal("Stable"),
+);
+type ColonyQueueStatus = "Upgrading" | "Queued" | "Stable";
+
+const colonyStatusValidator = v.object({
+  colonyId: v.id("colonies"),
+  status: colonyQueueStatusValidator,
+});
+
+const colonyCoordinatesValidator = v.object({
+  galaxyId: v.id("galaxies"),
+  sectorId: v.id("sectors"),
+  systemId: v.id("systems"),
+  planetId: v.id("planets"),
+  focusX: v.number(),
+  focusY: v.number(),
+  addressLabel: v.string(),
+});
+
+function buildHudResources(args: {
+  colony: Doc<"colonies">;
+  planet: Doc<"planets">;
+}) {
+  const { colony, planet } = args;
+  const rates = productionRatesPerMinute({
+    buildings: colony.buildings,
+    overflow: colony.overflow,
+    planet,
+  });
+
+  const alloyUnits = storedToWholeUnits(colony.resources.alloy);
+  const crystalUnits = storedToWholeUnits(colony.resources.crystal);
+  const fuelUnits = storedToWholeUnits(colony.resources.fuel);
+
+  const alloyCap = storedToWholeUnits(colony.storageCaps.alloy);
+  const crystalCap = storedToWholeUnits(colony.storageCaps.crystal);
+  const fuelCap = storedToWholeUnits(colony.storageCaps.fuel);
+
+  return [
+    {
+      key: "alloy" as const,
+      value: formatResourceValue(alloyUnits),
+      valueAmount: alloyUnits,
+      deltaPerMinute: `+${Math.max(0, Math.floor(rates.resources.alloy)).toLocaleString()}/m`,
+      deltaPerMinuteAmount: Math.max(0, Math.floor(rates.resources.alloy)),
+      storageCurrentAmount: alloyUnits,
+      storageCurrentLabel: formatResourceValue(alloyUnits),
+      storageCapAmount: alloyCap,
+      storageCapLabel: formatResourceValue(alloyCap),
+      storagePercent:
+        alloyCap <= 0 ? 0 : Math.min(100, (alloyUnits / alloyCap) * 100),
+    },
+    {
+      key: "crystal" as const,
+      value: formatResourceValue(crystalUnits),
+      valueAmount: crystalUnits,
+      deltaPerMinute: `+${Math.max(0, Math.floor(rates.resources.crystal)).toLocaleString()}/m`,
+      deltaPerMinuteAmount: Math.max(
+        0,
+        Math.floor(rates.resources.crystal),
+      ),
+      storageCurrentAmount: crystalUnits,
+      storageCurrentLabel: formatResourceValue(crystalUnits),
+      storageCapAmount: crystalCap,
+      storageCapLabel: formatResourceValue(crystalCap),
+      storagePercent:
+        crystalCap <= 0 ? 0 : Math.min(100, (crystalUnits / crystalCap) * 100),
+    },
+    {
+      key: "fuel" as const,
+      value: formatResourceValue(fuelUnits),
+      valueAmount: fuelUnits,
+      deltaPerMinute: `+${Math.max(0, Math.floor(rates.resources.fuel)).toLocaleString()}/m`,
+      deltaPerMinuteAmount: Math.max(0, Math.floor(rates.resources.fuel)),
+      storageCurrentAmount: fuelUnits,
+      storageCurrentLabel: formatResourceValue(fuelUnits),
+      storageCapAmount: fuelCap,
+      storageCapLabel: formatResourceValue(fuelCap),
+      storagePercent:
+        fuelCap <= 0 ? 0 : Math.min(100, (fuelUnits / fuelCap) * 100),
+    },
+    {
+      key: "energy" as const,
+      value: `${Math.round(rates.energyRatio * 100)}%`,
+      energyBalance: Math.round(rates.energyProduced - rates.energyConsumed),
+    },
+  ];
+}
+
+async function listPlayerColonyPlanets(args: {
+  colonies: Array<Doc<"colonies">>;
+  ctx: QueryCtx;
+}) {
+  const planetsById = new Map<Id<"planets">, Doc<"planets">>();
+  await Promise.all(
+    args.colonies.map(async (entry) => {
+      if (planetsById.has(entry.planetId)) {
+        return;
+      }
+      const colonyPlanet = await args.ctx.db.get(entry.planetId);
+      if (colonyPlanet) {
+        planetsById.set(colonyPlanet._id, colonyPlanet);
+      }
+    }),
+  );
+  return planetsById;
+}
+
+async function getBuildingQueueStatusForColony(args: {
+  colonyId: Id<"colonies">;
+  ctx: QueryCtx;
+}): Promise<ColonyQueueStatus> {
+  const queueRows = await listOpenLaneQueueItems({
+    colonyId: args.colonyId,
+    ctx: args.ctx,
+    lane: "building",
+  });
+  const hasActive = queueRows.some((row) => row.status === "active");
+  const hasPending = queueRows.some((row) => row.status === "queued");
+  const status: ColonyQueueStatus = hasActive
+    ? "Upgrading"
+    : hasPending
+      ? "Queued"
+      : "Stable";
+  return status;
+}
+
+export const getColonyNav = query({
   args: {
     colonyId: v.id("colonies"),
   },
@@ -1174,12 +1303,9 @@ export const getColonyHud = query({
     activeColonyId: v.id("colonies"),
     title: v.string(),
     colonies: v.array(sessionColonyValidator),
-    resources: v.array(resourceHudDatumValidator),
-    queues: queuesViewValidator,
   }),
   handler: async (ctx, args) => {
-    const now = Date.now();
-    const { colony, planet, player } = await getOwnedColony({
+    const { colony, player } = await getOwnedColony({
       ctx,
       colonyId: args.colonyId,
     });
@@ -1188,111 +1314,10 @@ export const getColonyHud = query({
       ctx,
       playerId: player._id,
     });
-    const colonyQueueRows = await listColonyQueueItems({
-      colonyId: colony._id,
+    const planetsById = await listPlayerColonyPlanets({
+      colonies: playerColonies,
       ctx,
     });
-
-    const planetsById = new Map<Id<"planets">, Doc<"planets">>();
-    const colonyStatusById = new Map<Id<"colonies">, string>();
-
-    await Promise.all(
-      playerColonies.map(async (entry) => {
-        if (planetsById.has(entry.planetId)) {
-          return;
-        }
-        const colonyPlanet = await ctx.db.get(entry.planetId);
-        if (colonyPlanet) {
-          planetsById.set(colonyPlanet._id, colonyPlanet);
-        }
-      }),
-    );
-    await Promise.all(
-      playerColonies.map(async (entry) => {
-        const queueRows = await listOpenLaneQueueItems({
-          colonyId: entry._id,
-          ctx,
-          lane: "building",
-        });
-        const hasActive = queueRows.some((row) => row.status === "active");
-        const hasPending = queueRows.some((row) => row.status === "queued");
-        colonyStatusById.set(
-          entry._id,
-          hasActive ? "Upgrading" : hasPending ? "Queued" : "Stable",
-        );
-      }),
-    );
-
-    const buildingLane = buildLaneQueueView({
-      lane: "building",
-      now,
-      rows: colonyQueueRows,
-    });
-    const shipyardLane = emptyLaneQueueView("shipyard");
-    const researchLane = emptyLaneQueueView("research");
-
-    const rates = productionRatesPerMinute({
-      buildings: colony.buildings,
-      overflow: colony.overflow,
-      planet,
-    });
-
-    const alloyUnits = storedToWholeUnits(colony.resources.alloy);
-    const crystalUnits = storedToWholeUnits(colony.resources.crystal);
-    const fuelUnits = storedToWholeUnits(colony.resources.fuel);
-
-    const alloyCap = storedToWholeUnits(colony.storageCaps.alloy);
-    const crystalCap = storedToWholeUnits(colony.storageCaps.crystal);
-    const fuelCap = storedToWholeUnits(colony.storageCaps.fuel);
-
-    const resources = [
-      {
-        key: "alloy" as const,
-        value: formatResourceValue(alloyUnits),
-        valueAmount: alloyUnits,
-        deltaPerMinute: `+${Math.max(0, Math.floor(rates.resources.alloy)).toLocaleString()}/m`,
-        deltaPerMinuteAmount: Math.max(0, Math.floor(rates.resources.alloy)),
-        storageCurrentAmount: alloyUnits,
-        storageCurrentLabel: formatResourceValue(alloyUnits),
-        storageCapAmount: alloyCap,
-        storageCapLabel: formatResourceValue(alloyCap),
-        storagePercent:
-          alloyCap <= 0 ? 0 : Math.min(100, (alloyUnits / alloyCap) * 100),
-      },
-      {
-        key: "crystal" as const,
-        value: formatResourceValue(crystalUnits),
-        valueAmount: crystalUnits,
-        deltaPerMinute: `+${Math.max(0, Math.floor(rates.resources.crystal)).toLocaleString()}/m`,
-        deltaPerMinuteAmount: Math.max(0, Math.floor(rates.resources.crystal)),
-        storageCurrentAmount: crystalUnits,
-        storageCurrentLabel: formatResourceValue(crystalUnits),
-        storageCapAmount: crystalCap,
-        storageCapLabel: formatResourceValue(crystalCap),
-        storagePercent:
-          crystalCap <= 0
-            ? 0
-            : Math.min(100, (crystalUnits / crystalCap) * 100),
-      },
-      {
-        key: "fuel" as const,
-        value: formatResourceValue(fuelUnits),
-        valueAmount: fuelUnits,
-        deltaPerMinute: `+${Math.max(0, Math.floor(rates.resources.fuel)).toLocaleString()}/m`,
-        deltaPerMinuteAmount: Math.max(0, Math.floor(rates.resources.fuel)),
-        storageCurrentAmount: fuelUnits,
-        storageCurrentLabel: formatResourceValue(fuelUnits),
-        storageCapAmount: fuelCap,
-        storageCapLabel: formatResourceValue(fuelCap),
-        storagePercent:
-          fuelCap <= 0 ? 0 : Math.min(100, (fuelUnits / fuelCap) * 100),
-      },
-      {
-        key: "energy" as const,
-        value: `${Math.round(rates.energyRatio * 100)}%`,
-        energyBalance: Math.round(rates.energyProduced - rates.energyConsumed),
-      },
-    ];
 
     return {
       activeColonyId: colony._id,
@@ -1303,18 +1328,104 @@ export const getColonyHud = query({
           id: entry._id,
           name: entry.name,
           addressLabel: colonyPlanet ? toAddressLabel(colonyPlanet) : "Unknown",
-          status: colonyStatusById.get(entry._id) ?? "Stable",
         };
       }),
-      resources,
-      queues: {
-        nextEventAt: queueEventsNextAt(colonyQueueRows) ?? undefined,
-        lanes: {
-          building: buildingLane,
-          shipyard: shipyardLane,
-          research: researchLane,
-        },
-      },
+    };
+  },
+});
+
+export const getColonyResourceStrip = query({
+  args: {
+    colonyId: v.id("colonies"),
+  },
+  returns: v.object({
+    resources: v.array(resourceHudDatumValidator),
+  }),
+  handler: async (ctx, args) => {
+    const { colony, planet } = await getOwnedColony({
+      ctx,
+      colonyId: args.colonyId,
+    });
+
+    return {
+      resources: buildHudResources({ colony, planet }),
+    };
+  },
+});
+
+export const getColonyQueueSummary = query({
+  args: {
+    colonyId: v.id("colonies"),
+  },
+  returns: v.object({
+    activeColonyId: v.id("colonies"),
+    nextEventAt: v.optional(v.number()),
+    statuses: v.array(colonyStatusValidator),
+  }),
+  handler: async (ctx, args) => {
+    const { colony, player } = await getOwnedColony({
+      ctx,
+      colonyId: args.colonyId,
+    });
+    const playerColonies = await listPlayerColonies({
+      ctx,
+      playerId: player._id,
+    });
+    const colonyQueueRows = await listColonyQueueItems({
+      colonyId: colony._id,
+      ctx,
+    });
+
+    const statuses = await Promise.all(
+      playerColonies.map(async (entry) => ({
+        colonyId: entry._id,
+        status: await getBuildingQueueStatusForColony({
+          colonyId: entry._id,
+          ctx,
+        }),
+      })),
+    );
+
+    return {
+      activeColonyId: colony._id,
+      nextEventAt: queueEventsNextAt(colonyQueueRows) ?? undefined,
+      statuses,
+    };
+  },
+});
+
+export const getColonyCoordinates = query({
+  args: {
+    colonyId: v.id("colonies"),
+  },
+  returns: colonyCoordinatesValidator,
+  handler: async (ctx, args) => {
+    const { colony, planet } = await getOwnedColony({
+      ctx,
+      colonyId: args.colonyId,
+    });
+    const system = await ctx.db.get(planet.systemId);
+    if (!system) {
+      throw new ConvexError("System not found for colony");
+    }
+
+    const universe = await ctx.db.get(colony.universeId);
+    if (!universe) {
+      throw new ConvexError("Universe not found for colony");
+    }
+
+    const nowSeconds = (Date.now() - universe.orbitEpochMs) / 1_000;
+    const phase =
+      planet.orbitPhaseRad + planet.orbitAngularVelocityRadPerSec * nowSeconds;
+
+    return {
+      galaxyId: system.galaxyId,
+      sectorId: system.sectorId,
+      systemId: system._id,
+      planetId: planet._id,
+      focusX: system.x + Math.cos(phase) * planet.orbitRadius,
+      focusY: system.y + Math.sin(phase) * planet.orbitRadius,
+      addressLabel: toAddressLabel(planet),
     };
   },
 });

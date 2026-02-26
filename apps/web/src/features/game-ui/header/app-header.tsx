@@ -124,6 +124,7 @@ export function AppHeader({
   isStarMapOpen = false,
   onToggleStarMap,
 }: AppHeaderProps = {}) {
+  type HeaderHudData = NonNullable<Parameters<typeof getHeaderConfig>[1]>;
   const navigate = useNavigate();
   const { isAuthenticated } = useConvexAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -131,14 +132,48 @@ export function AppHeader({
     select: (state) => state.location.pathname,
   });
   const colonyId = parseColonyId(pathname);
+  const colonyIdAsId = colonyId ? (colonyId as Id<"colonies">) : null;
   const renameColony = useMutation(api.gameplay.renameColony);
-  const hud = useQuery(
-    api.gameplay.getColonyHud,
-    colonyId && isAuthenticated
-      ? { colonyId: colonyId as Id<"colonies"> }
-      : "skip"
+  const colonyNav = useQuery(
+    api.gameplay.getColonyNav,
+    colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
   );
-  const simulatedResources = useSimulatedHudResources(hud?.resources);
+  const colonyResourceStrip = useQuery(
+    api.gameplay.getColonyResourceStrip,
+    colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
+  );
+  const colonyQueueSummary = useQuery(
+    api.gameplay.getColonyQueueSummary,
+    colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
+  );
+  const hud = useMemo<HeaderHudData | undefined>(() => {
+    if (!colonyNav || !colonyResourceStrip) {
+      return undefined;
+    }
+
+    const statusByColonyId = new Map<
+      Id<"colonies">,
+      "Upgrading" | "Queued" | "Stable"
+    >(
+      (colonyQueueSummary?.statuses ?? []).map((entry) => [
+        entry.colonyId,
+        entry.status,
+      ])
+    );
+
+    return {
+      activeColonyId: colonyNav.activeColonyId,
+      title: colonyNav.title,
+      colonies: colonyNav.colonies.map((colony) => ({
+        ...colony,
+        status: statusByColonyId.get(colony.id),
+      })),
+      resources: colonyResourceStrip.resources as ResourceDatum[],
+    };
+  }, [colonyNav, colonyQueueSummary?.statuses, colonyResourceStrip]);
+  const simulatedResources = useSimulatedHudResources(
+    hud?.resources ?? colonyResourceStrip?.resources
+  );
   const [isRenamingColony, setIsRenamingColony] = useState(false);
   const [isSavingColonyName, setIsSavingColonyName] = useState(false);
   const [draftColonyName, setDraftColonyName] = useState("");

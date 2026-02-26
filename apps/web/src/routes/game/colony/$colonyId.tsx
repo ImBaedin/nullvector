@@ -1,6 +1,8 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
+import { useConvexAuth, useQuery } from "convex/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import { X } from "lucide-react";
 
@@ -38,6 +40,7 @@ const ZOOM = {
 } as const;
 
 function ColonyLayoutRoute() {
+  const { colonyId } = Route.useParams();
   const [isStarMapOpen, setIsStarMapOpen] = useState(false);
 
   return (
@@ -52,6 +55,7 @@ function ColonyLayoutRoute() {
 
       <ExplorerProvider>
         <ColonyStarMapLayer
+          colonyId={colonyId as Id<"colonies">}
           isOpen={isStarMapOpen}
           onClose={() => setIsStarMapOpen(false)}
         />
@@ -91,13 +95,16 @@ function ColonyLayoutRoute() {
 }
 
 function ColonyStarMapLayer({
+  colonyId,
   isOpen,
   onClose,
 }: {
+  colonyId: Id<"colonies">;
   isOpen: boolean;
   onClose: () => void;
 }) {
   const explorer = useExplorerContext();
+  const { isAuthenticated } = useConvexAuth();
   const data = useExplorerData();
   const {
     antialiasEnabled,
@@ -110,6 +117,11 @@ function ColonyStarMapLayer({
   const [hover, setHover] = useState<HoverPanelState | null>(null);
   const hoverRafRef = useRef<number | null>(null);
   const pendingHoverRef = useRef<HoverPanelState | null>(null);
+  const initializedColonyIdRef = useRef<Id<"colonies"> | null>(null);
+  const coordinates = useQuery(
+    api.gameplay.getColonyCoordinates,
+    isAuthenticated ? { colonyId } : "skip"
+  );
 
   useEffect(() => {
     return () => {
@@ -119,6 +131,39 @@ function ColonyStarMapLayer({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!coordinates) {
+      return;
+    }
+    if (initializedColonyIdRef.current === colonyId) {
+      return;
+    }
+
+    const {
+      galaxyId,
+      focusX,
+      focusY,
+      planetId,
+      sectorId,
+      systemId,
+    } = coordinates;
+
+    explorer.setPlanetLevel(
+      {
+        galaxyId,
+        sectorId,
+        systemId,
+        planetId,
+      },
+      {
+        x: focusX,
+        y: focusY,
+        zoom: ZOOM.planet,
+      }
+    );
+    initializedColonyIdRef.current = colonyId;
+  }, [colonyId, coordinates, explorer]);
 
   const clearHover = () => {
     setHoveredId(null);
