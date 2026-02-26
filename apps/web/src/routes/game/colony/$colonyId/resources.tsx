@@ -1,86 +1,67 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Popover } from "@base-ui/react/popover";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { ReactNode } from "react";
-import { Clock3, Gauge, Info, Layers3, X } from "lucide-react";
+import { BatteryCharging, Layers3, Pickaxe, Radar } from "lucide-react";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
+import type { BuildingKey } from "@nullvector/game-logic";
 
 import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
-import { UpgradeButton } from "@/features/ui-mockups/components/upgrade-button";
+import {
+  isStorageBuildingKey,
+  ResourceBuildingCard,
+} from "./resource-building-card";
 
 export const Route = createFileRoute("/game/colony/$colonyId/resources")({
   component: ResourcesRoute,
 });
 
-type BuildingKey =
-  | "alloyMineLevel"
-  | "crystalMineLevel"
-  | "fuelRefineryLevel"
-  | "powerPlantLevel";
-
-type DeltaResourceKey = "alloy" | "crystal" | "fuel" | "energy";
-
-type CardStatus = "Running" | "Shortage" | "Overflow" | "Paused";
-
-const BUILDING_VISUALS: Record<
-  BuildingKey,
-  {
-    accent: string;
-    imageUrl: string;
-  }
-> = {
-  alloyMineLevel: {
-    accent: "rgba(74, 233, 255, 0.65)",
-    imageUrl: "/game-icons/alloy.png",
-  },
-  crystalMineLevel: {
-    accent: "rgba(122, 181, 255, 0.62)",
-    imageUrl: "/game-icons/crystal.png",
-  },
-  fuelRefineryLevel: {
-    accent: "rgba(255, 170, 106, 0.7)",
-    imageUrl: "/game-icons/deuterium.png",
-  },
-  powerPlantLevel: {
-    accent: "rgba(255, 125, 167, 0.66)",
-    imageUrl: "/game-icons/energy.png",
-  },
+type GroupVisual = {
+  description: string;
+  glow: string;
+  icon: ReactNode;
+  label: string;
+  stripe: string;
 };
 
-const STATUS_STYLES: Record<CardStatus, { badge: string; card: string; panel: string }> = {
-  Running: {
-    badge: "border-emerald-300/70 bg-emerald-300/20 text-emerald-100",
-    card: "border-emerald-300/35",
-    panel: "bg-emerald-400/12",
+const GROUP_VISUALS = {
+  resource: {
+    description: "Raw material extraction and refining network.",
+    glow: "rgba(67, 228, 255, 0.3)",
+    icon: <Pickaxe className="size-3.5" strokeWidth={2.4} />,
+    label: "Material Yards",
+    stripe:
+      "linear-gradient(90deg, rgba(64,211,255,0.45), rgba(107,166,255,0.25), rgba(64,211,255,0))",
   },
-  Shortage: {
-    badge: "border-amber-300/80 bg-amber-200/20 text-amber-50",
-    card: "border-amber-200/50",
-    panel: "bg-amber-300/15",
+  power: {
+    description: "Planetary grid generation and voltage control.",
+    glow: "rgba(255, 167, 98, 0.3)",
+    icon: <BatteryCharging className="size-3.5" strokeWidth={2.4} />,
+    label: "Power Grid",
+    stripe:
+      "linear-gradient(90deg, rgba(255,184,102,0.48), rgba(255,136,85,0.28), rgba(255,184,102,0))",
   },
-  Overflow: {
-    badge: "border-sky-200/85 bg-sky-200/20 text-sky-50",
-    card: "border-sky-200/55",
-    panel: "bg-sky-200/14",
+  storage: {
+    description: "Bulk containment arrays expanding resource reserves.",
+    glow: "rgba(112, 206, 255, 0.28)",
+    icon: <Layers3 className="size-3.5" strokeWidth={2.4} />,
+    label: "Storage Ring",
+    stripe:
+      "linear-gradient(90deg, rgba(112,206,255,0.45), rgba(170,224,255,0.24), rgba(112,206,255,0))",
   },
-  Paused: {
-    badge: "border-rose-300/75 bg-rose-300/20 text-rose-50",
-    card: "border-rose-300/45",
-    panel: "bg-rose-300/14",
+  special: {
+    description: "Specialized industrial lines and support systems.",
+    glow: "rgba(208, 191, 255, 0.3)",
+    icon: <Radar className="size-3.5" strokeWidth={2.4} />,
+    label: "Special Ops",
+    stripe:
+      "linear-gradient(90deg, rgba(203,190,255,0.45), rgba(127,174,255,0.24), rgba(203,190,255,0))",
   },
-};
+} satisfies Record<string, GroupVisual>;
 
-const DELTA_RESOURCE_META: Record<DeltaResourceKey, { icon: string; label: string; suffix: string }> =
-  {
-    alloy: { icon: "/game-icons/alloy.png", label: "Alloy", suffix: "/m" },
-    crystal: { icon: "/game-icons/crystal.png", label: "Crystal", suffix: "/m" },
-    fuel: { icon: "/game-icons/deuterium.png", label: "Fuel", suffix: "/m" },
-    energy: { icon: "/game-icons/energy.png", label: "Energy", suffix: " MW" },
-  };
+type GeneratorGroupId = keyof typeof GROUP_VISUALS;
 
 function formatDuration(ms: number) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1_000));
@@ -99,80 +80,45 @@ function formatDuration(ms: number) {
   return `${seconds}s`;
 }
 
-function formatUpgradeTime(seconds?: number) {
-  if (!seconds || seconds <= 0) {
-    return "N/A";
+function resolveGroupIdForBuilding(building: {
+  group: string;
+  key: BuildingKey;
+}): GeneratorGroupId {
+  const normalizedGroup = building.group.toLowerCase();
+
+  if (building.key === "powerPlantLevel" || normalizedGroup.includes("power")) {
+    return "power";
   }
 
-  const hours = Math.floor(seconds / 3_600);
-  const minutes = Math.floor((seconds % 3_600) / 60);
-  const remainingSeconds = seconds % 60;
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
+  if (
+    isStorageBuildingKey(building.key) ||
+    normalizedGroup.includes("storage")
+  ) {
+    return "storage";
   }
 
-  if (minutes > 0) {
-    return `${minutes}m ${remainingSeconds}s`;
+  if (
+    normalizedGroup.includes("resource") ||
+    normalizedGroup.includes("mine") ||
+    normalizedGroup.includes("extract")
+  ) {
+    return "resource";
   }
 
-  return `${remainingSeconds}s`;
+  return "special";
 }
 
-function formatSignedDelta(value: number, suffix: string) {
-  return `${value > 0 ? "+" : ""}${value.toLocaleString()}${suffix}`;
-}
-
-function statusFromBuilding(args: {
-  canUpgrade: boolean;
-  overflow: number;
-  energyRatio: number;
-  outputPerMinute: number;
-}): CardStatus {
-  if (args.energyRatio < 0.55) {
-    return "Shortage";
-  }
-  if (args.overflow > 0) {
-    return "Overflow";
-  }
-  if (!args.canUpgrade && args.outputPerMinute <= 0) {
-    return "Paused";
-  }
-  return "Running";
-}
-
-function resourceNameForBuilding(key: BuildingKey) {
+function storageKeyForProduction(key: BuildingKey): BuildingKey | null {
   if (key === "alloyMineLevel") {
-    return "Alloy";
+    return "alloyStorageLevel";
   }
   if (key === "crystalMineLevel") {
-    return "Crystal";
+    return "crystalStorageLevel";
   }
   if (key === "fuelRefineryLevel") {
-    return "Fuel";
+    return "fuelStorageLevel";
   }
-  return "Energy";
-}
-
-function efficiencyLabel(status: CardStatus, energyRatio: number) {
-  if (status === "Paused") {
-    return "0%";
-  }
-  const value = Math.max(0, Math.min(100, Math.round(energyRatio * 100)));
-  return `${value}%`;
-}
-
-function outputResourceKeyForBuilding(key: BuildingKey): DeltaResourceKey {
-  if (key === "alloyMineLevel") {
-    return "alloy";
-  }
-  if (key === "crystalMineLevel") {
-    return "crystal";
-  }
-  if (key === "fuelRefineryLevel") {
-    return "fuel";
-  }
-  return "energy";
+  return null;
 }
 
 function ResourcesRoute() {
@@ -182,12 +128,15 @@ function ResourcesRoute() {
 
   const view = useQuery(
     api.gameplay.getResourceManagementView,
-    isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
+    isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
   );
   const syncColony = useMutation(api.gameplay.syncColony);
-  const enqueueBuildingUpgrade = useMutation(api.gameplay.enqueueBuildingUpgrade);
+  const enqueueBuildingUpgrade = useMutation(
+    api.gameplay.enqueueBuildingUpgrade,
+  );
 
-  const [activeTableBuildingKey, setActiveTableBuildingKey] = useState<BuildingKey | null>(null);
+  const [activeTableBuildingKey, setActiveTableBuildingKey] =
+    useState<BuildingKey | null>(null);
   const [upgradingKey, setUpgradingKey] = useState<BuildingKey | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const isSyncingRef = useRef(false);
@@ -201,7 +150,9 @@ function ResourcesRoute() {
     try {
       await syncColony({ colonyId: colonyIdAsId });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to sync colony");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to sync colony",
+      );
     } finally {
       isSyncingRef.current = false;
     }
@@ -243,6 +194,52 @@ function ResourcesRoute() {
   const remainingTimeLabel = activeQueueItem
     ? formatDuration(Math.max(0, activeQueueItem.completesAt - nowMs))
     : null;
+  const groupedBuildings = useMemo(() => {
+    const groups = new Map<
+      GeneratorGroupId,
+      {
+        groupId: GeneratorGroupId;
+        groupLabel: string;
+        buildings: NonNullable<typeof view>["buildings"];
+      }
+    >();
+
+    for (const building of view?.buildings ?? []) {
+      const groupId = resolveGroupIdForBuilding(building);
+      const existingGroup = groups.get(groupId);
+
+      if (existingGroup) {
+        existingGroup.buildings.push(building);
+        continue;
+      }
+
+      groups.set(groupId, {
+        buildings: [building],
+        groupId,
+        groupLabel: building.group,
+      });
+    }
+
+    return [...groups.values()];
+  }, [view?.buildings]);
+  const buildingsByKey = useMemo(() => {
+    return new Map((view?.buildings ?? []).map((building) => [building.key, building]));
+  }, [view?.buildings]);
+  const pairedStorageKeys = useMemo(() => {
+    const keys = new Set<BuildingKey>();
+
+    for (const building of view?.buildings ?? []) {
+      const storageKey = storageKeyForProduction(building.key);
+      if (!storageKey) {
+        continue;
+      }
+      if (buildingsByKey.has(storageKey)) {
+        keys.add(storageKey);
+      }
+    }
+
+    return keys;
+  }, [buildingsByKey, view?.buildings]);
 
   useGameTimedSync({
     enabled: isAuthenticated,
@@ -269,207 +266,142 @@ function ResourcesRoute() {
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-10 pt-6 text-white">
-      <section className="grid gap-4 md:grid-cols-2">
-        {view.buildings.map((building) => {
-          const isTableOpen = activeTableBuildingKey === building.key;
-          const isBusy = upgradingKey === building.key;
-          const isActiveUpgradeTarget = activeQueueItem?.payload.buildingKey === building.key;
-          const queuedForBuilding = pendingQueueItems.find(
-            (item) => item.payload.buildingKey === building.key
-          );
-          const nextLevelRow =
-            building.levelTable.find((row) => row.level === building.currentLevel + 1) ??
-            building.levelTable[0];
-          const resourceOverflow =
-            building.key === "alloyMineLevel"
-              ? view.resources.overflow.alloy
-              : building.key === "crystalMineLevel"
-                ? view.resources.overflow.crystal
-                : building.key === "fuelRefineryLevel"
-                  ? view.resources.overflow.fuel
-                  : 0;
-          const cardStatus = statusFromBuilding({
-            canUpgrade: building.canUpgrade,
-            energyRatio: view.resources.energyRatio,
-            overflow: resourceOverflow,
-            outputPerMinute: building.outputPerMinute,
-          });
-          const statusStyle = STATUS_STYLES[cardStatus];
-          const visual = BUILDING_VISUALS[building.key];
-          const cardAccent = visual.accent;
-          const outputDeltaPerMinute = nextLevelRow?.deltaOutputPerMinute ?? 0;
-          const energyDeltaPerMinute = nextLevelRow?.deltaEnergyPerMinute ?? 0;
-          const energyImpactDeltaPerMinute = -energyDeltaPerMinute;
-          const outputResourceKey = outputResourceKeyForBuilding(building.key);
-          const nextLevelDeltas: Array<{ key: DeltaResourceKey; value: number }> = [];
+      <section className="space-y-5">
+        {groupedBuildings.map((group) => {
+          const baseGroupBuildings =
+            group.groupId === "storage"
+              ? group.buildings.filter(
+                  (building) => !pairedStorageKeys.has(building.key),
+                )
+              : group.buildings;
+          const pairedStorageInGroup = group.groupId !== "storage"
+            ? baseGroupBuildings
+                .map((building) => storageKeyForProduction(building.key))
+                .filter((key): key is BuildingKey => Boolean(key))
+                .filter((key) => buildingsByKey.has(key))
+            : [];
+          const visibleStructureCount =
+            group.groupId === "storage"
+              ? baseGroupBuildings.length
+              : new Set([
+                  ...baseGroupBuildings.map((building) => building.key),
+                  ...pairedStorageInGroup,
+                ]).size;
+          const visibleStructureKeys = new Set<BuildingKey>([
+            ...baseGroupBuildings.map((building) => building.key),
+            ...pairedStorageInGroup,
+          ]);
 
-          if (outputDeltaPerMinute !== 0) {
-            nextLevelDeltas.push({
-              key: outputResourceKey,
-              value: outputDeltaPerMinute,
-            });
+          if (visibleStructureCount === 0) {
+            return null;
           }
 
-          if (outputResourceKey !== "energy" && energyImpactDeltaPerMinute !== 0) {
-            nextLevelDeltas.push({
-              key: "energy",
-              value: energyImpactDeltaPerMinute,
-            });
-          }
+          const groupVisual = GROUP_VISUALS[group.groupId];
+          const queueCount = pendingQueueItems.filter((item) =>
+            visibleStructureKeys.has(item.payload.buildingKey),
+          ).length;
+          const activeUpgradeInGroup = activeQueueItem
+            ? visibleStructureKeys.has(activeQueueItem.payload.buildingKey)
+            : false;
 
           return (
-            <article
-              className={`group relative overflow-hidden rounded-2xl border ${statusStyle.card} bg-[#060f1a] shadow-[0_16px_34px_rgba(0,0,0,0.4)]`}
-              key={building.key}
+            <section
+              className="relative overflow-hidden rounded-2xl border border-white/14 bg-[linear-gradient(180deg,rgba(10,18,30,0.9),rgba(2,7,14,0.94))] p-3 shadow-[0_16px_32px_rgba(0,0,0,0.38)] sm:p-4"
+              key={group.groupId}
             >
               <div
-                className="absolute inset-0"
+                className="pointer-events-none absolute inset-0 opacity-80"
                 style={{
-                  backgroundImage: `radial-gradient(circle at 78% 24%, ${cardAccent}, transparent 38%), linear-gradient(164deg, rgba(9,17,29,0.74), rgba(1,5,12,0.94) 62%), url(${visual.imageUrl})`,
-                  backgroundPosition: "center, center, calc(100% + 35px) 52%",
-                  backgroundRepeat: "no-repeat, no-repeat, no-repeat",
-                  backgroundSize: "cover, cover, 56%",
+                  backgroundImage: groupVisual.stripe,
                 }}
               />
-              <div className="absolute inset-0 bg-[repeating-linear-gradient(125deg,rgba(255,255,255,0.05)_0,rgba(255,255,255,0.05)_1px,transparent_1px,transparent_11px)] opacity-20" />
-
-              <div className="relative z-10 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/60">
-                      {building.group}
-                    </p>
-                    <h3 className="text-xl font-semibold">{building.name}</h3>
-                    <p
-                      className={`mt-1 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${statusStyle.badge}`}
-                    >
-                      {isActiveUpgradeTarget ? (
-                        <>
-                          <Clock3 className="size-3" />
-                          Upgrading to Lv {activeQueueItem.payload.toLevel}
-                          {remainingTimeLabel ? ` (${remainingTimeLabel})` : ""}
-                        </>
-                      ) : queuedForBuilding ? (
-                        <>Queued for Lv {queuedForBuilding.payload.toLevel}</>
-                      ) : (
-                        cardStatus
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <GeneratorInfoPopover
-                      details={
-                        <div className="grid gap-1.5 text-[11px]">
-                          <p>
-                            Efficiency:{" "}
-                            <span className="font-semibold text-white">
-                              {efficiencyLabel(cardStatus, view.resources.energyRatio)}
-                            </span>
-                          </p>
-                          <p>
-                            Output:{" "}
-                            <span className="font-semibold text-white">
-                              {building.outputPerMinute.toLocaleString()} {building.outputLabel}/m
-                            </span>
-                          </p>
-                          <p>
-                            Energy Draw:{" "}
-                            <span className="font-semibold text-white">
-                              {building.energyUsePerMinute.toLocaleString()} MW
-                            </span>
-                          </p>
-                          {resourceOverflow > 0 ? (
-                            <p>
-                              Overflow:{" "}
-                              <span className="font-semibold text-amber-200">
-                                {resourceOverflow.toLocaleString()} {resourceNameForBuilding(building.key)}
-                              </span>
-                            </p>
-                          ) : (
-                            <p>
-                              Overflow: <span className="font-semibold text-white">None</span>
-                            </p>
-                          )}
-                        </div>
-                      }
-                    />
-                    <button
-                      className="rounded-md border border-white/25 bg-white/5 px-2.5 py-1 text-xs text-white/80 transition hover:bg-white/10"
-                      onClick={() =>
-                        setActiveTableBuildingKey((current) =>
-                          current === building.key ? null : building.key
-                        )
-                      }
-                      type="button"
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        <Layers3 className="size-3.5" />
-                        Levels
-                      </span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <div className={`rounded-lg border border-white/15 ${statusStyle.panel} p-3`}>
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/60">
-                      Current Level
-                    </p>
-                    <p className="mt-1 text-xl font-semibold">Lv {building.currentLevel}</p>
-                  </div>
-                  <div className={`rounded-lg border border-white/15 ${statusStyle.panel} p-3`}>
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/60">Output</p>
-                    <p className="mt-1 text-xl font-semibold">
-                      {building.outputPerMinute.toLocaleString()} {building.outputLabel}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/75">
-                  <p className="inline-flex items-center gap-1.5">
-                    <Gauge className="size-3.5 text-cyan-200/80" />
-                    Energy use: {building.energyUsePerMinute.toLocaleString()} MW
+              <div
+                className="pointer-events-none absolute -left-24 top-0 h-36 w-56 rounded-full blur-3xl"
+                style={{
+                  background: groupVisual.glow,
+                }}
+              />
+              <div className="relative z-10 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] text-white/70">
+                    {groupVisual.icon}
+                    {groupVisual.label}
+                  </p>
+                  <h2 className="mt-1 text-sm font-semibold text-white/95 sm:text-base">
+                    {group.groupLabel}
+                  </h2>
+                  <p className="mt-0.5 text-[11px] text-white/62">
+                    {groupVisual.description}
                   </p>
                 </div>
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-white/70">
+                  <span className="rounded-full border border-white/20 bg-black/25 px-2.5 py-1">
+                    {visibleStructureCount} structures
+                  </span>
+                  {activeUpgradeInGroup ? (
+                    <span className="rounded-full border border-emerald-200/45 bg-emerald-300/15 px-2.5 py-1 text-emerald-50">
+                      1 active upgrade
+                    </span>
+                  ) : null}
+                  {queueCount > 0 ? (
+                    <span className="rounded-full border border-cyan-200/40 bg-cyan-300/15 px-2.5 py-1 text-cyan-50">
+                      {queueCount} queued
+                    </span>
+                  ) : null}
+                </div>
+              </div>
 
-                <div className="mt-3 flex justify-center">
-                  <Popover.Root>
-                    <Popover.Trigger
-                      closeDelay={90}
-                      delay={60}
-                      openOnHover
-                      render={
-                        <UpgradeButton
-                          actionDurationText={formatUpgradeTime(building.nextUpgradeDurationSeconds)}
-                          disabled={!building.canUpgrade || isBusy}
-                          icon="arrow"
-                          label={
-                            isBusy
-                              ? "Queueing..."
-                              : buildingQueue?.isFull
-                                ? "Queue Full"
-                                : "Upgrade"
+              <div className="relative z-10 mt-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {baseGroupBuildings.map((building) => {
+                    const storageKey = storageKeyForProduction(building.key);
+                    const storageBuilding = storageKey
+                      ? buildingsByKey.get(storageKey) ?? null
+                      : null;
+                    const renderCard = (targetBuilding: typeof building) => {
+                      const targetTableOpen =
+                        activeTableBuildingKey === targetBuilding.key;
+                      const targetBusy = upgradingKey === targetBuilding.key;
+                      const targetQueued = pendingQueueItems.find(
+                        (item) => item.payload.buildingKey === targetBuilding.key,
+                      );
+
+                      return (
+                        <ResourceBuildingCard
+                          activeQueueItem={activeQueueItem ?? null}
+                          building={targetBuilding}
+                          buildingQueueIsFull={buildingQueue?.isFull ?? false}
+                          energyRatio={view.resources.energyRatio}
+                          isBusy={targetBusy}
+                          isTableOpen={targetTableOpen}
+                          overflow={view.resources.overflow}
+                          queuedForBuilding={targetQueued ?? null}
+                          remainingTimeLabel={remainingTimeLabel}
+                          key={targetBuilding.key}
+                          onTableOpenChange={(open) =>
+                            setActiveTableBuildingKey(open ? targetBuilding.key : null)
                           }
-                          onClick={() => {
-                            if (!building.canUpgrade || isBusy) {
-                              return;
-                            }
-
-                            setUpgradingKey(building.key);
+                          onUpgrade={() => {
+                            setUpgradingKey(targetBuilding.key);
                             enqueueBuildingUpgrade({
                               colonyId: colonyIdAsId,
-                              buildingKey: building.key,
+                              buildingKey: targetBuilding.key,
                             })
                               .then((result) => {
                                 if (result.status === "active") {
-                                  toast.success(`${building.name} upgrade started`);
+                                  toast.success(
+                                    `${targetBuilding.name} upgrade started`,
+                                  );
                                 } else {
-                                  toast.success(`${building.name} upgrade queued`);
+                                  toast.success(
+                                    `${targetBuilding.name} upgrade queued`,
+                                  );
                                 }
                               })
                               .catch((error) => {
                                 toast.error(
-                                  error instanceof Error ? error.message : "Failed to queue upgrade"
+                                  error instanceof Error
+                                    ? error.message
+                                    : "Failed to queue upgrade",
                                 );
                               })
                               .finally(() => {
@@ -477,211 +409,37 @@ function ResourcesRoute() {
                               });
                           }}
                         />
-                      }
-                    />
-                    <Popover.Portal>
-                      <Popover.Positioner align="end" className="z-[90]" sideOffset={8}>
-                        <Popover.Popup className="origin-[var(--transform-origin)] w-[240px] rounded-xl border border-white/30 bg-[rgba(5,10,18,0.82)] p-3 text-xs text-white/90 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">
-                            Next Upgrade Cost
-                          </p>
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            <CostPill
-                              amount={building.nextUpgradeCost.alloy}
-                              icon="/game-icons/alloy.png"
-                              label="Alloy"
-                            />
-                            <CostPill
-                              amount={building.nextUpgradeCost.crystal}
-                              icon="/game-icons/crystal.png"
-                              label="Crystal"
-                            />
-                            <CostPill
-                              amount={building.nextUpgradeCost.fuel}
-                              icon="/game-icons/deuterium.png"
-                              label="Fuel"
-                            />
-                          </div>
-                          {nextLevelDeltas.length > 0 ? (
-                            <div className="mt-3 border-t border-white/15 pt-3">
-                              <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">
-                                Next Level Delta
-                              </p>
-                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                {nextLevelDeltas.map((delta) => (
-                                  <DeltaPill
-                                    icon={DELTA_RESOURCE_META[delta.key].icon}
-                                    key={`${building.key}-${delta.key}`}
-                                    label={DELTA_RESOURCE_META[delta.key].label}
-                                    tone={delta.value > 0 ? "positive" : "negative"}
-                                    value={formatSignedDelta(
-                                      delta.value,
-                                      DELTA_RESOURCE_META[delta.key].suffix
-                                    )}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-                        </Popover.Popup>
-                      </Popover.Positioner>
-                    </Popover.Portal>
-                  </Popover.Root>
-                </div>
+                      );
+                    };
 
-                <AnimatePresence initial={false}>
-                  {isTableOpen ? (
-                    <motion.section
-                      animate={{ clipPath: "inset(0 0% 0 0 round 14px)", opacity: 1 }}
-                      className="absolute inset-0 z-30 overflow-hidden rounded-2xl border border-cyan-200/28 bg-[rgba(4,10,19,0.94)] shadow-[0_16px_42px_rgba(0,0,0,0.5)] backdrop-blur-md"
-                      exit={{
-                        clipPath: "inset(0 0% 0 100% round 14px)",
-                        opacity: 0.95,
-                      }}
-                      initial={{
-                        clipPath: "inset(0 0% 0 100% round 14px)",
-                        opacity: 0.95,
-                      }}
-                      transition={{ duration: 0.34, ease: [0.24, 0.84, 0.32, 1] }}
-                    >
-                      <motion.div
-                        animate={{ x: ["0%", "-100%"], opacity: [0.85, 0] }}
-                        className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-[linear-gradient(90deg,rgba(113,233,255,0),rgba(113,233,255,0.45),rgba(113,233,255,0))]"
-                        initial={{ x: "0%", opacity: 0.85 }}
-                        transition={{ duration: 0.34, ease: "easeOut" }}
-                      />
-                      <div className="h-full overflow-y-auto p-3.5 sm:p-4">
-                        <div className="mb-3 flex items-center justify-between gap-2">
-                          <p className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-slate-200/90">
-                            <Layers3 className="size-3.5" strokeWidth={2.5} />
-                            Level Planner
-                          </p>
-                          <button
-                            className="rounded-full border border-white/30 bg-black/35 p-1 text-white transition hover:bg-black/55"
-                            onClick={() => setActiveTableBuildingKey(null)}
-                            type="button"
-                          >
-                            <X className="size-3.5" strokeWidth={2.4} />
-                          </button>
+                    if (
+                      group.groupId !== "storage" &&
+                      isStorageBuildingKey(building.key) &&
+                      pairedStorageKeys.has(building.key)
+                    ) {
+                      return null;
+                    }
+
+                    if (
+                      group.groupId !== "storage" &&
+                      storageBuilding &&
+                      !isStorageBuildingKey(building.key)
+                    ) {
+                      return (
+                        <div className="flex flex-col gap-3" key={building.key}>
+                          {renderCard(building)}
+                          {storageBuilding ? renderCard(storageBuilding) : null}
                         </div>
-                        <div className="overflow-hidden rounded-md border border-white/12 bg-black/25">
-                          <table className="w-full text-left text-[11px]">
-                            <thead className="bg-white/6 text-slate-300">
-                              <tr>
-                                <th className="px-2 py-1.5">Lv</th>
-                                <th className="px-2 py-1.5">Output</th>
-                                <th className="px-2 py-1.5">Energy</th>
-                                <th className="px-2 py-1.5">Cost</th>
-                                <th className="px-2 py-1.5">Time</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {building.levelTable.map((row) => (
-                                <tr
-                                  className={
-                                    row.level === building.currentLevel
-                                      ? "bg-cyan-300/10 text-cyan-50"
-                                      : "text-white/85"
-                                  }
-                                  key={`${building.key}-${row.level}`}
-                                >
-                                  <td className="px-2 py-1.5">{row.level}</td>
-                                  <td className="px-2 py-1.5">
-                                    {row.outputPerMinute.toLocaleString()} (
-                                    {row.deltaOutputPerMinute >= 0 ? "+" : ""}
-                                    {row.deltaOutputPerMinute.toLocaleString()})
-                                  </td>
-                                  <td className="px-2 py-1.5">
-                                    {row.energyUsePerMinute.toLocaleString()} (
-                                    {row.deltaEnergyPerMinute >= 0 ? "+" : ""}
-                                    {row.deltaEnergyPerMinute.toLocaleString()})
-                                  </td>
-                                  <td className="px-2 py-1.5">
-                                    A {row.cost.alloy.toLocaleString()} / C{" "}
-                                    {row.cost.crystal.toLocaleString()} / F {row.cost.fuel.toLocaleString()}
-                                  </td>
-                                  <td className="px-2 py-1.5">
-                                    {formatUpgradeTime(row.durationSeconds)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </motion.section>
-                  ) : null}
-                </AnimatePresence>
+                      );
+                    }
+
+                    return renderCard(building);
+                  })}
               </div>
-            </article>
+            </section>
           );
         })}
       </section>
     </div>
-  );
-}
-
-function CostPill(props: { amount: number; icon: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-black/35 px-2 py-1 text-[11px] font-semibold text-slate-100">
-      <img
-        alt={`${props.label} resource`}
-        className="h-3.5 w-3.5 rounded-[2px] border border-white/25 object-cover"
-        src={props.icon}
-      />
-      <span>{props.amount.toLocaleString()}</span>
-    </span>
-  );
-}
-
-function DeltaPill(props: {
-  icon: string;
-  label: string;
-  tone: "negative" | "positive";
-  value: string;
-}) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold ${
-        props.tone === "positive"
-          ? "border-emerald-300/30 bg-emerald-400/12 text-emerald-100"
-          : "border-rose-300/35 bg-rose-400/14 text-rose-100"
-      }`}
-    >
-      <img
-        alt={`${props.label} resource`}
-        className="h-3.5 w-3.5 rounded-[2px] border border-white/25 object-cover"
-        src={props.icon}
-      />
-      <span>{props.value}</span>
-    </span>
-  );
-}
-
-function GeneratorInfoPopover({ details }: { details: ReactNode }) {
-  return (
-    <Popover.Root>
-      <Popover.Trigger
-        closeDelay={120}
-        delay={70}
-        openOnHover
-        render={
-          <button
-            className="rounded-full border border-white/30 bg-black/35 p-1.5 text-white transition hover:bg-black/55"
-            type="button"
-          >
-            <Info className="size-3.5" strokeWidth={2.8} />
-          </button>
-        }
-      />
-      <Popover.Portal>
-        <Popover.Positioner align="end" className="z-[90]" sideOffset={8}>
-          <Popover.Popup className="origin-[var(--transform-origin)] w-[260px] rounded-xl border border-white/30 bg-[rgba(5,10,18,0.82)] p-3 text-xs text-white/90 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">Details</p>
-            <div className="mt-2">{details}</div>
-          </Popover.Popup>
-        </Popover.Positioner>
-      </Popover.Portal>
-    </Popover.Root>
   );
 }

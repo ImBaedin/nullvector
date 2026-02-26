@@ -6,3 +6,4 @@
 - MVP upgrade timing rule: upgrades are resolved only during explicit colony sync calls; accrual must be segmented so post-completion offline time uses upgraded production rates.
 - For Better Auth + Convex web auth, do not manually call `/api/auth/convex/token` from app code; rely on `ConvexBetterAuthProvider` + `convexClient()` plugin and gate Convex queries/mutations with `useConvexAuth()`.
 - Queueing model has moved to lane-based `colonyQueueItems`; building upgrades snapshot `fromLevel/toLevel`, cost, and timing at enqueue (cost deducted immediately), and colony/UI queue timing should be driven by `queues.nextEventAt` instead of legacy `activeUpgrade`.
+- Shared gameplay DTO/key types now live in `packages/game-logic/src/gameplay.ts` (exported via `@nullvector/game-logic`); prefer importing `BuildingKey`/resource-card queue types from there instead of redefining them in web/backend modules.

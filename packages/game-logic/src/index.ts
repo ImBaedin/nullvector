@@ -32,6 +32,7 @@ export {
 } from "./structures";
 
 export { isUnlockSatisfied } from "./unlocks";
+export { BUILDING_KEYS } from "./gameplay";
 
 export type {
   ColonyBuff,
@@ -52,3 +53,13 @@ export type {
   UnlockRule,
   UpgradeTimeCurve,
 } from "./types";
+export type {
+  BuildingKey,
+  BuildingUpgradeQueuePayload,
+  LaneQueueItem,
+  QueueItemStatus,
+  QueueLane,
+  ResourceBucket,
+  ResourceBuildingCardData,
+  ResourceBuildingLevelRow,
+} from "./gameplay";

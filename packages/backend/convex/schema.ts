@@ -12,13 +12,13 @@ const planetCompositionTypeValidator = v.union(
   v.literal("metallic"),
   v.literal("silicate"),
   v.literal("icy"),
-  v.literal("volatileRich")
+  v.literal("volatileRich"),
 );
 // MVP transport lifecycle.
 const transportStatusValidator = v.union(
   v.literal("scheduled"),
   v.literal("inTransit"),
-  v.literal("delivered")
+  v.literal("delivered"),
 );
 
 // Shared resource shape used in colony state and transport payloads.
@@ -44,7 +44,10 @@ const upgradeBuildingKeyValidator = v.union(
   v.literal("alloyMineLevel"),
   v.literal("crystalMineLevel"),
   v.literal("fuelRefineryLevel"),
-  v.literal("powerPlantLevel")
+  v.literal("powerPlantLevel"),
+  v.literal("alloyStorageLevel"),
+  v.literal("crystalStorageLevel"),
+  v.literal("fuelStorageLevel"),
 );
 
 const activeUpgradeValidator = v.object({
@@ -59,7 +62,7 @@ const activeUpgradeValidator = v.object({
 const queueLaneValidator = v.union(
   v.literal("building"),
   v.literal("shipyard"),
-  v.literal("research")
+  v.literal("research"),
 );
 
 const queueItemStatusValidator = v.union(
@@ -67,7 +70,7 @@ const queueItemStatusValidator = v.union(
   v.literal("active"),
   v.literal("completed"),
   v.literal("cancelled"),
-  v.literal("failed")
+  v.literal("failed"),
 );
 
 const queueItemKindValidator = v.literal("buildingUpgrade");
@@ -118,7 +121,7 @@ export default defineSchema({
         coreSectorsGenerated: v.number(),
         colonizablePlanetsGenerated: v.number(),
         lastRunAt: v.number(),
-      })
+      }),
     ),
     createdAt: v.number(),
     updatedAt: v.number(),

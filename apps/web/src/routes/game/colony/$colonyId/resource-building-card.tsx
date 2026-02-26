@@ -1,0 +1,706 @@
+import { Dialog } from "@base-ui/react/dialog";
+import { Popover } from "@base-ui/react/popover";
+import { motion } from "motion/react";
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { Clock3, Gauge, Info, Layers3, X } from "lucide-react";
+import type {
+  BuildingKey,
+  LaneQueueItem,
+  ResourceBucket,
+  ResourceBuildingCardData,
+} from "@nullvector/game-logic";
+
+import { UpgradeButton } from "@/features/ui-mockups/components/upgrade-button";
+
+type DeltaResourceKey = "alloy" | "crystal" | "fuel" | "energy";
+type CardStatus = "Running" | "Shortage" | "Overflow" | "Paused";
+
+const BUILDING_VISUALS: Record<
+  BuildingKey,
+  {
+    accent: string;
+    imageUrl: string;
+  }
+> = {
+  alloyMineLevel: {
+    accent: "rgba(74, 233, 255, 0.65)",
+    imageUrl: "/game-icons/alloy.png",
+  },
+  crystalMineLevel: {
+    accent: "rgba(122, 181, 255, 0.62)",
+    imageUrl: "/game-icons/crystal.png",
+  },
+  fuelRefineryLevel: {
+    accent: "rgba(255, 170, 106, 0.7)",
+    imageUrl: "/game-icons/deuterium.png",
+  },
+  powerPlantLevel: {
+    accent: "rgba(255, 125, 167, 0.66)",
+    imageUrl: "/game-icons/energy.png",
+  },
+  alloyStorageLevel: {
+    accent: "rgba(83, 205, 235, 0.54)",
+    imageUrl: "/game-icons/alloy.png",
+  },
+  crystalStorageLevel: {
+    accent: "rgba(133, 164, 255, 0.52)",
+    imageUrl: "/game-icons/crystal.png",
+  },
+  fuelStorageLevel: {
+    accent: "rgba(255, 182, 122, 0.56)",
+    imageUrl: "/game-icons/deuterium.png",
+  },
+};
+
+const STATUS_STYLES: Record<
+  CardStatus,
+  { badge: string; card: string }
+> = {
+  Running: {
+    badge: "border-emerald-300/70 bg-emerald-300/20 text-emerald-100",
+    card: "border-emerald-300/35",
+  },
+  Shortage: {
+    badge: "border-amber-300/80 bg-amber-200/20 text-amber-50",
+    card: "border-amber-200/50",
+  },
+  Overflow: {
+    badge: "border-sky-200/85 bg-sky-200/20 text-sky-50",
+    card: "border-sky-200/55",
+  },
+  Paused: {
+    badge: "border-rose-300/75 bg-rose-300/20 text-rose-50",
+    card: "border-rose-300/45",
+  },
+};
+
+const DELTA_RESOURCE_META: Record<
+  DeltaResourceKey,
+  { icon: string; label: string; suffix: string }
+> = {
+  alloy: { icon: "/game-icons/alloy.png", label: "Alloy", suffix: "/m" },
+  crystal: { icon: "/game-icons/crystal.png", label: "Crystal", suffix: "/m" },
+  fuel: { icon: "/game-icons/deuterium.png", label: "Fuel", suffix: "/m" },
+  energy: { icon: "/game-icons/energy.png", label: "Energy", suffix: " MW" },
+};
+
+function formatUpgradeTime(seconds?: number) {
+  if (!seconds || seconds <= 0) {
+    return "N/A";
+  }
+
+  const hours = Math.floor(seconds / 3_600);
+  const minutes = Math.floor((seconds % 3_600) / 60);
+  const remainingSeconds = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  return `${remainingSeconds}s`;
+}
+
+function formatSignedDelta(value: number, suffix: string) {
+  return `${value > 0 ? "+" : ""}${value.toLocaleString()}${suffix}`;
+}
+
+function statusFromBuilding(args: {
+  canUpgrade: boolean;
+  isProduction: boolean;
+  overflow: number;
+  energyRatio: number;
+  outputPerMinute: number;
+}): CardStatus {
+  if (args.isProduction && args.energyRatio < 0.55) {
+    return "Shortage";
+  }
+  if (args.isProduction && args.overflow > 0) {
+    return "Overflow";
+  }
+  if (!args.canUpgrade && args.outputPerMinute <= 0) {
+    return "Paused";
+  }
+  return "Running";
+}
+
+function resourceNameForBuilding(key: BuildingKey) {
+  if (key === "alloyMineLevel" || key === "alloyStorageLevel") {
+    return "Alloy";
+  }
+  if (key === "crystalMineLevel" || key === "crystalStorageLevel") {
+    return "Crystal";
+  }
+  if (key === "fuelRefineryLevel" || key === "fuelStorageLevel") {
+    return "Fuel";
+  }
+  return "Energy";
+}
+
+function efficiencyLabel(status: CardStatus, energyRatio: number) {
+  if (status === "Paused") {
+    return "0%";
+  }
+  const value = Math.max(0, Math.min(100, Math.round(energyRatio * 100)));
+  return `${value}%`;
+}
+
+function outputResourceKeyForBuilding(key: BuildingKey): DeltaResourceKey {
+  if (key === "alloyMineLevel" || key === "alloyStorageLevel") {
+    return "alloy";
+  }
+  if (key === "crystalMineLevel" || key === "crystalStorageLevel") {
+    return "crystal";
+  }
+  if (key === "fuelRefineryLevel" || key === "fuelStorageLevel") {
+    return "fuel";
+  }
+  return "energy";
+}
+
+function generationCycleMs(outputPerMinute: number) {
+  if (outputPerMinute <= 0) {
+    return null;
+  }
+  const rawMs = 60_000 / outputPerMinute;
+  return Math.max(350, Math.min(5_000, rawMs));
+}
+
+function OutputPulseIcon(props: {
+  icon: string;
+  label: string;
+  outputLabel: string;
+  outputPerMinute: number;
+}) {
+  const { icon, label, outputLabel, outputPerMinute } = props;
+  const cycleMs = useMemo(
+    () => generationCycleMs(outputPerMinute),
+    [outputPerMinute],
+  );
+  const [fill, setFill] = useState(0);
+  const [hitCount, setHitCount] = useState(0);
+
+  useEffect(() => {
+    if (!cycleMs) {
+      setFill(0);
+      return;
+    }
+
+    let rafId: number | null = null;
+    let timeoutId: number | null = null;
+    let cycleStart = performance.now();
+
+    const updateFill = (now: number) => {
+      const elapsed = now - cycleStart;
+      setFill(Math.max(0, Math.min(1, elapsed / cycleMs)));
+      rafId = window.requestAnimationFrame(updateFill);
+    };
+
+    const scheduleHit = () => {
+      timeoutId = window.setTimeout(() => {
+        setHitCount((prev) => prev + 1);
+        cycleStart = performance.now();
+        scheduleHit();
+      }, cycleMs);
+    };
+
+    rafId = window.requestAnimationFrame(updateFill);
+    scheduleHit();
+
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [cycleMs]);
+
+  const revealMask = `conic-gradient(from 0deg, #000 0deg, #000 ${
+    fill * 360
+  }deg, transparent ${fill * 360}deg, transparent 360deg)`;
+  const rateText = `${Math.round(outputPerMinute).toLocaleString()}/m`;
+  const hitMotion = useMemo(() => {
+    const hitTilt = 7 + Math.random() * 7;
+    const reboundTilt = 3 + Math.random() * 6;
+    const squash = 0.86 + Math.random() * 0.08;
+    const overshoot = 1.05 + Math.random() * 0.08;
+    const settle = 0.97 + Math.random() * 0.03;
+    const duration = 0.38 + Math.random() * 0.24;
+
+    return {
+      duration,
+      rotate: [0, -hitTilt, reboundTilt, -reboundTilt * 0.35, 0],
+      scale: [1, squash, overshoot, settle, 1],
+    };
+  }, [hitCount]);
+
+  return (
+    <div className="flex items-center justify-center">
+      <motion.div
+        aria-label={`${label} output: ${outputPerMinute.toLocaleString()} ${outputLabel}`}
+        animate={{ rotate: hitMotion.rotate, scale: hitMotion.scale }}
+        className="relative size-20 rounded-full border border-white/30 bg-black/35 p-2 shadow-[0_10px_20px_rgba(0,0,0,0.45)]"
+        key={hitCount}
+        role="img"
+        title={`${outputPerMinute.toLocaleString()} ${outputLabel}`}
+        transition={{ duration: hitMotion.duration, ease: "easeOut" }}
+      >
+        <img
+          alt={`${label} output icon`}
+          className="size-full object-contain opacity-80 [filter:grayscale(1)_contrast(1.1)_brightness(0.95)]"
+          draggable={false}
+          src={icon}
+        />
+        <span
+          className="pointer-events-none absolute inset-2 block"
+          style={{
+            WebkitMaskImage: revealMask,
+            WebkitMaskPosition: "center",
+            WebkitMaskRepeat: "no-repeat",
+            WebkitMaskSize: "contain",
+            maskImage: revealMask,
+            maskPosition: "center",
+            maskRepeat: "no-repeat",
+            maskSize: "contain",
+          }}
+        >
+          <img
+            alt=""
+            aria-hidden
+            className="size-full object-contain"
+            draggable={false}
+            src={icon}
+          />
+        </span>
+        <span className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+          <span className="rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white/90 shadow-[0_1px_4px_rgba(0,0,0,0.4)]">
+            {rateText}
+          </span>
+        </span>
+      </motion.div>
+    </div>
+  );
+}
+
+export function isStorageBuildingKey(key: BuildingKey) {
+  return (
+    key === "alloyStorageLevel" ||
+    key === "crystalStorageLevel" ||
+    key === "fuelStorageLevel"
+  );
+}
+
+export function isProductionBuildingKey(key: BuildingKey) {
+  return (
+    key === "alloyMineLevel" ||
+    key === "crystalMineLevel" ||
+    key === "fuelRefineryLevel"
+  );
+}
+
+export function ResourceBuildingCard(props: {
+  activeQueueItem: LaneQueueItem | null;
+  building: ResourceBuildingCardData;
+  buildingQueueIsFull: boolean;
+  energyRatio: number;
+  isBusy: boolean;
+  isTableOpen: boolean;
+  overflow: ResourceBucket;
+  queuedForBuilding: LaneQueueItem | null;
+  remainingTimeLabel: string | null;
+  onTableOpenChange: (open: boolean) => void;
+  onUpgrade: () => void;
+}) {
+  const {
+    activeQueueItem,
+    building,
+    buildingQueueIsFull,
+    energyRatio,
+    isBusy,
+    isTableOpen,
+    overflow,
+    queuedForBuilding,
+    remainingTimeLabel,
+    onTableOpenChange,
+    onUpgrade,
+  } = props;
+
+  const isStorageBuilding = isStorageBuildingKey(building.key);
+  const isProductionBuilding = isProductionBuildingKey(building.key);
+  const isActiveUpgradeTarget = activeQueueItem?.payload.buildingKey === building.key;
+  const nextLevelRow =
+    building.levelTable.find((row) => row.level === building.currentLevel + 1) ??
+    building.levelTable[0];
+  const resourceOverflow =
+    building.key === "alloyMineLevel"
+      ? overflow.alloy
+      : building.key === "crystalMineLevel"
+        ? overflow.crystal
+        : building.key === "fuelRefineryLevel"
+          ? overflow.fuel
+          : 0;
+  const cardStatus = statusFromBuilding({
+    canUpgrade: building.canUpgrade,
+    energyRatio,
+    isProduction: isProductionBuilding,
+    overflow: resourceOverflow,
+    outputPerMinute: building.outputPerMinute,
+  });
+  const statusStyle = STATUS_STYLES[cardStatus];
+  const visual = BUILDING_VISUALS[building.key];
+  const outputColumnLabel = isStorageBuilding ? "Capacity" : "Output";
+  const outputResourceKey = outputResourceKeyForBuilding(building.key);
+  const outputDeltaPerMinute = nextLevelRow?.deltaOutputPerMinute ?? 0;
+  const energyDeltaPerMinute = nextLevelRow?.deltaEnergyPerMinute ?? 0;
+  const energyImpactDeltaPerMinute = -energyDeltaPerMinute;
+  const nextLevelDeltas: Array<{ key: DeltaResourceKey; value: number }> = [];
+
+  if (outputDeltaPerMinute !== 0) {
+    nextLevelDeltas.push({
+      key: outputResourceKey,
+      value: outputDeltaPerMinute,
+    });
+  }
+
+  if (outputResourceKey !== "energy" && energyImpactDeltaPerMinute !== 0) {
+    nextLevelDeltas.push({
+      key: "energy",
+      value: energyImpactDeltaPerMinute,
+    });
+  }
+
+  return (
+    <article
+      className={`group relative overflow-hidden rounded-2xl border ${statusStyle.card} bg-[#060f1a] text-[13px] shadow-[0_16px_34px_rgba(0,0,0,0.4)]`}
+    >
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage: `radial-gradient(circle at 78% 24%, ${visual.accent}, transparent 38%), linear-gradient(164deg, rgba(9,17,29,0.74), rgba(1,5,12,0.94) 62%), url(${visual.imageUrl})`,
+          backgroundPosition: "center, center, calc(100% + 35px) 52%",
+          backgroundRepeat: "no-repeat, no-repeat, no-repeat",
+          backgroundSize: "cover, cover, 56%",
+        }}
+      />
+      <div className="absolute inset-0 bg-[repeating-linear-gradient(125deg,rgba(255,255,255,0.05)_0,rgba(255,255,255,0.05)_1px,transparent_1px,transparent_11px)] opacity-20" />
+
+      <div className="relative z-10 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold">{building.name}</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              aria-label={`Level ${building.currentLevel}`}
+              className="inline-flex size-7 items-center justify-center rounded-full border border-white/30 bg-black/35 text-[11px] font-semibold text-white/90 shadow-[0_6px_16px_rgba(0,0,0,0.4)]"
+              title={`Level ${building.currentLevel}`}
+            >
+              {building.currentLevel}
+            </span>
+            {!isStorageBuilding ? (
+              <GeneratorInfoPopover
+                details={
+                  <div className="grid gap-1.5 text-[11px]">
+                    <p>
+                      Efficiency:{" "}
+                      <span className="font-semibold text-white">
+                        {efficiencyLabel(cardStatus, energyRatio)}
+                      </span>
+                    </p>
+                    <p>
+                      Output:{" "}
+                      <span className="font-semibold text-white">
+                        {building.outputPerMinute.toLocaleString()} {building.outputLabel}
+                      </span>
+                    </p>
+                    <p>
+                      Energy Draw:{" "}
+                      <span className="font-semibold text-white">
+                        {building.energyUsePerMinute.toLocaleString()} MW
+                      </span>
+                    </p>
+                    {resourceOverflow > 0 ? (
+                      <p>
+                        Overflow:{" "}
+                        <span className="font-semibold text-amber-200">
+                          {resourceOverflow.toLocaleString()}{" "}
+                          {resourceNameForBuilding(building.key)}
+                        </span>
+                      </p>
+                    ) : (
+                      <p>
+                        Overflow:{" "}
+                        <span className="font-semibold text-white">
+                          {isProductionBuilding ? "None" : "N/A"}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                }
+              />
+            ) : null}
+            <Dialog.Root onOpenChange={onTableOpenChange} open={isTableOpen}>
+              <Dialog.Trigger className="rounded-md border border-white/25 bg-white/5 px-2.5 py-1 text-xs text-white/80 transition hover:bg-white/10">
+                <span className="inline-flex items-center gap-1">
+                  <Layers3 className="size-3.5" />
+                  Levels
+                </span>
+              </Dialog.Trigger>
+              <Dialog.Portal>
+                <Dialog.Backdrop className="fixed inset-0 z-[95] bg-[rgba(3,6,12,0.72)] backdrop-blur-sm transition-all duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+                <Dialog.Popup className="fixed left-1/2 top-1/2 z-[100] max-h-[85vh] w-[min(96vw,860px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-cyan-200/28 bg-[rgba(4,10,19,0.96)] shadow-[0_24px_56px_rgba(0,0,0,0.55)] outline-none transition-all duration-200 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
+                  <div className="p-3.5 sm:p-4">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <Dialog.Title className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-slate-200/90">
+                        <Layers3 className="size-3.5" strokeWidth={2.5} />
+                        Level Planner: {building.name}
+                      </Dialog.Title>
+                      <Dialog.Description className="sr-only">
+                        Review level progression, upgrade costs, and timing for{" "}
+                        {building.name}.
+                      </Dialog.Description>
+                      <Dialog.Close className="rounded-full border border-white/30 bg-black/35 p-1 text-white transition hover:bg-black/55">
+                        <X className="size-3.5" strokeWidth={2.4} />
+                      </Dialog.Close>
+                    </div>
+                    <div className="overflow-hidden rounded-md border border-white/12 bg-black/25">
+                      <table className="w-full text-left text-[11px]">
+                        <thead className="bg-white/6 text-slate-300">
+                          <tr>
+                            <th className="px-2 py-1.5">Lv</th>
+                            <th className="px-2 py-1.5">{outputColumnLabel}</th>
+                            <th className="px-2 py-1.5">Energy</th>
+                            <th className="px-2 py-1.5">Cost</th>
+                            <th className="px-2 py-1.5">Time</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {building.levelTable.map((row) => (
+                            <tr
+                              className={
+                                row.level === building.currentLevel
+                                  ? "bg-cyan-300/10 text-cyan-50"
+                                  : "text-white/85"
+                              }
+                              key={`${building.key}-${row.level}`}
+                            >
+                              <td className="px-2 py-1.5">{row.level}</td>
+                              <td className="px-2 py-1.5">
+                                {row.outputPerMinute.toLocaleString()} (
+                                {row.deltaOutputPerMinute >= 0 ? "+" : ""}
+                                {row.deltaOutputPerMinute.toLocaleString()})
+                              </td>
+                              <td className="px-2 py-1.5">
+                                {row.energyUsePerMinute.toLocaleString()} (
+                                {row.deltaEnergyPerMinute >= 0 ? "+" : ""}
+                                {row.deltaEnergyPerMinute.toLocaleString()})
+                              </td>
+                              <td className="px-2 py-1.5">
+                                A {row.cost.alloy.toLocaleString()} / C{" "}
+                                {row.cost.crystal.toLocaleString()} / F{" "}
+                                {row.cost.fuel.toLocaleString()}
+                              </td>
+                              <td className="px-2 py-1.5">
+                                {formatUpgradeTime(row.durationSeconds)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </Dialog.Popup>
+              </Dialog.Portal>
+            </Dialog.Root>
+          </div>
+        </div>
+        <p
+          className={`mt-2 inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${statusStyle.badge}`}
+        >
+          {isActiveUpgradeTarget ? (
+            <>
+              <Clock3 className="size-3" />
+              Upgrading to Lv {activeQueueItem.payload.toLevel}
+              {remainingTimeLabel ? ` (${remainingTimeLabel})` : ""}
+            </>
+          ) : queuedForBuilding ? (
+            <>Queued for Lv {queuedForBuilding.payload.toLevel}</>
+          ) : (
+            cardStatus
+          )}
+        </p>
+
+        {!isStorageBuilding ? (
+          <div className="mt-2">
+            <OutputPulseIcon
+              icon={DELTA_RESOURCE_META[outputResourceKey].icon}
+              label={DELTA_RESOURCE_META[outputResourceKey].label}
+              outputLabel={building.outputLabel}
+              outputPerMinute={building.outputPerMinute}
+            />
+          </div>
+        ) : null}
+
+        {!isStorageBuilding ? (
+          <div className="mt-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/75">
+            <p className="inline-flex items-center gap-1.5">
+              <Gauge className="size-3.5 text-cyan-200/80" />
+              Energy use: {building.energyUsePerMinute.toLocaleString()} MW
+            </p>
+          </div>
+        ) : null}
+
+        <div className="mt-3 flex justify-center">
+          <Popover.Root>
+            <Popover.Trigger
+              closeDelay={90}
+              delay={60}
+              openOnHover
+              render={
+                <UpgradeButton
+                  actionDurationText={formatUpgradeTime(
+                    building.nextUpgradeDurationSeconds,
+                  )}
+                  disabled={!building.canUpgrade || isBusy}
+                  icon="arrow"
+                  label={
+                    isBusy
+                      ? "Queueing..."
+                      : buildingQueueIsFull
+                        ? "Queue Full"
+                        : "Upgrade"
+                  }
+                  onClick={() => {
+                    if (!building.canUpgrade || isBusy) {
+                      return;
+                    }
+                    onUpgrade();
+                  }}
+                />
+              }
+            />
+            <Popover.Portal>
+              <Popover.Positioner align="end" className="z-[90]" sideOffset={8}>
+                <Popover.Popup className="origin-[var(--transform-origin)] w-[240px] rounded-xl border border-white/30 bg-[rgba(5,10,18,0.82)] p-3 text-xs text-white/90 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">
+                    Next Upgrade Cost
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <CostPill
+                      amount={building.nextUpgradeCost.alloy}
+                      icon="/game-icons/alloy.png"
+                      label="Alloy"
+                    />
+                    <CostPill
+                      amount={building.nextUpgradeCost.crystal}
+                      icon="/game-icons/crystal.png"
+                      label="Crystal"
+                    />
+                    <CostPill
+                      amount={building.nextUpgradeCost.fuel}
+                      icon="/game-icons/deuterium.png"
+                      label="Fuel"
+                    />
+                  </div>
+                  {nextLevelDeltas.length > 0 ? (
+                    <div className="mt-3 border-t border-white/15 pt-3">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">
+                        Next Level Delta
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        {nextLevelDeltas.map((delta) => (
+                          <DeltaPill
+                            icon={DELTA_RESOURCE_META[delta.key].icon}
+                            key={`${building.key}-${delta.key}`}
+                            label={DELTA_RESOURCE_META[delta.key].label}
+                            tone={delta.value > 0 ? "positive" : "negative"}
+                            value={formatSignedDelta(
+                              delta.value,
+                              delta.key === outputResourceKey && isStorageBuilding
+                                ? " cap"
+                                : DELTA_RESOURCE_META[delta.key].suffix,
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </Popover.Popup>
+              </Popover.Positioner>
+            </Popover.Portal>
+          </Popover.Root>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function CostPill(props: { amount: number; icon: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-black/35 px-2 py-1 text-[11px] font-semibold text-slate-100">
+      <img
+        alt={`${props.label} resource`}
+        className="h-3.5 w-3.5 rounded-[2px] border border-white/25 object-cover"
+        src={props.icon}
+      />
+      <span>{props.amount.toLocaleString()}</span>
+    </span>
+  );
+}
+
+function DeltaPill(props: {
+  icon: string;
+  label: string;
+  tone: "negative" | "positive";
+  value: string;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold ${
+        props.tone === "positive"
+          ? "border-emerald-300/30 bg-emerald-400/12 text-emerald-100"
+          : "border-rose-300/35 bg-rose-400/14 text-rose-100"
+      }`}
+    >
+      <img
+        alt={`${props.label} resource`}
+        className="h-3.5 w-3.5 rounded-[2px] border border-white/25 object-cover"
+        src={props.icon}
+      />
+      <span>{props.value}</span>
+    </span>
+  );
+}
+
+function GeneratorInfoPopover({ details }: { details: ReactNode }) {
+  return (
+    <Popover.Root>
+      <Popover.Trigger
+        closeDelay={120}
+        delay={70}
+        openOnHover
+        render={
+          <button
+            className="rounded-full border border-white/30 bg-black/35 p-1.5 text-white transition hover:bg-black/55"
+            type="button"
+          >
+            <Info className="size-3.5" strokeWidth={2.8} />
+          </button>
+        }
+      />
+      <Popover.Portal>
+        <Popover.Positioner align="end" className="z-[90]" sideOffset={10}>
+          <Popover.Popup className="origin-[var(--transform-origin)] max-w-[230px] rounded-lg border border-white/25 bg-[rgba(4,10,18,0.86)] p-2.5 text-[11px] text-slate-100 shadow-[0_18px_34px_rgba(0,0,0,0.45)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
+            {details}
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}

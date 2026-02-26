@@ -1,32 +1,47 @@
 import {
+  BUILDING_KEYS,
   DEFAULT_GENERATOR_REGISTRY,
   getGeneratorProductionPerMinute,
   getUpgradeCost,
   getUpgradeDurationSeconds,
 } from "@nullvector/game-logic";
+import type {
+  BuildingKey,
+  ResourceBucket,
+  ResourceBuildingCardData,
+  ResourceBuildingLevelRow,
+} from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { authComponent } from "./auth";
 import { RESOURCE_SCALE } from "./schema";
 import { DEFAULT_UNIVERSE_SLUG } from "./lib/worldgen/config";
 import { ensureCoreCapacityPipeline } from "./lib/worldgen/pipeline";
 
-type ResourceBucket = {
-  alloy: number;
-  crystal: number;
-  fuel: number;
-};
-
-type BuildingKey =
+type ProductionBuildingKey =
   | "alloyMineLevel"
   | "crystalMineLevel"
-  | "fuelRefineryLevel"
-  | "powerPlantLevel";
+  | "fuelRefineryLevel";
+type StorageBuildingKey =
+  | "alloyStorageLevel"
+  | "crystalStorageLevel"
+  | "fuelStorageLevel";
+type GeneratorBuildingKey = ProductionBuildingKey | "powerPlantLevel";
 
 type QueueLane = "building" | "shipyard" | "research";
-type QueueItemStatus = "queued" | "active" | "completed" | "cancelled" | "failed";
+type QueueItemStatus =
+  | "queued"
+  | "active"
+  | "completed"
+  | "cancelled"
+  | "failed";
 type QueueItemKind = "buildingUpgrade";
 
 type ColonyWithRelations = {
@@ -47,14 +62,13 @@ const ALL_BUILDING_KEYS = [
   "shipyardLevel",
 ] as const;
 
-const UPGRADE_BUILDING_KEYS = [
-  "alloyMineLevel",
-  "crystalMineLevel",
-  "fuelRefineryLevel",
-  "powerPlantLevel",
-] as const satisfies readonly BuildingKey[];
+const UPGRADE_BUILDING_KEYS =
+  BUILDING_KEYS satisfies readonly BuildingKey[];
 
-const OPEN_QUEUE_STATUSES: ReadonlyArray<QueueItemStatus> = ["active", "queued"];
+const OPEN_QUEUE_STATUSES: ReadonlyArray<QueueItemStatus> = [
+  "active",
+  "queued",
+];
 const BUILDING_LANE_CAPACITY = 2;
 const LANE_QUEUE_CAPACITY: Record<QueueLane, number> = {
   building: BUILDING_LANE_CAPACITY,
@@ -62,7 +76,7 @@ const LANE_QUEUE_CAPACITY: Record<QueueLane, number> = {
   research: 2,
 };
 
-const ENERGY_BASE_CONSUMPTION: Record<Exclude<BuildingKey, "powerPlantLevel">, number> = {
+const ENERGY_BASE_CONSUMPTION: Record<ProductionBuildingKey, number> = {
   alloyMineLevel: 10,
   crystalMineLevel: 10,
   fuelRefineryLevel: 20,
@@ -78,13 +92,16 @@ const buildingKeyValidator = v.union(
   v.literal("alloyMineLevel"),
   v.literal("crystalMineLevel"),
   v.literal("fuelRefineryLevel"),
-  v.literal("powerPlantLevel")
+  v.literal("powerPlantLevel"),
+  v.literal("alloyStorageLevel"),
+  v.literal("crystalStorageLevel"),
+  v.literal("fuelStorageLevel"),
 );
 
 const queueLaneValidator = v.union(
   v.literal("building"),
   v.literal("shipyard"),
-  v.literal("research")
+  v.literal("research"),
 );
 
 const queueItemStatusValidator = v.union(
@@ -92,7 +109,7 @@ const queueItemStatusValidator = v.union(
   v.literal("active"),
   v.literal("completed"),
   v.literal("cancelled"),
-  v.literal("failed")
+  v.literal("failed"),
 );
 
 const queueItemKindValidator = v.literal("buildingUpgrade");
@@ -145,17 +162,62 @@ function getGeneratorOrThrow(generatorId: string) {
   return generator;
 }
 
-const BUILDING_CONFIG: Record<
-  BuildingKey,
+const STORAGE_BUILDING_MAX_LEVEL = 25;
+const STORAGE_CAP_BASE_UNITS = 10_000;
+const STORAGE_CAP_GROWTH = 1.7;
+
+const STORAGE_UPGRADE_CONFIG: Record<
+  StorageBuildingKey,
   {
-    generatorId: string;
-    name: string;
-    group: "Production" | "Power";
-    resource: "alloy" | "crystal" | "fuel" | "energy";
-    planetMultiplierKey?: "alloyMultiplier" | "crystalMultiplier" | "fuelMultiplier";
+    costBase: ResourceBucket;
+    costGrowth: number;
+    durationBaseSeconds: number;
+    durationGrowth: number;
   }
 > = {
+  alloyStorageLevel: {
+    costBase: { alloy: 160, crystal: 60, fuel: 0 },
+    costGrowth: 1.58,
+    durationBaseSeconds: 110,
+    durationGrowth: 1.2,
+  },
+  crystalStorageLevel: {
+    costBase: { alloy: 130, crystal: 95, fuel: 0 },
+    costGrowth: 1.58,
+    durationBaseSeconds: 118,
+    durationGrowth: 1.2,
+  },
+  fuelStorageLevel: {
+    costBase: { alloy: 210, crystal: 90, fuel: 0 },
+    costGrowth: 1.6,
+    durationBaseSeconds: 126,
+    durationGrowth: 1.21,
+  },
+};
+
+type BuildingConfig =
+  | {
+      kind: "generator";
+      generatorId: string;
+      name: string;
+      group: "Production" | "Power";
+      resource: "alloy" | "crystal" | "fuel" | "energy";
+      planetMultiplierKey?:
+        | "alloyMultiplier"
+        | "crystalMultiplier"
+        | "fuelMultiplier";
+    }
+  | {
+      kind: "storage";
+      name: string;
+      group: "Storage";
+      resource: keyof ResourceBucket;
+      maxLevel: number;
+    };
+
+const BUILDING_CONFIG: Record<BuildingKey, BuildingConfig> = {
   alloyMineLevel: {
+    kind: "generator",
     generatorId: "alloy_mine",
     name: "Alloy Mine",
     group: "Production",
@@ -163,6 +225,7 @@ const BUILDING_CONFIG: Record<
     planetMultiplierKey: "alloyMultiplier",
   },
   crystalMineLevel: {
+    kind: "generator",
     generatorId: "crystal_mine",
     name: "Crystal Mine",
     group: "Production",
@@ -170,6 +233,7 @@ const BUILDING_CONFIG: Record<
     planetMultiplierKey: "crystalMultiplier",
   },
   fuelRefineryLevel: {
+    kind: "generator",
     generatorId: "deuterium_extractor",
     name: "Fuel Refinery",
     group: "Production",
@@ -177,22 +241,94 @@ const BUILDING_CONFIG: Record<
     planetMultiplierKey: "fuelMultiplier",
   },
   powerPlantLevel: {
+    kind: "generator",
     generatorId: "solar_plant",
     name: "Power Plant",
     group: "Power",
     resource: "energy",
   },
+  alloyStorageLevel: {
+    kind: "storage",
+    name: "Alloy Depot",
+    group: "Storage",
+    resource: "alloy",
+    maxLevel: STORAGE_BUILDING_MAX_LEVEL,
+  },
+  crystalStorageLevel: {
+    kind: "storage",
+    name: "Crystal Vault",
+    group: "Storage",
+    resource: "crystal",
+    maxLevel: STORAGE_BUILDING_MAX_LEVEL,
+  },
+  fuelStorageLevel: {
+    kind: "storage",
+    name: "Fuel Silo",
+    group: "Storage",
+    resource: "fuel",
+    maxLevel: STORAGE_BUILDING_MAX_LEVEL,
+  },
 };
+
+function generatorConfigForBuilding(buildingKey: GeneratorBuildingKey) {
+  const config = BUILDING_CONFIG[buildingKey];
+  if (config.kind !== "generator") {
+    throw new ConvexError(`Missing generator config for ${buildingKey}`);
+  }
+  return config;
+}
 
 function storageCapForLevel(level: number) {
   if (level <= 0) {
     return 0;
   }
-  const base = 10_000;
-  return Math.round(base * Math.pow(1.7, level - 1));
+  return Math.round(
+    STORAGE_CAP_BASE_UNITS * Math.pow(STORAGE_CAP_GROWTH, level - 1),
+  );
 }
 
-function storageCapsFromBuildings(buildings: Doc<"colonies">["buildings"]): ResourceBucket {
+function isStorageBuildingKey(
+  buildingKey: BuildingKey,
+): buildingKey is StorageBuildingKey {
+  return (
+    buildingKey === "alloyStorageLevel" ||
+    buildingKey === "crystalStorageLevel" ||
+    buildingKey === "fuelStorageLevel"
+  );
+}
+
+function storageUpgradeCost(
+  buildingKey: StorageBuildingKey,
+  currentLevel: number,
+): ResourceBucket {
+  const config = STORAGE_UPGRADE_CONFIG[buildingKey];
+
+  return {
+    alloy: Math.round(
+      config.costBase.alloy * Math.pow(config.costGrowth, currentLevel),
+    ),
+    crystal: Math.round(
+      config.costBase.crystal * Math.pow(config.costGrowth, currentLevel),
+    ),
+    fuel: Math.round(
+      config.costBase.fuel * Math.pow(config.costGrowth, currentLevel),
+    ),
+  };
+}
+
+function storageUpgradeDurationSeconds(
+  buildingKey: StorageBuildingKey,
+  currentLevel: number,
+) {
+  const config = STORAGE_UPGRADE_CONFIG[buildingKey];
+  return Math.round(
+    config.durationBaseSeconds * Math.pow(config.durationGrowth, currentLevel),
+  );
+}
+
+function storageCapsFromBuildings(
+  buildings: Doc<"colonies">["buildings"],
+): ResourceBucket {
   return {
     alloy: scaledUnits(storageCapForLevel(buildings.alloyStorageLevel)),
     crystal: scaledUnits(storageCapForLevel(buildings.crystalStorageLevel)),
@@ -239,8 +375,8 @@ function resolveDisplayName(authUser: {
 }
 
 function energyConsumptionForLevel(
-  buildingKey: Exclude<BuildingKey, "powerPlantLevel">,
-  level: number
+  buildingKey: ProductionBuildingKey,
+  level: number,
 ) {
   if (level <= 0) {
     return 0;
@@ -257,24 +393,36 @@ function productionRatesPerMinute(args: {
 }) {
   const { buildings, overflow, planet } = args;
 
-  const alloyGenerator = getGeneratorOrThrow(BUILDING_CONFIG.alloyMineLevel.generatorId);
-  const crystalGenerator = getGeneratorOrThrow(BUILDING_CONFIG.crystalMineLevel.generatorId);
-  const fuelGenerator = getGeneratorOrThrow(BUILDING_CONFIG.fuelRefineryLevel.generatorId);
-  const powerGenerator = getGeneratorOrThrow(BUILDING_CONFIG.powerPlantLevel.generatorId);
+  const alloyGenerator = getGeneratorOrThrow(
+    generatorConfigForBuilding("alloyMineLevel").generatorId,
+  );
+  const crystalGenerator = getGeneratorOrThrow(
+    generatorConfigForBuilding("crystalMineLevel").generatorId,
+  );
+  const fuelGenerator = getGeneratorOrThrow(
+    generatorConfigForBuilding("fuelRefineryLevel").generatorId,
+  );
+  const powerGenerator = getGeneratorOrThrow(
+    generatorConfigForBuilding("powerPlantLevel").generatorId,
+  );
 
   const rawAlloyRate =
     getGeneratorProductionPerMinute(alloyGenerator, buildings.alloyMineLevel) *
     planet.alloyMultiplier;
   const rawCrystalRate =
-    getGeneratorProductionPerMinute(crystalGenerator, buildings.crystalMineLevel) *
-    planet.crystalMultiplier;
+    getGeneratorProductionPerMinute(
+      crystalGenerator,
+      buildings.crystalMineLevel,
+    ) * planet.crystalMultiplier;
   const rawFuelRate =
-    getGeneratorProductionPerMinute(fuelGenerator, buildings.fuelRefineryLevel) *
-    planet.fuelMultiplier;
+    getGeneratorProductionPerMinute(
+      fuelGenerator,
+      buildings.fuelRefineryLevel,
+    ) * planet.fuelMultiplier;
 
   const energyProduced = getGeneratorProductionPerMinute(
     powerGenerator,
-    buildings.powerPlantLevel
+    buildings.powerPlantLevel,
   );
   const energyConsumed =
     energyConsumptionForLevel("alloyMineLevel", buildings.alloyMineLevel) +
@@ -282,7 +430,9 @@ function productionRatesPerMinute(args: {
     energyConsumptionForLevel("fuelRefineryLevel", buildings.fuelRefineryLevel);
 
   const energyRatio =
-    energyConsumed <= 0 ? 1 : Math.max(0, Math.min(1, energyProduced / energyConsumed));
+    energyConsumed <= 0
+      ? 1
+      : Math.max(0, Math.min(1, energyProduced / energyConsumed));
 
   const alloyRate = overflow.alloy > 0 ? 0 : rawAlloyRate * energyRatio;
   const crystalRate = overflow.crystal > 0 ? 0 : rawCrystalRate * energyRatio;
@@ -325,10 +475,12 @@ function applyAccrualSegment(args: {
   const nextResources = cloneResourceBucket(resources);
 
   for (const key of RESOURCE_KEYS) {
-    const generatedScaled = Math.floor(rates.resources[key] * minutesElapsed * RESOURCE_SCALE);
+    const generatedScaled = Math.floor(
+      rates.resources[key] * minutesElapsed * RESOURCE_SCALE,
+    );
     const cappedValue = Math.min(
       colony.storageCaps[key],
-      Math.max(0, nextResources[key] + generatedScaled)
+      Math.max(0, nextResources[key] + generatedScaled),
     );
     nextResources[key] = cappedValue;
   }
@@ -339,7 +491,9 @@ function applyAccrualSegment(args: {
   };
 }
 
-function resourceMapToScaledBucket(resourceMap: Partial<Record<string, number>>): ResourceBucket {
+function resourceMapToScaledBucket(
+  resourceMap: Partial<Record<string, number>>,
+): ResourceBucket {
   return {
     alloy: scaledUnits(resourceMap.alloy ?? 0),
     crystal: scaledUnits(resourceMap.crystal ?? 0),
@@ -347,7 +501,9 @@ function resourceMapToScaledBucket(resourceMap: Partial<Record<string, number>>)
   };
 }
 
-function resourceMapToWholeUnitBucket(resourceMap: Partial<Record<string, number>>): ResourceBucket {
+function resourceMapToWholeUnitBucket(
+  resourceMap: Partial<Record<string, number>>,
+): ResourceBucket {
   return {
     alloy: Math.max(0, Math.round(resourceMap.alloy ?? 0)),
     crystal: Math.max(0, Math.round(resourceMap.crystal ?? 0)),
@@ -439,7 +595,10 @@ async function getOwnedColony(args: {
   };
 }
 
-function compareQueueOrder(left: Doc<"colonyQueueItems">, right: Doc<"colonyQueueItems">) {
+function compareQueueOrder(
+  left: Doc<"colonyQueueItems">,
+  right: Doc<"colonyQueueItems">,
+) {
   if (left.order !== right.order) {
     return left.order - right.order;
   }
@@ -456,7 +615,9 @@ async function listOpenLaneQueueItems(args: {
 }) {
   const rows = await args.ctx.db
     .query("colonyQueueItems")
-    .withIndex("by_col_lane_ord", (q) => q.eq("colonyId", args.colonyId).eq("lane", args.lane))
+    .withIndex("by_col_lane_ord", (q) =>
+      q.eq("colonyId", args.colonyId).eq("lane", args.lane),
+    )
     .collect();
 
   return rows
@@ -492,13 +653,16 @@ async function settleColonyAndPersist(args: {
     lane: "building",
   });
 
-  const queuePatchById = new Map<Id<"colonyQueueItems">, Partial<Doc<"colonyQueueItems">>>();
+  const queuePatchById = new Map<
+    Id<"colonyQueueItems">,
+    Partial<Doc<"colonyQueueItems">>
+  >();
   let activeQueue = queueRows.find((row) => row.status === "active") ?? null;
   const queued = queueRows.filter((row) => row.status === "queued");
 
   const markPatch = (
     queueId: Id<"colonyQueueItems">,
-    patch: Partial<Doc<"colonyQueueItems">>
+    patch: Partial<Doc<"colonyQueueItems">>,
   ) => {
     const existing = queuePatchById.get(queueId) ?? {};
     queuePatchById.set(queueId, { ...existing, ...patch });
@@ -543,8 +707,13 @@ async function settleColonyAndPersist(args: {
 
     const { toLevel } = queueItemFromToLevel(activeQueue);
     const buildingKey = activeQueue.payload.buildingKey;
-    workingColony.buildings[buildingKey] = Math.max(toLevel, workingColony.buildings[buildingKey]);
-    workingColony.storageCaps = storageCapsFromBuildings(workingColony.buildings);
+    workingColony.buildings[buildingKey] = Math.max(
+      toLevel,
+      workingColony.buildings[buildingKey],
+    );
+    workingColony.storageCaps = storageCapsFromBuildings(
+      workingColony.buildings,
+    );
 
     markPatch(activeQueue._id, {
       resolvedAt: activeQueue.completesAt,
@@ -584,7 +753,10 @@ async function settleColonyAndPersist(args: {
   return workingColony;
 }
 
-async function listPlayerColonies(args: { ctx: QueryCtx | MutationCtx; playerId: Id<"players"> }) {
+async function listPlayerColonies(args: {
+  ctx: QueryCtx | MutationCtx;
+  playerId: Id<"players">;
+}) {
   const { ctx, playerId } = args;
   const colonies = await ctx.db
     .query("colonies")
@@ -672,7 +844,9 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
     .withIndex("by_auth_user_id", (q) => q.eq("authUserId", authUserId))
     .collect();
 
-  existingPlayers.sort((left, right) => left._creationTime - right._creationTime);
+  existingPlayers.sort(
+    (left, right) => left._creationTime - right._creationTime,
+  );
 
   let player: Doc<"players"> | null = existingPlayers[0] ?? null;
   let isNewPlayer = false;
@@ -729,7 +903,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
   const planets = await ctx.db
     .query("planets")
     .withIndex("by_universe_and_galaxy_and_sector_and_system_and_planet", (q) =>
-      q.eq("universeId", universe._id)
+      q.eq("universeId", universe._id),
     )
     .collect();
 
@@ -738,7 +912,9 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
     .withIndex("by_universe_id", (q) => q.eq("universeId", universe._id))
     .collect();
 
-  const claimedPlanetIds = new Set(coloniesInUniverse.map((colony) => colony.planetId));
+  const claimedPlanetIds = new Set(
+    coloniesInUniverse.map((colony) => colony.planetId),
+  );
   let unclaimedColonizablePlanets = planets
     .filter((planet) => planet.isColonizable)
     .filter((planet) => !claimedPlanetIds.has(planet._id));
@@ -755,8 +931,9 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 
     const refreshedPlanets = await ctx.db
       .query("planets")
-      .withIndex("by_universe_and_galaxy_and_sector_and_system_and_planet", (q) =>
-        q.eq("universeId", universe._id)
+      .withIndex(
+        "by_universe_and_galaxy_and_sector_and_system_and_planet",
+        (q) => q.eq("universeId", universe._id),
       )
       .collect();
 
@@ -766,7 +943,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
       .collect();
 
     const refreshedClaimedPlanetIds = new Set(
-      refreshedColonies.map((colony) => colony.planetId)
+      refreshedColonies.map((colony) => colony.planetId),
     );
     unclaimedColonizablePlanets = refreshedPlanets
       .filter((planet) => planet.isColonizable)
@@ -791,7 +968,8 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
   });
 
   const selectionSeed = `${authUserId}:${player._id}:${now}`;
-  const selectedIndex = hashString(selectionSeed) % unclaimedColonizablePlanets.length;
+  const selectedIndex =
+    hashString(selectionSeed) % unclaimedColonizablePlanets.length;
   const selectedPlanet = unclaimedColonizablePlanets[selectedIndex];
 
   const starterBuildings = {
@@ -914,7 +1092,8 @@ function queueEventsNextAt(rows: Array<Doc<"colonyQueueItems">>) {
     if (!OPEN_QUEUE_STATUSES.includes(row.status)) {
       continue;
     }
-    nextAt = nextAt === null ? row.completesAt : Math.min(nextAt, row.completesAt);
+    nextAt =
+      nextAt === null ? row.completesAt : Math.min(nextAt, row.completesAt);
   }
 
   return nextAt;
@@ -937,7 +1116,10 @@ function buildLaneQueueView(args: {
   rows: Array<Doc<"colonyQueueItems">>;
 }) {
   const open = args.rows
-    .filter((row) => row.lane === args.lane && OPEN_QUEUE_STATUSES.includes(row.status))
+    .filter(
+      (row) =>
+        row.lane === args.lane && OPEN_QUEUE_STATUSES.includes(row.status),
+    )
     .sort(compareQueueOrder);
 
   const active = open.find((row) => row.status === "active");
@@ -949,8 +1131,12 @@ function buildLaneQueueView(args: {
     maxItems: LANE_QUEUE_CAPACITY[args.lane],
     totalItems,
     isFull: totalItems >= LANE_QUEUE_CAPACITY[args.lane],
-    activeItem: active ? toQueueViewItem({ item: active, now: args.now }) : undefined,
-    pendingItems: pending.map((item) => toQueueViewItem({ item, now: args.now })),
+    activeItem: active
+      ? toQueueViewItem({ item: active, now: args.now })
+      : undefined,
+    pendingItems: pending.map((item) =>
+      toQueueViewItem({ item, now: args.now }),
+    ),
   };
 }
 
@@ -962,7 +1148,12 @@ const sessionColonyValidator = v.object({
 });
 
 const resourceHudDatumValidator = v.object({
-  key: v.union(v.literal("alloy"), v.literal("crystal"), v.literal("fuel"), v.literal("energy")),
+  key: v.union(
+    v.literal("alloy"),
+    v.literal("crystal"),
+    v.literal("fuel"),
+    v.literal("energy"),
+  ),
   value: v.string(),
   valueAmount: v.optional(v.number()),
   deltaPerMinute: v.optional(v.string()),
@@ -1014,7 +1205,7 @@ export const getColonyHud = query({
         if (colonyPlanet) {
           planetsById.set(colonyPlanet._id, colonyPlanet);
         }
-      })
+      }),
     );
     await Promise.all(
       playerColonies.map(async (entry) => {
@@ -1025,8 +1216,11 @@ export const getColonyHud = query({
         });
         const hasActive = queueRows.some((row) => row.status === "active");
         const hasPending = queueRows.some((row) => row.status === "queued");
-        colonyStatusById.set(entry._id, hasActive ? "Upgrading" : hasPending ? "Queued" : "Stable");
-      })
+        colonyStatusById.set(
+          entry._id,
+          hasActive ? "Upgrading" : hasPending ? "Queued" : "Stable",
+        );
+      }),
     );
 
     const buildingLane = buildLaneQueueView({
@@ -1062,7 +1256,8 @@ export const getColonyHud = query({
         storageCurrentLabel: formatResourceValue(alloyUnits),
         storageCapAmount: alloyCap,
         storageCapLabel: formatResourceValue(alloyCap),
-        storagePercent: alloyCap <= 0 ? 0 : Math.min(100, (alloyUnits / alloyCap) * 100),
+        storagePercent:
+          alloyCap <= 0 ? 0 : Math.min(100, (alloyUnits / alloyCap) * 100),
       },
       {
         key: "crystal" as const,
@@ -1075,7 +1270,9 @@ export const getColonyHud = query({
         storageCapAmount: crystalCap,
         storageCapLabel: formatResourceValue(crystalCap),
         storagePercent:
-          crystalCap <= 0 ? 0 : Math.min(100, (crystalUnits / crystalCap) * 100),
+          crystalCap <= 0
+            ? 0
+            : Math.min(100, (crystalUnits / crystalCap) * 100),
       },
       {
         key: "fuel" as const,
@@ -1087,7 +1284,8 @@ export const getColonyHud = query({
         storageCurrentLabel: formatResourceValue(fuelUnits),
         storageCapAmount: fuelCap,
         storageCapLabel: formatResourceValue(fuelCap),
-        storagePercent: fuelCap <= 0 ? 0 : Math.min(100, (fuelUnits / fuelCap) * 100),
+        storagePercent:
+          fuelCap <= 0 ? 0 : Math.min(100, (fuelUnits / fuelCap) * 100),
       },
       {
         key: "energy" as const,
@@ -1175,7 +1373,11 @@ const levelTableRowValidator = v.object({
 const buildingCardValidator = v.object({
   key: buildingKeyValidator,
   name: v.string(),
-  group: v.union(v.literal("Production"), v.literal("Power")),
+  group: v.union(
+    v.literal("Production"),
+    v.literal("Power"),
+    v.literal("Storage"),
+  ),
   currentLevel: v.number(),
   maxLevel: v.number(),
   isUpgrading: v.boolean(),
@@ -1185,7 +1387,7 @@ const buildingCardValidator = v.object({
     v.literal("Overflow"),
     v.literal("Paused"),
     v.literal("Upgrading"),
-    v.literal("Queued")
+    v.literal("Queued"),
   ),
   outputPerMinute: v.number(),
   outputLabel: v.string(),
@@ -1245,15 +1447,17 @@ export const getResourceManagementView = query({
     const researchLane = emptyLaneQueueView("research");
     const queueBlocked = buildingLane.isFull;
     const openBuildingQueueRows = queueRows.filter(
-      (row) => row.lane === "building" && OPEN_QUEUE_STATUSES.includes(row.status)
+      (row) =>
+        row.lane === "building" && OPEN_QUEUE_STATUSES.includes(row.status),
     );
 
     const affordable = (cost: ResourceBucket) =>
-      RESOURCE_KEYS.every((key) => colony.resources[key] >= scaledUnits(cost[key]));
+      RESOURCE_KEYS.every(
+        (key) => colony.resources[key] >= scaledUnits(cost[key]),
+      );
 
-    const cards = UPGRADE_BUILDING_KEYS.map((key) => {
+    const cards: ResourceBuildingCardData[] = UPGRADE_BUILDING_KEYS.map((key) => {
       const config = BUILDING_CONFIG[key];
-      const generator = getGeneratorOrThrow(config.generatorId);
       const currentLevel = colony.buildings[key];
       const projectedLevel = openBuildingQueueRows.reduce((level, row) => {
         if (row.kind !== "buildingUpgrade" || row.payload.buildingKey !== key) {
@@ -1262,44 +1466,88 @@ export const getResourceManagementView = query({
         return Math.max(level, row.payload.toLevel);
       }, currentLevel);
       const isUpgrading = buildingLane.activeItem?.payload.buildingKey === key;
-      const isQueued = buildingLane.pendingItems.some((item) => item.payload.buildingKey === key);
+      const isQueued = buildingLane.pendingItems.some(
+        (item) => item.payload.buildingKey === key,
+      );
 
-      const outputPerMinute =
-        config.group === "Power"
-          ? rates.energyProduced
-          : Math.max(0, Math.floor(rates.resources[config.resource as keyof ResourceBucket] ?? 0));
+      let maxLevel = STORAGE_BUILDING_MAX_LEVEL;
+      let outputPerMinute = 0;
+      let outputLabel = `${config.resource} / min`;
+      let energyUsePerMinute = 0;
 
-      const energyUsePerMinute =
-        key === "powerPlantLevel"
-          ? 0
-          : energyConsumptionForLevel(
-              key as Exclude<BuildingKey, "powerPlantLevel">,
-              currentLevel
-            );
+      if (config.kind === "generator") {
+        const generator = getGeneratorOrThrow(config.generatorId);
+        maxLevel = generator.maxLevel;
+
+        outputPerMinute =
+          config.group === "Power"
+            ? rates.energyProduced
+            : Math.max(
+                0,
+                Math.floor(
+                  rates.resources[config.resource as keyof ResourceBucket] ?? 0,
+                ),
+              );
+        outputLabel =
+          config.group === "Power" ? "MW" : `${config.resource} / min`;
+        energyUsePerMinute =
+          key === "powerPlantLevel"
+            ? 0
+            : energyConsumptionForLevel(
+                key as ProductionBuildingKey,
+                currentLevel,
+              );
+      } else {
+        maxLevel = config.maxLevel;
+        outputPerMinute = storedToWholeUnits(
+          colony.storageCaps[config.resource],
+        );
+        outputLabel = `${config.resource} cap`;
+        energyUsePerMinute = 0;
+      }
 
       let nextUpgradeCost: ResourceBucket = emptyResourceBucket();
       let nextUpgradeDurationSeconds: number | undefined;
       let canUpgrade = false;
 
-      if (projectedLevel < generator.maxLevel) {
-        nextUpgradeCost = resourceMapToWholeUnitBucket(getUpgradeCost(generator, projectedLevel));
-        nextUpgradeDurationSeconds = getUpgradeDurationSeconds(generator, projectedLevel);
+      if (projectedLevel < maxLevel) {
+        if (config.kind === "generator") {
+          const generator = getGeneratorOrThrow(config.generatorId);
+          nextUpgradeCost = resourceMapToWholeUnitBucket(
+            getUpgradeCost(generator, projectedLevel),
+          );
+          nextUpgradeDurationSeconds = getUpgradeDurationSeconds(
+            generator,
+            projectedLevel,
+          );
+        } else {
+          nextUpgradeCost = storageUpgradeCost(
+            key as StorageBuildingKey,
+            projectedLevel,
+          );
+          nextUpgradeDurationSeconds = storageUpgradeDurationSeconds(
+            key as StorageBuildingKey,
+            projectedLevel,
+          );
+        }
         canUpgrade = !queueBlocked && affordable(nextUpgradeCost);
       }
 
-      const status: "Running" | "Overflow" | "Paused" | "Upgrading" | "Queued" = isUpgrading
-        ? "Upgrading"
-        : isQueued
-          ? "Queued"
-        : config.group === "Production" && colony.overflow[config.resource as keyof ResourceBucket] > 0
-          ? "Overflow"
-          : rates.energyRatio <= 0 && config.group === "Production"
-            ? "Paused"
-            : "Running";
+      const status: "Running" | "Overflow" | "Paused" | "Upgrading" | "Queued" =
+        isUpgrading
+          ? "Upgrading"
+          : isQueued
+            ? "Queued"
+            : config.group === "Production" &&
+                colony.overflow[config.resource as keyof ResourceBucket] > 0
+              ? "Overflow"
+              : rates.energyRatio <= 0 && config.group === "Production"
+                ? "Paused"
+                : "Running";
 
-      const levelRows = [];
+      const levelRows: ResourceBuildingLevelRow[] = [];
       const startLevel = Math.max(1, currentLevel);
-      const endLevel = Math.min(generator.maxLevel, startLevel + 9);
+      const endLevel = Math.min(maxLevel, startLevel + 9);
 
       for (let level = startLevel; level <= endLevel; level += 1) {
         const previewBuildings = {
@@ -1313,28 +1561,47 @@ export const getResourceManagementView = query({
           planet,
         });
 
+        const previewStorageCaps = storageCapsFromBuildings(previewBuildings);
+
         const previewOutput =
-          config.group === "Power"
-            ? previewRates.energyProduced
-            : Math.max(
-                0,
-                Math.floor(previewRates.resources[config.resource as keyof ResourceBucket] ?? 0)
-              );
+          config.kind === "storage"
+            ? storedToWholeUnits(previewStorageCaps[config.resource])
+            : config.group === "Power"
+              ? previewRates.energyProduced
+              : Math.max(
+                  0,
+                  Math.floor(
+                    previewRates.resources[
+                      config.resource as keyof ResourceBucket
+                    ] ?? 0,
+                  ),
+                );
 
         const previewEnergy =
-          key === "powerPlantLevel"
+          config.kind === "storage" || key === "powerPlantLevel"
             ? 0
-            : energyConsumptionForLevel(
-                key as Exclude<BuildingKey, "powerPlantLevel">,
-                level
-              );
+            : energyConsumptionForLevel(key as ProductionBuildingKey, level);
 
         let previewCost = emptyResourceBucket();
         let previewDurationSeconds = 0;
 
-        if (level < generator.maxLevel) {
-          previewCost = resourceMapToWholeUnitBucket(getUpgradeCost(generator, level));
-          previewDurationSeconds = getUpgradeDurationSeconds(generator, level);
+        if (level < maxLevel) {
+          if (config.kind === "generator") {
+            const generator = getGeneratorOrThrow(config.generatorId);
+            previewCost = resourceMapToWholeUnitBucket(
+              getUpgradeCost(generator, level),
+            );
+            previewDurationSeconds = getUpgradeDurationSeconds(
+              generator,
+              level,
+            );
+          } else {
+            previewCost = storageUpgradeCost(key as StorageBuildingKey, level);
+            previewDurationSeconds = storageUpgradeDurationSeconds(
+              key as StorageBuildingKey,
+              level,
+            );
+          }
         }
 
         levelRows.push({
@@ -1353,12 +1620,12 @@ export const getResourceManagementView = query({
         name: config.name,
         group: config.group,
         currentLevel,
-        maxLevel: generator.maxLevel,
+        maxLevel,
         isUpgrading,
         isQueued,
         status,
         outputPerMinute,
-        outputLabel: config.group === "Power" ? "MW" : `${config.resource} / min`,
+        outputLabel,
         energyUsePerMinute,
         canUpgrade,
         nextUpgradeDurationSeconds,
@@ -1481,7 +1748,7 @@ export const enqueueBuildingUpgrade = mutation({
       throw new ConvexError("Building queue is full");
     }
 
-    const generator = getGeneratorOrThrow(BUILDING_CONFIG[args.buildingKey].generatorId);
+    const config = BUILDING_CONFIG[args.buildingKey];
     let projectedLevel = settledColony.buildings[args.buildingKey];
     for (const row of queueRows) {
       if (row.kind !== "buildingUpgrade") {
@@ -1494,12 +1761,28 @@ export const enqueueBuildingUpgrade = mutation({
     }
 
     const fromLevel = projectedLevel;
-    if (fromLevel >= generator.maxLevel) {
+    const maxLevel =
+      config.kind === "generator"
+        ? getGeneratorOrThrow(config.generatorId).maxLevel
+        : config.maxLevel;
+    if (fromLevel >= maxLevel) {
       throw new ConvexError("Building is already at max level");
     }
 
     const toLevel = fromLevel + 1;
-    const upgradeCostScaled = resourceMapToScaledBucket(getUpgradeCost(generator, fromLevel));
+    const upgradeCostScaled = (() => {
+      if (config.kind === "generator") {
+        return resourceMapToScaledBucket(
+          getUpgradeCost(getGeneratorOrThrow(config.generatorId), fromLevel),
+        );
+      }
+      if (!isStorageBuildingKey(args.buildingKey)) {
+        throw new ConvexError("Storage upgrade key mismatch");
+      }
+      return resourceMapToScaledBucket(
+        storageUpgradeCost(args.buildingKey, fromLevel),
+      );
+    })();
 
     for (const key of RESOURCE_KEYS) {
       if (settledColony.resources[key] < upgradeCostScaled[key]) {
@@ -1512,7 +1795,18 @@ export const enqueueBuildingUpgrade = mutation({
       nextResources[key] -= upgradeCostScaled[key];
     }
 
-    const durationSeconds = getUpgradeDurationSeconds(generator, fromLevel);
+    const durationSeconds = (() => {
+      if (config.kind === "generator") {
+        return getUpgradeDurationSeconds(
+          getGeneratorOrThrow(config.generatorId),
+          fromLevel,
+        );
+      }
+      if (!isStorageBuildingKey(args.buildingKey)) {
+        throw new ConvexError("Storage upgrade key mismatch");
+      }
+      return storageUpgradeDurationSeconds(args.buildingKey, fromLevel);
+    })();
     const laneTail = queueRows[queueRows.length - 1];
     const startsAt = laneTail ? laneTail.completesAt : now;
     const completesAt = startsAt + durationSeconds * 1_000;
@@ -1524,7 +1818,8 @@ export const enqueueBuildingUpgrade = mutation({
     });
 
     const lane: QueueLane = "building";
-    const status: QueueItemStatus = queueRows.length === 0 ? "active" : "queued";
+    const status: QueueItemStatus =
+      queueRows.length === 0 ? "active" : "queued";
     const laneOrder = (laneTail?.order ?? 0) + 1;
     const queueItemId = await ctx.db.insert("colonyQueueItems", {
       universeId: settledColony.universeId,
