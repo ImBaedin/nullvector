@@ -24,6 +24,10 @@ export type RenderableEntity = {
   entityType: ExplorerEntityType;
   name: string;
   addressLabel: string;
+  colony?: {
+    name: string;
+    playerName: string;
+  };
   x: number;
   y: number;
   sphereRadius: number;
@@ -47,6 +51,8 @@ export type HoverCardData = {
   entityType: ExplorerEntityType;
   name: string;
   addressLabel: string;
+  colonyName?: string;
+  colonyPlayerName?: string;
 };
 
 export type HoverPanelState = HoverCardData & {

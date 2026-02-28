@@ -120,6 +120,12 @@ export function useExplorerData() {
         entityType: "planet",
         name: planet.displayName,
         addressLabel: planet.addressLabel,
+        colony: planet.colony
+          ? {
+              name: planet.colony.name,
+              playerName: planet.colony.playerName,
+            }
+          : undefined,
         x: position.x,
         y: position.y,
         sphereRadius: PLANET_RADIUS,

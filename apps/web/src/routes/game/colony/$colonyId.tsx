@@ -185,6 +185,8 @@ function ColonyStarMapLayer({
       entityType: entity.entityType,
       name: entity.name,
       addressLabel: entity.addressLabel,
+      colonyName: entity.colony?.name,
+      colonyPlayerName: entity.colony?.playerName,
       screenX,
       screenY,
     };

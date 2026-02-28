@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 
+import type { Id } from "./_generated/dataModel";
 import { query, type QueryCtx } from "./_generated/server";
 
 const DEFAULT_UNIVERSE_SLUG = "main";
@@ -64,6 +65,14 @@ const planetSummaryValidator = v.object({
   isColonizable: v.boolean(),
   addressLabel: v.string(),
   displayName: v.string(),
+  colony: v.optional(
+    v.object({
+      id: v.id("colonies"),
+      name: v.string(),
+      playerId: v.id("players"),
+      playerName: v.string(),
+    })
+  ),
 });
 
 const universeWithOrbitValidator = v.object({
@@ -413,26 +422,68 @@ export const getSystemPlanets = query({
       .withIndex("by_system_id_and_planet_index", (q) => q.eq("systemId", system._id))
       .collect();
 
+    const colonyPairs = await Promise.all(
+      planets.map(async (planet) => {
+        const colony = await ctx.db
+          .query("colonies")
+          .withIndex("by_planet_id", (q) => q.eq("planetId", planet._id))
+          .first();
+
+        return [planet._id, colony] as const;
+      })
+    );
+
+    const colonyByPlanetId = new Map(colonyPairs);
+    const uniquePlayerIds = new Set<Id<"players">>();
+
+    for (const colony of colonyByPlanetId.values()) {
+      if (!colony) {
+        continue;
+      }
+      uniquePlayerIds.add(colony.playerId);
+    }
+
+    const playerPairs = await Promise.all(
+      Array.from(uniquePlayerIds).map(async (playerId) => {
+        const player = await ctx.db.get(playerId);
+        return [playerId, player] as const;
+      })
+    );
+    const playerById = new Map(playerPairs);
+
     const orderedPlanets = planets
       .slice()
       .sort((a, b) => a.planetIndex - b.planetIndex)
-      .map((planet) => ({
-        id: planet._id,
-        planetIndex: planet.planetIndex,
-        orbitRadius: planet.orbitRadius,
-        orbitPhaseRad: planet.orbitPhaseRad,
-        orbitAngularVelocityRadPerSec: planet.orbitAngularVelocityRadPerSec,
-        orbitX: Math.cos(planet.orbitPhaseRad) * planet.orbitRadius,
-        orbitY: Math.sin(planet.orbitPhaseRad) * planet.orbitRadius,
-        isColonizable: planet.isColonizable,
-        addressLabel: planetAddress(
-          galaxy.galaxyIndex,
-          sector.sectorIndex,
-          system.systemIndex,
-          planet.planetIndex
-        ),
-        displayName: formatPlanetName(planet.planetIndex),
-      }));
+      .map((planet) => {
+        const colony = colonyByPlanetId.get(planet._id) ?? null;
+        const colonyPlayer = colony ? playerById.get(colony.playerId) ?? null : null;
+
+        return {
+          id: planet._id,
+          planetIndex: planet.planetIndex,
+          orbitRadius: planet.orbitRadius,
+          orbitPhaseRad: planet.orbitPhaseRad,
+          orbitAngularVelocityRadPerSec: planet.orbitAngularVelocityRadPerSec,
+          orbitX: Math.cos(planet.orbitPhaseRad) * planet.orbitRadius,
+          orbitY: Math.sin(planet.orbitPhaseRad) * planet.orbitRadius,
+          isColonizable: planet.isColonizable,
+          addressLabel: planetAddress(
+            galaxy.galaxyIndex,
+            sector.sectorIndex,
+            system.systemIndex,
+            planet.planetIndex
+          ),
+          displayName: formatPlanetName(planet.planetIndex),
+          colony: colony
+            ? {
+                id: colony._id,
+                name: colony.name,
+                playerId: colony.playerId,
+                playerName: colonyPlayer?.displayName ?? "Unknown Commander",
+              }
+            : undefined,
+        };
+      });
 
     return {
       universe: {
