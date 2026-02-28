@@ -57,6 +57,7 @@ const systemSummaryValidator = v.object({
 const planetSummaryValidator = v.object({
   id: v.id("planets"),
   planetIndex: v.number(),
+  seed: v.string(),
   orbitRadius: v.number(),
   orbitPhaseRad: v.number(),
   orbitAngularVelocityRadPerSec: v.number(),
@@ -461,6 +462,7 @@ export const getSystemPlanets = query({
         return {
           id: planet._id,
           planetIndex: planet.planetIndex,
+          seed: planet.seed,
           orbitRadius: planet.orbitRadius,
           orbitPhaseRad: planet.orbitPhaseRad,
           orbitAngularVelocityRadPerSec: planet.orbitAngularVelocityRadPerSec,

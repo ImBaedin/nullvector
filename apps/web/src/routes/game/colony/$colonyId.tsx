@@ -1,6 +1,6 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { useConvexAuth, useQuery } from "convex/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
@@ -261,6 +261,12 @@ function ColonyStarMapLayer({
       return;
     }
 
+    const livePosition =
+      position ??
+      (entity.orbit
+        ? computeOrbitWorldPosition(entity.orbit, Date.now())
+        : { x: entity.x, y: entity.y });
+
     explorer.setPlanetLevel(
       {
         galaxyId: explorer.path.galaxyId,
@@ -269,12 +275,21 @@ function ColonyStarMapLayer({
         planetId: entity.sourceId as Id<"planets">,
       },
       {
-        x: position?.x ?? entity.x,
-        y: position?.y ?? entity.y,
+        x: livePosition.x,
+        y: livePosition.y,
         zoom: ZOOM.planet,
       }
     );
   };
+
+  const displayedLevel =
+    explorer.level === "planet" && explorer.cameraLock.mode === "free"
+      ? "system"
+      : explorer.level;
+  const cameraLockLabel =
+    explorer.cameraLock.mode === "planet"
+      ? (data.selectedPlanet?.displayName ?? "Locking...")
+      : "None";
 
   const currentEntities =
     explorer.level === "universe"
@@ -313,7 +328,8 @@ function ColonyStarMapLayer({
         }
       : undefined;
 
-    const planet = data.selectedPlanet
+    const planet =
+      explorer.cameraLock.mode === "planet" && data.selectedPlanet
       ? (() => {
           if (data.selectedSystem) {
             const position = computeOrbitWorldPosition(
@@ -353,6 +369,7 @@ function ColonyStarMapLayer({
     data.selectedSector,
     data.selectedSystem,
     data.systemData?.universe.orbitEpochMs,
+    explorer.cameraLock,
   ]);
 
   const sceneContent = (
@@ -395,7 +412,11 @@ function ColonyStarMapLayer({
           entities={data.planetEntities}
           hoveredId={hoveredId}
           quality={resolvedQuality}
-          selectedPlanetId={explorer.path.planetId}
+          selectedPlanetId={
+            explorer.cameraLock.mode === "planet"
+              ? explorer.cameraLock.planetId
+              : undefined
+          }
           starCenter={
             data.selectedSystem
               ? { x: data.selectedSystem.x, y: data.selectedSystem.y }
@@ -409,6 +430,41 @@ function ColonyStarMapLayer({
     </>
   );
 
+  const trackingOrbit = useMemo(() => {
+    if (explorer.cameraLock.mode !== "planet" || !data.selectedSystem) {
+      return null;
+    }
+    const lockedPlanetId = explorer.cameraLock.planetId;
+
+    const lockedPlanet =
+      data.systemData?.planets.find(
+        (planet) => planet.id === lockedPlanetId
+      ) ?? null;
+
+    if (!lockedPlanet) {
+      return null;
+    }
+
+    return {
+      centerX: data.selectedSystem.x,
+      centerY: data.selectedSystem.y,
+      orbitRadius: lockedPlanet.orbitRadius,
+      orbitPhaseRad: lockedPlanet.orbitPhaseRad,
+      orbitAngularVelocityRadPerSec:
+        lockedPlanet.orbitAngularVelocityRadPerSec,
+      orbitEpochMs: data.systemData?.universe.orbitEpochMs ?? Date.now(),
+    };
+  }, [
+    data.systemData?.planets,
+    data.selectedSystem,
+    data.systemData?.universe.orbitEpochMs,
+    explorer.cameraLock,
+  ]);
+
+  const handlePanWhileLocked = useCallback(() => {
+    explorer.unlockCameraLock();
+  }, [explorer]);
+
   return (
     <>
       <div className="fixed inset-0 z-0">
@@ -416,6 +472,9 @@ function ColonyStarMapLayer({
           antialias={antialiasEnabled}
           dpr={canvasDpr}
           focusTarget={explorer.focusTarget}
+          cameraMode={explorer.cameraLock.mode === "planet" ? "followPlanet" : "free"}
+          trackingOrbit={trackingOrbit}
+          onPanWhileLocked={handlePanWhileLocked}
           maxFps={isOpen ? 60 : 10}
           onPointerMissed={clearHover}
           quality={resolvedQuality}
@@ -467,7 +526,10 @@ function ColonyStarMapLayer({
             {data.overview?.universe.name ?? "Loading..."}
           </p>
           <p>
-            <span className="text-slate-400">Level:</span> {explorer.level}
+            <span className="text-slate-400">Level:</span> {displayedLevel}
+          </p>
+          <p>
+            <span className="text-slate-400">Camera lock:</span> {cameraLockLabel}
           </p>
           <p>
             <span className="text-slate-400">Visible entities:</span>{" "}

@@ -4,6 +4,7 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import type {
   CameraFocusTarget,
+  ExplorerCameraLock,
   ExplorerLevel,
   ExplorerPathState,
 } from "../types";
@@ -18,6 +19,8 @@ type ExplorerContextValue = {
   level: ExplorerLevel;
   path: ExplorerPathState;
   focusTarget: CameraFocusTarget | null;
+  cameraLock: ExplorerCameraLock;
+  unlockCameraLock: () => void;
   setUniverseLevel: (focus?: FocusRequest) => void;
   setGalaxyLevel: (
     galaxyId: Id<"galaxies">,
@@ -33,7 +36,7 @@ type ExplorerContextValue = {
       sectorId: Id<"sectors">;
       systemId: Id<"systems">;
     },
-    focus: FocusRequest
+    focus?: FocusRequest
   ) => void;
   setPlanetLevel: (
     path: {
@@ -54,6 +57,9 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
   const focusKey = useRef(0);
   const [level, setLevel] = useState<ExplorerLevel>("universe");
   const [path, setPath] = useState<ExplorerPathState>({});
+  const [cameraLock, setCameraLock] = useState<ExplorerCameraLock>({
+    mode: "free",
+  });
   const [focusTarget, setFocusTarget] = useState<CameraFocusTarget | null>({
     ...UNIVERSE_FOCUS,
     key: focusKey.current,
@@ -68,6 +74,7 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
     (focus?: FocusRequest) => {
       setLevel("universe");
       setPath({});
+      setCameraLock({ mode: "free" });
       pushFocus(focus ?? UNIVERSE_FOCUS);
     },
     [pushFocus]
@@ -77,6 +84,7 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
     (galaxyId: Id<"galaxies">, focus: FocusRequest) => {
       setLevel("galaxy");
       setPath({ galaxyId });
+      setCameraLock({ mode: "free" });
       pushFocus(focus);
     },
     [pushFocus]
@@ -89,6 +97,7 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
     ) => {
       setLevel("sector");
       setPath(nextPath);
+      setCameraLock({ mode: "free" });
       pushFocus(focus);
     },
     [pushFocus]
@@ -101,11 +110,17 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
         sectorId: Id<"sectors">;
         systemId: Id<"systems">;
       },
-      focus: FocusRequest
+      focus?: FocusRequest
     ) => {
       setLevel("system");
       setPath(nextPath);
-      pushFocus(focus);
+      setCameraLock({ mode: "free" });
+      if (focus) {
+        pushFocus(focus);
+        return;
+      }
+
+      setFocusTarget(null);
     },
     [pushFocus]
   );
@@ -122,16 +137,27 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
     ) => {
       setLevel("planet");
       setPath(nextPath);
+      setCameraLock({
+        mode: "planet",
+        planetId: nextPath.planetId,
+      });
       pushFocus(focus);
     },
     [pushFocus]
   );
+
+  const unlockCameraLock = useCallback(() => {
+    setCameraLock({ mode: "free" });
+    setFocusTarget(null);
+  }, []);
 
   const value = useMemo(
     () => ({
       level,
       path,
       focusTarget,
+      cameraLock,
+      unlockCameraLock,
       setUniverseLevel,
       setGalaxyLevel,
       setSectorLevel,
@@ -139,9 +165,11 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
       setPlanetLevel,
     }),
     [
+      cameraLock,
       focusTarget,
       level,
       path,
+      unlockCameraLock,
       setGalaxyLevel,
       setPlanetLevel,
       setSectorLevel,

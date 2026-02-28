@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
@@ -14,6 +14,7 @@ import {
 } from "@/features/universe-explorer-realdata/context/explorer-context";
 import { useExplorerData } from "@/features/universe-explorer-realdata/hooks/use-explorer-data";
 import { useExplorerQuality } from "@/features/universe-explorer-realdata/hooks/use-explorer-quality";
+import { computeOrbitWorldPosition } from "@/features/universe-explorer-realdata/lib/orbits";
 import type {
   HoverPanelState,
   RenderableEntity,
@@ -150,6 +151,12 @@ function GameplayExplorerSceneInner({ overlay }: GameplayExplorerSceneProps) {
       return;
     }
 
+    const livePosition =
+      position ??
+      (entity.orbit
+        ? computeOrbitWorldPosition(entity.orbit, Date.now())
+        : { x: entity.x, y: entity.y });
+
     explorer.setPlanetLevel(
       {
         galaxyId: explorer.path.galaxyId,
@@ -158,8 +165,8 @@ function GameplayExplorerSceneInner({ overlay }: GameplayExplorerSceneProps) {
         planetId: entity.sourceId as Id<"planets">,
       },
       {
-        x: position?.x ?? entity.x,
-        y: position?.y ?? entity.y,
+        x: livePosition.x,
+        y: livePosition.y,
         zoom: ZOOM.planet,
       }
     );
@@ -250,7 +257,11 @@ function GameplayExplorerSceneInner({ overlay }: GameplayExplorerSceneProps) {
           entities={data.planetEntities}
           hoveredId={hoveredId}
           quality={resolvedQuality}
-          selectedPlanetId={explorer.path.planetId}
+          selectedPlanetId={
+            explorer.cameraLock.mode === "planet"
+              ? explorer.cameraLock.planetId
+              : undefined
+          }
           starCenter={
             data.selectedSystem
               ? { x: data.selectedSystem.x, y: data.selectedSystem.y }
@@ -264,6 +275,41 @@ function GameplayExplorerSceneInner({ overlay }: GameplayExplorerSceneProps) {
     </>
   );
 
+  const trackingOrbit = useMemo(() => {
+    if (explorer.cameraLock.mode !== "planet" || !data.selectedSystem) {
+      return null;
+    }
+    const lockedPlanetId = explorer.cameraLock.planetId;
+
+    const lockedPlanet =
+      data.systemData?.planets.find(
+        (planet) => planet.id === lockedPlanetId
+      ) ?? null;
+
+    if (!lockedPlanet) {
+      return null;
+    }
+
+    return {
+      centerX: data.selectedSystem.x,
+      centerY: data.selectedSystem.y,
+      orbitRadius: lockedPlanet.orbitRadius,
+      orbitPhaseRad: lockedPlanet.orbitPhaseRad,
+      orbitAngularVelocityRadPerSec:
+        lockedPlanet.orbitAngularVelocityRadPerSec,
+      orbitEpochMs: data.systemData?.universe.orbitEpochMs ?? Date.now(),
+    };
+  }, [
+    data.systemData?.planets,
+    data.selectedSystem,
+    data.systemData?.universe.orbitEpochMs,
+    explorer.cameraLock,
+  ]);
+
+  const handlePanWhileLocked = useCallback(() => {
+    explorer.unlockCameraLock();
+  }, [explorer]);
+
   const extraOverlay = overlay?.(snapshot);
 
   return (
@@ -272,6 +318,9 @@ function GameplayExplorerSceneInner({ overlay }: GameplayExplorerSceneProps) {
         antialias={antialiasEnabled}
         dpr={canvasDpr}
         focusTarget={explorer.focusTarget}
+        cameraMode={explorer.cameraLock.mode === "planet" ? "followPlanet" : "free"}
+        trackingOrbit={trackingOrbit}
+        onPanWhileLocked={handlePanWhileLocked}
         onPointerMissed={clearHover}
         quality={resolvedQuality}
         sceneKey={explorer.level}

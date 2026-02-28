@@ -22,7 +22,17 @@ type ExplorerCanvasProps = {
   antialias: boolean;
   dpr: [number, number];
   focusTarget: CameraFocusTarget | null;
+  cameraMode?: "free" | "followPlanet";
+  trackingOrbit?: {
+    centerX: number;
+    centerY: number;
+    orbitRadius: number;
+    orbitPhaseRad: number;
+    orbitAngularVelocityRadPerSec: number;
+    orbitEpochMs: number;
+  } | null;
   maxFps?: number;
+  onPanWhileLocked?: () => void;
   onPointerMissed: () => void;
   quality: ExplorerResolvedQuality;
   sceneKey: string | number;
@@ -49,6 +59,20 @@ type SceneSnapshot = {
   id: number;
   node: React.ReactNode;
 };
+
+function shouldSkipFadeBetweenLevels(
+  previousKey: string | number,
+  nextKey: string | number
+) {
+  if (typeof previousKey !== "string" || typeof nextKey !== "string") {
+    return false;
+  }
+
+  return (
+    (previousKey === "system" && nextKey === "planet") ||
+    (previousKey === "planet" && nextKey === "system")
+  );
+}
 
 const materialStateRegistry = new WeakMap<Material, MaterialState>();
 
@@ -251,7 +275,7 @@ function AdaptiveGrid({
           renderOrder={1}
           material-transparent
           material-opacity={0.2}
-          material-depthTest={false}
+          material-depthTest
           material-depthWrite={false}
           raycast={() => {}}
         />
@@ -269,7 +293,7 @@ function AdaptiveGrid({
         renderOrder={2}
         material-transparent
         material-opacity={0.5}
-        material-depthTest={false}
+        material-depthTest
         material-depthWrite={false}
         raycast={() => {}}
       />
@@ -369,7 +393,10 @@ export function ExplorerCanvas({
   antialias,
   dpr,
   focusTarget,
+  cameraMode = "free",
+  trackingOrbit = null,
   maxFps = 60,
+  onPanWhileLocked,
   onPointerMissed,
   quality,
   sceneKey,
@@ -378,20 +405,69 @@ export function ExplorerCanvas({
   const controlsRef = useRef<BasicMapControls | null>(null);
   const [exitingScene, setExitingScene] = useState<SceneSnapshot | null>(null);
   const [enterTransitionId, setEnterTransitionId] = useState(0);
+  const [animateEnterScene, setAnimateEnterScene] = useState(false);
   const previousSceneRef = useRef({
     key: sceneKey,
     node: children,
   });
   const sceneCounterRef = useRef(0);
+  const interactionStateRef = useRef({
+    pointerDown: false,
+    startX: 0,
+    startY: 0,
+    didMove: false,
+  });
+
+  useEffect(() => {
+    const handleWindowPointerUp = () => {
+      const state = interactionStateRef.current;
+      if (!state.pointerDown) {
+        return;
+      }
+
+      if (state.didMove && cameraMode === "followPlanet") {
+        onPanWhileLocked?.();
+      }
+
+      state.pointerDown = false;
+      state.didMove = false;
+    };
+
+    const handleWindowBlur = () => {
+      interactionStateRef.current.pointerDown = false;
+      interactionStateRef.current.didMove = false;
+    };
+
+    window.addEventListener("pointerup", handleWindowPointerUp);
+    window.addEventListener("pointercancel", handleWindowPointerUp);
+    window.addEventListener("blur", handleWindowBlur);
+    return () => {
+      window.removeEventListener("pointerup", handleWindowPointerUp);
+      window.removeEventListener("pointercancel", handleWindowPointerUp);
+      window.removeEventListener("blur", handleWindowBlur);
+    };
+  }, [cameraMode, onPanWhileLocked]);
 
   useEffect(() => {
     const previousScene = previousSceneRef.current;
     if (sceneKey !== previousScene.key) {
-      sceneCounterRef.current += 1;
-      setExitingScene({
-        id: sceneCounterRef.current,
-        node: previousScene.node,
-      });
+      const shouldSkipFade = shouldSkipFadeBetweenLevels(
+        previousScene.key,
+        sceneKey
+      );
+
+      if (shouldSkipFade) {
+        setExitingScene(null);
+        setAnimateEnterScene(false);
+      } else {
+        sceneCounterRef.current += 1;
+        setExitingScene({
+          id: sceneCounterRef.current,
+          node: previousScene.node,
+        });
+        setAnimateEnterScene(true);
+      }
+
       setEnterTransitionId((currentId) => currentId + 1);
     }
 
@@ -402,76 +478,122 @@ export function ExplorerCanvas({
   }, [children, sceneKey]);
 
   return (
-    <Canvas
-      frameloop={maxFps >= 50 ? "always" : "demand"}
-      dpr={dpr}
-      gl={{
-        antialias,
-        powerPreference: "high-performance",
+    <div
+      className="h-full w-full"
+      onPointerDownCapture={(event) => {
+        if (cameraMode !== "followPlanet" || event.pointerType === "touch") {
+          return;
+        }
+
+        const state = interactionStateRef.current;
+        state.pointerDown = true;
+        state.startX = event.clientX;
+        state.startY = event.clientY;
+        state.didMove = false;
       }}
-      orthographic
-      camera={{
-        position: [
-          ISOMETRIC_CAMERA_OFFSET.x,
-          ISOMETRIC_CAMERA_OFFSET.y,
-          ISOMETRIC_CAMERA_OFFSET.z,
-        ],
-        up: [0, 0, 1],
-        zoom: 0.08,
-        near: -100_000,
-        far: 100_000,
+      onPointerMoveCapture={(event) => {
+        const state = interactionStateRef.current;
+        if (!state.pointerDown || state.didMove || cameraMode !== "followPlanet") {
+          return;
+        }
+
+        const dx = event.clientX - state.startX;
+        const dy = event.clientY - state.startY;
+        if (Math.hypot(dx, dy) >= 6) {
+          state.didMove = true;
+        }
       }}
-      onPointerMissed={onPointerMissed}
+      onPointerUpCapture={() => {
+        const state = interactionStateRef.current;
+        if (!state.pointerDown) {
+          return;
+        }
+
+        if (state.didMove && cameraMode === "followPlanet") {
+          onPanWhileLocked?.();
+        }
+
+        state.pointerDown = false;
+        state.didMove = false;
+      }}
+      onWheelCapture={(event) => {
+        event.preventDefault();
+      }}
+      style={{ touchAction: "none" }}
     >
-      {maxFps < 50 ? <DemandFrameTicker fps={maxFps} /> : null}
-      <color attach="background" args={["#030812"]} />
-      <NebulaBackground controlsRef={controlsRef} quality={quality} />
-      <ambientLight intensity={0.85} />
-      <directionalLight intensity={0.5} position={[0, 0, 500]} />
-      <AdaptiveGrid controlsRef={controlsRef} quality={quality} />
-
-      <CameraFocusController
-        controlsRef={controlsRef}
-        focusTarget={focusTarget}
-        cameraOffset={ISOMETRIC_CAMERA_OFFSET}
-      />
-
-      {exitingScene ? (
-        <FadingSceneGroup
-          key={`out-${exitingScene.id}`}
-          direction="out"
-          transitionKey={exitingScene.id}
-          animate
-          onFadeOutComplete={() => {
-            setExitingScene((currentScene) =>
-              currentScene?.id === exitingScene.id ? null : currentScene
-            );
-          }}
-        >
-          {exitingScene.node}
-        </FadingSceneGroup>
-      ) : null}
-
-      <FadingSceneGroup
-        key={`in-${String(sceneKey)}`}
-        direction="in"
-        transitionKey={enterTransitionId}
-        animate={enterTransitionId > 0}
-      >
-        {children}
-      </FadingSceneGroup>
-
-      <MapControls
-        ref={(instance) => {
-          controlsRef.current = instance as BasicMapControls | null;
+      <Canvas
+        frameloop={maxFps >= 50 ? "always" : "demand"}
+        dpr={dpr}
+        gl={{
+          antialias,
+          powerPreference: "high-performance",
         }}
-        makeDefault
-        enableRotate={false}
-        minZoom={0.015}
-        maxZoom={24}
-        zoomSpeed={0.8}
-        panSpeed={1.2}
-      />
-    </Canvas>
+        orthographic
+        camera={{
+          position: [
+            ISOMETRIC_CAMERA_OFFSET.x,
+            ISOMETRIC_CAMERA_OFFSET.y,
+            ISOMETRIC_CAMERA_OFFSET.z,
+          ],
+          up: [0, 0, 1],
+          zoom: 0.08,
+          near: -100_000,
+          far: 100_000,
+        }}
+        onPointerMissed={onPointerMissed}
+      >
+        {maxFps < 50 ? <DemandFrameTicker fps={maxFps} /> : null}
+        <color attach="background" args={["#030812"]} />
+        <NebulaBackground controlsRef={controlsRef} quality={quality} />
+        <ambientLight intensity={0.85} />
+        <directionalLight intensity={0.5} position={[0, 0, 500]} />
+        <AdaptiveGrid controlsRef={controlsRef} quality={quality} />
+
+        <CameraFocusController
+          controlsRef={controlsRef}
+          focusTarget={focusTarget}
+          mode={cameraMode}
+          trackingOrbit={trackingOrbit}
+          cameraOffset={ISOMETRIC_CAMERA_OFFSET}
+        />
+
+        {exitingScene ? (
+          <FadingSceneGroup
+            key={`out-${exitingScene.id}`}
+            direction="out"
+            transitionKey={exitingScene.id}
+            animate
+            onFadeOutComplete={() => {
+              setExitingScene((currentScene) =>
+                currentScene?.id === exitingScene.id ? null : currentScene
+              );
+            }}
+          >
+            {exitingScene.node}
+          </FadingSceneGroup>
+        ) : null}
+
+        <FadingSceneGroup
+          key={`in-${String(sceneKey)}`}
+          direction="in"
+          transitionKey={enterTransitionId}
+          animate={animateEnterScene}
+        >
+          {children}
+        </FadingSceneGroup>
+
+        <MapControls
+          ref={(instance) => {
+            controlsRef.current = instance as BasicMapControls | null;
+          }}
+          makeDefault
+          enableRotate={false}
+          minZoom={0.015}
+          maxZoom={24}
+          zoomSpeed={0.8}
+          panSpeed={1.2}
+        />
+      </Canvas>
+    </div>
   );
 }

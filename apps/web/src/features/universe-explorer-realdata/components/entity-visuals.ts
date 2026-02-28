@@ -27,13 +27,17 @@ export type EntityVisualPreset = {
 };
 
 function hsl(hue: number, saturation: number, lightness: number) {
-  return `hsl(${Math.round(hue)} ${Math.round(saturation * 100)}% ${Math.round(
+  return `hsl(${Math.round(hue)}, ${Math.round(saturation * 100)}%, ${Math.round(
     lightness * 100
   )}%)`;
 }
 
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
 }
 
 export function hashStringToUnit(value: string) {
@@ -43,6 +47,55 @@ export function hashStringToUnit(value: string) {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0) / 4294967295;
+}
+
+type WeightedPlanetPaletteEntry = {
+  hue: number;
+  saturation: number;
+  lightness: number;
+  weight: number;
+};
+
+const WEIGHTED_PLANET_PALETTE: WeightedPlanetPaletteEntry[] = [
+  { hue: 210, saturation: 0.32, lightness: 0.62, weight: 26 },
+  { hue: 192, saturation: 0.3, lightness: 0.6, weight: 19 },
+  { hue: 160, saturation: 0.26, lightness: 0.58, weight: 14 },
+  { hue: 46, saturation: 0.28, lightness: 0.64, weight: 11 },
+  { hue: 268, saturation: 0.3, lightness: 0.63, weight: 8 },
+  { hue: 338, saturation: 0.32, lightness: 0.62, weight: 6 },
+  { hue: 12, saturation: 0.34, lightness: 0.6, weight: 5 },
+  { hue: 28, saturation: 0.34, lightness: 0.61, weight: 4 },
+  { hue: 305, saturation: 0.33, lightness: 0.61, weight: 4 },
+  { hue: 96, saturation: 0.29, lightness: 0.58, weight: 3 },
+];
+
+const PLANET_PALETTE_TOTAL_WEIGHT = WEIGHTED_PLANET_PALETTE.reduce(
+  (total, entry) => total + entry.weight,
+  0
+);
+
+export function getWeightedPlanetColor(seedKey: string) {
+  const selectionRoll = hashStringToUnit(`${seedKey}:palette`) * PLANET_PALETTE_TOTAL_WEIGHT;
+  let selectedEntry = WEIGHTED_PLANET_PALETTE[0];
+  let cumulativeWeight = 0;
+
+  for (const entry of WEIGHTED_PLANET_PALETTE) {
+    cumulativeWeight += entry.weight;
+    if (selectionRoll <= cumulativeWeight) {
+      selectedEntry = entry;
+      break;
+    }
+  }
+
+  const hueJitter = (hashStringToUnit(`${seedKey}:h`) - 0.5) * 6;
+  const saturationJitter = (hashStringToUnit(`${seedKey}:s`) - 0.5) * 0.05;
+  const lightnessJitter = (hashStringToUnit(`${seedKey}:l`) - 0.5) * 0.06;
+
+  const hue = selectedEntry.hue + hueJitter;
+  const saturation = clamp(selectedEntry.saturation + saturationJitter, 0.22, 0.42);
+  const lightness = clamp(selectedEntry.lightness + lightnessJitter, 0.54, 0.72);
+
+  return hsl(hue, saturation, lightness);
 }
 
 export function getEntityVisualPreset(

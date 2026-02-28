@@ -120,6 +120,7 @@ export function useExplorerData() {
         entityType: "planet",
         name: planet.displayName,
         addressLabel: planet.addressLabel,
+        visualSeed: planet.seed,
         colony: planet.colony
           ? {
               name: planet.colony.name,

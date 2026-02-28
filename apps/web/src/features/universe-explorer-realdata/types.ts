@@ -24,6 +24,7 @@ export type RenderableEntity = {
   entityType: ExplorerEntityType;
   name: string;
   addressLabel: string;
+  visualSeed?: string;
   colony?: {
     name: string;
     playerName: string;
@@ -66,3 +67,12 @@ export type CameraFocusTarget = {
   zoom: number;
   key: number;
 };
+
+export type ExplorerCameraLock =
+  | {
+      mode: "free";
+    }
+  | {
+      mode: "planet";
+      planetId: Id<"planets">;
+    };

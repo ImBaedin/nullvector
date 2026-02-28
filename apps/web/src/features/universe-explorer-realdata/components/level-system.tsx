@@ -113,7 +113,6 @@ function OrbitingPlanetSphere({
 }) {
   const orbit = entity.orbit;
   const groupRef = useRef<Group | null>(null);
-  const startMsRef = useRef(Date.now());
   const currentPositionRef = useRef({
     x: entity.x,
     y: entity.y,
@@ -124,10 +123,7 @@ function OrbitingPlanetSphere({
       return;
     }
 
-    const nextPosition = computeOrbitWorldPosition(
-      orbit,
-      startMsRef.current + clock.elapsedTime * 1_000
-    );
+    const nextPosition = computeOrbitWorldPosition(orbit, Date.now());
     currentPositionRef.current = nextPosition;
     groupRef.current.position.set(nextPosition.x, nextPosition.y, 0);
   });
@@ -139,7 +135,7 @@ function OrbitingPlanetSphere({
         y={entity.y}
         radius={entity.sphereRadius}
         entityType={entity.entityType}
-        seedKey={entity.sourceId}
+        seedKey={entity.visualSeed ?? entity.sourceId}
         quality={quality}
         isSelected={isSelected}
         isHovered={isHovered}
@@ -158,7 +154,7 @@ function OrbitingPlanetSphere({
       <EntitySphereVisual
         radius={entity.sphereRadius}
         entityType={entity.entityType}
-        seedKey={entity.sourceId}
+        seedKey={entity.visualSeed ?? entity.sourceId}
         quality={quality}
         isSelected={isSelected}
         isHovered={isHovered}
