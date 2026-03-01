@@ -1,11 +1,13 @@
-import { Bell, Menu, Settings } from "lucide-react";
+import { Bell, ChevronDown, Earth, Menu, Settings } from "lucide-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { Tooltip } from "@base-ui/react/tooltip";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import { toast } from "sonner";
 import type { ResourceDatum } from "@/features/game-ui/contracts/navigation";
+import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdata/types";
 
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
@@ -21,7 +23,36 @@ type AppHeaderProps = {
   collapseResources?: boolean;
   isStarMapOpen?: boolean;
   onToggleStarMap?: () => void;
+  starMapNavigation?: StarMapHeaderNavigation | null;
 };
+
+export type StarMapHeaderNavigation = {
+  pathItems: Array<{
+    id: string;
+    label: string;
+    onSelect: () => void;
+  }>;
+  entityItems: Array<{
+    id: string;
+    label: string;
+    subtitle: string;
+  }>;
+  levelLabel: string;
+  onExit: () => void;
+  onSelectEntity: (itemId: string) => void;
+  qualityPreset: ExplorerQualityPreset;
+  onQualityPresetChange: (preset: ExplorerQualityPreset) => void;
+};
+
+const QUALITY_OPTIONS: Array<{
+  label: string;
+  value: ExplorerQualityPreset;
+}> = [
+  { label: "Auto", value: "auto" },
+  { label: "Low", value: "low" },
+  { label: "Medium", value: "medium" },
+  { label: "High", value: "high" },
+];
 
 function formatResourceValue(units: number) {
   if (units >= 1_000_000) {
@@ -123,11 +154,14 @@ export function AppHeader({
   collapseResources = false,
   isStarMapOpen = false,
   onToggleStarMap,
+  starMapNavigation = null,
 }: AppHeaderProps = {}) {
   type HeaderHudData = NonNullable<Parameters<typeof getHeaderConfig>[1]>;
   const navigate = useNavigate();
   const { isAuthenticated } = useConvexAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [starMapEntitiesOpen, setStarMapEntitiesOpen] = useState(false);
+  const [starMapQualityOpen, setStarMapQualityOpen] = useState(false);
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -256,6 +290,13 @@ export function AppHeader({
     }
   }, [activeColony, isRenamingColony]);
 
+  useEffect(() => {
+    if (!isStarMapOpen || !starMapNavigation) {
+      setStarMapEntitiesOpen(false);
+      setStarMapQualityOpen(false);
+    }
+  }, [isStarMapOpen, starMapNavigation]);
+
   const notificationsBadge = useMemo(() => {
     if (!config.notificationsCount || config.notificationsCount <= 0) {
       return null;
@@ -277,7 +318,10 @@ export function AppHeader({
         )}
       >
         <NvPanel
-          className="overflow-hidden rounded-b-[var(--nv-r-xl)] border-x-0 border-t-0 p-0"
+          className={cn(
+            "rounded-b-[var(--nv-r-xl)] border-x-0 border-t-0 p-0",
+            isStarMapOpen && starMapNavigation ? "overflow-visible" : "overflow-hidden"
+          )}
           density="compact"
         >
           <div
@@ -350,30 +394,170 @@ export function AppHeader({
               </div>
             </div>
 
-            <div className="justify-self-center">
-              <button
-                className={cn(
-                  "nv-starmap-hero nv-transition relative flex min-w-[170px] items-center justify-center gap-2 rounded-[var(--nv-r-sm)] border border-[color:rgba(61,217,255,0.42)] bg-[linear-gradient(165deg,rgba(61,217,255,0.18),rgba(61,217,255,0.06))] px-4 font-semibold text-[color:#e9fbff] shadow-[0_0_0_1px_rgba(61,217,255,0.12),0_8px_22px_rgba(4,8,20,0.46)] hover:border-[color:rgba(61,217,255,0.6)]",
-                  isStarMapOpen
-                    ? "border-[color:rgba(61,217,255,0.74)] shadow-[0_0_0_1px_rgba(61,217,255,0.28),0_10px_24px_rgba(4,8,20,0.56)]"
-                    : null,
-                  isCompact ? "h-10 text-xs" : "h-12 text-sm"
-                )}
-                onClick={handleStarMapToggle}
-                type="button"
-              >
-                <span className="nv-starmap-stars" />
-                <span className="nv-starmap-stars is-slower" />
-                <img
-                  alt="Star map icon"
+            <div
+              className={cn(
+                "justify-self-center",
+                isStarMapOpen && starMapNavigation ? "w-full max-w-[min(62vw,780px)]" : null
+              )}
+            >
+              {isStarMapOpen && starMapNavigation ? (
+                <div className="relative flex items-center gap-2 text-left">
+                  <Tooltip.Root>
+                    <Tooltip.Trigger
+                      className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[var(--nv-r-xs)] border border-white/20 bg-white/10 text-slate-100 hover:bg-white/16"
+                      delay={160}
+                      onClick={starMapNavigation.onExit}
+                    >
+                      <Earth className="size-4" />
+                    </Tooltip.Trigger>
+                    <Tooltip.Portal>
+                      <Tooltip.Positioner
+                        className="z-[var(--nv-z-tooltip)]"
+                        side="bottom"
+                        sideOffset={6}
+                      >
+                        <Tooltip.Popup className="rounded-[var(--nv-r-xs)] border border-white/15 bg-[rgba(7,18,34,0.95)] px-2 py-1 text-[11px] font-medium text-slate-100 shadow-[0_8px_20px_rgba(0,0,0,0.35)]">
+                          Return to colony
+                        </Tooltip.Popup>
+                      </Tooltip.Positioner>
+                    </Tooltip.Portal>
+                  </Tooltip.Root>
+                  <span className="hidden text-[10px] uppercase tracking-[0.18em] text-cyan-200/80 lg:inline">
+                    {starMapNavigation.levelLabel}
+                  </span>
+                  <div className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-xs text-slate-100/95">
+                    {starMapNavigation.pathItems.map((item, index) => (
+                      <span className="inline-flex items-center gap-1" key={item.id}>
+                        {index > 0 ? (
+                          <span className="text-slate-400/80">/</span>
+                        ) : null}
+                        <button
+                          className="rounded px-1 py-0.5 hover:bg-white/10"
+                          onClick={item.onSelect}
+                          type="button"
+                        >
+                          {item.label}
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="relative flex-shrink-0">
+                    <button
+                      className="inline-flex h-8 items-center gap-1 rounded-[var(--nv-r-xs)] border border-white/18 bg-white/10 px-2 text-[11px] font-semibold text-slate-100 hover:bg-white/16"
+                      onClick={() => {
+                        setStarMapQualityOpen(false);
+                        setStarMapEntitiesOpen((current) => !current);
+                      }}
+                      type="button"
+                    >
+                      Entities ({starMapNavigation.entityItems.length})
+                      <ChevronDown
+                        className={cn(
+                          "size-3.5 transition-transform",
+                          starMapEntitiesOpen ? "rotate-180" : null
+                        )}
+                      />
+                    </button>
+
+                    {starMapEntitiesOpen ? (
+                      <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-[min(86vw,420px)] rounded-[var(--nv-r-sm)] border border-white/18 bg-[rgba(7,18,34,0.96)] p-1 shadow-[0_10px_24px_rgba(0,0,0,0.45)]">
+                        <div className="max-h-56 space-y-1 overflow-y-auto pr-0.5">
+                          {starMapNavigation.entityItems.map((item) => (
+                            <button
+                              className="flex w-full items-center justify-between rounded-[var(--nv-r-xs)] border border-white/12 bg-white/6 px-2 py-1 text-left text-[11px] text-slate-100 hover:border-cyan-200/35 hover:bg-white/12"
+                              key={item.id}
+                              onClick={() => {
+                                starMapNavigation.onSelectEntity(item.id);
+                                setStarMapEntitiesOpen(false);
+                              }}
+                              type="button"
+                            >
+                              <span className="truncate font-semibold">{item.label}</span>
+                              <span className="ml-2 font-mono text-[10px] text-slate-300/85">
+                                {item.subtitle}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="relative flex-shrink-0">
+                    <button
+                      className="inline-flex h-8 items-center gap-1 rounded-[var(--nv-r-xs)] border border-white/18 bg-white/10 px-2 text-[11px] font-semibold text-slate-100 hover:bg-white/16"
+                      onClick={() => {
+                        setStarMapEntitiesOpen(false);
+                        setStarMapQualityOpen((current) => !current);
+                      }}
+                      type="button"
+                    >
+                      Quality:{" "}
+                      {
+                        QUALITY_OPTIONS.find(
+                          (entry) => entry.value === starMapNavigation.qualityPreset
+                        )?.label
+                      }
+                      <ChevronDown
+                        className={cn(
+                          "size-3.5 transition-transform",
+                          starMapQualityOpen ? "rotate-180" : null
+                        )}
+                      />
+                    </button>
+
+                    {starMapQualityOpen ? (
+                      <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-40 rounded-[var(--nv-r-sm)] border border-white/18 bg-[rgba(7,18,34,0.96)] p-1 shadow-[0_10px_24px_rgba(0,0,0,0.45)]">
+                        <div className="space-y-1">
+                          {QUALITY_OPTIONS.map((entry) => (
+                            <button
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-[var(--nv-r-xs)] border px-2 py-1 text-left text-[11px]",
+                                entry.value === starMapNavigation.qualityPreset
+                                  ? "border-cyan-300/55 bg-cyan-400/16 text-cyan-100"
+                                  : "border-white/12 bg-white/6 text-slate-100 hover:border-cyan-200/35 hover:bg-white/12"
+                              )}
+                              key={entry.value}
+                              onClick={() => {
+                                starMapNavigation.onQualityPresetChange(entry.value);
+                                setStarMapQualityOpen(false);
+                              }}
+                              type="button"
+                            >
+                              {entry.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <button
                   className={cn(
-                    "relative z-10 object-contain drop-shadow-[0_0_8px_rgba(61,217,255,0.55)]",
-                    isCompact ? "h-5 w-5" : "h-6 w-6"
+                    "nv-starmap-hero nv-transition relative flex min-w-[170px] items-center justify-center gap-2 rounded-[var(--nv-r-sm)] border border-[color:rgba(61,217,255,0.42)] bg-[linear-gradient(165deg,rgba(61,217,255,0.18),rgba(61,217,255,0.06))] px-4 font-semibold text-[color:#e9fbff] shadow-[0_0_0_1px_rgba(61,217,255,0.12),0_8px_22px_rgba(4,8,20,0.46)] hover:border-[color:rgba(61,217,255,0.6)]",
+                    isStarMapOpen
+                      ? "border-[color:rgba(61,217,255,0.74)] shadow-[0_0_0_1px_rgba(61,217,255,0.28),0_10px_24px_rgba(4,8,20,0.56)]"
+                      : null,
+                    isCompact ? "h-10 text-xs" : "h-12 text-sm"
                   )}
-                  src="/game-icons/nav/starmap.png"
-                />
-                <span className="relative z-10">Star Map</span>
-              </button>
+                  onClick={handleStarMapToggle}
+                  type="button"
+                >
+                  <span className="nv-starmap-stars" />
+                  <span className="nv-starmap-stars is-slower" />
+                  <img
+                    alt="Star map icon"
+                    className={cn(
+                      "relative z-10 object-contain drop-shadow-[0_0_8px_rgba(61,217,255,0.55)]",
+                      isCompact ? "h-5 w-5" : "h-6 w-6"
+                    )}
+                    src="/game-icons/nav/starmap.png"
+                  />
+                  <span className="relative z-10">Star Map</span>
+                </button>
+              )}
             </div>
 
             <div className="hidden items-center gap-2 justify-self-end lg:flex">

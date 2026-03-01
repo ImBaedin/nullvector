@@ -23,6 +23,7 @@ import type {
   HoverPanelState,
   RenderableEntity,
 } from "@/features/universe-explorer-realdata/types";
+import { Stats } from "@react-three/drei";
 
 export const Route = createFileRoute("/universe-explorer-realdata")({
   component: UniverseExplorerRealDataRoute,
@@ -157,7 +158,11 @@ function UniverseExplorerScene() {
       y: number;
     }
   ) => {
-    if (!explorer.path.galaxyId || !explorer.path.sectorId || !explorer.path.systemId) {
+    if (
+      !explorer.path.galaxyId ||
+      !explorer.path.sectorId ||
+      !explorer.path.systemId
+    ) {
       return;
     }
 
@@ -188,7 +193,7 @@ function UniverseExplorerScene() {
       : explorer.level;
   const cameraLockLabel =
     explorer.cameraLock.mode === "planet"
-      ? (data.selectedPlanet?.displayName ?? "Locking...")
+      ? data.selectedPlanet?.displayName ?? "Locking..."
       : "None";
 
   const breadcrumbProps = useMemo(() => {
@@ -221,37 +226,38 @@ function UniverseExplorerScene() {
 
     const planet =
       explorer.cameraLock.mode === "planet" && data.selectedPlanet
-      ? (() => {
-          if (data.selectedSystem) {
-            const position = computeOrbitWorldPosition(
-              {
-                centerX: data.selectedSystem.x,
-                centerY: data.selectedSystem.y,
-                orbitRadius: data.selectedPlanet.orbitRadius,
-                orbitPhaseRad: data.selectedPlanet.orbitPhaseRad,
-                orbitAngularVelocityRadPerSec:
-                  data.selectedPlanet.orbitAngularVelocityRadPerSec,
-                orbitEpochMs: data.systemData?.universe.orbitEpochMs ?? Date.now(),
-              },
-              Date.now()
-            );
+        ? (() => {
+            if (data.selectedSystem) {
+              const position = computeOrbitWorldPosition(
+                {
+                  centerX: data.selectedSystem.x,
+                  centerY: data.selectedSystem.y,
+                  orbitRadius: data.selectedPlanet.orbitRadius,
+                  orbitPhaseRad: data.selectedPlanet.orbitPhaseRad,
+                  orbitAngularVelocityRadPerSec:
+                    data.selectedPlanet.orbitAngularVelocityRadPerSec,
+                  orbitEpochMs:
+                    data.systemData?.universe.orbitEpochMs ?? Date.now(),
+                },
+                Date.now()
+              );
+
+              return {
+                id: data.selectedPlanet.id,
+                name: data.selectedPlanet.displayName,
+                x: position.x,
+                y: position.y,
+              };
+            }
 
             return {
               id: data.selectedPlanet.id,
               name: data.selectedPlanet.displayName,
-              x: position.x,
-              y: position.y,
+              x: data.selectedPlanet.orbitX,
+              y: data.selectedPlanet.orbitY,
             };
-          }
-
-          return {
-            id: data.selectedPlanet.id,
-            name: data.selectedPlanet.displayName,
-            x: data.selectedPlanet.orbitX,
-            y: data.selectedPlanet.orbitY,
-          };
-        })()
-      : undefined;
+          })()
+        : undefined;
 
     return { galaxy, sector, system, planet };
   }, [
@@ -267,10 +273,10 @@ function UniverseExplorerScene() {
     explorer.level === "universe"
       ? data.galaxyEntities
       : explorer.level === "galaxy"
-        ? data.sectorEntities
-        : explorer.level === "sector"
-          ? data.systemEntities
-          : data.planetEntities;
+      ? data.sectorEntities
+      : explorer.level === "sector"
+      ? data.systemEntities
+      : data.planetEntities;
 
   const trackingOrbit = useMemo(() => {
     if (explorer.cameraLock.mode !== "planet" || !data.selectedSystem) {
@@ -279,9 +285,8 @@ function UniverseExplorerScene() {
     const lockedPlanetId = explorer.cameraLock.planetId;
 
     const lockedPlanet =
-      data.systemData?.planets.find(
-        (planet) => planet.id === lockedPlanetId
-      ) ?? null;
+      data.systemData?.planets.find((planet) => planet.id === lockedPlanetId) ??
+      null;
 
     if (!lockedPlanet) {
       return null;
@@ -292,8 +297,7 @@ function UniverseExplorerScene() {
       centerY: data.selectedSystem.y,
       orbitRadius: lockedPlanet.orbitRadius,
       orbitPhaseRad: lockedPlanet.orbitPhaseRad,
-      orbitAngularVelocityRadPerSec:
-        lockedPlanet.orbitAngularVelocityRadPerSec,
+      orbitAngularVelocityRadPerSec: lockedPlanet.orbitAngularVelocityRadPerSec,
       orbitEpochMs: data.systemData?.universe.orbitEpochMs ?? Date.now(),
     };
   }, [
@@ -465,7 +469,9 @@ function UniverseExplorerScene() {
           antialias={antialiasEnabled}
           dpr={canvasDpr}
           focusTarget={explorer.focusTarget}
-          cameraMode={explorer.cameraLock.mode === "planet" ? "followPlanet" : "free"}
+          cameraMode={
+            explorer.cameraLock.mode === "planet" ? "followPlanet" : "free"
+          }
           trackingOrbit={trackingOrbit}
           onPanWhileLocked={handlePanWhileLocked}
           onPointerMissed={clearHover}
@@ -473,6 +479,7 @@ function UniverseExplorerScene() {
           sceneKey={explorer.level}
         >
           {sceneContent}
+          <Stats />
         </ExplorerCanvas>
       }
       hoverPanel={<HoverPanel hover={hover} />}

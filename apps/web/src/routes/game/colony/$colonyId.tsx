@@ -1,15 +1,22 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { useConvexAuth, useQuery } from "convex/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Activity,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import { X } from "lucide-react";
 
-import { AppHeader } from "@/features/game-ui/header";
-import { ExplorerBreadcrumbs } from "@/features/universe-explorer-realdata/components/explorer-breadcrumbs";
+import {
+  AppHeader,
+  type StarMapHeaderNavigation,
+} from "@/features/game-ui/header";
 import { ExplorerCanvas } from "@/features/universe-explorer-realdata/components/explorer-canvas";
-import { ExplorerQualityControl } from "@/features/universe-explorer-realdata/components/explorer-quality-control";
 import { HoverPanel } from "@/features/universe-explorer-realdata/components/hover-panel";
 import { LevelGalaxy } from "@/features/universe-explorer-realdata/components/level-galaxy";
 import { LevelSector } from "@/features/universe-explorer-realdata/components/level-sector";
@@ -27,6 +34,7 @@ import type {
   RenderableEntity,
 } from "@/features/universe-explorer-realdata/types";
 import { cn } from "@/lib/utils";
+import { Stats } from "@react-three/drei";
 
 export const Route = createFileRoute("/game/colony/$colonyId")({
   component: ColonyLayoutRoute,
@@ -38,10 +46,71 @@ const ZOOM = {
   sector: 0.55,
   system: 1.9,
 } as const;
+const STAR_MAP_CONTENT_TRANSITION_MS = 500;
+
+type OverlayContentPhase = "visible" | "hiding" | "hidden" | "revealing";
 
 function ColonyLayoutRoute() {
   const { colonyId } = Route.useParams();
   const [isStarMapOpen, setIsStarMapOpen] = useState(false);
+  const [headerStarMapNavigation, setHeaderStarMapNavigation] =
+    useState<StarMapHeaderNavigation | null>(null);
+  const [contentPhase, setContentPhase] =
+    useState<OverlayContentPhase>("visible");
+  const revealRafRef = useRef<number | null>(null);
+  const handleCloseStarMap = useCallback(() => {
+    setIsStarMapOpen(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (revealRafRef.current !== null) {
+        cancelAnimationFrame(revealRafRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (revealRafRef.current !== null) {
+      cancelAnimationFrame(revealRafRef.current);
+      revealRafRef.current = null;
+    }
+
+    if (!isStarMapOpen) {
+      setContentPhase((current) => {
+        if (current === "hidden") {
+          // Mount in collapsed state first, then animate to fully visible.
+          revealRafRef.current = requestAnimationFrame(() => {
+            revealRafRef.current = null;
+            setContentPhase("visible");
+          });
+          return "revealing";
+        }
+
+        if (current === "hiding") {
+          return "visible";
+        }
+        return current;
+      });
+      return;
+    }
+
+    setContentPhase((current) => (current === "hidden" ? current : "hiding"));
+
+    const hideTimerId = window.setTimeout(() => {
+      setContentPhase("hidden");
+    }, STAR_MAP_CONTENT_TRANSITION_MS);
+
+    return () => {
+      window.clearTimeout(hideTimerId);
+    };
+  }, [isStarMapOpen]);
+
+  const shouldCollapseContent =
+    contentPhase === "hiding" ||
+    contentPhase === "hidden" ||
+    contentPhase === "revealing";
+  const outletActivityMode = contentPhase === "hidden" ? "hidden" : "visible";
 
   return (
     <div
@@ -57,7 +126,8 @@ function ColonyLayoutRoute() {
         <ColonyStarMapLayer
           colonyId={colonyId as Id<"colonies">}
           isOpen={isStarMapOpen}
-          onClose={() => setIsStarMapOpen(false)}
+          onClose={handleCloseStarMap}
+          onHeaderNavigationChange={setHeaderStarMapNavigation}
         />
       </ExplorerProvider>
 
@@ -66,28 +136,33 @@ function ColonyLayoutRoute() {
         collapseResources={isStarMapOpen}
         isStarMapOpen={isStarMapOpen}
         onToggleStarMap={() => setIsStarMapOpen((current) => !current)}
+        starMapNavigation={isStarMapOpen ? headerStarMapNavigation : null}
       />
 
       <div
         className={cn(
           "relative z-10 min-h-full overflow-hidden",
-          isStarMapOpen ? "pointer-events-none" : null
+          isStarMapOpen || contentPhase !== "visible"
+            ? "pointer-events-none"
+            : null
         )}
       >
         <div
           className={cn(
             "relative min-h-full transition-[clip-path,opacity,transform] duration-500 ease-out",
-            isStarMapOpen
+            shouldCollapseContent
               ? "pointer-events-none opacity-0 -translate-y-3"
               : "opacity-100 translate-y-0"
           )}
           style={{
-            clipPath: isStarMapOpen
+            clipPath: shouldCollapseContent
               ? "inset(0 0 100% 0 round 0.5rem)"
               : "inset(0 0 0 0 round 0.5rem)",
           }}
         >
-          <Outlet />
+          <Activity mode={outletActivityMode}>
+            <Outlet />
+          </Activity>
         </div>
       </div>
     </div>
@@ -98,10 +173,12 @@ function ColonyStarMapLayer({
   colonyId,
   isOpen,
   onClose,
+  onHeaderNavigationChange,
 }: {
   colonyId: Id<"colonies">;
   isOpen: boolean;
   onClose: () => void;
+  onHeaderNavigationChange: (navigation: StarMapHeaderNavigation | null) => void;
 }) {
   const explorer = useExplorerContext();
   const { isAuthenticated } = useConvexAuth();
@@ -140,14 +217,8 @@ function ColonyStarMapLayer({
       return;
     }
 
-    const {
-      galaxyId,
-      focusX,
-      focusY,
-      planetId,
-      sectorId,
-      systemId,
-    } = coordinates;
+    const { galaxyId, focusX, focusY, planetId, sectorId, systemId } =
+      coordinates;
 
     explorer.setPlanetLevel(
       {
@@ -286,90 +357,112 @@ function ColonyStarMapLayer({
     explorer.level === "planet" && explorer.cameraLock.mode === "free"
       ? "system"
       : explorer.level;
-  const cameraLockLabel =
-    explorer.cameraLock.mode === "planet"
-      ? (data.selectedPlanet?.displayName ?? "Locking...")
-      : "None";
 
   const currentEntities =
     explorer.level === "universe"
       ? data.galaxyEntities
       : explorer.level === "galaxy"
-        ? data.sectorEntities
-        : explorer.level === "sector"
-          ? data.systemEntities
-          : data.planetEntities;
+      ? data.sectorEntities
+      : explorer.level === "sector"
+      ? data.systemEntities
+      : data.planetEntities;
 
-  const breadcrumbProps = useMemo(() => {
-    const galaxy = data.selectedGalaxy
-      ? {
-          id: data.selectedGalaxy.id,
-          name: data.selectedGalaxy.displayName,
-          x: data.selectedGalaxy.gx,
-          y: data.selectedGalaxy.gy,
-        }
-      : undefined;
+  const navigateToUniverse = useCallback(() => {
+    explorer.setUniverseLevel({ x: 0, y: 0, zoom: 0.08 });
+  }, [explorer]);
 
-    const sector = data.selectedSector
-      ? {
-          id: data.selectedSector.id,
-          name: data.selectedSector.displayName,
-          x: data.selectedSector.centerX,
-          y: data.selectedSector.centerY,
-        }
-      : undefined;
+  const navigateToGalaxy = useCallback(() => {
+    if (!data.selectedGalaxy) {
+      return;
+    }
 
-    const system = data.selectedSystem
-      ? {
-          id: data.selectedSystem.id,
-          name: data.selectedSystem.displayName,
-          x: data.selectedSystem.x,
-          y: data.selectedSystem.y,
-        }
-      : undefined;
+    explorer.setGalaxyLevel(data.selectedGalaxy.id, {
+      x: data.selectedGalaxy.gx,
+      y: data.selectedGalaxy.gy,
+      zoom: ZOOM.galaxy,
+    });
+  }, [data.selectedGalaxy, explorer]);
 
-    const planet =
-      explorer.cameraLock.mode === "planet" && data.selectedPlanet
-      ? (() => {
-          if (data.selectedSystem) {
-            const position = computeOrbitWorldPosition(
-              {
-                centerX: data.selectedSystem.x,
-                centerY: data.selectedSystem.y,
-                orbitRadius: data.selectedPlanet.orbitRadius,
-                orbitPhaseRad: data.selectedPlanet.orbitPhaseRad,
-                orbitAngularVelocityRadPerSec:
-                  data.selectedPlanet.orbitAngularVelocityRadPerSec,
-                orbitEpochMs: data.systemData?.universe.orbitEpochMs ?? Date.now(),
-              },
-              Date.now()
-            );
+  const navigateToSector = useCallback(() => {
+    if (!data.selectedGalaxy || !data.selectedSector) {
+      return;
+    }
 
-            return {
-              id: data.selectedPlanet.id,
-              name: data.selectedPlanet.displayName,
-              x: position.x,
-              y: position.y,
-            };
-          }
+    explorer.setSectorLevel(
+      {
+        galaxyId: data.selectedGalaxy.id,
+        sectorId: data.selectedSector.id,
+      },
+      {
+        x: data.selectedSector.centerX,
+        y: data.selectedSector.centerY,
+        zoom: ZOOM.sector,
+      }
+    );
+  }, [data.selectedGalaxy, data.selectedSector, explorer]);
 
-          return {
-            id: data.selectedPlanet.id,
-            name: data.selectedPlanet.displayName,
-            x: data.selectedPlanet.orbitX,
-            y: data.selectedPlanet.orbitY,
-          };
-        })()
-      : undefined;
+  const navigateToSystem = useCallback(() => {
+    if (!data.selectedGalaxy || !data.selectedSector || !data.selectedSystem) {
+      return;
+    }
 
-    return { galaxy, sector, system, planet };
+    explorer.setSystemLevel(
+      {
+        galaxyId: data.selectedGalaxy.id,
+        sectorId: data.selectedSector.id,
+        systemId: data.selectedSystem.id,
+      },
+      {
+        x: data.selectedSystem.x,
+        y: data.selectedSystem.y,
+        zoom: ZOOM.system,
+      }
+    );
+  }, [data.selectedGalaxy, data.selectedSector, data.selectedSystem, explorer]);
+
+  const navigateToPlanet = useCallback(() => {
+    if (
+      !data.selectedGalaxy ||
+      !data.selectedSector ||
+      !data.selectedSystem ||
+      !data.selectedPlanet
+    ) {
+      return;
+    }
+
+    const livePosition = computeOrbitWorldPosition(
+      {
+        centerX: data.selectedSystem.x,
+        centerY: data.selectedSystem.y,
+        orbitRadius: data.selectedPlanet.orbitRadius,
+        orbitPhaseRad: data.selectedPlanet.orbitPhaseRad,
+        orbitAngularVelocityRadPerSec:
+          data.selectedPlanet.orbitAngularVelocityRadPerSec,
+        orbitEpochMs: data.systemData?.universe.orbitEpochMs ?? Date.now(),
+      },
+      Date.now()
+    );
+
+    explorer.setPlanetLevel(
+      {
+        galaxyId: data.selectedGalaxy.id,
+        sectorId: data.selectedSector.id,
+        systemId: data.selectedSystem.id,
+        planetId: data.selectedPlanet.id,
+      },
+      {
+        x: livePosition.x,
+        y: livePosition.y,
+        zoom: ZOOM.planet,
+      }
+    );
   }, [
     data.selectedGalaxy,
     data.selectedPlanet,
     data.selectedSector,
     data.selectedSystem,
     data.systemData?.universe.orbitEpochMs,
-    explorer.cameraLock,
+    explorer,
   ]);
 
   const sceneContent = (
@@ -437,9 +530,8 @@ function ColonyStarMapLayer({
     const lockedPlanetId = explorer.cameraLock.planetId;
 
     const lockedPlanet =
-      data.systemData?.planets.find(
-        (planet) => planet.id === lockedPlanetId
-      ) ?? null;
+      data.systemData?.planets.find((planet) => planet.id === lockedPlanetId) ??
+      null;
 
     if (!lockedPlanet) {
       return null;
@@ -450,8 +542,7 @@ function ColonyStarMapLayer({
       centerY: data.selectedSystem.y,
       orbitRadius: lockedPlanet.orbitRadius,
       orbitPhaseRad: lockedPlanet.orbitPhaseRad,
-      orbitAngularVelocityRadPerSec:
-        lockedPlanet.orbitAngularVelocityRadPerSec,
+      orbitAngularVelocityRadPerSec: lockedPlanet.orbitAngularVelocityRadPerSec,
       orbitEpochMs: data.systemData?.universe.orbitEpochMs ?? Date.now(),
     };
   }, [
@@ -465,6 +556,132 @@ function ColonyStarMapLayer({
     explorer.unlockCameraLock();
   }, [explorer]);
 
+  const selectEntityForCurrentLevel = useCallback(
+    (entity: RenderableEntity) => {
+      if (explorer.level === "universe") {
+        handleUniverseEntitySelect(entity);
+        return;
+      }
+      if (explorer.level === "galaxy") {
+        handleGalaxyEntitySelect(entity);
+        return;
+      }
+      if (explorer.level === "sector") {
+        handleSectorEntitySelect(entity);
+        return;
+      }
+      handlePlanetEntitySelect(entity);
+    },
+    [
+      explorer.level,
+      handleGalaxyEntitySelect,
+      handlePlanetEntitySelect,
+      handleSectorEntitySelect,
+      handleUniverseEntitySelect,
+    ]
+  );
+
+  const headerEntityItems = useMemo(
+    () =>
+      currentEntities.slice(0, 7).map((entity) => ({
+        id: entity.id,
+        label: entity.name,
+        subtitle: entity.addressLabel,
+      })),
+    [currentEntities]
+  );
+
+  const headerPathItems = useMemo(() => {
+    const pathItems: StarMapHeaderNavigation["pathItems"] = [
+      {
+        id: "universe",
+        label: data.overview?.universe.name ?? "Universe",
+        onSelect: navigateToUniverse,
+      },
+    ];
+
+    if (data.selectedGalaxy) {
+      pathItems.push({
+        id: data.selectedGalaxy.id,
+        label: data.selectedGalaxy.displayName,
+        onSelect: navigateToGalaxy,
+      });
+    }
+    if (data.selectedSector) {
+      pathItems.push({
+        id: data.selectedSector.id,
+        label: data.selectedSector.displayName,
+        onSelect: navigateToSector,
+      });
+    }
+    if (data.selectedSystem) {
+      pathItems.push({
+        id: data.selectedSystem.id,
+        label: data.selectedSystem.displayName,
+        onSelect: navigateToSystem,
+      });
+    }
+    if (explorer.cameraLock.mode === "planet" && data.selectedPlanet) {
+      pathItems.push({
+        id: data.selectedPlanet.id,
+        label: data.selectedPlanet.displayName,
+        onSelect: navigateToPlanet,
+      });
+    }
+
+    return pathItems;
+  }, [
+    data.overview?.universe.name,
+    data.selectedGalaxy,
+    data.selectedPlanet,
+    data.selectedSector,
+    data.selectedSystem,
+    explorer.cameraLock.mode,
+    navigateToGalaxy,
+    navigateToPlanet,
+    navigateToSector,
+    navigateToSystem,
+    navigateToUniverse,
+  ]);
+
+  const handleHeaderNavSelect = useCallback(
+    (entityId: string) => {
+      const entity = currentEntities.find(
+        (candidate) => candidate.id === entityId
+      );
+      if (!entity) {
+        return;
+      }
+      selectEntityForCurrentLevel(entity);
+    },
+    [currentEntities, selectEntityForCurrentLevel]
+  );
+
+  useEffect(() => {
+    onHeaderNavigationChange({
+      pathItems: headerPathItems,
+      entityItems: headerEntityItems,
+      levelLabel: displayedLevel,
+      onExit: onClose,
+      onSelectEntity: handleHeaderNavSelect,
+      qualityPreset,
+      onQualityPresetChange: setQualityPreset,
+    });
+
+    return () => {
+      onHeaderNavigationChange(null);
+    };
+  }, [
+    displayedLevel,
+    headerEntityItems,
+    headerPathItems,
+    handleHeaderNavSelect,
+    qualityPreset,
+    onClose,
+    onHeaderNavigationChange,
+    setQualityPreset,
+  ]);
+
   return (
     <>
       <div className="fixed inset-0 z-0">
@@ -472,7 +689,9 @@ function ColonyStarMapLayer({
           antialias={antialiasEnabled}
           dpr={canvasDpr}
           focusTarget={explorer.focusTarget}
-          cameraMode={explorer.cameraLock.mode === "planet" ? "followPlanet" : "free"}
+          cameraMode={
+            explorer.cameraLock.mode === "planet" ? "followPlanet" : "free"
+          }
           trackingOrbit={trackingOrbit}
           onPanWhileLocked={handlePanWhileLocked}
           maxFps={isOpen ? 60 : 10}
@@ -481,119 +700,16 @@ function ColonyStarMapLayer({
           sceneKey={explorer.level}
         >
           {sceneContent}
+          <Stats />
         </ExplorerCanvas>
       </div>
 
       <div
         className={cn(
           "pointer-events-none fixed inset-0 z-[1] transition-all duration-500",
-          isOpen
-            ? "bg-[rgba(4,8,18,0.2)]"
-            : "bg-[rgba(4,10,20,0.48)] backdrop-blur-[10px]"
+          isOpen ? "bg-[rgba(4,8,18,0.2)]" : "bg-[rgba(4,10,20,0.48)]"
         )}
       />
-
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-[2] w-[min(90vw,360px)] border-r border-white/20 bg-[rgba(7,14,28,0.78)] p-4 backdrop-blur-md transition-transform duration-500 ease-out",
-          isOpen ? "translate-x-0" : "-translate-x-[108%]"
-        )}
-      >
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-200/85">
-            Star Map
-          </p>
-          <button
-            className="inline-flex size-8 items-center justify-center rounded-md border border-white/20 bg-white/5 text-slate-200 hover:bg-white/10"
-            onClick={onClose}
-            type="button"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-
-        <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
-          Universe Explorer
-        </h2>
-
-        <div className="mt-4">
-          <ExplorerBreadcrumbs {...breadcrumbProps} />
-        </div>
-
-        <div className="mt-4 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200">
-          <p>
-            <span className="text-slate-400">Universe:</span>{" "}
-            {data.overview?.universe.name ?? "Loading..."}
-          </p>
-          <p>
-            <span className="text-slate-400">Level:</span> {displayedLevel}
-          </p>
-          <p>
-            <span className="text-slate-400">Camera lock:</span> {cameraLockLabel}
-          </p>
-          <p>
-            <span className="text-slate-400">Visible entities:</span>{" "}
-            {currentEntities.length}
-          </p>
-        </div>
-
-        <div className="mt-4">
-          <ExplorerQualityControl
-            qualityPreset={qualityPreset}
-            onQualityPresetChange={setQualityPreset}
-          />
-        </div>
-
-        <div className="mt-4">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-300">
-            Entities
-          </p>
-          <div className="mt-2 max-h-[48vh] space-y-1 overflow-y-auto pr-1">
-            {currentEntities.map((entity) => (
-              <button
-                className="flex w-full items-center justify-between rounded border border-white/10 bg-white/5 px-2 py-1 text-left text-xs text-slate-100 hover:bg-white/10"
-                key={entity.id}
-                onClick={() => {
-                  if (explorer.level === "universe") {
-                    handleUniverseEntitySelect(entity);
-                    return;
-                  }
-                  if (explorer.level === "galaxy") {
-                    handleGalaxyEntitySelect(entity);
-                    return;
-                  }
-                  if (explorer.level === "sector") {
-                    handleSectorEntitySelect(entity);
-                    return;
-                  }
-                  handlePlanetEntitySelect(entity);
-                }}
-                onMouseEnter={(event) =>
-                  handleHover(entity, event.clientX, event.clientY)
-                }
-                onMouseLeave={clearHover}
-                onMouseMove={(event) =>
-                  handleHover(entity, event.clientX, event.clientY)
-                }
-                type="button"
-              >
-                <span>{entity.name}</span>
-                <span className="font-mono text-[10px] text-slate-400">
-                  {entity.addressLabel}
-                </span>
-              </button>
-            ))}
-
-            {!currentEntities.length ? (
-              <p className="rounded border border-white/10 bg-white/5 px-2 py-2 text-xs text-slate-300">
-                {data.isCurrentLevelLoading
-                  ? "Loading entities..."
-                  : "No entities for this level yet."}
-              </p>
-            ) : null}
-          </div>
-        </div>
-      </aside>
 
       <HoverPanel hover={hover} />
     </>
