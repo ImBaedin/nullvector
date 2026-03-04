@@ -178,7 +178,9 @@ function ColonyStarMapLayer({
   colonyId: Id<"colonies">;
   isOpen: boolean;
   onClose: () => void;
-  onHeaderNavigationChange: (navigation: StarMapHeaderNavigation | null) => void;
+  onHeaderNavigationChange: (
+    navigation: StarMapHeaderNavigation | null
+  ) => void;
 }) {
   const explorer = useExplorerContext();
   const { isAuthenticated } = useConvexAuth();
