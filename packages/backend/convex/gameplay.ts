@@ -1,6 +1,8 @@
 import {
   BUILDING_KEYS,
   DEFAULT_GENERATOR_REGISTRY,
+  DEFAULT_SHIP_DEFINITIONS,
+  getShipBuildDurationSeconds,
   getGeneratorProductionPerMinute,
   getUpgradeCost,
   getUpgradeDurationSeconds,
@@ -10,6 +12,7 @@ import type {
   ResourceBucket,
   ResourceBuildingCardData,
   ResourceBuildingLevelRow,
+  ShipKey,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
@@ -42,7 +45,7 @@ type QueueItemStatus =
   | "completed"
   | "cancelled"
   | "failed";
-type QueueItemKind = "buildingUpgrade";
+type QueueItemKind = "buildingUpgrade" | "shipBuild";
 
 type ColonyWithRelations = {
   colony: Doc<"colonies">;
@@ -72,7 +75,7 @@ const OPEN_QUEUE_STATUSES: ReadonlyArray<QueueItemStatus> = [
 const BUILDING_LANE_CAPACITY = 2;
 const LANE_QUEUE_CAPACITY: Record<QueueLane, number> = {
   building: BUILDING_LANE_CAPACITY,
-  shipyard: 2,
+  shipyard: 5,
   research: 2,
 };
 
@@ -112,13 +115,34 @@ const queueItemStatusValidator = v.union(
   v.literal("failed"),
 );
 
-const queueItemKindValidator = v.literal("buildingUpgrade");
+const shipKeyValidator = v.union(
+  v.literal("smallCargo"),
+  v.literal("largeCargo"),
+  v.literal("colonyShip"),
+);
 
-const queuePayloadValidator = v.object({
+const queueItemKindValidator = v.union(
+  v.literal("buildingUpgrade"),
+  v.literal("shipBuild"),
+);
+
+const buildingQueuePayloadValidator = v.object({
   buildingKey: buildingKeyValidator,
   fromLevel: v.number(),
   toLevel: v.number(),
 });
+
+const shipBuildQueuePayloadValidator = v.object({
+  shipKey: shipKeyValidator,
+  quantity: v.number(),
+  completedQuantity: v.number(),
+  perUnitDurationSeconds: v.number(),
+});
+
+const queuePayloadValidator = v.union(
+  buildingQueuePayloadValidator,
+  shipBuildQueuePayloadValidator,
+);
 
 function emptyResourceBucket(): ResourceBucket {
   return {
@@ -625,7 +649,37 @@ async function listOpenLaneQueueItems(args: {
     .sort(compareQueueOrder);
 }
 
+function isBuildingUpgradeQueueItem(
+  item: Doc<"colonyQueueItems">,
+): item is Doc<"colonyQueueItems"> & {
+  kind: "buildingUpgrade";
+  payload: {
+    buildingKey: BuildingKey;
+    fromLevel: number;
+    toLevel: number;
+  };
+} {
+  return item.kind === "buildingUpgrade" && "buildingKey" in item.payload;
+}
+
+function isShipBuildQueueItem(
+  item: Doc<"colonyQueueItems">,
+): item is Doc<"colonyQueueItems"> & {
+  kind: "shipBuild";
+  payload: {
+    completedQuantity: number;
+    perUnitDurationSeconds: number;
+    quantity: number;
+    shipKey: ShipKey;
+  };
+} {
+  return item.kind === "shipBuild" && "shipKey" in item.payload;
+}
+
 function queueItemFromToLevel(item: Doc<"colonyQueueItems">) {
+  if (!isBuildingUpgradeQueueItem(item)) {
+    throw new ConvexError("Queue item is not a building upgrade");
+  }
   return {
     fromLevel: item.payload.fromLevel,
     toLevel: item.payload.toLevel,
@@ -657,8 +711,13 @@ async function settleColonyAndPersist(args: {
     Id<"colonyQueueItems">,
     Partial<Doc<"colonyQueueItems">>
   >();
-  let activeQueue = queueRows.find((row) => row.status === "active") ?? null;
-  const queued = queueRows.filter((row) => row.status === "queued");
+  let activeQueue =
+    queueRows.find(
+      (row) => row.status === "active" && isBuildingUpgradeQueueItem(row),
+    ) ?? null;
+  const queued = queueRows.filter(
+    (row) => row.status === "queued" && isBuildingUpgradeQueueItem(row),
+  );
 
   const markPatch = (
     queueId: Id<"colonyQueueItems">,
@@ -705,6 +764,9 @@ async function settleColonyAndPersist(args: {
       break;
     }
 
+    if (!isBuildingUpgradeQueueItem(activeQueue)) {
+      throw new ConvexError("Expected building queue item");
+    }
     const { toLevel } = queueItemFromToLevel(activeQueue);
     const buildingKey = activeQueue.payload.buildingKey;
     workingColony.buildings[buildingKey] = Math.max(
@@ -751,6 +813,151 @@ async function settleColonyAndPersist(args: {
   }
 
   return workingColony;
+}
+
+async function getColonyShipCount(args: {
+  colonyId: Id<"colonies">;
+  ctx: QueryCtx | MutationCtx;
+  shipKey: ShipKey;
+}) {
+  const row = await args.ctx.db
+    .query("colonyShips")
+    .withIndex("by_colony_and_ship_key", (q) =>
+      q.eq("colonyId", args.colonyId).eq("shipKey", args.shipKey),
+    )
+    .unique();
+  return row?.count ?? 0;
+}
+
+async function incrementColonyShipCount(args: {
+  amount: number;
+  colony: Doc<"colonies">;
+  ctx: MutationCtx;
+  now: number;
+  shipKey: ShipKey;
+}) {
+  const existing = await args.ctx.db
+    .query("colonyShips")
+    .withIndex("by_colony_and_ship_key", (q) =>
+      q.eq("colonyId", args.colony._id).eq("shipKey", args.shipKey),
+    )
+    .unique();
+
+  const nextCount = Math.max(0, (existing?.count ?? 0) + args.amount);
+  if (existing) {
+    await args.ctx.db.patch(existing._id, {
+      count: nextCount,
+      updatedAt: args.now,
+    });
+    return;
+  }
+
+  await args.ctx.db.insert("colonyShips", {
+    universeId: args.colony.universeId,
+    playerId: args.colony.playerId,
+    colonyId: args.colony._id,
+    shipKey: args.shipKey,
+    count: nextCount,
+    updatedAt: args.now,
+  });
+}
+
+async function settleShipyardQueue(args: {
+  colony: Doc<"colonies">;
+  ctx: MutationCtx;
+  now: number;
+}) {
+  const queueRows = await listOpenLaneQueueItems({
+    colonyId: args.colony._id,
+    ctx: args.ctx,
+    lane: "shipyard",
+  });
+
+  const queuePatchById = new Map<
+    Id<"colonyQueueItems">,
+    Partial<Doc<"colonyQueueItems">>
+  >();
+  let activeQueue =
+    queueRows.find((row) => row.status === "active" && isShipBuildQueueItem(row)) ??
+    null;
+  const queued = queueRows.filter(
+    (row) => row.status === "queued" && isShipBuildQueueItem(row),
+  );
+
+  const markPatch = (
+    queueId: Id<"colonyQueueItems">,
+    patch: Partial<Doc<"colonyQueueItems">>,
+  ) => {
+    const existing = queuePatchById.get(queueId) ?? {};
+    queuePatchById.set(queueId, { ...existing, ...patch });
+  };
+
+  if (!activeQueue && queued.length > 0) {
+    activeQueue = queued.shift() ?? null;
+    if (activeQueue) {
+      markPatch(activeQueue._id, {
+        status: "active",
+        updatedAt: args.now,
+      });
+    }
+  }
+
+  while (activeQueue) {
+    if (!isShipBuildQueueItem(activeQueue)) {
+      throw new ConvexError("Expected ship build queue item");
+    }
+    const payload = activeQueue.payload;
+    let completedQuantity = payload.completedQuantity;
+    const unitDurationMs = payload.perUnitDurationSeconds * 1_000;
+
+    while (completedQuantity < payload.quantity) {
+      const nextUnitAt = activeQueue.startsAt + (completedQuantity + 1) * unitDurationMs;
+      if (nextUnitAt > args.now) {
+        break;
+      }
+
+      await incrementColonyShipCount({
+        amount: 1,
+        colony: args.colony,
+        ctx: args.ctx,
+        now: args.now,
+        shipKey: payload.shipKey,
+      });
+      completedQuantity += 1;
+    }
+
+    markPatch(activeQueue._id, {
+      payload: {
+        ...payload,
+        completedQuantity,
+      },
+      updatedAt: args.now,
+    });
+
+    if (completedQuantity < payload.quantity) {
+      break;
+    }
+
+    markPatch(activeQueue._id, {
+      resolvedAt: args.now,
+      status: "completed",
+      updatedAt: args.now,
+    });
+
+    activeQueue = queued.shift() ?? null;
+    if (!activeQueue) {
+      break;
+    }
+
+    markPatch(activeQueue._id, {
+      status: "active",
+      updatedAt: args.now,
+    });
+  }
+
+  for (const [queueId, patch] of queuePatchById.entries()) {
+    await args.ctx.db.patch(queueId, patch);
+  }
 }
 
 async function listPlayerColonies(args: {
@@ -1554,7 +1761,11 @@ export const getResourceManagementView = query({
       now,
       rows: queueRows,
     });
-    const shipyardLane = emptyLaneQueueView("shipyard");
+    const shipyardLane = buildLaneQueueView({
+      lane: "shipyard",
+      now,
+      rows: queueRows,
+    });
     const researchLane = emptyLaneQueueView("research");
     const queueBlocked = buildingLane.isFull;
     const openBuildingQueueRows = queueRows.filter(
@@ -1571,14 +1782,19 @@ export const getResourceManagementView = query({
       const config = BUILDING_CONFIG[key];
       const currentLevel = colony.buildings[key];
       const projectedLevel = openBuildingQueueRows.reduce((level, row) => {
-        if (row.kind !== "buildingUpgrade" || row.payload.buildingKey !== key) {
+        if (!isBuildingUpgradeQueueItem(row) || row.payload.buildingKey !== key) {
           return level;
         }
         return Math.max(level, row.payload.toLevel);
       }, currentLevel);
-      const isUpgrading = buildingLane.activeItem?.payload.buildingKey === key;
+      const isUpgrading = Boolean(
+        buildingLane.activeItem &&
+        "buildingKey" in buildingLane.activeItem.payload &&
+        buildingLane.activeItem.payload.buildingKey === key,
+      );
       const isQueued = buildingLane.pendingItems.some(
-        (item) => item.payload.buildingKey === key,
+        (item) =>
+          "buildingKey" in item.payload && item.payload.buildingKey === key,
       );
 
       let maxLevel = STORAGE_BUILDING_MAX_LEVEL;
@@ -1805,10 +2021,15 @@ export const syncColony = mutation({
       colonyId: args.colonyId,
     });
 
-    await settleColonyAndPersist({
+    const settledColony = await settleColonyAndPersist({
       ctx,
       colony,
       planet,
+      now,
+    });
+    await settleShipyardQueue({
+      colony: settledColony,
+      ctx,
       now,
     });
 
@@ -1862,7 +2083,7 @@ export const enqueueBuildingUpgrade = mutation({
     const config = BUILDING_CONFIG[args.buildingKey];
     let projectedLevel = settledColony.buildings[args.buildingKey];
     for (const row of queueRows) {
-      if (row.kind !== "buildingUpgrade") {
+      if (!isBuildingUpgradeQueueItem(row)) {
         continue;
       }
       if (row.payload.buildingKey !== args.buildingKey) {
@@ -1963,6 +2184,235 @@ export const enqueueBuildingUpgrade = mutation({
       startsAt,
       completesAt,
       durationSeconds,
+      status,
+    };
+  },
+});
+
+const shipDefinitionViewValidator = v.object({
+  key: shipKeyValidator,
+  name: v.string(),
+  requiredShipyardLevel: v.number(),
+  owned: v.number(),
+  queued: v.number(),
+  cargoCapacity: v.number(),
+  speed: v.number(),
+  fuelPerDistance: v.number(),
+  cost: resourceBucketValidator,
+  perUnitDurationSeconds: v.number(),
+  canBuild: v.boolean(),
+});
+
+export const getShipyardView = query({
+  args: {
+    colonyId: v.id("colonies"),
+  },
+  returns: v.object({
+    colonyId: v.id("colonies"),
+    shipyardLevel: v.number(),
+    nextEventAt: v.optional(v.number()),
+    lane: laneQueueViewValidator,
+    ships: v.array(shipDefinitionViewValidator),
+  }),
+  handler: async (ctx, args) => {
+    const { colony } = await getOwnedColony({
+      ctx,
+      colonyId: args.colonyId,
+    });
+
+    const queueRows = await listColonyQueueItems({
+      colonyId: colony._id,
+      ctx,
+    });
+    const shipyardLane = buildLaneQueueView({
+      lane: "shipyard",
+      now: Date.now(),
+      rows: queueRows,
+    });
+    const openShipyardRows = queueRows.filter(
+      (row) =>
+        row.lane === "shipyard" &&
+        OPEN_QUEUE_STATUSES.includes(row.status) &&
+        isShipBuildQueueItem(row),
+    );
+    const shipRows = await ctx.db
+      .query("colonyShips")
+      .withIndex("by_colony", (q) => q.eq("colonyId", colony._id))
+      .collect();
+    const countsByShip = new Map<ShipKey, number>();
+    for (const row of shipRows) {
+      countsByShip.set(row.shipKey, row.count);
+    }
+
+    const ships = (Object.keys(DEFAULT_SHIP_DEFINITIONS) as ShipKey[]).map(
+      (shipKey) => {
+        const definition = DEFAULT_SHIP_DEFINITIONS[shipKey];
+        const costWhole = definition.cost;
+        const costScaled = resourceMapToScaledBucket(costWhole);
+        const queued = openShipyardRows.reduce((total, row) => {
+          if (!isShipBuildQueueItem(row)) {
+            return total;
+          }
+          if (row.payload.shipKey !== shipKey) {
+            return total;
+          }
+          return total + Math.max(0, row.payload.quantity - row.payload.completedQuantity);
+        }, 0);
+        const canAfford = RESOURCE_KEYS.every(
+          (resourceKey) => colony.resources[resourceKey] >= costScaled[resourceKey],
+        );
+        const unlocked = colony.buildings.shipyardLevel >= definition.requiredShipyardLevel;
+        const canBuild = unlocked && canAfford && !shipyardLane.isFull;
+
+        return {
+          key: shipKey,
+          name: definition.name,
+          requiredShipyardLevel: definition.requiredShipyardLevel,
+          owned: countsByShip.get(shipKey) ?? 0,
+          queued,
+          cargoCapacity: definition.cargoCapacity,
+          speed: definition.speed,
+          fuelPerDistance: definition.fuelPerDistance,
+          cost: costWhole,
+          perUnitDurationSeconds: getShipBuildDurationSeconds({
+            shipKey,
+            shipyardLevel: colony.buildings.shipyardLevel,
+          }),
+          canBuild,
+        };
+      },
+    );
+
+    return {
+      colonyId: colony._id,
+      shipyardLevel: colony.buildings.shipyardLevel,
+      nextEventAt: queueEventsNextAt(queueRows) ?? undefined,
+      lane: shipyardLane,
+      ships,
+    };
+  },
+});
+
+export const enqueueShipBuild = mutation({
+  args: {
+    colonyId: v.id("colonies"),
+    shipKey: shipKeyValidator,
+    quantity: v.number(),
+  },
+  returns: v.object({
+    colonyId: v.id("colonies"),
+    queueItemId: v.id("colonyQueueItems"),
+    shipKey: shipKeyValidator,
+    quantity: v.number(),
+    startsAt: v.number(),
+    completesAt: v.number(),
+    perUnitDurationSeconds: v.number(),
+    status: queueItemStatusValidator,
+  }),
+  handler: async (ctx, args) => {
+    const quantity = Math.max(0, Math.floor(args.quantity));
+    if (quantity <= 0) {
+      throw new ConvexError("Quantity must be a positive integer");
+    }
+    if (quantity > 10_000) {
+      throw new ConvexError("Quantity exceeds maximum batch size");
+    }
+
+    const now = Date.now();
+    const { colony, planet, player } = await getOwnedColony({
+      ctx,
+      colonyId: args.colonyId,
+    });
+    const settledColony = await settleColonyAndPersist({
+      ctx,
+      colony,
+      planet,
+      now,
+    });
+    await settleShipyardQueue({
+      colony: settledColony,
+      ctx,
+      now,
+    });
+
+    const definition = DEFAULT_SHIP_DEFINITIONS[args.shipKey];
+    if (settledColony.buildings.shipyardLevel < definition.requiredShipyardLevel) {
+      throw new ConvexError("Shipyard level is too low for this ship");
+    }
+
+    const queueRows = await listOpenLaneQueueItems({
+      colonyId: settledColony._id,
+      ctx,
+      lane: "shipyard",
+    });
+    if (queueRows.length >= LANE_QUEUE_CAPACITY.shipyard) {
+      throw new ConvexError("Shipyard queue is full");
+    }
+
+    const perUnitCostScaled = resourceMapToScaledBucket(definition.cost);
+    const totalCostScaled: ResourceBucket = {
+      alloy: perUnitCostScaled.alloy * quantity,
+      crystal: perUnitCostScaled.crystal * quantity,
+      fuel: perUnitCostScaled.fuel * quantity,
+    };
+
+    for (const key of RESOURCE_KEYS) {
+      if (settledColony.resources[key] < totalCostScaled[key]) {
+        throw new ConvexError(`Not enough ${key} to queue ship build`);
+      }
+    }
+
+    const nextResources = cloneResourceBucket(settledColony.resources);
+    for (const key of RESOURCE_KEYS) {
+      nextResources[key] -= totalCostScaled[key];
+    }
+
+    const perUnitDurationSeconds = getShipBuildDurationSeconds({
+      shipKey: args.shipKey,
+      shipyardLevel: settledColony.buildings.shipyardLevel,
+    });
+
+    const laneTail = queueRows[queueRows.length - 1];
+    const startsAt = laneTail ? laneTail.completesAt : now;
+    const completesAt = startsAt + perUnitDurationSeconds * quantity * 1_000;
+    const status: QueueItemStatus = queueRows.length === 0 ? "active" : "queued";
+    const laneOrder = (laneTail?.order ?? 0) + 1;
+
+    await ctx.db.patch(settledColony._id, {
+      resources: nextResources,
+      updatedAt: now,
+    });
+
+    const queueItemId = await ctx.db.insert("colonyQueueItems", {
+      universeId: settledColony.universeId,
+      playerId: player._id,
+      colonyId: settledColony._id,
+      lane: "shipyard",
+      kind: "shipBuild",
+      status,
+      order: laneOrder,
+      queuedAt: now,
+      startsAt,
+      completesAt,
+      cost: totalCostScaled,
+      payload: {
+        shipKey: args.shipKey,
+        quantity,
+        completedQuantity: 0,
+        perUnitDurationSeconds,
+      },
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return {
+      colonyId: settledColony._id,
+      queueItemId,
+      shipKey: args.shipKey,
+      quantity,
+      startsAt,
+      completesAt,
+      perUnitDurationSeconds,
       status,
     };
   },

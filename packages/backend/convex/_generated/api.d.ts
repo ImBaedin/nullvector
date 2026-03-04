@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as fleet from "../fleet.js";
 import type * as gameplay from "../gameplay.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as http from "../http.js";
@@ -29,6 +30,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  fleet: typeof fleet;
   gameplay: typeof gameplay;
   healthCheck: typeof healthCheck;
   http: typeof http;

@@ -33,6 +33,15 @@ export {
 
 export { isUnlockSatisfied } from "./unlocks";
 export { BUILDING_KEYS } from "./gameplay";
+export {
+  DEFAULT_SHIP_DEFINITIONS,
+  EMPTY_SHIP_COUNTS,
+  getFleetCargoCapacity,
+  getFleetFuelCostForDistance,
+  getFleetSlowestSpeed,
+  getShipBuildDurationSeconds,
+  normalizeShipCounts,
+} from "./ships";
 
 export type {
   ColonyBuff,
@@ -57,9 +66,13 @@ export type {
   BuildingKey,
   BuildingUpgradeQueuePayload,
   LaneQueueItem,
+  QueueItemKind,
   QueueItemStatus,
   QueueLane,
   ResourceBucket,
   ResourceBuildingCardData,
   ResourceBuildingLevelRow,
+  ShipBuildQueuePayload,
+  ShipKey,
 } from "./gameplay";
+export type { ShipCounts, ShipDefinition } from "./ships";

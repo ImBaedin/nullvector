@@ -14,18 +14,23 @@ const planetCompositionTypeValidator = v.union(
   v.literal("icy"),
   v.literal("volatileRich"),
 );
-// MVP transport lifecycle.
-const transportStatusValidator = v.union(
-  v.literal("scheduled"),
-  v.literal("inTransit"),
-  v.literal("delivered"),
-);
-
-// Shared resource shape used in colony state and transport payloads.
+// Shared resource shape used in colony state, queue costs, and fleet payloads.
 const resourceBucketValidator = v.object({
   alloy: v.number(),
   crystal: v.number(),
   fuel: v.number(),
+});
+
+const shipKeyValidator = v.union(
+  v.literal("smallCargo"),
+  v.literal("largeCargo"),
+  v.literal("colonyShip"),
+);
+
+const shipCountsValidator = v.object({
+  smallCargo: v.number(),
+  largeCargo: v.number(),
+  colonyShip: v.number(),
 });
 
 // Explicit building fields keep mutations and migrations predictable.
@@ -73,13 +78,41 @@ const queueItemStatusValidator = v.union(
   v.literal("failed"),
 );
 
-const queueItemKindValidator = v.literal("buildingUpgrade");
+const queueItemKindValidator = v.union(
+  v.literal("buildingUpgrade"),
+  v.literal("shipBuild"),
+);
 
-const queuePayloadValidator = v.object({
-  buildingKey: upgradeBuildingKeyValidator,
-  fromLevel: v.number(),
-  toLevel: v.number(),
-});
+const queuePayloadValidator = v.union(
+  v.object({
+    buildingKey: upgradeBuildingKeyValidator,
+    fromLevel: v.number(),
+    toLevel: v.number(),
+  }),
+  v.object({
+    shipKey: shipKeyValidator,
+    quantity: v.number(),
+    completedQuantity: v.number(),
+    perUnitDurationSeconds: v.number(),
+  }),
+);
+
+const fleetMissionTypeValidator = v.union(
+  v.literal("colonize"),
+  v.literal("transport"),
+  v.literal("return"),
+);
+
+const fleetMissionStatusValidator = v.union(
+  v.literal("inTransit"),
+  v.literal("completed"),
+  v.literal("cancelled"),
+);
+
+const transportPostDeliveryActionValidator = v.union(
+  v.literal("returnToOrigin"),
+  v.literal("stationAtDestination"),
+);
 
 export default defineSchema({
   // Global world config. MVP expects one active universe, but all gameplay rows
@@ -273,40 +306,54 @@ export default defineSchema({
     .index("by_player_id_and_universe_id", ["playerId", "universeId"])
     .index("by_universe_id", ["universeId"]),
 
-  // Resource shipment records between a player's colonies.
-  transports: defineTable({
+  colonyShips: defineTable({
     universeId: v.id("universes"),
     playerId: v.id("players"),
+    colonyId: v.id("colonies"),
+    shipKey: shipKeyValidator,
+    count: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_colony_and_ship_key", ["colonyId", "shipKey"])
+    .index("by_colony", ["colonyId"])
+    .index("by_player", ["playerId"]),
+
+  // Unified outbound/return fleet missions.
+  fleetMissions: defineTable({
+    universeId: v.id("universes"),
+    playerId: v.id("players"),
+    missionType: fleetMissionTypeValidator,
+    status: fleetMissionStatusValidator,
     originColonyId: v.id("colonies"),
-    destinationColonyId: v.id("colonies"),
+    targetColonyId: v.optional(v.id("colonies")),
+    targetPlanetId: v.optional(v.id("planets")),
+    postDeliveryAction: v.optional(transportPostDeliveryActionValidator),
+    parentMissionId: v.optional(v.id("fleetMissions")),
+    shipCounts: shipCountsValidator,
     // Requested cargo at dispatch time.
     cargoRequested: resourceBucketValidator,
     // Portion accepted into destination storage on arrival.
     cargoDeliveredToStorage: resourceBucketValidator,
     // Portion routed into destination overflow when storage is full.
     cargoDeliveredToOverflow: resourceBucketValidator,
-    // Scaled integer fuel charge for this mission.
-    fuelCost: v.number(),
+    // Scaled integer fuel charge booked against this mission leg.
+    fuelCharged: v.number(),
+    // Optional waived fuel (used on cancellation return shortfall policy).
+    fuelWaived: v.optional(v.number()),
     // Distance basis used to derive travel duration and fuel cost.
     distance: v.number(),
     departAt: v.number(),
     arriveAt: v.number(),
-    status: transportStatusValidator,
+    cancelledAt: v.optional(v.number()),
     // Populated when mission reaches a terminal state.
     resolvedAt: v.optional(v.number()),
     createdAt: v.number(),
+    updatedAt: v.number(),
   })
-    .index("by_player_id_and_status", ["playerId", "status"])
-    .index("by_player_id_and_arrive_at", ["playerId", "arriveAt"])
-    .index("by_destination_colony_id_and_status", [
-      "destinationColonyId",
-      "status",
-    ])
-    .index("by_universe_id_and_status_and_arrive_at", [
-      "universeId",
-      "status",
-      "arriveAt",
-    ]),
+    .index("by_player_status_arrive", ["playerId", "status", "arriveAt"])
+    .index("by_target_planet_status", ["targetPlanetId", "status"])
+    .index("by_origin_status_arrive", ["originColonyId", "status", "arriveAt"])
+    .index("by_parent", ["parentMissionId"]),
 
   // Lane-scoped production/build queues and their history.
   colonyQueueItems: defineTable({

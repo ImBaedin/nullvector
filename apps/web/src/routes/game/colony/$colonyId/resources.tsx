@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { BatteryCharging, Layers3, Pickaxe, Radar } from "lucide-react";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import type { BuildingKey } from "@nullvector/game-logic";
+import type { BuildingKey, LaneQueueItem } from "@nullvector/game-logic";
 
 import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
 import {
@@ -121,6 +121,25 @@ function storageKeyForProduction(key: BuildingKey): BuildingKey | null {
   return null;
 }
 
+function isBuildingQueueItemPayload(item: {
+  kind: string;
+  payload: unknown;
+}): item is {
+  kind: "buildingUpgrade";
+  payload: {
+    buildingKey: BuildingKey;
+    fromLevel: number;
+    toLevel: number;
+  };
+} {
+  return (
+    item.kind === "buildingUpgrade" &&
+    typeof item.payload === "object" &&
+    item.payload !== null &&
+    "buildingKey" in item.payload
+  );
+}
+
 function ResourcesRoute() {
   const { colonyId } = Route.useParams();
   const colonyIdAsId = colonyId as Id<"colonies">;
@@ -191,6 +210,13 @@ function ResourcesRoute() {
   const buildingQueue = view?.queues.lanes.building;
   const activeQueueItem = buildingQueue?.activeItem;
   const pendingQueueItems = buildingQueue?.pendingItems ?? [];
+  const activeBuildingQueueItem: LaneQueueItem | null =
+    activeQueueItem && isBuildingQueueItemPayload(activeQueueItem)
+      ? (activeQueueItem as LaneQueueItem)
+      : null;
+  const pendingBuildingQueueItems: LaneQueueItem[] = pendingQueueItems.filter(
+    isBuildingQueueItemPayload,
+  ) as LaneQueueItem[];
   const remainingTimeLabel = activeQueueItem
     ? formatDuration(Math.max(0, activeQueueItem.completesAt - nowMs))
     : null;
@@ -297,11 +323,11 @@ function ResourcesRoute() {
           }
 
           const groupVisual = GROUP_VISUALS[group.groupId];
-          const queueCount = pendingQueueItems.filter((item) =>
+          const queueCount = pendingBuildingQueueItems.filter((item) =>
             visibleStructureKeys.has(item.payload.buildingKey),
           ).length;
-          const activeUpgradeInGroup = activeQueueItem
-            ? visibleStructureKeys.has(activeQueueItem.payload.buildingKey)
+          const activeUpgradeInGroup = activeBuildingQueueItem
+            ? visibleStructureKeys.has(activeBuildingQueueItem.payload.buildingKey)
             : false;
 
           return (
@@ -361,13 +387,13 @@ function ResourcesRoute() {
                       const targetTableOpen =
                         activeTableBuildingKey === targetBuilding.key;
                       const targetBusy = upgradingKey === targetBuilding.key;
-                      const targetQueued = pendingQueueItems.find(
+                      const targetQueued = pendingBuildingQueueItems.find(
                         (item) => item.payload.buildingKey === targetBuilding.key,
                       );
 
                       return (
                         <ResourceBuildingCard
-                          activeQueueItem={activeQueueItem ?? null}
+                          activeQueueItem={activeBuildingQueueItem}
                           building={targetBuilding}
                           buildingQueueIsFull={buildingQueue?.isFull ?? false}
                           energyRatio={view.resources.energyRatio}

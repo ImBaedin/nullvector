@@ -31,8 +31,21 @@ export type BuildingUpgradeQueuePayload = {
   toLevel: number;
 };
 
+export const SHIP_KEYS = ["smallCargo", "largeCargo", "colonyShip"] as const;
+export type ShipKey = (typeof SHIP_KEYS)[number];
+
+export type ShipBuildQueuePayload = {
+  completedQuantity: number;
+  perUnitDurationSeconds: number;
+  quantity: number;
+  shipKey: ShipKey;
+};
+
+export type QueueItemKind = "buildingUpgrade" | "shipBuild";
+
 export type LaneQueueItem = {
   completesAt: number;
+  kind: QueueItemKind;
   payload: BuildingUpgradeQueuePayload;
   status: QueueItemStatus;
 };
