@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthCompleteRouteImport } from './routes/auth/complete'
 import { Route as GameColonyColonyIdRouteImport } from './routes/game/colony/$colonyId'
 import { Route as GameColonyColonyIdResourcesRouteImport } from './routes/game/colony/$colonyId/resources'
+import { Route as GameColonyColonyIdFaciltiesRouteImport } from './routes/game/colony/$colonyId/facilties'
 
 const UniverseExplorerRealdataRoute =
   UniverseExplorerRealdataRouteImport.update({
@@ -48,6 +49,12 @@ const GameColonyColonyIdResourcesRoute =
     path: '/resources',
     getParentRoute: () => GameColonyColonyIdRoute,
   } as any)
+const GameColonyColonyIdFaciltiesRoute =
+  GameColonyColonyIdFaciltiesRouteImport.update({
+    id: '/facilties',
+    path: '/facilties',
+    getParentRoute: () => GameColonyColonyIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -55,6 +62,7 @@ export interface FileRoutesByFullPath {
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
   '/auth/complete': typeof AuthCompleteRoute
   '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
+  '/game/colony/$colonyId/facilties': typeof GameColonyColonyIdFaciltiesRoute
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
 }
 export interface FileRoutesByTo {
@@ -63,6 +71,7 @@ export interface FileRoutesByTo {
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
   '/auth/complete': typeof AuthCompleteRoute
   '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
+  '/game/colony/$colonyId/facilties': typeof GameColonyColonyIdFaciltiesRoute
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
 }
 export interface FileRoutesById {
@@ -72,6 +81,7 @@ export interface FileRoutesById {
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
   '/auth/complete': typeof AuthCompleteRoute
   '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
+  '/game/colony/$colonyId/facilties': typeof GameColonyColonyIdFaciltiesRoute
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
 }
 export interface FileRouteTypes {
@@ -82,6 +92,7 @@ export interface FileRouteTypes {
     | '/universe-explorer-realdata'
     | '/auth/complete'
     | '/game/colony/$colonyId'
+    | '/game/colony/$colonyId/facilties'
     | '/game/colony/$colonyId/resources'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -90,6 +101,7 @@ export interface FileRouteTypes {
     | '/universe-explorer-realdata'
     | '/auth/complete'
     | '/game/colony/$colonyId'
+    | '/game/colony/$colonyId/facilties'
     | '/game/colony/$colonyId/resources'
   id:
     | '__root__'
@@ -98,6 +110,7 @@ export interface FileRouteTypes {
     | '/universe-explorer-realdata'
     | '/auth/complete'
     | '/game/colony/$colonyId'
+    | '/game/colony/$colonyId/facilties'
     | '/game/colony/$colonyId/resources'
   fileRoutesById: FileRoutesById
 }
@@ -153,14 +166,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GameColonyColonyIdResourcesRouteImport
       parentRoute: typeof GameColonyColonyIdRoute
     }
+    '/game/colony/$colonyId/facilties': {
+      id: '/game/colony/$colonyId/facilties'
+      path: '/facilties'
+      fullPath: '/game/colony/$colonyId/facilties'
+      preLoaderRoute: typeof GameColonyColonyIdFaciltiesRouteImport
+      parentRoute: typeof GameColonyColonyIdRoute
+    }
   }
 }
 
 interface GameColonyColonyIdRouteChildren {
+  GameColonyColonyIdFaciltiesRoute: typeof GameColonyColonyIdFaciltiesRoute
   GameColonyColonyIdResourcesRoute: typeof GameColonyColonyIdResourcesRoute
 }
 
 const GameColonyColonyIdRouteChildren: GameColonyColonyIdRouteChildren = {
+  GameColonyColonyIdFaciltiesRoute: GameColonyColonyIdFaciltiesRoute,
   GameColonyColonyIdResourcesRoute: GameColonyColonyIdResourcesRoute,
 }
 

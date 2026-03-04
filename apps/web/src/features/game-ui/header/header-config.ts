@@ -45,11 +45,19 @@ const PLACEHOLDER_TAB_ICON_SRC: Record<ContextNavItem["id"], string> = {
   fleet: "/game-icons/nav/fleet.png",
 };
 
-function buildPlaceholderTabs(basePath: string): ContextNavItem[] {
+function buildPlaceholderTabs(basePaths: {
+  facilities: string;
+  resources: string;
+}): ContextNavItem[] {
   return PLACEHOLDER_TAB_IDS.map((id) => ({
     id,
     label: id[0].toUpperCase() + id.slice(1),
-    to: id === "resources" ? basePath : `/style-lab`,
+    to:
+      id === "resources"
+        ? basePaths.resources
+        : id === "facilities"
+          ? basePaths.facilities
+          : `/style-lab`,
     icon: createElement("img", {
       alt: `${id} nav icon`,
       className: "h-10 w-10 shrink-0 object-contain",
@@ -104,14 +112,23 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
 
   const encodedColonyId = encodeURIComponent(colonyId);
   const resourcesPath = `/game/colony/${encodedColonyId}/resources`;
+  const facilitiesPath = `/game/colony/${encodedColonyId}/facilties`;
   const isResourcesRoute = pathname === resourcesPath;
+  const isFacilitiesRoute = pathname === facilitiesPath;
 
   if (!hud) {
     return {
       mode: "game",
       title: isResourcesRoute ? `Colony ${colonyId} Resources` : `Colony ${colonyId}`,
-      activeTabId: isResourcesRoute ? "resources" : "overview",
-      contextTabs: buildPlaceholderTabs(resourcesPath),
+      activeTabId: isResourcesRoute
+        ? "resources"
+        : isFacilitiesRoute
+          ? "facilities"
+          : "overview",
+      contextTabs: buildPlaceholderTabs({
+        facilities: facilitiesPath,
+        resources: resourcesPath,
+      }),
       notificationsCount: 0,
     };
   }
@@ -120,14 +137,21 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
     mode: "game",
     title: hud.title,
     activeColonyId: hud.activeColonyId,
-    activeTabId: isResourcesRoute ? "resources" : "overview",
+    activeTabId: isResourcesRoute
+      ? "resources"
+      : isFacilitiesRoute
+        ? "facilities"
+        : "overview",
     colonies: hud.colonies.map((colony) => ({
       id: colony.id,
       name: colony.name,
       addressLabel: colony.addressLabel,
       status: colony.status,
     })),
-    contextTabs: buildPlaceholderTabs(resourcesPath),
+    contextTabs: buildPlaceholderTabs({
+      facilities: facilitiesPath,
+      resources: resourcesPath,
+    }),
     notificationsCount: 0,
     resources: hud.resources,
   };
