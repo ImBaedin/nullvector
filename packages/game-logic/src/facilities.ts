@@ -91,13 +91,6 @@ export const DEFAULT_FACILITIES: FacilityDefinition[] = [
       baseSeconds: 180,
       formula: makeExponentialUpgradeFormula(1.28),
     },
-    unlock: {
-      type: "all",
-      rules: [
-        { type: "facility_level", facilityId: "robotics_hub", minLevel: 4 },
-        { type: "facility_level", facilityId: "logistics_nexus", minLevel: 2 },
-      ],
-    },
     buffs: [
       {
         type: "ship_unlock",

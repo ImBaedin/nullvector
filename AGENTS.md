@@ -7,4 +7,5 @@
 - For Better Auth + Convex web auth, do not manually call `/api/auth/convex/token` from app code; rely on `ConvexBetterAuthProvider` + `convexClient()` plugin and gate Convex queries/mutations with `useConvexAuth()`.
 - Queueing model has moved to lane-based `colonyQueueItems`; building upgrades snapshot `fromLevel/toLevel`, cost, and timing at enqueue (cost deducted immediately), and colony/UI queue timing should be driven by `queues.nextEventAt` instead of legacy `activeUpgrade`.
 - Shared gameplay DTO/key types now live in `packages/game-logic/src/gameplay.ts` (exported via `@nullvector/game-logic`); prefer importing `BuildingKey`/resource-card queue types from there instead of redefining them in web/backend modules.
-- `colonyQueueItems.payload` now includes multiple payload shapes (`buildingUpgrade` and `shipBuild`); in web/backend code, always narrow by `kind` (or payload shape guard) before reading fields like `payload.buildingKey`.
+- `colonyQueueItems.payload` now includes multiple payload shapes (`buildingUpgrade`, `facilityUpgrade`, and `shipBuild`); in web/backend code, always narrow by `kind` (or payload shape guard) before reading payload-specific fields.
+- Product direction clarification: default facility definitions are placeholders; keep unlock logic in place but avoid hard-gating shipyard until non-shipyard facilities are implemented.

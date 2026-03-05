@@ -9,6 +9,8 @@ export const BUILDING_KEYS = [
 ] as const;
 
 export type BuildingKey = (typeof BUILDING_KEYS)[number];
+export const FACILITY_KEYS = ["shipyard"] as const;
+export type FacilityKey = (typeof FACILITY_KEYS)[number];
 
 export type ResourceBucket = {
   alloy: number;
@@ -31,6 +33,12 @@ export type BuildingUpgradeQueuePayload = {
   toLevel: number;
 };
 
+export type FacilityUpgradeQueuePayload = {
+  facilityKey: FacilityKey;
+  fromLevel: number;
+  toLevel: number;
+};
+
 export const SHIP_KEYS = ["smallCargo", "largeCargo", "colonyShip"] as const;
 export type ShipKey = (typeof SHIP_KEYS)[number];
 
@@ -41,11 +49,11 @@ export type ShipBuildQueuePayload = {
   shipKey: ShipKey;
 };
 
-export type QueueItemKind = "buildingUpgrade" | "shipBuild";
+export type QueueItemKind = "buildingUpgrade" | "facilityUpgrade" | "shipBuild";
 
 export type LaneQueueItem = {
   completesAt: number;
-  kind: QueueItemKind;
+  kind: "buildingUpgrade";
   payload: BuildingUpgradeQueuePayload;
   status: QueueItemStatus;
 };

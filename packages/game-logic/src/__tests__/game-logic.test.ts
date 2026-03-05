@@ -168,7 +168,7 @@ test("facilities are unlock/buff structures", () => {
 
   expect(
     isFacilityUnlocked(shipyard, {
-      facilityLevels: { robotics_hub: 4, logistics_nexus: 2 },
+      facilityLevels: {},
       researchLevels: {},
     })
   ).toBe(true);
@@ -219,5 +219,5 @@ test("max level is enforced for structure costs and generator rates", () => {
       facilityLevels: {},
       researchLevels: {},
     })
-  ).toBe(false);
+  ).toBe(true);
 });

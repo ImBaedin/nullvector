@@ -32,7 +32,7 @@ export {
 } from "./structures";
 
 export { isUnlockSatisfied } from "./unlocks";
-export { BUILDING_KEYS } from "./gameplay";
+export { BUILDING_KEYS, FACILITY_KEYS } from "./gameplay";
 export {
   DEFAULT_SHIP_DEFINITIONS,
   EMPTY_SHIP_COUNTS,
@@ -65,6 +65,8 @@ export type {
 export type {
   BuildingKey,
   BuildingUpgradeQueuePayload,
+  FacilityKey,
+  FacilityUpgradeQueuePayload,
   LaneQueueItem,
   QueueItemKind,
   QueueItemStatus,

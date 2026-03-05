@@ -80,12 +80,20 @@ const queueItemStatusValidator = v.union(
 
 const queueItemKindValidator = v.union(
   v.literal("buildingUpgrade"),
+  v.literal("facilityUpgrade"),
   v.literal("shipBuild"),
 );
+
+const facilityKeyValidator = v.union(v.literal("shipyard"));
 
 const queuePayloadValidator = v.union(
   v.object({
     buildingKey: upgradeBuildingKeyValidator,
+    fromLevel: v.number(),
+    toLevel: v.number(),
+  }),
+  v.object({
+    facilityKey: facilityKeyValidator,
     fromLevel: v.number(),
     toLevel: v.number(),
   }),
