@@ -167,17 +167,17 @@ export function AppHeader({
   });
   const colonyId = parseColonyId(pathname);
   const colonyIdAsId = colonyId ? (colonyId as Id<"colonies">) : null;
-  const renameColony = useMutation(api.gameplay.renameColony);
+  const renameColony = useMutation(api.colonyNav.renameColony);
   const colonyNav = useQuery(
-    api.gameplay.getColonyNav,
+    api.colonyNav.getColonyNav,
     colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
   );
   const colonyResourceStrip = useQuery(
-    api.gameplay.getColonyResourceStrip,
+    api.colonyNav.getColonyResourceStrip,
     colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
   );
   const colonyQueueSummary = useQuery(
-    api.gameplay.getColonyQueueSummary,
+    api.colonyNav.getColonyQueueSummary,
     colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
   );
   const hud = useMemo<HeaderHudData | undefined>(() => {

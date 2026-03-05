@@ -103,11 +103,11 @@ function FacilitiesRoute() {
   const colonyIdAsId = colonyId as Id<"colonies">;
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const view = useQuery(
-    api.gameplay.getFacilitiesView,
+    api.facilities.getFacilitiesView,
     isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
   );
-  const syncColony = useMutation(api.gameplay.syncColony);
-  const enqueueFacilityUpgrade = useMutation(api.gameplay.enqueueFacilityUpgrade);
+  const syncColony = useMutation(api.colonyQueue.syncColony);
+  const enqueueFacilityUpgrade = useMutation(api.facilities.enqueueFacilityUpgrade);
   const [upgradingKey, setUpgradingKey] = useState<FacilityKey | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const isSyncingRef = useRef(false);

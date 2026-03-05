@@ -146,12 +146,12 @@ function ResourcesRoute() {
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
   const view = useQuery(
-    api.gameplay.getResourceManagementView,
+    api.resources.getResourceManagementView,
     isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
   );
-  const syncColony = useMutation(api.gameplay.syncColony);
+  const syncColony = useMutation(api.colonyQueue.syncColony);
   const enqueueBuildingUpgrade = useMutation(
-    api.gameplay.enqueueBuildingUpgrade,
+    api.resources.enqueueBuildingUpgrade,
   );
 
   const [activeTableBuildingKey, setActiveTableBuildingKey] =

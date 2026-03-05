@@ -15,7 +15,7 @@ function AuthCompleteRoute() {
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
   const { data: betterAuthSession, isPending: isBetterAuthPending } =
     authClient.useSession();
-  const ensureSession = useMutation(api.gameplay.ensureSession);
+  const ensureSession = useMutation(api.session.ensureSession);
   const inFlightRef = useRef(false);
   const firstSeenAtRef = useRef<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);

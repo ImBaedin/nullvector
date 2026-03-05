@@ -198,7 +198,7 @@ function ColonyStarMapLayer({
   const pendingHoverRef = useRef<HoverPanelState | null>(null);
   const initializedColonyIdRef = useRef<Id<"colonies"> | null>(null);
   const coordinates = useQuery(
-    api.gameplay.getColonyCoordinates,
+    api.colonyNav.getColonyCoordinates,
     isAuthenticated ? { colonyId } : "skip"
   );
 

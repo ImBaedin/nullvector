@@ -9,8 +9,10 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as colonyNav from "../colonyNav.js";
+import type * as colonyQueue from "../colonyQueue.js";
+import type * as facilities from "../facilities.js";
 import type * as fleet from "../fleet.js";
-import type * as gameplay from "../gameplay.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as http from "../http.js";
 import type * as lib_worldgen_config from "../lib/worldgen/config.js";
@@ -19,6 +21,9 @@ import type * as lib_worldgen_pipeline from "../lib/worldgen/pipeline.js";
 import type * as lib_worldgen_planet from "../lib/worldgen/planet.js";
 import type * as lib_worldgen_prng from "../lib/worldgen/prng.js";
 import type * as privateData from "../privateData.js";
+import type * as resources from "../resources.js";
+import type * as session from "../session.js";
+import type * as shipyard from "../shipyard.js";
 import type * as universeExplorer from "../universeExplorer.js";
 import type * as worldGeneration from "../worldGeneration.js";
 
@@ -30,8 +35,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  colonyNav: typeof colonyNav;
+  colonyQueue: typeof colonyQueue;
+  facilities: typeof facilities;
   fleet: typeof fleet;
-  gameplay: typeof gameplay;
   healthCheck: typeof healthCheck;
   http: typeof http;
   "lib/worldgen/config": typeof lib_worldgen_config;
@@ -40,6 +47,9 @@ declare const fullApi: ApiFromModules<{
   "lib/worldgen/planet": typeof lib_worldgen_planet;
   "lib/worldgen/prng": typeof lib_worldgen_prng;
   privateData: typeof privateData;
+  resources: typeof resources;
+  session: typeof session;
+  shipyard: typeof shipyard;
   universeExplorer: typeof universeExplorer;
   worldGeneration: typeof worldGeneration;
 }>;
