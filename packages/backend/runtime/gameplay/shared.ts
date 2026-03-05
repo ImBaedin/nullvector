@@ -666,16 +666,28 @@ async function listOpenLaneQueueItems(args: {
   ctx: QueryCtx | MutationCtx;
   lane: QueueLane;
 }) {
-  const rows = await args.ctx.db
-    .query("colonyQueueItems")
-    .withIndex("by_col_lane_ord", (q) =>
-      q.eq("colonyId", args.colonyId).eq("lane", args.lane),
-    )
-    .collect();
+  const [activeRows, queuedRows] = await Promise.all([
+    args.ctx.db
+      .query("colonyQueueItems")
+      .withIndex("by_col_lane_st", (q) =>
+        q
+          .eq("colonyId", args.colonyId)
+          .eq("lane", args.lane)
+          .eq("status", "active"),
+      )
+      .collect(),
+    args.ctx.db
+      .query("colonyQueueItems")
+      .withIndex("by_col_lane_st", (q) =>
+        q
+          .eq("colonyId", args.colonyId)
+          .eq("lane", args.lane)
+          .eq("status", "queued"),
+      )
+      .collect(),
+  ]);
 
-  return rows
-    .filter((row) => OPEN_QUEUE_STATUSES.includes(row.status))
-    .sort(compareQueueOrder);
+  return [...activeRows, ...queuedRows].sort(compareQueueOrder);
 }
 
 function isBuildingUpgradeQueueItem(
@@ -1025,14 +1037,26 @@ async function listPlayerColonies(args: {
   return colonies;
 }
 
-async function listColonyQueueItems(args: {
+async function listOpenColonyQueueItems(args: {
   colonyId: Id<"colonies">;
   ctx: QueryCtx | MutationCtx;
 }) {
-  return await args.ctx.db
-    .query("colonyQueueItems")
-    .withIndex("by_col_lane_ord", (q) => q.eq("colonyId", args.colonyId))
-    .collect();
+  const [activeRows, queuedRows] = await Promise.all([
+    args.ctx.db
+      .query("colonyQueueItems")
+      .withIndex("by_col_st_time", (q) =>
+        q.eq("colonyId", args.colonyId).eq("status", "active"),
+      )
+      .collect(),
+    args.ctx.db
+      .query("colonyQueueItems")
+      .withIndex("by_col_st_time", (q) =>
+        q.eq("colonyId", args.colonyId).eq("status", "queued"),
+      )
+      .collect(),
+  ]);
+
+  return [...activeRows, ...queuedRows].sort(compareQueueOrder);
 }
 
 function sessionStateValidator() {
@@ -1310,16 +1334,6 @@ async function getBuildingQueueStatusForColony(args: {
   return status;
 }
 
-const levelTableRowValidator = v.object({
-  level: v.number(),
-  outputPerMinute: v.number(),
-  energyUsePerMinute: v.number(),
-  deltaOutputPerMinute: v.number(),
-  deltaEnergyPerMinute: v.number(),
-  cost: resourceBucketValidator,
-  durationSeconds: v.number(),
-});
-
 const buildingCardValidator = v.object({
   key: buildingKeyValidator,
   name: v.string(),
@@ -1345,7 +1359,6 @@ const buildingCardValidator = v.object({
   canUpgrade: v.boolean(),
   nextUpgradeDurationSeconds: v.optional(v.number()),
   nextUpgradeCost: resourceBucketValidator,
-  levelTable: v.array(levelTableRowValidator),
 });
 
 const facilityCardValidator = v.object({
@@ -1427,8 +1440,7 @@ export {
   isStorageBuildingKey,
   incrementColonyShipCount,
   laneQueueViewValidator,
-  levelTableRowValidator,
-  listColonyQueueItems,
+  listOpenColonyQueueItems,
   listOpenLaneQueueItems,
   listPlayerColonyPlanets,
   listPlayerColonies,

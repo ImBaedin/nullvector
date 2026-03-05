@@ -61,6 +61,16 @@ const GROUP_VISUALS = {
   },
 } satisfies Record<string, GroupVisual>;
 
+const EMPTY_BUILDING_LEVELS: Record<BuildingKey, number> = {
+  alloyMineLevel: 0,
+  crystalMineLevel: 0,
+  fuelRefineryLevel: 0,
+  powerPlantLevel: 0,
+  alloyStorageLevel: 0,
+  crystalStorageLevel: 0,
+  fuelStorageLevel: 0,
+};
+
 type GeneratorGroupId = keyof typeof GROUP_VISUALS;
 
 function formatDuration(ms: number) {
@@ -266,6 +276,13 @@ function ResourcesRoute() {
 
     return keys;
   }, [buildingsByKey, view?.buildings]);
+  const buildingLevels = useMemo(() => {
+    const levels = { ...EMPTY_BUILDING_LEVELS };
+    for (const building of view?.buildings ?? []) {
+      levels[building.key] = building.currentLevel;
+    }
+    return levels;
+  }, [view?.buildings]);
 
   useGameTimedSync({
     enabled: isAuthenticated,
@@ -395,11 +412,13 @@ function ResourcesRoute() {
                         <ResourceBuildingCard
                           activeQueueItem={activeBuildingQueueItem}
                           building={targetBuilding}
+                          buildingLevels={buildingLevels}
                           buildingQueueIsFull={buildingQueue?.isFull ?? false}
                           energyRatio={view.resources.energyRatio}
                           isBusy={targetBusy}
                           isTableOpen={targetTableOpen}
                           overflow={view.resources.overflow}
+                          planetMultipliers={view.planetMultipliers}
                           queuedForBuilding={targetQueued ?? null}
                           remainingTimeLabel={remainingTimeLabel}
                           key={targetBuilding.key}

@@ -10,3 +10,4 @@
 - `colonyQueueItems.payload` now includes multiple payload shapes (`buildingUpgrade`, `facilityUpgrade`, and `shipBuild`); in web/backend code, always narrow by `kind` (or payload shape guard) before reading payload-specific fields.
 - Product direction clarification: default facility definitions are placeholders; keep unlock logic in place but avoid hard-gating shipyard until non-shipyard facilities are implemented.
 - Ship build completion is materialized by `settleShipyardQueue` (typically via colony sync/enqueue paths); `convex/fleet.ts` mutations do not currently run that settlement, so fleet actions can see stale ship counts until a sync occurs.
+- Shipyard wiring decisions (2026-03-05): implement ship queue cancellation with full refunds, keep unlock checks shipyard-level-only for now (no research gating yet), and set ship build quantity UI cap to 10,000 to match backend.

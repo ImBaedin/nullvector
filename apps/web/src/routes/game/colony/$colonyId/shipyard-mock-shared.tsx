@@ -24,6 +24,12 @@ export type QueueItem = {
   total: number;
 };
 
+type QueuePanelShipCatalogEntry = {
+  cost: { alloy: number; crystal: number; fuel: number };
+  image: string;
+  name: string;
+};
+
 export const SHIPS: ShipDefinition[] = [
   {
     buildSeconds: 42,
@@ -188,15 +194,26 @@ export function cancelQueueItem(current: QueueItem[], id: string) {
 
 export function QueuePanel(props: {
   className?: string;
+  fleetTotal?: number;
   items: QueueItem[];
   onCancel: (id: string) => void;
+  shipCatalog?: QueuePanelShipCatalogEntry[];
   showCosts?: boolean;
   title?: ReactNode;
 }) {
-  const { className, items, onCancel, showCosts = false, title } = props;
+  const {
+    className,
+    fleetTotal,
+    items,
+    onCancel,
+    shipCatalog,
+    showCosts = false,
+    title,
+  } = props;
   const active = items.find((item) => item.isActive);
   const railItems = items;
-  const fleetTotal = SHIPS.reduce((sum, ship) => sum + ship.stock, 0);
+  const ships = shipCatalog ?? SHIPS;
+  const totalFleet = fleetTotal ?? SHIPS.reduce((sum, ship) => sum + ship.stock, 0);
   return (
     <section className={`rounded-xl border border-white/12 bg-black/25 p-3 ${className ?? ""}`}>
       <div className="flex items-center justify-between gap-2">
@@ -204,7 +221,7 @@ export function QueuePanel(props: {
           {title ?? "Production Queue"}
         </h3>
         <span className="text-[11px] text-white/60">
-          {items.length} items • Fleet {fleetTotal.toLocaleString()}
+          {items.length} items • Fleet {totalFleet.toLocaleString()}
         </span>
       </div>
 
@@ -221,7 +238,7 @@ export function QueuePanel(props: {
           </p>
         ) : null}
         {railItems.map((item, index) => {
-          const ship = SHIPS.find((entry) => entry.name === item.shipName);
+          const ship = ships.find((entry) => entry.name === item.shipName);
           const completed = Math.max(0, item.total - item.remaining);
           const progress =
             item.total > 0 ? Math.max(0, Math.min(100, Math.round((completed / item.total) * 100))) : 0;

@@ -76,7 +76,6 @@ export type ResourceBuildingCardData = {
   isQueued: boolean;
   isUpgrading: boolean;
   key: BuildingKey;
-  levelTable: ResourceBuildingLevelRow[];
   maxLevel: number;
   name: string;
   nextUpgradeCost: ResourceBucket;

@@ -23,7 +23,7 @@ import {
   facilityLevelsFromColony,
   getOwnedColony,
   isFacilityUpgradeQueueItem,
-  listColonyQueueItems,
+  listOpenColonyQueueItems,
   listOpenLaneQueueItems,
   queueEventsNextAt,
   queueLaneValidator,
@@ -58,7 +58,7 @@ export const getFacilitiesView = query({
       colonyId: args.colonyId,
     });
 
-    const queueRows = await listColonyQueueItems({
+    const queueRows = await listOpenColonyQueueItems({
       colonyId: colony._id,
       ctx,
     });
@@ -343,4 +343,3 @@ export const enqueueFacilityUpgrade = mutation({
     };
   },
 });
-

@@ -3,9 +3,11 @@ import {
   getShipBuildDurationSeconds,
 } from "@nullvector/game-logic";
 import type { ResourceBucket, ShipKey } from "@nullvector/game-logic";
+import type { Id } from "../../convex/_generated/dataModel";
 import { ConvexError, v } from "convex/values";
 
 import { mutation, query } from "../../convex/_generated/server";
+import { RESOURCE_SCALE } from "../../convex/schema";
 import {
   LANE_QUEUE_CAPACITY,
   OPEN_QUEUE_STATUSES,
@@ -15,7 +17,7 @@ import {
   getOwnedColony,
   isShipBuildQueueItem,
   laneQueueViewValidator,
-  listColonyQueueItems,
+  listOpenColonyQueueItems,
   listOpenLaneQueueItems,
   queueEventsNextAt,
   queueItemStatusValidator,
@@ -25,6 +27,78 @@ import {
   shipDefinitionViewValidator,
   shipKeyValidator,
 } from "./shared";
+
+type QueueItemId = string;
+type ShipQueueTimingPatch = {
+  completesAt: number;
+  queueItemId: QueueItemId;
+  startsAt: number;
+  status: "active" | "queued";
+};
+
+type ReschedulableShipQueueRow = {
+  payload: {
+    perUnitDurationSeconds: number;
+    quantity: number;
+  };
+  queueItemId: QueueItemId;
+  startsAt: number;
+  status: "active" | "queued";
+};
+
+export function computeScaledRefundForRemaining(args: {
+  completedQuantity: number;
+  quantity: number;
+  totalScaledCost: ResourceBucket;
+}) {
+  const { completedQuantity, quantity, totalScaledCost } = args;
+  const safeQuantity = Math.max(1, quantity);
+  const remainingQuantity = Math.max(0, quantity - completedQuantity);
+
+  return {
+    remainingQuantity,
+    refundedScaled: {
+      alloy: Math.floor((totalScaledCost.alloy * remainingQuantity) / safeQuantity),
+      crystal: Math.floor(
+        (totalScaledCost.crystal * remainingQuantity) / safeQuantity,
+      ),
+      fuel: Math.floor((totalScaledCost.fuel * remainingQuantity) / safeQuantity),
+    },
+  };
+}
+
+export function buildShipyardReschedulePatches(args: {
+  now: number;
+  rows: ReschedulableShipQueueRow[];
+}) {
+  const sorted = [...args.rows];
+  const currentActive = sorted.find((row) => row.status === "active");
+  const patches: ShipQueueTimingPatch[] = [];
+  let previousCompletesAt = 0;
+
+  for (const [index, row] of sorted.entries()) {
+    const status: "active" | "queued" = index === 0 ? "active" : "queued";
+    const startsAt =
+      index === 0
+        ? currentActive && currentActive.queueItemId === row.queueItemId
+          ? row.startsAt
+          : args.now
+        : previousCompletesAt;
+    const unitDurationMs = row.payload.perUnitDurationSeconds * 1_000;
+    const completesAt = startsAt + row.payload.quantity * unitDurationMs;
+    previousCompletesAt = completesAt;
+
+    patches.push({
+      queueItemId: row.queueItemId,
+      status,
+      startsAt,
+      completesAt,
+    });
+  }
+
+  return patches;
+}
+
 export const getShipyardView = query({
   args: {
     colonyId: v.id("colonies"),
@@ -32,6 +106,11 @@ export const getShipyardView = query({
   returns: v.object({
     colonyId: v.id("colonies"),
     shipyardLevel: v.number(),
+    availableResources: v.object({
+      alloy: v.number(),
+      crystal: v.number(),
+      fuel: v.number(),
+    }),
     nextEventAt: v.optional(v.number()),
     lane: laneQueueViewValidator,
     ships: v.array(shipDefinitionViewValidator),
@@ -42,7 +121,7 @@ export const getShipyardView = query({
       colonyId: args.colonyId,
     });
 
-    const queueRows = await listColonyQueueItems({
+    const queueRows = await listOpenColonyQueueItems({
       colonyId: colony._id,
       ctx,
     });
@@ -108,6 +187,11 @@ export const getShipyardView = query({
     return {
       colonyId: colony._id,
       shipyardLevel: colony.buildings.shipyardLevel,
+      availableResources: {
+        alloy: Math.floor(colony.resources.alloy / RESOURCE_SCALE),
+        crystal: Math.floor(colony.resources.crystal / RESOURCE_SCALE),
+        fuel: Math.floor(colony.resources.fuel / RESOURCE_SCALE),
+      },
       nextEventAt: queueEventsNextAt(queueRows) ?? undefined,
       lane: shipyardLane,
       ships,
@@ -236,6 +320,129 @@ export const enqueueShipBuild = mutation({
       completesAt,
       perUnitDurationSeconds,
       status,
+    };
+  },
+});
+
+export const cancelShipBuildQueueItem = mutation({
+  args: {
+    colonyId: v.id("colonies"),
+    queueItemId: v.id("colonyQueueItems"),
+  },
+  returns: v.object({
+    colonyId: v.id("colonies"),
+    queueItemId: v.id("colonyQueueItems"),
+    shipKey: shipKeyValidator,
+    cancelledRemainingQuantity: v.number(),
+    refunded: v.object({
+      alloy: v.number(),
+      crystal: v.number(),
+      fuel: v.number(),
+    }),
+    wasActive: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const { colony, planet } = await getOwnedColony({
+      ctx,
+      colonyId: args.colonyId,
+    });
+
+    const settledColony = await settleColonyAndPersist({
+      ctx,
+      colony,
+      planet,
+      now,
+    });
+    await settleShipyardQueue({
+      colony: settledColony,
+      ctx,
+      now,
+    });
+
+    const queueRows = await listOpenLaneQueueItems({
+      colonyId: settledColony._id,
+      ctx,
+      lane: "shipyard",
+    });
+    const targetRow = queueRows.find((row) => row._id === args.queueItemId);
+    if (!targetRow || !isShipBuildQueueItem(targetRow)) {
+      throw new ConvexError("Ship build queue item is not open");
+    }
+    const target = targetRow;
+
+    const { refundedScaled, remainingQuantity } = computeScaledRefundForRemaining({
+      completedQuantity: target.payload.completedQuantity,
+      quantity: target.payload.quantity,
+      totalScaledCost: target.cost,
+    });
+
+    const latestColony = await ctx.db.get(settledColony._id);
+    if (!latestColony) {
+      throw new ConvexError("Colony not found");
+    }
+    const nextResources = cloneResourceBucket(latestColony.resources);
+    const nextOverflow = cloneResourceBucket(latestColony.overflow);
+    for (const key of RESOURCE_KEYS) {
+      const cap = latestColony.storageCaps[key];
+      const storageRoom = Math.max(0, cap - nextResources[key]);
+      const toStorage = Math.min(refundedScaled[key], storageRoom);
+      const toOverflow = Math.max(0, refundedScaled[key] - toStorage);
+      nextResources[key] += toStorage;
+      nextOverflow[key] += toOverflow;
+    }
+
+    await ctx.db.patch(latestColony._id, {
+      resources: nextResources,
+      overflow: nextOverflow,
+      updatedAt: now,
+    });
+    await ctx.db.patch(target._id, {
+      resolvedAt: now,
+      status: "cancelled",
+      updatedAt: now,
+    });
+
+    const remainingRows = queueRows
+      .filter((row) => row._id !== target._id)
+      .filter(isShipBuildQueueItem)
+      .sort((left, right) => left.order - right.order);
+
+    if (remainingRows.length > 0) {
+      const timingPatches = buildShipyardReschedulePatches({
+        now,
+        rows: remainingRows.map((row) => ({
+          payload: {
+            perUnitDurationSeconds: row.payload.perUnitDurationSeconds,
+            quantity: row.payload.quantity,
+          },
+          queueItemId: row._id,
+          startsAt: row.startsAt,
+          status: row.status === "active" ? "active" : "queued",
+        })),
+      });
+
+      for (const patch of timingPatches) {
+        await ctx.db.patch(patch.queueItemId as Id<"colonyQueueItems">, {
+          startsAt: patch.startsAt,
+          completesAt: patch.completesAt,
+          status: patch.status,
+          updatedAt: now,
+        });
+      }
+    }
+
+    return {
+      colonyId: settledColony._id,
+      queueItemId: target._id,
+      shipKey: target.payload.shipKey,
+      cancelledRemainingQuantity: remainingQuantity,
+      refunded: {
+        alloy: Math.floor(refundedScaled.alloy / RESOURCE_SCALE),
+        crystal: Math.floor(refundedScaled.crystal / RESOURCE_SCALE),
+        fuel: Math.floor(refundedScaled.fuel / RESOURCE_SCALE),
+      },
+      wasActive: target.status === "active",
     };
   },
 });

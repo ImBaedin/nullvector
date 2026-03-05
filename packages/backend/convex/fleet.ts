@@ -16,6 +16,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
+import { settleShipyardQueue } from "../runtime/gameplay/shared";
 import { authComponent } from "./auth";
 import { RESOURCE_SCALE } from "./schema";
 
@@ -792,6 +793,12 @@ export const dispatchColonizationMission = mutation({
       throw new ConvexError("Cargo exceeds fleet cargo capacity");
     }
 
+    await settleShipyardQueue({
+      colony: origin.colony,
+      ctx,
+      now,
+    });
+
     await decrementShipsOrThrow({
       colony: origin.colony,
       ctx,
@@ -918,6 +925,12 @@ export const dispatchTransportMission = mutation({
       ctx,
       now,
       playerId: origin.player._id,
+    });
+
+    await settleShipyardQueue({
+      colony: origin.colony,
+      ctx,
+      now,
     });
 
     await decrementShipsOrThrow({
@@ -1105,4 +1118,3 @@ export const cancelFleetMission = mutation({
     };
   },
 });
-

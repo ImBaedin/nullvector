@@ -4,17 +4,30 @@ import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Clock3, Gauge, Info, Layers3, X } from "lucide-react";
+import {
+  DEFAULT_GENERATOR_REGISTRY,
+  getGeneratorProductionPerMinute,
+  getUpgradeCost,
+  getUpgradeDurationSeconds,
+} from "@nullvector/game-logic";
 import type {
   BuildingKey,
   LaneQueueItem,
   ResourceBucket,
   ResourceBuildingCardData,
+  ResourceBuildingLevelRow,
 } from "@nullvector/game-logic";
 
 import { UpgradeButton } from "@/features/ui-mockups/components/upgrade-button";
 
 type DeltaResourceKey = "alloy" | "crystal" | "fuel" | "energy";
 type CardStatus = "Running" | "Shortage" | "Overflow" | "Paused";
+type PlanetMultipliers = {
+  alloy: number;
+  crystal: number;
+  fuel: number;
+};
+type BuildingLevelSnapshot = Record<BuildingKey, number>;
 
 const BUILDING_VISUALS: Record<
   BuildingKey,
@@ -304,14 +317,274 @@ export function isProductionBuildingKey(key: BuildingKey) {
   );
 }
 
+const STORAGE_BUILDING_MAX_LEVEL = 25;
+const STORAGE_CAP_BASE_UNITS = 10_000;
+const STORAGE_CAP_GROWTH = 1.7;
+
+const STORAGE_UPGRADE_CONFIG: Record<
+  "alloyStorageLevel" | "crystalStorageLevel" | "fuelStorageLevel",
+  {
+    costBase: ResourceBucket;
+    costGrowth: number;
+    durationBaseSeconds: number;
+    durationGrowth: number;
+  }
+> = {
+  alloyStorageLevel: {
+    costBase: { alloy: 160, crystal: 60, fuel: 0 },
+    costGrowth: 1.58,
+    durationBaseSeconds: 110,
+    durationGrowth: 1.2,
+  },
+  crystalStorageLevel: {
+    costBase: { alloy: 130, crystal: 95, fuel: 0 },
+    costGrowth: 1.58,
+    durationBaseSeconds: 118,
+    durationGrowth: 1.2,
+  },
+  fuelStorageLevel: {
+    costBase: { alloy: 210, crystal: 90, fuel: 0 },
+    costGrowth: 1.6,
+    durationBaseSeconds: 126,
+    durationGrowth: 1.21,
+  },
+};
+
+function toWholeUnitBucket(resourceMap: Partial<Record<string, number>>): ResourceBucket {
+  return {
+    alloy: Math.max(0, Math.round(resourceMap.alloy ?? 0)),
+    crystal: Math.max(0, Math.round(resourceMap.crystal ?? 0)),
+    fuel: Math.max(0, Math.round(resourceMap.fuel ?? 0)),
+  };
+}
+
+function energyConsumptionForLevel(
+  buildingKey: "alloyMineLevel" | "crystalMineLevel" | "fuelRefineryLevel",
+  level: number,
+) {
+  if (level <= 0) {
+    return 0;
+  }
+  const base =
+    buildingKey === "alloyMineLevel"
+      ? 10
+      : buildingKey === "crystalMineLevel"
+        ? 10
+        : 20;
+  return Math.round(base * Math.pow(1.12, level - 1));
+}
+
+function storageCapForLevel(level: number) {
+  if (level <= 0) {
+    return 0;
+  }
+  return Math.round(
+    STORAGE_CAP_BASE_UNITS * Math.pow(STORAGE_CAP_GROWTH, level - 1),
+  );
+}
+
+function storageCapsFromBuildingLevels(levels: BuildingLevelSnapshot): ResourceBucket {
+  return {
+    alloy: storageCapForLevel(levels.alloyStorageLevel),
+    crystal: storageCapForLevel(levels.crystalStorageLevel),
+    fuel: storageCapForLevel(levels.fuelStorageLevel),
+  };
+}
+
+function getGeneratorIdForBuilding(key: BuildingKey) {
+  if (key === "alloyMineLevel") {
+    return "alloy_mine";
+  }
+  if (key === "crystalMineLevel") {
+    return "crystal_mine";
+  }
+  if (key === "fuelRefineryLevel") {
+    return "deuterium_extractor";
+  }
+  return "solar_plant";
+}
+
+function getGeneratorOrThrow(key: BuildingKey) {
+  const generatorId = getGeneratorIdForBuilding(key);
+  const generator = DEFAULT_GENERATOR_REGISTRY.get(generatorId);
+  if (!generator) {
+    throw new Error(`Missing generator config: ${generatorId}`);
+  }
+  return generator;
+}
+
+function productionRatesPerMinute(args: {
+  buildingLevels: BuildingLevelSnapshot;
+  overflow: ResourceBucket;
+  planetMultipliers: PlanetMultipliers;
+}) {
+  const alloyGenerator = getGeneratorOrThrow("alloyMineLevel");
+  const crystalGenerator = getGeneratorOrThrow("crystalMineLevel");
+  const fuelGenerator = getGeneratorOrThrow("fuelRefineryLevel");
+  const powerGenerator = getGeneratorOrThrow("powerPlantLevel");
+  const rawAlloyRate =
+    getGeneratorProductionPerMinute(
+      alloyGenerator,
+      args.buildingLevels.alloyMineLevel,
+    ) * args.planetMultipliers.alloy;
+  const rawCrystalRate =
+    getGeneratorProductionPerMinute(
+      crystalGenerator,
+      args.buildingLevels.crystalMineLevel,
+    ) * args.planetMultipliers.crystal;
+  const rawFuelRate =
+    getGeneratorProductionPerMinute(
+      fuelGenerator,
+      args.buildingLevels.fuelRefineryLevel,
+    ) * args.planetMultipliers.fuel;
+  const energyProduced = getGeneratorProductionPerMinute(
+    powerGenerator,
+    args.buildingLevels.powerPlantLevel,
+  );
+  const energyConsumed =
+    energyConsumptionForLevel(
+      "alloyMineLevel",
+      args.buildingLevels.alloyMineLevel,
+    ) +
+    energyConsumptionForLevel(
+      "crystalMineLevel",
+      args.buildingLevels.crystalMineLevel,
+    ) +
+    energyConsumptionForLevel(
+      "fuelRefineryLevel",
+      args.buildingLevels.fuelRefineryLevel,
+    );
+  const energyRatio =
+    energyConsumed <= 0
+      ? 1
+      : Math.max(0, Math.min(1, energyProduced / energyConsumed));
+
+  return {
+    resources: {
+      alloy: args.overflow.alloy > 0 ? 0 : rawAlloyRate * energyRatio,
+      crystal: args.overflow.crystal > 0 ? 0 : rawCrystalRate * energyRatio,
+      fuel: args.overflow.fuel > 0 ? 0 : rawFuelRate * energyRatio,
+    },
+    energyProduced,
+  };
+}
+
+function storageUpgradeCost(
+  buildingKey: "alloyStorageLevel" | "crystalStorageLevel" | "fuelStorageLevel",
+  currentLevel: number,
+): ResourceBucket {
+  const config = STORAGE_UPGRADE_CONFIG[buildingKey];
+  return {
+    alloy: Math.round(
+      config.costBase.alloy * Math.pow(config.costGrowth, currentLevel),
+    ),
+    crystal: Math.round(
+      config.costBase.crystal * Math.pow(config.costGrowth, currentLevel),
+    ),
+    fuel: Math.round(
+      config.costBase.fuel * Math.pow(config.costGrowth, currentLevel),
+    ),
+  };
+}
+
+function storageUpgradeDurationSeconds(
+  buildingKey: "alloyStorageLevel" | "crystalStorageLevel" | "fuelStorageLevel",
+  currentLevel: number,
+) {
+  const config = STORAGE_UPGRADE_CONFIG[buildingKey];
+  return Math.round(
+    config.durationBaseSeconds * Math.pow(config.durationGrowth, currentLevel),
+  );
+}
+
+function buildLevelTable(args: {
+  building: ResourceBuildingCardData;
+  buildingLevels: BuildingLevelSnapshot;
+  overflow: ResourceBucket;
+  planetMultipliers: PlanetMultipliers;
+}) {
+  const { building } = args;
+  const isStorage = isStorageBuildingKey(building.key);
+  const maxLevel = isStorage
+    ? STORAGE_BUILDING_MAX_LEVEL
+    : getGeneratorOrThrow(building.key).maxLevel;
+  const startLevel = Math.max(1, building.currentLevel);
+  const endLevel = Math.min(maxLevel, startLevel + 9);
+  const rows: ResourceBuildingLevelRow[] = [];
+
+  for (let level = startLevel; level <= endLevel; level += 1) {
+    const previewLevels: BuildingLevelSnapshot = {
+      ...args.buildingLevels,
+      [building.key]: level,
+    };
+    const previewRates = productionRatesPerMinute({
+      buildingLevels: previewLevels,
+      overflow: args.overflow,
+      planetMultipliers: args.planetMultipliers,
+    });
+    const previewStorageCaps = storageCapsFromBuildingLevels(previewLevels);
+    const outputResource = outputResourceKeyForBuilding(building.key);
+    const outputPerMinute = isStorage
+      ? outputResource === "alloy"
+        ? previewStorageCaps.alloy
+        : outputResource === "crystal"
+          ? previewStorageCaps.crystal
+          : previewStorageCaps.fuel
+      : outputResource === "energy"
+        ? previewRates.energyProduced
+        : Math.max(0, Math.floor(previewRates.resources[outputResource]));
+    const energyUsePerMinute = isStorage
+      ? 0
+      : building.key === "powerPlantLevel"
+        ? 0
+        : energyConsumptionForLevel(
+            building.key as "alloyMineLevel" | "crystalMineLevel" | "fuelRefineryLevel",
+            level,
+          );
+
+    let cost = { alloy: 0, crystal: 0, fuel: 0 };
+    let durationSeconds = 0;
+    if (level < maxLevel) {
+      if (isStorage) {
+        cost = storageUpgradeCost(
+          building.key as "alloyStorageLevel" | "crystalStorageLevel" | "fuelStorageLevel",
+          level,
+        );
+        durationSeconds = storageUpgradeDurationSeconds(
+          building.key as "alloyStorageLevel" | "crystalStorageLevel" | "fuelStorageLevel",
+          level,
+        );
+      } else {
+        const generator = getGeneratorOrThrow(building.key);
+        cost = toWholeUnitBucket(getUpgradeCost(generator, level));
+        durationSeconds = getUpgradeDurationSeconds(generator, level);
+      }
+    }
+
+    rows.push({
+      level,
+      outputPerMinute,
+      energyUsePerMinute,
+      deltaOutputPerMinute: outputPerMinute - building.outputPerMinute,
+      deltaEnergyPerMinute: energyUsePerMinute - building.energyUsePerMinute,
+      cost,
+      durationSeconds,
+    });
+  }
+
+  return rows;
+}
+
 export function ResourceBuildingCard(props: {
   activeQueueItem: LaneQueueItem | null;
   building: ResourceBuildingCardData;
+  buildingLevels: BuildingLevelSnapshot;
   buildingQueueIsFull: boolean;
   energyRatio: number;
   isBusy: boolean;
   isTableOpen: boolean;
   overflow: ResourceBucket;
+  planetMultipliers: PlanetMultipliers;
   queuedForBuilding: LaneQueueItem | null;
   remainingTimeLabel: string | null;
   onTableOpenChange: (open: boolean) => void;
@@ -320,11 +593,13 @@ export function ResourceBuildingCard(props: {
   const {
     activeQueueItem,
     building,
+    buildingLevels,
     buildingQueueIsFull,
     energyRatio,
     isBusy,
     isTableOpen,
     overflow,
+    planetMultipliers,
     queuedForBuilding,
     remainingTimeLabel,
     onTableOpenChange,
@@ -334,9 +609,19 @@ export function ResourceBuildingCard(props: {
   const isStorageBuilding = isStorageBuildingKey(building.key);
   const isProductionBuilding = isProductionBuildingKey(building.key);
   const isActiveUpgradeTarget = activeQueueItem?.payload.buildingKey === building.key;
+  const levelTable = useMemo(
+    () =>
+      buildLevelTable({
+        building,
+        buildingLevels,
+        overflow,
+        planetMultipliers,
+      }),
+    [building, buildingLevels, overflow, planetMultipliers],
+  );
   const nextLevelRow =
-    building.levelTable.find((row) => row.level === building.currentLevel + 1) ??
-    building.levelTable[0];
+    levelTable.find((row) => row.level === building.currentLevel + 1) ??
+    levelTable[0];
   const resourceOverflow =
     building.key === "alloyMineLevel"
       ? overflow.alloy
@@ -481,7 +766,7 @@ export function ResourceBuildingCard(props: {
                           </tr>
                         </thead>
                         <tbody>
-                          {building.levelTable.map((row) => (
+                          {levelTable.map((row) => (
                             <tr
                               className={
                                 row.level === building.currentLevel

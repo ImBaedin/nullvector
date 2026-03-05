@@ -7,7 +7,7 @@ import {
   colonyStatusValidator,
   getBuildingQueueStatusForColony,
   getOwnedColony,
-  listColonyQueueItems,
+  listOpenColonyQueueItems,
   listPlayerColonies,
   listPlayerColonyPlanets,
   queueEventsNextAt,
@@ -92,7 +92,7 @@ export const getColonyQueueSummary = query({
       ctx,
       playerId: player._id,
     });
-    const colonyQueueRows = await listColonyQueueItems({
+    const colonyQueueRows = await listOpenColonyQueueItems({
       colonyId: colony._id,
       ctx,
     });

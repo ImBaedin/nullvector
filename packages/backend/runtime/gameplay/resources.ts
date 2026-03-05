@@ -5,11 +5,9 @@ import {
 import type {
   ResourceBucket,
   ResourceBuildingCardData,
-  ResourceBuildingLevelRow,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
-import type { Doc } from "../../convex/_generated/dataModel";
 import { mutation, query } from "../../convex/_generated/server";
 import {
   BUILDING_CONFIG,
@@ -29,7 +27,7 @@ import {
   getOwnedColony,
   isBuildingUpgradeQueueItem,
   isStorageBuildingKey,
-  listColonyQueueItems,
+  listOpenColonyQueueItems,
   listOpenLaneQueueItems,
   productionRatesPerMinute,
   queueEventsNextAt,
@@ -69,6 +67,11 @@ export const getResourceManagementView = query({
       energyConsumed: v.number(),
       energyRatio: v.number(),
     }),
+    planetMultipliers: v.object({
+      alloy: v.number(),
+      crystal: v.number(),
+      fuel: v.number(),
+    }),
     buildings: v.array(buildingCardValidator),
   }),
   handler: async (ctx, args) => {
@@ -84,7 +87,7 @@ export const getResourceManagementView = query({
       planet,
     });
 
-    const queueRows = await listColonyQueueItems({
+    const queueRows = await listOpenColonyQueueItems({
       colonyId: colony._id,
       ctx,
     });
@@ -204,76 +207,6 @@ export const getResourceManagementView = query({
                 ? "Paused"
                 : "Running";
 
-      const levelRows: ResourceBuildingLevelRow[] = [];
-      const startLevel = Math.max(1, currentLevel);
-      const endLevel = Math.min(maxLevel, startLevel + 9);
-
-      for (let level = startLevel; level <= endLevel; level += 1) {
-        const previewBuildings = {
-          ...colony.buildings,
-          [key]: level,
-        } satisfies Doc<"colonies">["buildings"];
-
-        const previewRates = productionRatesPerMinute({
-          buildings: previewBuildings,
-          overflow: colony.overflow,
-          planet,
-        });
-
-        const previewStorageCaps = storageCapsFromBuildings(previewBuildings);
-
-        const previewOutput =
-          config.kind === "storage"
-            ? storedToWholeUnits(previewStorageCaps[config.resource])
-            : config.group === "Power"
-              ? previewRates.energyProduced
-              : Math.max(
-                  0,
-                  Math.floor(
-                    previewRates.resources[
-                      config.resource as keyof ResourceBucket
-                    ] ?? 0,
-                  ),
-                );
-
-        const previewEnergy =
-          config.kind === "storage" || key === "powerPlantLevel"
-            ? 0
-            : energyConsumptionForLevel(key as ProductionBuildingKey, level);
-
-        let previewCost = emptyResourceBucket();
-        let previewDurationSeconds = 0;
-
-        if (level < maxLevel) {
-          if (config.kind === "generator") {
-            const generator = getGeneratorOrThrow(config.generatorId);
-            previewCost = resourceMapToWholeUnitBucket(
-              getUpgradeCost(generator, level),
-            );
-            previewDurationSeconds = getUpgradeDurationSeconds(
-              generator,
-              level,
-            );
-          } else {
-            previewCost = storageUpgradeCost(key as StorageBuildingKey, level);
-            previewDurationSeconds = storageUpgradeDurationSeconds(
-              key as StorageBuildingKey,
-              level,
-            );
-          }
-        }
-
-        levelRows.push({
-          level,
-          outputPerMinute: previewOutput,
-          energyUsePerMinute: previewEnergy,
-          deltaOutputPerMinute: previewOutput - outputPerMinute,
-          deltaEnergyPerMinute: previewEnergy - energyUsePerMinute,
-          cost: previewCost,
-          durationSeconds: previewDurationSeconds,
-        });
-      }
-
       return {
         key,
         name: config.name,
@@ -289,7 +222,6 @@ export const getResourceManagementView = query({
         canUpgrade,
         nextUpgradeDurationSeconds,
         nextUpgradeCost,
-        levelTable: levelRows,
       };
     });
 
@@ -332,6 +264,11 @@ export const getResourceManagementView = query({
         energyProduced: rates.energyProduced,
         energyConsumed: rates.energyConsumed,
         energyRatio: rates.energyRatio,
+      },
+      planetMultipliers: {
+        alloy: planet.alloyMultiplier,
+        crystal: planet.crystalMultiplier,
+        fuel: planet.fuelMultiplier,
       },
       buildings: cards,
     };
