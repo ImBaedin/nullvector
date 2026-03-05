@@ -9,3 +9,4 @@
 - Shared gameplay DTO/key types now live in `packages/game-logic/src/gameplay.ts` (exported via `@nullvector/game-logic`); prefer importing `BuildingKey`/resource-card queue types from there instead of redefining them in web/backend modules.
 - `colonyQueueItems.payload` now includes multiple payload shapes (`buildingUpgrade`, `facilityUpgrade`, and `shipBuild`); in web/backend code, always narrow by `kind` (or payload shape guard) before reading payload-specific fields.
 - Product direction clarification: default facility definitions are placeholders; keep unlock logic in place but avoid hard-gating shipyard until non-shipyard facilities are implemented.
+- Ship build completion is materialized by `settleShipyardQueue` (typically via colony sync/enqueue paths); `convex/fleet.ts` mutations do not currently run that settlement, so fleet actions can see stale ship counts until a sync occurs.

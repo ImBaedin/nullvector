@@ -239,8 +239,14 @@ export function AppHeader({
   }, [activeColony?.name, config.title]);
   const handleStarMapToggle = onToggleStarMap ?? config.onOpenStarMap;
   const handleColonyChange = (nextColonyId: string) => {
+    const targetPath =
+      config.activeTabId === "shipyard"
+        ? "/game/colony/$colonyId/shipyard"
+        : config.activeTabId === "facilities"
+          ? "/game/colony/$colonyId/facilties"
+          : "/game/colony/$colonyId/resources";
     navigate({
-      to: "/game/colony/$colonyId/resources",
+      to: targetPath,
       params: { colonyId: nextColonyId },
     });
   };

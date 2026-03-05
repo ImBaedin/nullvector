@@ -48,6 +48,7 @@ const PLACEHOLDER_TAB_ICON_SRC: Record<ContextNavItem["id"], string> = {
 function buildPlaceholderTabs(basePaths: {
   facilities: string;
   resources: string;
+  shipyard: string;
 }): ContextNavItem[] {
   return PLACEHOLDER_TAB_IDS.map((id) => ({
     id,
@@ -57,6 +58,8 @@ function buildPlaceholderTabs(basePaths: {
         ? basePaths.resources
         : id === "facilities"
           ? basePaths.facilities
+          : id === "shipyard"
+            ? basePaths.shipyard
           : `/style-lab`,
     icon: createElement("img", {
       alt: `${id} nav icon`,
@@ -113,8 +116,10 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
   const encodedColonyId = encodeURIComponent(colonyId);
   const resourcesPath = `/game/colony/${encodedColonyId}/resources`;
   const facilitiesPath = `/game/colony/${encodedColonyId}/facilties`;
+  const shipyardPath = `/game/colony/${encodedColonyId}/shipyard`;
   const isResourcesRoute = pathname === resourcesPath;
   const isFacilitiesRoute = pathname === facilitiesPath;
+  const isShipyardRoute = pathname === shipyardPath;
 
   if (!hud) {
     return {
@@ -124,10 +129,13 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
         ? "resources"
         : isFacilitiesRoute
           ? "facilities"
-          : "overview",
+          : isShipyardRoute
+            ? "shipyard"
+            : "overview",
       contextTabs: buildPlaceholderTabs({
         facilities: facilitiesPath,
         resources: resourcesPath,
+        shipyard: shipyardPath,
       }),
       notificationsCount: 0,
     };
@@ -141,6 +149,8 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
       ? "resources"
       : isFacilitiesRoute
         ? "facilities"
+        : isShipyardRoute
+          ? "shipyard"
         : "overview",
     colonies: hud.colonies.map((colony) => ({
       id: colony.id,
@@ -151,6 +161,7 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
     contextTabs: buildPlaceholderTabs({
       facilities: facilitiesPath,
       resources: resourcesPath,
+      shipyard: shipyardPath,
     }),
     notificationsCount: 0,
     resources: hud.resources,
