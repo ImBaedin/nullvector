@@ -1,5 +1,4 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
-import { useConvexAuth, useQuery } from "convex/react";
 import {
   Activity,
   useCallback,
@@ -34,6 +33,7 @@ import type {
   RenderableEntity,
 } from "@/features/universe-explorer-realdata/types";
 import { cn } from "@/lib/utils";
+import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 import { Stats } from "@react-three/drei";
 
 export const Route = createFileRoute("/game/colony/$colonyId")({

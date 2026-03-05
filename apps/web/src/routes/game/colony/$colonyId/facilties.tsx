@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Popover } from "@base-ui/react/popover";
 import { Clock3, Layers3 } from "lucide-react";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@nullvector/backend/convex/_generated/api";
@@ -10,6 +9,7 @@ import type { FacilityKey } from "@nullvector/game-logic";
 
 import { UpgradeButton } from "@/features/ui-mockups/components/upgrade-button";
 import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
+import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 export const Route = createFileRoute("/game/colony/$colonyId/facilties")({
   component: FacilitiesRoute,

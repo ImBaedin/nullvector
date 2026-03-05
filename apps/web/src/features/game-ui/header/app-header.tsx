@@ -1,7 +1,6 @@
 import { Bell, ChevronDown, Earth, Menu, Settings } from "lucide-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { Tooltip } from "@base-ui/react/tooltip";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
@@ -13,6 +12,7 @@ import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ResourceStrip } from "@/features/game-ui/shell/resource-strip";
 import { NvBadge, NvIconButton, NvPanel } from "@/features/game-ui/primitives";
+import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
 
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";

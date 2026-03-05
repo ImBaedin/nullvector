@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { ReactNode } from "react";
@@ -9,6 +8,7 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import type { BuildingKey, LaneQueueItem } from "@nullvector/game-logic";
 
 import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
+import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import {
   isStorageBuildingKey,
   ResourceBuildingCard,

@@ -2,6 +2,7 @@ import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import { env } from "@nullvector/env/web";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { ConvexReactClient } from "convex/react";
+import { ConvexQueryCacheProvider } from "convex-helpers/react/cache";
 import ReactDOM from "react-dom/client";
 
 import { authClient } from "@/lib/auth-client";
@@ -18,7 +19,7 @@ const router = createRouter({
   Wrap: function WrapComponent({ children }: { children: React.ReactNode }) {
     return (
       <ConvexBetterAuthProvider client={convex} authClient={authClient}>
-        {children}
+        <ConvexQueryCacheProvider>{children}</ConvexQueryCacheProvider>
       </ConvexBetterAuthProvider>
     );
   },
