@@ -30,6 +30,9 @@ export type ResourceDatum = {
   deltaPerMinute?: string;
   energyBalance?: number;
   key: "alloy" | "crystal" | "energy" | "fuel";
+  overflowAmount?: number;
+  overflowLabel?: string;
+  pausedByOverflow?: boolean;
   storageCapAmount?: number;
   storageCapLabel?: string;
   storageCurrentAmount?: number;

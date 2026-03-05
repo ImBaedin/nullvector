@@ -544,6 +544,26 @@ export function applyAccrualSegment(args: {
   };
 }
 
+function reconcileOverflowIntoStorage(args: {
+  overflow: ResourceBucket;
+  resources: ResourceBucket;
+  storageCaps: ResourceBucket;
+}) {
+  const { overflow, resources, storageCaps } = args;
+  for (const key of RESOURCE_KEYS) {
+    if (overflow[key] <= 0) {
+      continue;
+    }
+    const headroom = Math.max(0, storageCaps[key] - resources[key]);
+    if (headroom <= 0) {
+      continue;
+    }
+    const transfer = Math.min(headroom, overflow[key]);
+    resources[key] += transfer;
+    overflow[key] -= transfer;
+  }
+}
+
 function resourceMapToScaledBucket(
   resourceMap: Partial<Record<string, number>>,
 ): ResourceBucket {
@@ -796,6 +816,12 @@ async function settleColonyAndPersist(args: {
   }
 
   const accrueTo = (segmentEndMs: number) => {
+    reconcileOverflowIntoStorage({
+      overflow: workingColony.overflow,
+      resources: workingColony.resources,
+      storageCaps: workingColony.storageCaps,
+    });
+
     const accrued = applyAccrualSegment({
       colony: workingColony,
       planet,
@@ -805,6 +831,12 @@ async function settleColonyAndPersist(args: {
 
     workingColony.resources = accrued.resources;
     workingColony.lastAccruedAt = accrued.lastAccruedAt;
+
+    reconcileOverflowIntoStorage({
+      overflow: workingColony.overflow,
+      resources: workingColony.resources,
+      storageCaps: workingColony.storageCaps,
+    });
   };
 
   while (activeQueue) {
@@ -839,6 +871,11 @@ async function settleColonyAndPersist(args: {
     workingColony.storageCaps = storageCapsFromBuildings(
       workingColony.buildings,
     );
+    reconcileOverflowIntoStorage({
+      overflow: workingColony.overflow,
+      resources: workingColony.resources,
+      storageCaps: workingColony.storageCaps,
+    });
 
     markPatch(activeQueue._id, {
       resolvedAt: activeQueue.completesAt,
@@ -863,6 +900,7 @@ async function settleColonyAndPersist(args: {
 
   await ctx.db.patch(colony._id, {
     resources: workingColony.resources,
+    overflow: workingColony.overflow,
     buildings: workingColony.buildings,
     storageCaps: workingColony.storageCaps,
     usedSlots: usedSlotsFromBuildings(workingColony.buildings),
@@ -1201,6 +1239,9 @@ const resourceHudDatumValidator = v.object({
   storageCapAmount: v.optional(v.number()),
   storageCapLabel: v.optional(v.string()),
   storagePercent: v.optional(v.number()),
+  overflowAmount: v.optional(v.number()),
+  overflowLabel: v.optional(v.string()),
+  pausedByOverflow: v.optional(v.boolean()),
   energyBalance: v.optional(v.number()),
 });
 
@@ -1240,6 +1281,9 @@ function buildHudResources(args: {
   const alloyUnits = storedToWholeUnits(colony.resources.alloy);
   const crystalUnits = storedToWholeUnits(colony.resources.crystal);
   const fuelUnits = storedToWholeUnits(colony.resources.fuel);
+  const alloyOverflowUnits = storedToWholeUnits(colony.overflow.alloy);
+  const crystalOverflowUnits = storedToWholeUnits(colony.overflow.crystal);
+  const fuelOverflowUnits = storedToWholeUnits(colony.overflow.fuel);
 
   const alloyCap = storedToWholeUnits(colony.storageCaps.alloy);
   const crystalCap = storedToWholeUnits(colony.storageCaps.crystal);
@@ -1250,43 +1294,63 @@ function buildHudResources(args: {
       key: "alloy" as const,
       value: formatResourceValue(alloyUnits),
       valueAmount: alloyUnits,
-      deltaPerMinute: `+${Math.max(0, Math.floor(rates.resources.alloy)).toLocaleString()}/m`,
-      deltaPerMinuteAmount: Math.max(0, Math.floor(rates.resources.alloy)),
+      deltaPerMinute:
+        alloyOverflowUnits > 0
+          ? "Paused by overflow"
+          : `+${Math.max(0, Math.floor(rates.resources.alloy)).toLocaleString()}/m`,
+      deltaPerMinuteAmount:
+        alloyOverflowUnits > 0 ? 0 : Math.max(0, Math.floor(rates.resources.alloy)),
       storageCurrentAmount: alloyUnits,
       storageCurrentLabel: formatResourceValue(alloyUnits),
       storageCapAmount: alloyCap,
       storageCapLabel: formatResourceValue(alloyCap),
       storagePercent:
         alloyCap <= 0 ? 0 : Math.min(100, (alloyUnits / alloyCap) * 100),
+      overflowAmount: alloyOverflowUnits,
+      overflowLabel: formatResourceValue(alloyOverflowUnits),
+      pausedByOverflow: alloyOverflowUnits > 0,
     },
     {
       key: "crystal" as const,
       value: formatResourceValue(crystalUnits),
       valueAmount: crystalUnits,
-      deltaPerMinute: `+${Math.max(0, Math.floor(rates.resources.crystal)).toLocaleString()}/m`,
-      deltaPerMinuteAmount: Math.max(
-        0,
-        Math.floor(rates.resources.crystal),
-      ),
+      deltaPerMinute:
+        crystalOverflowUnits > 0
+          ? "Paused by overflow"
+          : `+${Math.max(0, Math.floor(rates.resources.crystal)).toLocaleString()}/m`,
+      deltaPerMinuteAmount:
+        crystalOverflowUnits > 0
+          ? 0
+          : Math.max(0, Math.floor(rates.resources.crystal)),
       storageCurrentAmount: crystalUnits,
       storageCurrentLabel: formatResourceValue(crystalUnits),
       storageCapAmount: crystalCap,
       storageCapLabel: formatResourceValue(crystalCap),
       storagePercent:
         crystalCap <= 0 ? 0 : Math.min(100, (crystalUnits / crystalCap) * 100),
+      overflowAmount: crystalOverflowUnits,
+      overflowLabel: formatResourceValue(crystalOverflowUnits),
+      pausedByOverflow: crystalOverflowUnits > 0,
     },
     {
       key: "fuel" as const,
       value: formatResourceValue(fuelUnits),
       valueAmount: fuelUnits,
-      deltaPerMinute: `+${Math.max(0, Math.floor(rates.resources.fuel)).toLocaleString()}/m`,
-      deltaPerMinuteAmount: Math.max(0, Math.floor(rates.resources.fuel)),
+      deltaPerMinute:
+        fuelOverflowUnits > 0
+          ? "Paused by overflow"
+          : `+${Math.max(0, Math.floor(rates.resources.fuel)).toLocaleString()}/m`,
+      deltaPerMinuteAmount:
+        fuelOverflowUnits > 0 ? 0 : Math.max(0, Math.floor(rates.resources.fuel)),
       storageCurrentAmount: fuelUnits,
       storageCurrentLabel: formatResourceValue(fuelUnits),
       storageCapAmount: fuelCap,
       storageCapLabel: formatResourceValue(fuelCap),
       storagePercent:
         fuelCap <= 0 ? 0 : Math.min(100, (fuelUnits / fuelCap) * 100),
+      overflowAmount: fuelOverflowUnits,
+      overflowLabel: formatResourceValue(fuelOverflowUnits),
+      pausedByOverflow: fuelOverflowUnits > 0,
     },
     {
       key: "energy" as const,

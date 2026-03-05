@@ -122,6 +122,78 @@ const transportPostDeliveryActionValidator = v.union(
   v.literal("stationAtDestination"),
 );
 
+const inboundMissionPolicyValidator = v.union(
+  v.literal("allowAll"),
+  v.literal("denyAll"),
+  v.literal("alliesOnly"),
+);
+
+const fleetStateValidator = v.union(
+  v.literal("stationed"),
+  v.literal("inTransit"),
+  v.literal("atTarget"),
+  v.literal("returning"),
+  v.literal("destroyed"),
+);
+
+const fleetLocationKindValidator = v.union(
+  v.literal("colony"),
+  v.literal("route"),
+  v.literal("planetOrbit"),
+  v.literal("contractNode"),
+);
+
+const fleetOperationKindValidator = v.union(
+  v.literal("transport"),
+  v.literal("colonize"),
+  v.literal("contract"),
+  v.literal("combat"),
+);
+
+const fleetOperationStatusValidator = v.union(
+  v.literal("planned"),
+  v.literal("inTransit"),
+  v.literal("atTarget"),
+  v.literal("returning"),
+  v.literal("completed"),
+  v.literal("cancelled"),
+  v.literal("failed"),
+);
+
+const fleetOperationTargetKindValidator = v.union(
+  v.literal("colony"),
+  v.literal("planet"),
+  v.literal("fleet"),
+  v.literal("contractNode"),
+);
+
+const fleetOperationTargetValidator = v.object({
+  kind: fleetOperationTargetKindValidator,
+  colonyId: v.optional(v.id("colonies")),
+  planetId: v.optional(v.id("planets")),
+  fleetId: v.optional(v.id("fleets")),
+  contractNodeKey: v.optional(v.string()),
+});
+
+const fleetOperationResultCodeValidator = v.union(
+  v.literal("delivered"),
+  v.literal("colonized"),
+  v.literal("cancelledInFlight"),
+  v.literal("notImplemented"),
+  v.literal("failed"),
+);
+
+const fleetEventTypeValidator = v.union(
+  v.literal("created"),
+  v.literal("departed"),
+  v.literal("arrived"),
+  v.literal("cargoDelivered"),
+  v.literal("colonyFounded"),
+  v.literal("cancelled"),
+  v.literal("returned"),
+  v.literal("failed"),
+);
+
 export default defineSchema({
   // Global world config. MVP expects one active universe, but all gameplay rows
   // still carry universeId for future multi-universe support.
@@ -306,6 +378,8 @@ export default defineSchema({
     lastAccruedAt: v.number(),
     // Deprecated legacy single-upgrade state. New runtime uses colonyQueueItems.
     activeUpgrade: v.optional(activeUpgradeValidator),
+    // Default allowAll keeps current behavior while enabling future controls.
+    inboundMissionPolicy: v.optional(inboundMissionPolicyValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -362,6 +436,76 @@ export default defineSchema({
     .index("by_target_planet_status", ["targetPlanetId", "status"])
     .index("by_origin_status_arrive", ["originColonyId", "status", "arriveAt"])
     .index("by_parent", ["parentMissionId"]),
+
+  // Persistent movable assets used by the V2 fleet operation engine.
+  fleets: defineTable({
+    universeId: v.id("universes"),
+    ownerPlayerId: v.id("players"),
+    homeColonyId: v.id("colonies"),
+    state: fleetStateValidator,
+    locationKind: fleetLocationKindValidator,
+    locationColonyId: v.optional(v.id("colonies")),
+    locationPlanetId: v.optional(v.id("planets")),
+    routeOperationId: v.optional(v.id("fleetOperations")),
+    shipCounts: shipCountsValidator,
+    cargo: resourceBucketValidator,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_owner_state", ["ownerPlayerId", "state"])
+    .index("by_owner_home", ["ownerPlayerId", "homeColonyId"])
+    .index("by_home_state", ["homeColonyId", "state"]),
+
+  // Generic fleet operation records with kind-specific behavior in runtime.
+  fleetOperations: defineTable({
+    universeId: v.id("universes"),
+    ownerPlayerId: v.id("players"),
+    fleetId: v.id("fleets"),
+    kind: fleetOperationKindValidator,
+    status: fleetOperationStatusValidator,
+    originColonyId: v.id("colonies"),
+    target: fleetOperationTargetValidator,
+    postDeliveryAction: v.optional(transportPostDeliveryActionValidator),
+    parentOperationId: v.optional(v.id("fleetOperations")),
+    shipCounts: shipCountsValidator,
+    cargoRequested: resourceBucketValidator,
+    cargoDeliveredToStorage: resourceBucketValidator,
+    cargoDeliveredToOverflow: resourceBucketValidator,
+    fuelCharged: v.number(),
+    fuelWaived: v.optional(v.number()),
+    distance: v.number(),
+    departAt: v.number(),
+    arriveAt: v.number(),
+    nextEventAt: v.number(),
+    cancelledAt: v.optional(v.number()),
+    resolvedAt: v.optional(v.number()),
+    resultCode: v.optional(fleetOperationResultCodeValidator),
+    resultMessage: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_owner_stat_evt", ["ownerPlayerId", "status", "nextEventAt"])
+    .index("by_stat_evt", ["status", "nextEventAt"])
+    .index("by_origin_stat_evt", ["originColonyId", "status", "nextEventAt"])
+    .index("by_target_planet_stat", ["target.planetId", "status"])
+    .index("by_parent_op", ["parentOperationId"])
+    .index("by_fleet_stat", ["fleetId", "status"]),
+
+  // Append-only audit trail for timelines and debugging.
+  fleetEvents: defineTable({
+    universeId: v.id("universes"),
+    ownerPlayerId: v.id("players"),
+    fleetId: v.id("fleets"),
+    operationId: v.id("fleetOperations"),
+    eventType: fleetEventTypeValidator,
+    occurredAt: v.number(),
+    // Keep payload flexible while retaining top-level typed envelope.
+    dataJson: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_owner_time", ["ownerPlayerId", "occurredAt"])
+    .index("by_op_time", ["operationId", "occurredAt"])
+    .index("by_fleet_time", ["fleetId", "occurredAt"]),
 
   // Lane-scoped production/build queues and their history.
   colonyQueueItems: defineTable({

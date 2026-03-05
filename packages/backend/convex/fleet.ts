@@ -16,7 +16,10 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { settleShipyardQueue } from "../runtime/gameplay/shared";
+import {
+  incrementColonyShipCount as incrementColonyShipCountShared,
+  settleShipyardQueue,
+} from "../runtime/gameplay/shared";
 import { authComponent } from "./auth";
 import { RESOURCE_SCALE } from "./schema";
 
@@ -81,10 +84,17 @@ function resourceMapToScaledBucket(
 }
 
 function normalizeMissionCargo(cargo: Partial<ResourceBucket>): ResourceBucket {
+  const normalizeValue = (value: number | undefined) => {
+    if (!Number.isFinite(value ?? 0)) {
+      return 0;
+    }
+    return Math.max(0, Math.floor(value ?? 0));
+  };
+
   return {
-    alloy: Math.max(0, Math.floor(cargo.alloy ?? 0)),
-    crystal: Math.max(0, Math.floor(cargo.crystal ?? 0)),
-    fuel: Math.max(0, Math.floor(cargo.fuel ?? 0)),
+    alloy: normalizeValue(cargo.alloy),
+    crystal: normalizeValue(cargo.crystal),
+    fuel: normalizeValue(cargo.fuel),
   };
 }
 
@@ -162,38 +172,6 @@ async function getOwnedColony(args: {
   };
 }
 
-async function incrementColonyShipCount(args: {
-  amount: number;
-  colony: Doc<"colonies">;
-  ctx: MutationCtx;
-  now: number;
-  shipKey: ShipKey;
-}) {
-  const existing = await args.ctx.db
-    .query("colonyShips")
-    .withIndex("by_colony_and_ship_key", (q) =>
-      q.eq("colonyId", args.colony._id).eq("shipKey", args.shipKey),
-    )
-    .unique();
-  const nextCount = Math.max(0, (existing?.count ?? 0) + args.amount);
-  if (existing) {
-    await args.ctx.db.patch(existing._id, {
-      count: nextCount,
-      updatedAt: args.now,
-    });
-    return;
-  }
-
-  await args.ctx.db.insert("colonyShips", {
-    universeId: args.colony.universeId,
-    playerId: args.colony.playerId,
-    colonyId: args.colony._id,
-    shipKey: args.shipKey,
-    count: nextCount,
-    updatedAt: args.now,
-  });
-}
-
 async function readColonyShipCounts(args: {
   colonyId: Id<"colonies">;
   ctx: QueryCtx | MutationCtx;
@@ -230,7 +208,7 @@ async function decrementShipsOrThrow(args: {
     if (args.requested[key] <= 0) {
       continue;
     }
-    await incrementColonyShipCount({
+    await incrementColonyShipCountShared({
       amount: -args.requested[key],
       colony: args.colony,
       ctx: args.ctx,
@@ -436,7 +414,7 @@ async function settleDueFleetMissions(args: {
         if (mission.shipCounts[key] <= 0) {
           continue;
         }
-        await incrementColonyShipCount({
+        await incrementColonyShipCountShared({
           amount: mission.shipCounts[key],
           colony: destination,
           ctx: args.ctx,
@@ -485,7 +463,7 @@ async function settleDueFleetMissions(args: {
           if (mission.shipCounts[key] <= 0) {
             continue;
           }
-          await incrementColonyShipCount({
+          await incrementColonyShipCountShared({
             amount: mission.shipCounts[key],
             colony: destination,
             ctx: args.ctx,
@@ -596,7 +574,7 @@ async function settleDueFleetMissions(args: {
         if (mission.shipCounts[key] <= 0) {
           continue;
         }
-        await incrementColonyShipCount({
+        await incrementColonyShipCountShared({
           amount: mission.shipCounts[key],
           colony: createdColony,
           ctx: args.ctx,
@@ -834,17 +812,22 @@ export const dispatchColonizationMission = mutation({
       fuel: cargoScaled.fuel + fuelScaled,
     };
 
+    const latestOrigin = await ctx.db.get(origin.colony._id);
+    if (!latestOrigin) {
+      throw new ConvexError("Origin colony not found");
+    }
+
     for (const key of RESOURCE_KEYS) {
-      if (origin.colony.resources[key] < deduction[key]) {
+      if (latestOrigin.resources[key] < deduction[key]) {
         throw new ConvexError(`Not enough ${key} for this mission`);
       }
     }
 
-    await ctx.db.patch(origin.colony._id, {
+    await ctx.db.patch(latestOrigin._id, {
       resources: {
-        alloy: origin.colony.resources.alloy - deduction.alloy,
-        crystal: origin.colony.resources.crystal - deduction.crystal,
-        fuel: origin.colony.resources.fuel - deduction.fuel,
+        alloy: latestOrigin.resources.alloy - deduction.alloy,
+        crystal: latestOrigin.resources.crystal - deduction.crystal,
+        fuel: latestOrigin.resources.fuel - deduction.fuel,
       },
       updatedAt: now,
     });
@@ -971,17 +954,21 @@ export const dispatchTransportMission = mutation({
       crystal: cargoScaled.crystal,
       fuel: cargoScaled.fuel + fuelScaled,
     };
+    const latestOrigin = await ctx.db.get(origin.colony._id);
+    if (!latestOrigin) {
+      throw new ConvexError("Origin colony not found");
+    }
     for (const key of RESOURCE_KEYS) {
-      if (origin.colony.resources[key] < deduction[key]) {
+      if (latestOrigin.resources[key] < deduction[key]) {
         throw new ConvexError(`Not enough ${key} for this mission`);
       }
     }
 
-    await ctx.db.patch(origin.colony._id, {
+    await ctx.db.patch(latestOrigin._id, {
       resources: {
-        alloy: origin.colony.resources.alloy - deduction.alloy,
-        crystal: origin.colony.resources.crystal - deduction.crystal,
-        fuel: origin.colony.resources.fuel - deduction.fuel,
+        alloy: latestOrigin.resources.alloy - deduction.alloy,
+        crystal: latestOrigin.resources.crystal - deduction.crystal,
+        fuel: latestOrigin.resources.fuel - deduction.fuel,
       },
       updatedAt: now,
     });

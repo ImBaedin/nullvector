@@ -126,14 +126,18 @@ function statusFromBuilding(args: {
   canUpgrade: boolean;
   isProduction: boolean;
   overflow: number;
+  storageFull: boolean;
   energyRatio: number;
   outputPerMinute: number;
 }): CardStatus {
-  if (args.isProduction && args.energyRatio < 0.55) {
-    return "Shortage";
-  }
   if (args.isProduction && args.overflow > 0) {
     return "Overflow";
+  }
+  if (args.isProduction && args.storageFull) {
+    return "Paused";
+  }
+  if (args.isProduction && args.energyRatio < 0.55) {
+    return "Shortage";
   }
   if (!args.canUpgrade && args.outputPerMinute <= 0) {
     return "Paused";
@@ -584,6 +588,8 @@ export function ResourceBuildingCard(props: {
   isBusy: boolean;
   isTableOpen: boolean;
   overflow: ResourceBucket;
+  resourcesStored: ResourceBucket;
+  storageCaps: ResourceBucket;
   planetMultipliers: PlanetMultipliers;
   queuedForBuilding: LaneQueueItem | null;
   remainingTimeLabel: string | null;
@@ -599,6 +605,8 @@ export function ResourceBuildingCard(props: {
     isBusy,
     isTableOpen,
     overflow,
+    resourcesStored,
+    storageCaps,
     planetMultipliers,
     queuedForBuilding,
     remainingTimeLabel,
@@ -630,11 +638,33 @@ export function ResourceBuildingCard(props: {
         : building.key === "fuelRefineryLevel"
           ? overflow.fuel
           : 0;
+  const resourceStored =
+    building.key === "alloyMineLevel"
+      ? resourcesStored.alloy
+      : building.key === "crystalMineLevel"
+        ? resourcesStored.crystal
+        : building.key === "fuelRefineryLevel"
+          ? resourcesStored.fuel
+          : 0;
+  const resourceStorageCap =
+    building.key === "alloyMineLevel"
+      ? storageCaps.alloy
+      : building.key === "crystalMineLevel"
+        ? storageCaps.crystal
+        : building.key === "fuelRefineryLevel"
+          ? storageCaps.fuel
+          : 0;
+  const isPausedByStorageFull =
+    isProductionBuilding &&
+    resourceOverflow <= 0 &&
+    resourceStorageCap > 0 &&
+    resourceStored >= resourceStorageCap;
   const cardStatus = statusFromBuilding({
     canUpgrade: building.canUpgrade,
     energyRatio,
     isProduction: isProductionBuilding,
     overflow: resourceOverflow,
+    storageFull: isPausedByStorageFull,
     outputPerMinute: building.outputPerMinute,
   });
   const statusStyle = STATUS_STYLES[cardStatus];
@@ -645,6 +675,20 @@ export function ResourceBuildingCard(props: {
   const energyDeltaPerMinute = nextLevelRow?.deltaEnergyPerMinute ?? 0;
   const energyImpactDeltaPerMinute = -energyDeltaPerMinute;
   const nextLevelDeltas: Array<{ key: DeltaResourceKey; value: number }> = [];
+  const showOverflowBadgePopover =
+    !isActiveUpgradeTarget &&
+    !queuedForBuilding &&
+    isProductionBuilding &&
+    cardStatus === "Overflow" &&
+    resourceOverflow > 0;
+  const outputPerMinuteForAnimation = isPausedByStorageFull
+    ? 0
+    : building.outputPerMinute;
+  const statusBadgeLabel = isPausedByStorageFull
+    ? "Paused (Storage Full)"
+    : cardStatus === "Overflow" && resourceOverflow > 0
+      ? "Paused (Overflow)"
+      : cardStatus;
 
   if (outputDeltaPerMinute !== 0) {
     nextLevelDeltas.push({
@@ -701,7 +745,7 @@ export function ResourceBuildingCard(props: {
                     <p>
                       Output:{" "}
                       <span className="font-semibold text-white">
-                        {building.outputPerMinute.toLocaleString()} {building.outputLabel}
+                        {outputPerMinuteForAnimation.toLocaleString()} {building.outputLabel}
                       </span>
                     </p>
                     <p>
@@ -717,6 +761,15 @@ export function ResourceBuildingCard(props: {
                           {resourceOverflow.toLocaleString()}{" "}
                           {resourceNameForBuilding(building.key)}
                         </span>
+                      </p>
+                    ) : null}
+                    {isProductionBuilding && resourceOverflow > 0 ? (
+                      <p className="text-amber-100/90">
+                        Production is paused while overflow is above zero.
+                      </p>
+                    ) : isPausedByStorageFull ? (
+                      <p className="text-rose-100/90">
+                        Production is paused while storage is full.
                       </p>
                     ) : (
                       <p>
@@ -805,21 +858,48 @@ export function ResourceBuildingCard(props: {
             </Dialog.Root>
           </div>
         </div>
-        <p
-          className={`mt-2 inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${statusStyle.badge}`}
-        >
-          {isActiveUpgradeTarget ? (
-            <>
-              <Clock3 className="size-3" />
-              Upgrading to Lv {activeQueueItem.payload.toLevel}
-              {remainingTimeLabel ? ` (${remainingTimeLabel})` : ""}
-            </>
-          ) : queuedForBuilding ? (
-            <>Queued for Lv {queuedForBuilding.payload.toLevel}</>
-          ) : (
-            cardStatus
-          )}
-        </p>
+        {showOverflowBadgePopover ? (
+          <Popover.Root>
+            <Popover.Trigger
+              closeDelay={120}
+              delay={80}
+              openOnHover
+              render={
+                <button
+                  className={`mt-2 inline-flex cursor-help items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${statusStyle.badge}`}
+                  type="button"
+                >
+                  {statusBadgeLabel}
+                </button>
+              }
+            />
+            <Popover.Portal>
+              <Popover.Positioner align="start" className="z-[90]" sideOffset={8}>
+                <Popover.Popup className="max-w-[300px] rounded-xl border border-amber-200/35 bg-[rgba(35,24,8,0.86)] p-3 text-xs text-amber-100 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
+                  Overflow stockpile: {resourceOverflow.toLocaleString()}{" "}
+                  {resourceNameForBuilding(building.key)}. Production resumes
+                  automatically when overflow reaches zero.
+                </Popover.Popup>
+              </Popover.Positioner>
+            </Popover.Portal>
+          </Popover.Root>
+        ) : (
+          <p
+            className={`mt-2 inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${statusStyle.badge}`}
+          >
+            {isActiveUpgradeTarget ? (
+              <>
+                <Clock3 className="size-3" />
+                Upgrading to Lv {activeQueueItem.payload.toLevel}
+                {remainingTimeLabel ? ` (${remainingTimeLabel})` : ""}
+              </>
+            ) : queuedForBuilding ? (
+              <>Queued for Lv {queuedForBuilding.payload.toLevel}</>
+            ) : (
+              statusBadgeLabel
+            )}
+          </p>
+        )}
 
         {!isStorageBuilding ? (
           <div className="mt-2">
@@ -827,7 +907,7 @@ export function ResourceBuildingCard(props: {
               icon={DELTA_RESOURCE_META[outputResourceKey].icon}
               label={DELTA_RESOURCE_META[outputResourceKey].label}
               outputLabel={building.outputLabel}
-              outputPerMinute={building.outputPerMinute}
+              outputPerMinute={outputPerMinuteForAnimation}
             />
           </div>
         ) : null}

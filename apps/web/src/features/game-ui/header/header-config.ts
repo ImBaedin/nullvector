@@ -98,6 +98,9 @@ type HudData = {
     valueAmount?: number;
     deltaPerMinute?: string;
     deltaPerMinuteAmount?: number;
+    overflowAmount?: number;
+    overflowLabel?: string;
+    pausedByOverflow?: boolean;
     storageCurrentAmount?: number;
     storageCurrentLabel?: string;
     storageCapAmount?: number;

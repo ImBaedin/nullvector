@@ -126,7 +126,9 @@ function useSimulatedHudResources(resources: ResourceDatum[] | undefined) {
       storageCurrentLabel: formatResourceValue(nextAmount),
       storageCapLabel: formatResourceValue(cap),
       storagePercent: nextPercent,
-      deltaPerMinute: `+${Math.max(0, Math.floor(delta)).toLocaleString()}/m`,
+      deltaPerMinute: resource.pausedByOverflow
+        ? "Paused by overflow"
+        : `+${Math.max(0, Math.floor(delta)).toLocaleString()}/m`,
     };
   });
 }

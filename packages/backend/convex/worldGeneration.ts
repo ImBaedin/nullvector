@@ -51,6 +51,9 @@ const wipeUniverseResultValidator = v.object({
   universeSlug: v.string(),
   deleted: v.object({
     fleetMissions: v.number(),
+    fleetOperations: v.number(),
+    fleets: v.number(),
+    fleetEvents: v.number(),
     colonyShips: v.number(),
     colonyQueueItems: v.number(),
     colonies: v.number(),
@@ -173,6 +176,39 @@ export const wipeUniverse = mutation({
         queryFactory: () =>
           ctx.db
             .query("fleetMissions")
+            .collect()
+            .then((rows) =>
+              rows.filter((row) => row.universeId === universe._id)
+            ),
+      }),
+      fleetOperations: await deleteAllByQuery({
+        ctx,
+        dryRun,
+        queryFactory: () =>
+          ctx.db
+            .query("fleetOperations")
+            .collect()
+            .then((rows) =>
+              rows.filter((row) => row.universeId === universe._id)
+            ),
+      }),
+      fleets: await deleteAllByQuery({
+        ctx,
+        dryRun,
+        queryFactory: () =>
+          ctx.db
+            .query("fleets")
+            .collect()
+            .then((rows) =>
+              rows.filter((row) => row.universeId === universe._id)
+            ),
+      }),
+      fleetEvents: await deleteAllByQuery({
+        ctx,
+        dryRun,
+        queryFactory: () =>
+          ctx.db
+            .query("fleetEvents")
             .collect()
             .then((rows) =>
               rows.filter((row) => row.universeId === universe._id)

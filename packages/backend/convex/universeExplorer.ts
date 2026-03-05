@@ -74,6 +74,27 @@ const planetSummaryValidator = v.object({
       playerName: v.string(),
     })
   ),
+  activeOperation: v.optional(
+    v.object({
+      id: v.id("fleetOperations"),
+      kind: v.union(
+        v.literal("transport"),
+        v.literal("colonize"),
+        v.literal("contract"),
+        v.literal("combat"),
+      ),
+      status: v.union(
+        v.literal("planned"),
+        v.literal("inTransit"),
+        v.literal("atTarget"),
+        v.literal("returning"),
+        v.literal("completed"),
+        v.literal("cancelled"),
+        v.literal("failed"),
+      ),
+      ownerPlayerId: v.id("players"),
+    }),
+  ),
 });
 
 const universeWithOrbitValidator = v.object({
@@ -452,12 +473,30 @@ export const getSystemPlanets = query({
     );
     const playerById = new Map(playerPairs);
 
+    const activePlanetOperations = await ctx.db
+      .query("fleetOperations")
+      .withIndex("by_stat_evt", (q) => q.eq("status", "inTransit"))
+      .collect();
+
+    const operationsByPlanetId = new Map<Id<"planets">, (typeof activePlanetOperations)[number]>();
+    for (const operation of activePlanetOperations) {
+      const planetId = operation.target.planetId;
+      if (!planetId) {
+        continue;
+      }
+      const existingOperation = operationsByPlanetId.get(planetId);
+      if (!existingOperation || existingOperation.nextEventAt > operation.nextEventAt) {
+        operationsByPlanetId.set(planetId, operation);
+      }
+    }
+
     const orderedPlanets = planets
       .slice()
       .sort((a, b) => a.planetIndex - b.planetIndex)
       .map((planet) => {
         const colony = colonyByPlanetId.get(planet._id) ?? null;
         const colonyPlayer = colony ? playerById.get(colony.playerId) ?? null : null;
+        const activeOperation = operationsByPlanetId.get(planet._id);
 
         return {
           id: planet._id,
@@ -482,6 +521,14 @@ export const getSystemPlanets = query({
                 name: colony.name,
                 playerId: colony.playerId,
                 playerName: colonyPlayer?.displayName ?? "Unknown Commander",
+              }
+            : undefined,
+          activeOperation: activeOperation
+            ? {
+                id: activeOperation._id,
+                kind: activeOperation.kind,
+                status: activeOperation.status,
+                ownerPlayerId: activeOperation.ownerPlayerId,
               }
             : undefined,
         };

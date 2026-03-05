@@ -418,6 +418,8 @@ function ResourcesRoute() {
                           isBusy={targetBusy}
                           isTableOpen={targetTableOpen}
                           overflow={view.resources.overflow}
+                          resourcesStored={view.resources.stored}
+                          storageCaps={view.resources.storageCaps}
                           planetMultipliers={view.planetMultipliers}
                           queuedForBuilding={targetQueued ?? null}
                           remainingTimeLabel={remainingTimeLabel}
