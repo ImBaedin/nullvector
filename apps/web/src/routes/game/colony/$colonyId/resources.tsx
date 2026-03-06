@@ -7,7 +7,6 @@ import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import type { BuildingKey, LaneQueueItem } from "@nullvector/game-logic";
 
-import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import {
   isStorageBuildingKey,
@@ -198,10 +197,6 @@ function ResourcesRoute() {
       setNowMs(Date.now());
     }, 1_000);
 
-    const syncInterval = window.setInterval(() => {
-      void sync();
-    }, 20_000);
-
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         void sync();
@@ -212,7 +207,6 @@ function ResourcesRoute() {
 
     return () => {
       window.clearInterval(tick);
-      window.clearInterval(syncInterval);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [isAuthenticated, sync]);
@@ -283,13 +277,6 @@ function ResourcesRoute() {
     }
     return levels;
   }, [view?.buildings]);
-
-  useGameTimedSync({
-    enabled: isAuthenticated,
-    events: [{ atMs: view?.queues.nextEventAt, id: "colony-queue-event" }],
-    onDue: () => sync(),
-    scopeId: `resources-colony-${colonyIdAsId}`,
-  });
 
   if (isAuthLoading || (isAuthenticated && !view)) {
     return (
