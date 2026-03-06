@@ -786,49 +786,67 @@ const operationSummaryValidator = v.object({
   parentOperationId: v.optional(v.id("fleetOperations")),
 });
 
-export const getFleetDashboard = query({
+export const getFleetGarrison = query({
+  args: {
+    colonyId: v.id("colonies"),
+  },
+  returns: v.object({
+    garrisonShips: shipCountsValidator,
+  }),
+  handler: async (ctx, args) => {
+    const { colony } = await getOwnedColony({
+      ctx,
+      colonyId: args.colonyId,
+    });
+
+    const shipRows = await ctx.db
+      .query("colonyShips")
+      .withIndex("by_colony", (q) => q.eq("colonyId", colony._id))
+      .collect();
+
+    const garrisonShips = normalizeShipCounts({});
+    for (const row of shipRows) {
+      garrisonShips[row.shipKey] = row.count;
+    }
+
+    return {
+      garrisonShips,
+    };
+  },
+});
+
+export const getFleetActiveOperations = query({
   args: {
     colonyId: v.id("colonies"),
   },
   returns: v.object({
     active: v.array(operationSummaryValidator),
-    garrisonShips: shipCountsValidator,
     nextEventAt: v.optional(v.number()),
   }),
   handler: async (ctx, args) => {
-    const { colony, player } = await getOwnedColony({
+    const { player } = await getOwnedColony({
       ctx,
       colonyId: args.colonyId,
     });
 
-    const [shipRows, operations] = await Promise.all([
-      ctx.db
-        .query("colonyShips")
-        .withIndex("by_colony", (q) => q.eq("colonyId", colony._id))
-        .collect(),
+    const [operations, returning] = await Promise.all([
       ctx.db
         .query("fleetOperations")
         .withIndex("by_owner_stat_evt", (q) =>
           q.eq("ownerPlayerId", player._id).eq("status", "inTransit"),
         )
         .collect(),
+      ctx.db
+        .query("fleetOperations")
+        .withIndex("by_owner_stat_evt", (q) =>
+          q.eq("ownerPlayerId", player._id).eq("status", "returning"),
+        )
+        .collect(),
     ]);
-
-    const returning = await ctx.db
-      .query("fleetOperations")
-      .withIndex("by_owner_stat_evt", (q) =>
-        q.eq("ownerPlayerId", player._id).eq("status", "returning"),
-      )
-      .collect();
 
     const activeOps = [...operations, ...returning].sort(
       (left, right) => left.nextEventAt - right.nextEventAt,
     );
-
-    const garrisonShips = normalizeShipCounts({});
-    for (const row of shipRows) {
-      garrisonShips[row.shipKey] = row.count;
-    }
 
     return {
       active: activeOps.map((operation) => ({
@@ -850,7 +868,6 @@ export const getFleetDashboard = query({
         nextEventAt: operation.nextEventAt,
         parentOperationId: operation.parentOperationId,
       })),
-      garrisonShips,
       nextEventAt: activeOps[0]?.nextEventAt,
     };
   },

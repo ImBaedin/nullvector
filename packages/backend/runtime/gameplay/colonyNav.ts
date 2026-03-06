@@ -1,11 +1,11 @@
 import { mutation, query } from "../../convex/_generated/server";
+import type { Id } from "../../convex/_generated/dataModel";
 import { ConvexError, v } from "convex/values";
 
 import {
   buildHudResources,
   colonyCoordinatesValidator,
   colonyStatusValidator,
-  getBuildingQueueStatusForColony,
   getOwnedColony,
   listOpenColonyQueueItems,
   listPlayerColonies,
@@ -15,6 +15,34 @@ import {
   sessionColonyValidator,
   toAddressLabel,
 } from "./shared";
+
+export function mapColonyQueueStatuses(args: {
+  activeRows: Array<{ colonyId: Id<"colonies"> }>;
+  colonyIds: Array<Id<"colonies">>;
+  queuedRows: Array<{ colonyId: Id<"colonies"> }>;
+}) {
+  const statusByColonyId = new Map<Id<"colonies">, "Upgrading" | "Queued" | "Stable">(
+    args.colonyIds.map((colonyId) => [colonyId, "Stable"]),
+  );
+
+  for (const row of args.queuedRows) {
+    if (!statusByColonyId.has(row.colonyId)) {
+      continue;
+    }
+    statusByColonyId.set(row.colonyId, "Queued");
+  }
+  for (const row of args.activeRows) {
+    if (!statusByColonyId.has(row.colonyId)) {
+      continue;
+    }
+    statusByColonyId.set(row.colonyId, "Upgrading");
+  }
+
+  return args.colonyIds.map((colonyId) => ({
+    colonyId,
+    status: statusByColonyId.get(colonyId) ?? "Stable",
+  }));
+}
 
 export const getColonyNav = query({
   args: {
@@ -74,13 +102,37 @@ export const getColonyResourceStrip = query({
   },
 });
 
-export const getColonyQueueSummary = query({
+export const getActiveColonyNextEvent = query({
   args: {
     colonyId: v.id("colonies"),
   },
   returns: v.object({
     activeColonyId: v.id("colonies"),
     nextEventAt: v.optional(v.number()),
+  }),
+  handler: async (ctx, args) => {
+    const { colony } = await getOwnedColony({
+      ctx,
+      colonyId: args.colonyId,
+    });
+    const colonyQueueRows = await listOpenColonyQueueItems({
+      colonyId: colony._id,
+      ctx,
+    });
+
+    return {
+      activeColonyId: colony._id,
+      nextEventAt: queueEventsNextAt(colonyQueueRows) ?? undefined,
+    };
+  },
+});
+
+export const getAllColonyQueueStatuses = query({
+  args: {
+    colonyId: v.id("colonies"),
+  },
+  returns: v.object({
+    activeColonyId: v.id("colonies"),
     statuses: v.array(colonyStatusValidator),
   }),
   handler: async (ctx, args) => {
@@ -92,25 +144,37 @@ export const getColonyQueueSummary = query({
       ctx,
       playerId: player._id,
     });
-    const colonyQueueRows = await listOpenColonyQueueItems({
-      colonyId: colony._id,
-      ctx,
-    });
 
-    const statuses = await Promise.all(
-      playerColonies.map(async (entry) => ({
-        colonyId: entry._id,
-        status: await getBuildingQueueStatusForColony({
-          colonyId: entry._id,
-          ctx,
-        }),
-      })),
-    );
+    const [activeBuildingRows, queuedBuildingRows] = await Promise.all([
+      ctx.db
+        .query("colonyQueueItems")
+        .withIndex("by_pl_lane_st_time", (q) =>
+          q
+            .eq("playerId", player._id)
+            .eq("lane", "building")
+            .eq("status", "active"),
+        )
+        .collect(),
+      ctx.db
+        .query("colonyQueueItems")
+        .withIndex("by_pl_lane_st_time", (q) =>
+          q
+            .eq("playerId", player._id)
+            .eq("lane", "building")
+            .eq("status", "queued"),
+        )
+        .collect(),
+    ]);
+
+    const colonyIds = playerColonies.map((entry) => entry._id);
 
     return {
       activeColonyId: colony._id,
-      nextEventAt: queueEventsNextAt(colonyQueueRows) ?? undefined,
-      statuses,
+      statuses: mapColonyQueueStatuses({
+        colonyIds,
+        activeRows: activeBuildingRows,
+        queuedRows: queuedBuildingRows,
+      }),
     };
   },
 });

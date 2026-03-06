@@ -1,6 +1,6 @@
 import {
   enqueueFacilityUpgrade,
-  getFacilitiesView,
+  getFacilitiesCards,
 } from "../runtime/gameplay/facilities";
 
-export { getFacilitiesView, enqueueFacilityUpgrade };
+export { getFacilitiesCards, enqueueFacilityUpgrade };

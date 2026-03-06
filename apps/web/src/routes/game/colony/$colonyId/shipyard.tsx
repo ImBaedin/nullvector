@@ -74,8 +74,12 @@ function ShipyardRoute() {
   const colonyIdAsId = colonyId as Id<"colonies">;
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
-  const view = useQuery(
-    api.shipyard.getShipyardView,
+  const shipCatalogQuery = useQuery(
+    api.shipyard.getShipCatalog,
+    isAuthenticated ? {} : "skip",
+  );
+  const shipyardState = useQuery(
+    api.shipyard.getShipyardState,
     isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
   );
   const syncColony = useMutation(api.colonyQueue.syncColony);
@@ -94,6 +98,28 @@ function ShipyardRoute() {
     Id<"colonyQueueItems"> | null
   >(null);
   const isSyncingRef = useRef(false);
+  const view = useMemo(() => {
+    if (!shipCatalogQuery || !shipyardState) {
+      return undefined;
+    }
+    const stateByShipKey = new Map(
+      shipyardState.shipStates.map((state) => [state.key, state]),
+    );
+    const ships = shipCatalogQuery.ships.map((ship) => {
+      const state = stateByShipKey.get(ship.key);
+      return {
+        ...ship,
+        owned: state?.owned ?? 0,
+        queued: state?.queued ?? 0,
+        perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
+        canBuild: state?.canBuild ?? false,
+      };
+    });
+    return {
+      ...shipyardState,
+      ships,
+    };
+  }, [shipCatalogQuery, shipyardState]);
 
   const sync = useCallback(async () => {
     if (!isAuthenticated || isSyncingRef.current) {

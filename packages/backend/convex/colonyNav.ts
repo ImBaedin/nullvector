@@ -1,7 +1,8 @@
 import {
+  getActiveColonyNextEvent,
+  getAllColonyQueueStatuses,
   getColonyCoordinates,
   getColonyNav,
-  getColonyQueueSummary,
   getColonyResourceStrip,
   renameColony,
 } from "../runtime/gameplay/colonyNav";
@@ -9,7 +10,8 @@ import {
 export {
   getColonyNav,
   getColonyResourceStrip,
-  getColonyQueueSummary,
+  getActiveColonyNextEvent,
+  getAllColonyQueueStatuses,
   getColonyCoordinates,
   renameColony,
 };

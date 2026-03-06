@@ -16,11 +16,9 @@ import {
   RESOURCE_KEYS,
   STORAGE_BUILDING_MAX_LEVEL,
   UPGRADE_BUILDING_KEYS,
-  buildLaneQueueView,
   buildingCardValidator,
   buildingKeyValidator,
   cloneResourceBucket,
-  emptyLaneQueueView,
   emptyResourceBucket,
   energyConsumptionForLevel,
   getGeneratorOrThrow,
@@ -30,23 +28,21 @@ import {
   listOpenColonyQueueItems,
   listOpenLaneQueueItems,
   productionRatesPerMinute,
-  queueEventsNextAt,
   queueLaneValidator,
   queueItemStatusValidator,
-  queuesViewValidator,
   resourceBucketValidator,
   resourceMapToScaledBucket,
   resourceMapToWholeUnitBucket,
   scaledUnits,
   settleColonyAndPersist,
-  storageCapsFromBuildings,
   storageUpgradeCost,
   storageUpgradeDurationSeconds,
   storedToWholeUnits,
   toAddressLabel,
 } from "./shared";
 import type { ProductionBuildingKey, StorageBuildingKey } from "./shared";
-export const getResourceManagementView = query({
+
+export const getColonyResourceSnapshot = query({
   args: {
     colonyId: v.id("colonies"),
   },
@@ -57,7 +53,6 @@ export const getResourceManagementView = query({
       addressLabel: v.string(),
       lastAccruedAt: v.number(),
     }),
-    queues: queuesViewValidator,
     resources: v.object({
       stored: resourceBucketValidator,
       storageCaps: resourceBucketValidator,
@@ -72,10 +67,8 @@ export const getResourceManagementView = query({
       crystal: v.number(),
       fuel: v.number(),
     }),
-    buildings: v.array(buildingCardValidator),
   }),
   handler: async (ctx, args) => {
-    const now = Date.now();
     const { colony, planet } = await getOwnedColony({
       ctx,
       colonyId: args.colonyId,
@@ -87,33 +80,79 @@ export const getResourceManagementView = query({
       planet,
     });
 
+    return {
+      colony: {
+        id: colony._id,
+        name: colony.name,
+        addressLabel: toAddressLabel(planet),
+        lastAccruedAt: colony.lastAccruedAt,
+      },
+      resources: {
+        stored: {
+          alloy: storedToWholeUnits(colony.resources.alloy),
+          crystal: storedToWholeUnits(colony.resources.crystal),
+          fuel: storedToWholeUnits(colony.resources.fuel),
+        },
+        storageCaps: {
+          alloy: storedToWholeUnits(colony.storageCaps.alloy),
+          crystal: storedToWholeUnits(colony.storageCaps.crystal),
+          fuel: storedToWholeUnits(colony.storageCaps.fuel),
+        },
+        overflow: {
+          alloy: storedToWholeUnits(colony.overflow.alloy),
+          crystal: storedToWholeUnits(colony.overflow.crystal),
+          fuel: storedToWholeUnits(colony.overflow.fuel),
+        },
+        ratesPerMinute: {
+          alloy: Math.max(0, Math.floor(rates.resources.alloy)),
+          crystal: Math.max(0, Math.floor(rates.resources.crystal)),
+          fuel: Math.max(0, Math.floor(rates.resources.fuel)),
+        },
+        energyProduced: rates.energyProduced,
+        energyConsumed: rates.energyConsumed,
+        energyRatio: rates.energyRatio,
+      },
+      planetMultipliers: {
+        alloy: planet.alloyMultiplier,
+        crystal: planet.crystalMultiplier,
+        fuel: planet.fuelMultiplier,
+      },
+    };
+  },
+});
+
+export const getColonyBuildingCards = query({
+  args: {
+    colonyId: v.id("colonies"),
+  },
+  returns: v.object({
+    buildings: v.array(buildingCardValidator),
+  }),
+  handler: async (ctx, args) => {
+    const { colony, planet } = await getOwnedColony({
+      ctx,
+      colonyId: args.colonyId,
+    });
     const queueRows = await listOpenColonyQueueItems({
       colonyId: colony._id,
       ctx,
     });
-    const buildingLane = buildLaneQueueView({
-      lane: "building",
-      now,
-      rows: queueRows,
-    });
-    const shipyardLane = buildLaneQueueView({
-      lane: "shipyard",
-      now,
-      rows: queueRows,
-    });
-    const researchLane = emptyLaneQueueView("research");
-    const queueBlocked = buildingLane.isFull;
     const openBuildingQueueRows = queueRows.filter(
       (row) =>
         row.lane === "building" && OPEN_QUEUE_STATUSES.includes(row.status),
     );
-
+    const rates = productionRatesPerMinute({
+      buildings: colony.buildings,
+      overflow: colony.overflow,
+      planet,
+    });
+    const queueBlocked = openBuildingQueueRows.length >= BUILDING_LANE_CAPACITY;
     const affordable = (cost: ResourceBucket) =>
       RESOURCE_KEYS.every(
         (key) => colony.resources[key] >= scaledUnits(cost[key]),
       );
 
-    const cards: ResourceBuildingCardData[] = UPGRADE_BUILDING_KEYS.map((key) => {
+    const buildings: ResourceBuildingCardData[] = UPGRADE_BUILDING_KEYS.map((key) => {
       const config = BUILDING_CONFIG[key];
       const currentLevel = colony.buildings[key];
       const projectedLevel = openBuildingQueueRows.reduce((level, row) => {
@@ -122,14 +161,17 @@ export const getResourceManagementView = query({
         }
         return Math.max(level, row.payload.toLevel);
       }, currentLevel);
-      const isUpgrading = Boolean(
-        buildingLane.activeItem &&
-        "buildingKey" in buildingLane.activeItem.payload &&
-        buildingLane.activeItem.payload.buildingKey === key,
+      const isUpgrading = openBuildingQueueRows.some(
+        (row) =>
+          row.status === "active" &&
+          isBuildingUpgradeQueueItem(row) &&
+          row.payload.buildingKey === key,
       );
-      const isQueued = buildingLane.pendingItems.some(
-        (item) =>
-          "buildingKey" in item.payload && item.payload.buildingKey === key,
+      const isQueued = openBuildingQueueRows.some(
+        (row) =>
+          row.status === "queued" &&
+          isBuildingUpgradeQueueItem(row) &&
+          row.payload.buildingKey === key,
       );
 
       let maxLevel = STORAGE_BUILDING_MAX_LEVEL;
@@ -140,7 +182,6 @@ export const getResourceManagementView = query({
       if (config.kind === "generator") {
         const generator = getGeneratorOrThrow(config.generatorId);
         maxLevel = generator.maxLevel;
-
         outputPerMinute =
           config.group === "Power"
             ? rates.energyProduced
@@ -165,7 +206,6 @@ export const getResourceManagementView = query({
           colony.storageCaps[config.resource],
         );
         outputLabel = `${config.resource} cap`;
-        energyUsePerMinute = 0;
       }
 
       let nextUpgradeCost: ResourceBucket = emptyResourceBucket();
@@ -225,53 +265,7 @@ export const getResourceManagementView = query({
       };
     });
 
-    return {
-      colony: {
-        id: colony._id,
-        name: colony.name,
-        addressLabel: toAddressLabel(planet),
-        lastAccruedAt: colony.lastAccruedAt,
-      },
-      queues: {
-        nextEventAt: queueEventsNextAt(queueRows) ?? undefined,
-        lanes: {
-          building: buildingLane,
-          shipyard: shipyardLane,
-          research: researchLane,
-        },
-      },
-      resources: {
-        stored: {
-          alloy: storedToWholeUnits(colony.resources.alloy),
-          crystal: storedToWholeUnits(colony.resources.crystal),
-          fuel: storedToWholeUnits(colony.resources.fuel),
-        },
-        storageCaps: {
-          alloy: storedToWholeUnits(colony.storageCaps.alloy),
-          crystal: storedToWholeUnits(colony.storageCaps.crystal),
-          fuel: storedToWholeUnits(colony.storageCaps.fuel),
-        },
-        overflow: {
-          alloy: storedToWholeUnits(colony.overflow.alloy),
-          crystal: storedToWholeUnits(colony.overflow.crystal),
-          fuel: storedToWholeUnits(colony.overflow.fuel),
-        },
-        ratesPerMinute: {
-          alloy: Math.max(0, Math.floor(rates.resources.alloy)),
-          crystal: Math.max(0, Math.floor(rates.resources.crystal)),
-          fuel: Math.max(0, Math.floor(rates.resources.fuel)),
-        },
-        energyProduced: rates.energyProduced,
-        energyConsumed: rates.energyConsumed,
-        energyRatio: rates.energyRatio,
-      },
-      planetMultipliers: {
-        alloy: planet.alloyMultiplier,
-        crystal: planet.crystalMultiplier,
-        fuel: planet.fuelMultiplier,
-      },
-      buildings: cards,
-    };
+    return { buildings };
   },
 });
 

@@ -24,7 +24,6 @@ import {
   resourceMapToScaledBucket,
   settleColonyAndPersist,
   settleShipyardQueue,
-  shipDefinitionViewValidator,
   shipKeyValidator,
 } from "./shared";
 
@@ -99,7 +98,53 @@ export function buildShipyardReschedulePatches(args: {
   return patches;
 }
 
-export const getShipyardView = query({
+const shipCatalogItemValidator = v.object({
+  key: shipKeyValidator,
+  name: v.string(),
+  requiredShipyardLevel: v.number(),
+  cargoCapacity: v.number(),
+  speed: v.number(),
+  fuelPerDistance: v.number(),
+  cost: v.object({
+    alloy: v.number(),
+    crystal: v.number(),
+    fuel: v.number(),
+  }),
+});
+
+const shipyardStateItemValidator = v.object({
+  key: shipKeyValidator,
+  owned: v.number(),
+  queued: v.number(),
+  perUnitDurationSeconds: v.number(),
+  canBuild: v.boolean(),
+});
+
+export const getShipCatalog = query({
+  args: {},
+  returns: v.object({
+    ships: v.array(shipCatalogItemValidator),
+  }),
+  handler: async () => {
+    const ships = (Object.keys(DEFAULT_SHIP_DEFINITIONS) as ShipKey[]).map(
+      (shipKey) => {
+        const definition = DEFAULT_SHIP_DEFINITIONS[shipKey];
+        return {
+          key: shipKey,
+          name: definition.name,
+          requiredShipyardLevel: definition.requiredShipyardLevel,
+          cargoCapacity: definition.cargoCapacity,
+          speed: definition.speed,
+          fuelPerDistance: definition.fuelPerDistance,
+          cost: definition.cost,
+        };
+      },
+    );
+    return { ships };
+  },
+});
+
+export const getShipyardState = query({
   args: {
     colonyId: v.id("colonies"),
   },
@@ -113,7 +158,7 @@ export const getShipyardView = query({
     }),
     nextEventAt: v.optional(v.number()),
     lane: laneQueueViewValidator,
-    ships: v.array(shipDefinitionViewValidator),
+    shipStates: v.array(shipyardStateItemValidator),
   }),
   handler: async (ctx, args) => {
     const { colony } = await getOwnedColony({
@@ -145,11 +190,10 @@ export const getShipyardView = query({
       countsByShip.set(row.shipKey, row.count);
     }
 
-    const ships = (Object.keys(DEFAULT_SHIP_DEFINITIONS) as ShipKey[]).map(
+    const shipStates = (Object.keys(DEFAULT_SHIP_DEFINITIONS) as ShipKey[]).map(
       (shipKey) => {
         const definition = DEFAULT_SHIP_DEFINITIONS[shipKey];
-        const costWhole = definition.cost;
-        const costScaled = resourceMapToScaledBucket(costWhole);
+        const costScaled = resourceMapToScaledBucket(definition.cost);
         const queued = openShipyardRows.reduce((total, row) => {
           if (!isShipBuildQueueItem(row)) {
             return total;
@@ -167,14 +211,8 @@ export const getShipyardView = query({
 
         return {
           key: shipKey,
-          name: definition.name,
-          requiredShipyardLevel: definition.requiredShipyardLevel,
           owned: countsByShip.get(shipKey) ?? 0,
           queued,
-          cargoCapacity: definition.cargoCapacity,
-          speed: definition.speed,
-          fuelPerDistance: definition.fuelPerDistance,
-          cost: costWhole,
           perUnitDurationSeconds: getShipBuildDurationSeconds({
             shipKey,
             shipyardLevel: colony.buildings.shipyardLevel,
@@ -194,7 +232,7 @@ export const getShipyardView = query({
       },
       nextEventAt: queueEventsNextAt(queueRows) ?? undefined,
       lane: shipyardLane,
-      ships,
+      shipStates,
     };
   },
 });

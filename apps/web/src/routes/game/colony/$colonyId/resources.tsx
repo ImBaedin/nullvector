@@ -154,10 +154,28 @@ function ResourcesRoute() {
   const colonyIdAsId = colonyId as Id<"colonies">;
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
-  const view = useQuery(
-    api.resources.getResourceManagementView,
+  const resourceSnapshot = useQuery(
+    api.resources.getColonyResourceSnapshot,
     isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
   );
+  const buildingCards = useQuery(
+    api.resources.getColonyBuildingCards,
+    isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+  );
+  const queueLanes = useQuery(
+    api.colonyQueue.getColonyQueueLanes,
+    isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+  );
+  const view = useMemo(() => {
+    if (!resourceSnapshot || !buildingCards || !queueLanes) {
+      return undefined;
+    }
+    return {
+      ...resourceSnapshot,
+      queues: queueLanes,
+      buildings: buildingCards.buildings,
+    };
+  }, [buildingCards, queueLanes, resourceSnapshot]);
   const syncColony = useMutation(api.colonyQueue.syncColony);
   const enqueueBuildingUpgrade = useMutation(
     api.resources.enqueueBuildingUpgrade,

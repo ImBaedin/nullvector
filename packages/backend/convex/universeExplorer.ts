@@ -104,6 +104,68 @@ const universeWithOrbitValidator = v.object({
   orbitEpochMs: v.number(),
 });
 
+const sectorHeaderValidator = v.object({
+  id: v.id("sectors"),
+  sectorIndex: v.number(),
+  sectorType: v.union(v.literal("core"), v.literal("frontier")),
+  centerX: v.number(),
+  centerY: v.number(),
+  worldCenterX: v.number(),
+  worldCenterY: v.number(),
+  addressLabel: v.string(),
+  displayName: v.string(),
+});
+
+const systemPlanetsContextValidator = v.object({
+  universe: universeWithOrbitValidator,
+  galaxy: galaxySummaryValidator,
+  sector: v.object({
+    id: v.id("sectors"),
+    sectorIndex: v.number(),
+    sectorType: v.union(v.literal("core"), v.literal("frontier")),
+    addressLabel: v.string(),
+    displayName: v.string(),
+  }),
+  system: systemSummaryValidator,
+});
+
+const planetOwnershipValidator = v.object({
+  id: v.id("planets"),
+  colony: v.optional(
+    v.object({
+      id: v.id("colonies"),
+      name: v.string(),
+      playerId: v.id("players"),
+      playerName: v.string(),
+    }),
+  ),
+});
+
+const planetActiveOperationValidator = v.object({
+  id: v.id("planets"),
+  activeOperation: v.optional(
+    v.object({
+      id: v.id("fleetOperations"),
+      kind: v.union(
+        v.literal("transport"),
+        v.literal("colonize"),
+        v.literal("contract"),
+        v.literal("combat"),
+      ),
+      status: v.union(
+        v.literal("planned"),
+        v.literal("inTransit"),
+        v.literal("atTarget"),
+        v.literal("returning"),
+        v.literal("completed"),
+        v.literal("cancelled"),
+        v.literal("failed"),
+      ),
+      ownerPlayerId: v.id("players"),
+    }),
+  ),
+});
+
 function formatGalaxyName(galaxyIndex: number, storedName: string) {
   const trimmed = storedName.trim();
   if (trimmed.length > 0) {
@@ -183,6 +245,69 @@ async function resolveUniverse(
   return fallback;
 }
 
+async function resolveGalaxyContext(ctx: QueryCtx, galaxyId: Id<"galaxies">) {
+  const galaxy = await ctx.db.get(galaxyId);
+  if (!galaxy) {
+    throw new ConvexError("Galaxy not found");
+  }
+
+  const universe = await ctx.db.get(galaxy.universeId);
+  if (!universe) {
+    throw new ConvexError("Universe not found for galaxy");
+  }
+
+  return { galaxy, universe };
+}
+
+async function resolveSectorContext(ctx: QueryCtx, sectorId: Id<"sectors">) {
+  const sector = await ctx.db.get(sectorId);
+  if (!sector) {
+    throw new ConvexError("Sector not found");
+  }
+
+  const [galaxy, universe] = await Promise.all([
+    ctx.db.get(sector.galaxyId),
+    ctx.db.get(sector.universeId),
+  ]);
+
+  if (!galaxy) {
+    throw new ConvexError("Galaxy not found for sector");
+  }
+
+  if (!universe) {
+    throw new ConvexError("Universe not found for sector");
+  }
+
+  return { sector, galaxy, universe };
+}
+
+async function resolveSystemContext(ctx: QueryCtx, systemId: Id<"systems">) {
+  const system = await ctx.db.get(systemId);
+  if (!system) {
+    throw new ConvexError("System not found");
+  }
+
+  const [sector, galaxy, universe] = await Promise.all([
+    ctx.db.get(system.sectorId),
+    ctx.db.get(system.galaxyId),
+    ctx.db.get(system.universeId),
+  ]);
+
+  if (!sector) {
+    throw new ConvexError("Sector not found for system");
+  }
+
+  if (!galaxy) {
+    throw new ConvexError("Galaxy not found for system");
+  }
+
+  if (!universe) {
+    throw new ConvexError("Universe not found for system");
+  }
+
+  return { system, sector, galaxy, universe };
+}
+
 export const getUniverseExplorerOverview = query({
   args: {
     universeSlug: v.optional(v.string()),
@@ -226,25 +351,47 @@ export const getUniverseExplorerOverview = query({
   },
 });
 
-export const getGalaxySectors = query({
+export const getGalaxyHeader = query({
   args: {
     galaxyId: v.id("galaxies"),
   },
   returns: v.object({
     universe: universeSummaryValidator,
     galaxy: galaxySummaryValidator,
+  }),
+  handler: async (ctx, args) => {
+    const { galaxy, universe } = await resolveGalaxyContext(ctx, args.galaxyId);
+
+    return {
+      universe: {
+        id: universe._id,
+        slug: universe.slug,
+        name: universe.name,
+      },
+      galaxy: {
+        id: galaxy._id,
+        galaxyIndex: galaxy.galaxyIndex,
+        name: galaxy.name,
+        gx: galaxy.gx,
+        gy: galaxy.gy,
+        worldX: galaxy.gx,
+        worldY: galaxy.gy,
+        addressLabel: galaxyAddress(galaxy.galaxyIndex),
+        displayName: formatGalaxyName(galaxy.galaxyIndex, galaxy.name),
+      },
+    };
+  },
+});
+
+export const getGalaxySectorList = query({
+  args: {
+    galaxyId: v.id("galaxies"),
+  },
+  returns: v.object({
     sectors: v.array(sectorSummaryValidator),
   }),
   handler: async (ctx, args) => {
-    const galaxy = await ctx.db.get(args.galaxyId);
-    if (!galaxy) {
-      throw new ConvexError("Galaxy not found");
-    }
-
-    const universe = await ctx.db.get(galaxy.universeId);
-    if (!universe) {
-      throw new ConvexError("Universe not found for galaxy");
-    }
+    const { galaxy } = await resolveGalaxyContext(ctx, args.galaxyId);
 
     const sectors = await ctx.db
       .query("sectors")
@@ -282,88 +429,22 @@ export const getGalaxySectors = query({
       });
 
     return {
-      universe: {
-        id: universe._id,
-        slug: universe.slug,
-        name: universe.name,
-      },
-      galaxy: {
-        id: galaxy._id,
-        galaxyIndex: galaxy.galaxyIndex,
-        name: galaxy.name,
-        gx: galaxy.gx,
-        gy: galaxy.gy,
-        worldX: galaxy.gx,
-        worldY: galaxy.gy,
-        addressLabel: galaxyAddress(galaxy.galaxyIndex),
-        displayName: formatGalaxyName(galaxy.galaxyIndex, galaxy.name),
-      },
       sectors: orderedSectors,
     };
   },
 });
 
-export const getSectorSystems = query({
+export const getSectorHeader = query({
   args: {
     sectorId: v.id("sectors"),
   },
   returns: v.object({
     universe: universeSummaryValidator,
     galaxy: galaxySummaryValidator,
-    sector: v.object({
-      id: v.id("sectors"),
-      sectorIndex: v.number(),
-      sectorType: v.union(v.literal("core"), v.literal("frontier")),
-      centerX: v.number(),
-      centerY: v.number(),
-      worldCenterX: v.number(),
-      worldCenterY: v.number(),
-      addressLabel: v.string(),
-      displayName: v.string(),
-    }),
-    systems: v.array(systemSummaryValidator),
+    sector: sectorHeaderValidator,
   }),
   handler: async (ctx, args) => {
-    const sector = await ctx.db.get(args.sectorId);
-    if (!sector) {
-      throw new ConvexError("Sector not found");
-    }
-
-    const [galaxy, universe] = await Promise.all([
-      ctx.db.get(sector.galaxyId),
-      ctx.db.get(sector.universeId),
-    ]);
-
-    if (!galaxy) {
-      throw new ConvexError("Galaxy not found for sector");
-    }
-
-    if (!universe) {
-      throw new ConvexError("Universe not found for sector");
-    }
-
-    const systems = await ctx.db
-      .query("systems")
-      .withIndex("by_sector_id_and_system_index", (q) => q.eq("sectorId", sector._id))
-      .collect();
-
-    const orderedSystems = systems
-      .slice()
-      .sort((a, b) => a.systemIndex - b.systemIndex)
-      .map((system) => ({
-        id: system._id,
-        systemIndex: system.systemIndex,
-        x: system.x,
-        y: system.y,
-        worldX: system.x,
-        worldY: system.y,
-        addressLabel: systemAddress(
-          galaxy.galaxyIndex,
-          sector.sectorIndex,
-          system.systemIndex
-        ),
-        displayName: formatSystemName(system.systemIndex),
-      }));
+    const { sector, galaxy, universe } = await resolveSectorContext(ctx, args.sectorId);
 
     return {
       universe: {
@@ -393,51 +474,142 @@ export const getSectorSystems = query({
         addressLabel: sectorAddress(galaxy.galaxyIndex, sector.sectorIndex),
         displayName: formatSectorName(sector.sectorIndex),
       },
+    };
+  },
+});
+
+export const getSectorSystemList = query({
+  args: {
+    sectorId: v.id("sectors"),
+  },
+  returns: v.object({
+    systems: v.array(systemSummaryValidator),
+  }),
+  handler: async (ctx, args) => {
+    const { sector, galaxy } = await resolveSectorContext(ctx, args.sectorId);
+
+    const systems = await ctx.db
+      .query("systems")
+      .withIndex("by_sector_id_and_system_index", (q) => q.eq("sectorId", sector._id))
+      .collect();
+
+    const orderedSystems = systems
+      .slice()
+      .sort((a, b) => a.systemIndex - b.systemIndex)
+      .map((system) => ({
+        id: system._id,
+        systemIndex: system.systemIndex,
+        x: system.x,
+        y: system.y,
+        worldX: system.x,
+        worldY: system.y,
+        addressLabel: systemAddress(
+          galaxy.galaxyIndex,
+          sector.sectorIndex,
+          system.systemIndex
+        ),
+        displayName: formatSystemName(system.systemIndex),
+      }));
+
+    return {
       systems: orderedSystems,
     };
   },
 });
 
-export const getSystemPlanets = query({
+export const getSystemPlanetsStatic = query({
   args: {
     systemId: v.id("systems"),
   },
   returns: v.object({
-    universe: universeWithOrbitValidator,
-    galaxy: galaxySummaryValidator,
-    sector: v.object({
-      id: v.id("sectors"),
-      sectorIndex: v.number(),
-      sectorType: v.union(v.literal("core"), v.literal("frontier")),
-      addressLabel: v.string(),
-      displayName: v.string(),
-    }),
-    system: systemSummaryValidator,
+    context: systemPlanetsContextValidator,
     planets: v.array(planetSummaryValidator),
   }),
   handler: async (ctx, args) => {
-    const system = await ctx.db.get(args.systemId);
-    if (!system) {
-      throw new ConvexError("System not found");
-    }
+    const { system, sector, galaxy, universe } = await resolveSystemContext(ctx, args.systemId);
 
-    const [sector, galaxy, universe] = await Promise.all([
-      ctx.db.get(system.sectorId),
-      ctx.db.get(system.galaxyId),
-      ctx.db.get(system.universeId),
-    ]);
+    const planets = await ctx.db
+      .query("planets")
+      .withIndex("by_system_id_and_planet_index", (q) => q.eq("systemId", system._id))
+      .collect();
 
-    if (!sector) {
-      throw new ConvexError("Sector not found for system");
-    }
+    const orderedPlanets = planets
+      .slice()
+      .sort((a, b) => a.planetIndex - b.planetIndex)
+      .map((planet) => ({
+        id: planet._id,
+        planetIndex: planet.planetIndex,
+        seed: planet.seed,
+        orbitRadius: planet.orbitRadius,
+        orbitPhaseRad: planet.orbitPhaseRad,
+        orbitAngularVelocityRadPerSec: planet.orbitAngularVelocityRadPerSec,
+        orbitX: Math.cos(planet.orbitPhaseRad) * planet.orbitRadius,
+        orbitY: Math.sin(planet.orbitPhaseRad) * planet.orbitRadius,
+        isColonizable: planet.isColonizable,
+        addressLabel: planetAddress(
+          galaxy.galaxyIndex,
+          sector.sectorIndex,
+          system.systemIndex,
+          planet.planetIndex
+        ),
+        displayName: formatPlanetName(planet.planetIndex),
+      }));
 
-    if (!galaxy) {
-      throw new ConvexError("Galaxy not found for system");
-    }
+    return {
+      context: {
+        universe: {
+          id: universe._id,
+          slug: universe.slug,
+          name: universe.name,
+          orbitEpochMs: universe.orbitEpochMs,
+        },
+        galaxy: {
+          id: galaxy._id,
+          galaxyIndex: galaxy.galaxyIndex,
+          name: galaxy.name,
+          gx: galaxy.gx,
+          gy: galaxy.gy,
+          worldX: galaxy.gx,
+          worldY: galaxy.gy,
+          addressLabel: galaxyAddress(galaxy.galaxyIndex),
+          displayName: formatGalaxyName(galaxy.galaxyIndex, galaxy.name),
+        },
+        sector: {
+          id: sector._id,
+          sectorIndex: sector.sectorIndex,
+          sectorType: sector.sectorType,
+          addressLabel: sectorAddress(galaxy.galaxyIndex, sector.sectorIndex),
+          displayName: formatSectorName(sector.sectorIndex),
+        },
+        system: {
+          id: system._id,
+          systemIndex: system.systemIndex,
+          x: system.x,
+          y: system.y,
+          worldX: system.x,
+          worldY: system.y,
+          addressLabel: systemAddress(
+            galaxy.galaxyIndex,
+            sector.sectorIndex,
+            system.systemIndex
+          ),
+          displayName: formatSystemName(system.systemIndex),
+        },
+      },
+      planets: orderedPlanets,
+    };
+  },
+});
 
-    if (!universe) {
-      throw new ConvexError("Universe not found for system");
-    }
+export const getSystemPlanetsOwnership = query({
+  args: {
+    systemId: v.id("systems"),
+  },
+  returns: v.object({
+    planets: v.array(planetOwnershipValidator),
+  }),
+  handler: async (ctx, args) => {
+    const { system } = await resolveSystemContext(ctx, args.systemId);
 
     const planets = await ctx.db
       .query("planets")
@@ -473,48 +645,14 @@ export const getSystemPlanets = query({
     );
     const playerById = new Map(playerPairs);
 
-    const activePlanetOperations = await ctx.db
-      .query("fleetOperations")
-      .withIndex("by_stat_evt", (q) => q.eq("status", "inTransit"))
-      .collect();
-
-    const operationsByPlanetId = new Map<Id<"planets">, (typeof activePlanetOperations)[number]>();
-    for (const operation of activePlanetOperations) {
-      const planetId = operation.target.planetId;
-      if (!planetId) {
-        continue;
-      }
-      const existingOperation = operationsByPlanetId.get(planetId);
-      if (!existingOperation || existingOperation.nextEventAt > operation.nextEventAt) {
-        operationsByPlanetId.set(planetId, operation);
-      }
-    }
-
-    const orderedPlanets = planets
+    const ownership = planets
       .slice()
       .sort((a, b) => a.planetIndex - b.planetIndex)
       .map((planet) => {
         const colony = colonyByPlanetId.get(planet._id) ?? null;
         const colonyPlayer = colony ? playerById.get(colony.playerId) ?? null : null;
-        const activeOperation = operationsByPlanetId.get(planet._id);
-
         return {
           id: planet._id,
-          planetIndex: planet.planetIndex,
-          seed: planet.seed,
-          orbitRadius: planet.orbitRadius,
-          orbitPhaseRad: planet.orbitPhaseRad,
-          orbitAngularVelocityRadPerSec: planet.orbitAngularVelocityRadPerSec,
-          orbitX: Math.cos(planet.orbitPhaseRad) * planet.orbitRadius,
-          orbitY: Math.sin(planet.orbitPhaseRad) * planet.orbitRadius,
-          isColonizable: planet.isColonizable,
-          addressLabel: planetAddress(
-            galaxy.galaxyIndex,
-            sector.sectorIndex,
-            system.systemIndex,
-            planet.planetIndex
-          ),
-          displayName: formatPlanetName(planet.planetIndex),
           colony: colony
             ? {
                 id: colony._id,
@@ -523,6 +661,67 @@ export const getSystemPlanets = query({
                 playerName: colonyPlayer?.displayName ?? "Unknown Commander",
               }
             : undefined,
+        };
+      });
+
+    return {
+      planets: ownership,
+    };
+  },
+});
+
+export const getSystemPlanetsActiveOps = query({
+  args: {
+    systemId: v.id("systems"),
+  },
+  returns: v.object({
+    planets: v.array(planetActiveOperationValidator),
+  }),
+  handler: async (ctx, args) => {
+    const { system } = await resolveSystemContext(ctx, args.systemId);
+
+    const planets = await ctx.db
+      .query("planets")
+      .withIndex("by_system_id_and_planet_index", (q) => q.eq("systemId", system._id))
+      .collect();
+
+    const operationsByPlanetId = new Map<Id<"planets">, {
+      _id: Id<"fleetOperations">;
+      kind: "transport" | "colonize" | "contract" | "combat";
+      status:
+        | "planned"
+        | "inTransit"
+        | "atTarget"
+        | "returning"
+        | "completed"
+        | "cancelled"
+        | "failed";
+      ownerPlayerId: Id<"players">;
+    }>();
+
+    await Promise.all(
+      planets.map(async (planet) => {
+        const operation = await ctx.db
+          .query("fleetOperations")
+          .withIndex("by_tplanet_st_evt", (q) =>
+            q.eq("target.planetId", planet._id).eq("status", "inTransit")
+          )
+          .first();
+        if (!operation) {
+          return;
+        }
+        operationsByPlanetId.set(planet._id, operation);
+      })
+    );
+
+    const overlays = planets
+      .slice()
+      .sort((a, b) => a.planetIndex - b.planetIndex)
+      .map((planet) => {
+        const activeOperation = operationsByPlanetId.get(planet._id);
+
+        return {
+          id: planet._id,
           activeOperation: activeOperation
             ? {
                 id: activeOperation._id,
@@ -535,45 +734,7 @@ export const getSystemPlanets = query({
       });
 
     return {
-      universe: {
-        id: universe._id,
-        slug: universe.slug,
-        name: universe.name,
-        orbitEpochMs: universe.orbitEpochMs,
-      },
-      galaxy: {
-        id: galaxy._id,
-        galaxyIndex: galaxy.galaxyIndex,
-        name: galaxy.name,
-        gx: galaxy.gx,
-        gy: galaxy.gy,
-        worldX: galaxy.gx,
-        worldY: galaxy.gy,
-        addressLabel: galaxyAddress(galaxy.galaxyIndex),
-        displayName: formatGalaxyName(galaxy.galaxyIndex, galaxy.name),
-      },
-      sector: {
-        id: sector._id,
-        sectorIndex: sector.sectorIndex,
-        sectorType: sector.sectorType,
-        addressLabel: sectorAddress(galaxy.galaxyIndex, sector.sectorIndex),
-        displayName: formatSectorName(sector.sectorIndex),
-      },
-      system: {
-        id: system._id,
-        systemIndex: system.systemIndex,
-        x: system.x,
-        y: system.y,
-        worldX: system.x,
-        worldY: system.y,
-        addressLabel: systemAddress(
-          galaxy.galaxyIndex,
-          sector.sectorIndex,
-          system.systemIndex
-        ),
-        displayName: formatSystemName(system.systemIndex),
-      },
-      planets: orderedPlanets,
+      planets: overlays,
     };
   },
 });

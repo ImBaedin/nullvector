@@ -1,7 +1,8 @@
 import {
   cancelShipBuildQueueItem,
   enqueueShipBuild,
-  getShipyardView,
+  getShipCatalog,
+  getShipyardState,
 } from "../runtime/gameplay/shipyard";
 
-export { cancelShipBuildQueueItem, getShipyardView, enqueueShipBuild };
+export { cancelShipBuildQueueItem, getShipCatalog, getShipyardState, enqueueShipBuild };

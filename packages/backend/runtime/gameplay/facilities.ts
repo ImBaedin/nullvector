@@ -14,8 +14,6 @@ import {
   OPEN_QUEUE_STATUSES,
   RESOURCE_KEYS,
   SHIPYARD_FACILITY_KEY,
-  buildLaneQueueView,
-  emptyLaneQueueView,
   emptyResourceBucket,
   facilityCardValidator,
   facilityKeyValidator,
@@ -25,35 +23,24 @@ import {
   isFacilityUpgradeQueueItem,
   listOpenColonyQueueItems,
   listOpenLaneQueueItems,
-  queueEventsNextAt,
   queueLaneValidator,
   queueItemStatusValidator,
-  queuesViewValidator,
   resourceMapToScaledBucket,
   resourceMapToWholeUnitBucket,
   scaledUnits,
   settleColonyAndPersist,
   settleShipyardQueue,
   cloneResourceBucket,
-  toAddressLabel,
 } from "./shared";
-export const getFacilitiesView = query({
+export const getFacilitiesCards = query({
   args: {
     colonyId: v.id("colonies"),
   },
   returns: v.object({
-    colony: v.object({
-      id: v.id("colonies"),
-      name: v.string(),
-      addressLabel: v.string(),
-      lastAccruedAt: v.number(),
-    }),
-    queues: queuesViewValidator,
     facilities: v.array(facilityCardValidator),
   }),
   handler: async (ctx, args) => {
-    const now = Date.now();
-    const { colony, planet } = await getOwnedColony({
+    const { colony } = await getOwnedColony({
       ctx,
       colonyId: args.colonyId,
     });
@@ -62,18 +49,6 @@ export const getFacilitiesView = query({
       colonyId: colony._id,
       ctx,
     });
-    const buildingLane = buildLaneQueueView({
-      lane: "building",
-      now,
-      rows: queueRows,
-    });
-    const shipyardLane = buildLaneQueueView({
-      lane: "shipyard",
-      now,
-      rows: queueRows,
-    });
-    const researchLane = emptyLaneQueueView("research");
-
     const openBuildingQueueRows = queueRows.filter(
       (row) =>
         row.lane === "building" && OPEN_QUEUE_STATUSES.includes(row.status),
@@ -97,14 +72,17 @@ export const getFacilitiesView = query({
         }
         return Math.max(level, row.payload.toLevel);
       }, currentLevel);
-      const isUpgrading = Boolean(
-        buildingLane.activeItem &&
-        "facilityKey" in buildingLane.activeItem.payload &&
-        buildingLane.activeItem.payload.facilityKey === key,
+      const isUpgrading = openBuildingQueueRows.some(
+        (row) =>
+          row.status === "active" &&
+          isFacilityUpgradeQueueItem(row) &&
+          row.payload.facilityKey === key,
       );
-      const isQueued = buildingLane.pendingItems.some(
-        (item) =>
-          "facilityKey" in item.payload && item.payload.facilityKey === key,
+      const isQueued = openBuildingQueueRows.some(
+        (row) =>
+          row.status === "queued" &&
+          isFacilityUpgradeQueueItem(row) &&
+          row.payload.facilityKey === key,
       );
       const isUnlocked = isFacilityUnlocked(facility, {
         facilityLevels: facilityLevelsFromColony(colony),
@@ -127,7 +105,7 @@ export const getFacilitiesView = query({
       const canUpgrade =
         isUnlocked &&
         !isMaxLevel &&
-        !buildingLane.isFull &&
+        openBuildingQueueRows.length < BUILDING_LANE_CAPACITY &&
         affordable(nextUpgradeCost);
       const status: "Online" | "Queued" | "Constructing" | "Locked" | "Maxed" =
         !isUnlocked
@@ -157,20 +135,6 @@ export const getFacilitiesView = query({
     });
 
     return {
-      colony: {
-        id: colony._id,
-        name: colony.name,
-        addressLabel: toAddressLabel(planet),
-        lastAccruedAt: colony.lastAccruedAt,
-      },
-      queues: {
-        nextEventAt: queueEventsNextAt(queueRows) ?? undefined,
-        lanes: {
-          building: buildingLane,
-          shipyard: shipyardLane,
-          research: researchLane,
-        },
-      },
       facilities,
     };
   },

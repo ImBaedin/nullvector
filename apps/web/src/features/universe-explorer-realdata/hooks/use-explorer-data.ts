@@ -24,20 +24,84 @@ export function useExplorerData() {
 
   const overview = useQuery(api.universeExplorer.getUniverseExplorerOverview, {});
 
-  const galaxyData = useQuery(
-    api.universeExplorer.getGalaxySectors,
+  const galaxyHeader = useQuery(
+    api.universeExplorer.getGalaxyHeader,
+    explorer.path.galaxyId ? { galaxyId: explorer.path.galaxyId } : "skip"
+  );
+  const galaxySectorList = useQuery(
+    api.universeExplorer.getGalaxySectorList,
     explorer.path.galaxyId ? { galaxyId: explorer.path.galaxyId } : "skip"
   );
 
-  const sectorData = useQuery(
-    api.universeExplorer.getSectorSystems,
+  const sectorHeader = useQuery(
+    api.universeExplorer.getSectorHeader,
+    explorer.path.sectorId ? { sectorId: explorer.path.sectorId } : "skip"
+  );
+  const sectorSystemList = useQuery(
+    api.universeExplorer.getSectorSystemList,
     explorer.path.sectorId ? { sectorId: explorer.path.sectorId } : "skip"
   );
 
-  const systemData = useQuery(
-    api.universeExplorer.getSystemPlanets,
+  const systemStatic = useQuery(
+    api.universeExplorer.getSystemPlanetsStatic,
     explorer.path.systemId ? { systemId: explorer.path.systemId } : "skip"
   );
+  const systemOwnership = useQuery(
+    api.universeExplorer.getSystemPlanetsOwnership,
+    explorer.path.systemId ? { systemId: explorer.path.systemId } : "skip"
+  );
+  const systemActiveOps = useQuery(
+    api.universeExplorer.getSystemPlanetsActiveOps,
+    explorer.path.systemId ? { systemId: explorer.path.systemId } : "skip"
+  );
+
+  const galaxyData = useMemo(() => {
+    if (!galaxyHeader || !galaxySectorList) {
+      return undefined;
+    }
+    return {
+      universe: galaxyHeader.universe,
+      galaxy: galaxyHeader.galaxy,
+      sectors: galaxySectorList.sectors,
+    };
+  }, [galaxyHeader, galaxySectorList]);
+
+  const sectorData = useMemo(() => {
+    if (!sectorHeader || !sectorSystemList) {
+      return undefined;
+    }
+    return {
+      universe: sectorHeader.universe,
+      galaxy: sectorHeader.galaxy,
+      sector: sectorHeader.sector,
+      systems: sectorSystemList.systems,
+    };
+  }, [sectorHeader, sectorSystemList]);
+
+  const systemData = useMemo(() => {
+    if (!systemStatic || !systemOwnership || !systemActiveOps) {
+      return undefined;
+    }
+
+    const ownershipByPlanetId = new Map(
+      systemOwnership.planets.map((entry) => [entry.id, entry.colony])
+    );
+    const activeOpsByPlanetId = new Map(
+      systemActiveOps.planets.map((entry) => [entry.id, entry.activeOperation])
+    );
+
+    return {
+      universe: systemStatic.context.universe,
+      galaxy: systemStatic.context.galaxy,
+      sector: systemStatic.context.sector,
+      system: systemStatic.context.system,
+      planets: systemStatic.planets.map((planet) => ({
+        ...planet,
+        colony: ownershipByPlanetId.get(planet.id),
+        activeOperation: activeOpsByPlanetId.get(planet.id),
+      })),
+    };
+  }, [systemActiveOps, systemOwnership, systemStatic]);
 
   const galaxyEntities = useMemo<RenderableEntity[]>(() => {
     if (!overview) {
@@ -218,7 +282,10 @@ export function useExplorerData() {
 
       void Promise.allSettled(
         galaxyIdsToPrefetch.map(async (galaxyId) => {
-          await convex.query(api.universeExplorer.getGalaxySectors, { galaxyId });
+          await Promise.all([
+            convex.query(api.universeExplorer.getGalaxyHeader, { galaxyId }),
+            convex.query(api.universeExplorer.getGalaxySectorList, { galaxyId }),
+          ]);
           prefetchedGalaxyIds.add(galaxyId);
         })
       );
@@ -238,7 +305,10 @@ export function useExplorerData() {
 
       void Promise.allSettled(
         sectorIdsToPrefetch.map(async (sectorId) => {
-          await convex.query(api.universeExplorer.getSectorSystems, { sectorId });
+          await Promise.all([
+            convex.query(api.universeExplorer.getSectorHeader, { sectorId }),
+            convex.query(api.universeExplorer.getSectorSystemList, { sectorId }),
+          ]);
           prefetchedSectorIds.add(sectorId);
         })
       );
@@ -261,7 +331,11 @@ export function useExplorerData() {
 
     void Promise.allSettled(
       systemIdsToPrefetch.map(async (systemId) => {
-        await convex.query(api.universeExplorer.getSystemPlanets, { systemId });
+        await Promise.all([
+          convex.query(api.universeExplorer.getSystemPlanetsStatic, { systemId }),
+          convex.query(api.universeExplorer.getSystemPlanetsOwnership, { systemId }),
+          convex.query(api.universeExplorer.getSystemPlanetsActiveOps, { systemId }),
+        ]);
         prefetchedSystemIds.add(systemId);
       })
     );

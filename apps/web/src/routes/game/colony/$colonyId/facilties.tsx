@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Popover } from "@base-ui/react/popover";
 import { Clock3, Layers3 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
@@ -101,8 +101,12 @@ function FacilitiesRoute() {
   const { colonyId } = Route.useParams();
   const colonyIdAsId = colonyId as Id<"colonies">;
   const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
-  const view = useQuery(
-    api.facilities.getFacilitiesView,
+  const facilitiesCards = useQuery(
+    api.facilities.getFacilitiesCards,
+    isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+  );
+  const queueLanes = useQuery(
+    api.colonyQueue.getColonyQueueLanes,
     isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
   );
   const syncColony = useMutation(api.colonyQueue.syncColony);
@@ -110,6 +114,15 @@ function FacilitiesRoute() {
   const [upgradingKey, setUpgradingKey] = useState<FacilityKey | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const isSyncingRef = useRef(false);
+  const view = useMemo(() => {
+    if (!facilitiesCards || !queueLanes) {
+      return undefined;
+    }
+    return {
+      facilities: facilitiesCards.facilities,
+      queues: queueLanes,
+    };
+  }, [facilitiesCards, queueLanes]);
 
   const sync = useCallback(async () => {
     if (!isAuthenticated || isSyncingRef.current) {

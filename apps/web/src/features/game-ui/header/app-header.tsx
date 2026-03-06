@@ -178,8 +178,8 @@ export function AppHeader({
     api.colonyNav.getColonyResourceStrip,
     colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
   );
-  const colonyQueueSummary = useQuery(
-    api.colonyNav.getColonyQueueSummary,
+  const allColonyQueueStatuses = useQuery(
+    api.colonyNav.getAllColonyQueueStatuses,
     colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
   );
   const hud = useMemo<HeaderHudData | undefined>(() => {
@@ -191,7 +191,7 @@ export function AppHeader({
       Id<"colonies">,
       "Upgrading" | "Queued" | "Stable"
     >(
-      (colonyQueueSummary?.statuses ?? []).map((entry) => [
+      (allColonyQueueStatuses?.statuses ?? []).map((entry) => [
         entry.colonyId,
         entry.status,
       ])
@@ -206,7 +206,7 @@ export function AppHeader({
       })),
       resources: colonyResourceStrip.resources as ResourceDatum[],
     };
-  }, [colonyNav, colonyQueueSummary?.statuses, colonyResourceStrip]);
+  }, [allColonyQueueStatuses?.statuses, colonyNav, colonyResourceStrip]);
   const simulatedResources = useSimulatedHudResources(
     hud?.resources ?? colonyResourceStrip?.resources
   );

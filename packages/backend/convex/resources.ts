@@ -1,6 +1,7 @@
 import {
   enqueueBuildingUpgrade,
-  getResourceManagementView,
+  getColonyBuildingCards,
+  getColonyResourceSnapshot,
 } from "../runtime/gameplay/resources";
 
-export { getResourceManagementView, enqueueBuildingUpgrade };
+export { getColonyResourceSnapshot, getColonyBuildingCards, enqueueBuildingUpgrade };

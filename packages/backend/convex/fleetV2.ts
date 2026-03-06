@@ -1,7 +1,8 @@
 import {
   cancelOperation,
   createOperation,
-  getFleetDashboard,
+  getFleetActiveOperations,
+  getFleetGarrison,
   getFleetOperation,
   getFleetOperationTimeline,
   processDueOperationsCron,
@@ -9,7 +10,8 @@ import {
 } from "../runtime/gameplay/fleetV2";
 
 export {
-  getFleetDashboard,
+  getFleetGarrison,
+  getFleetActiveOperations,
   getFleetOperation,
   getFleetOperationTimeline,
   syncFleetState,

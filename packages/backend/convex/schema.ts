@@ -488,6 +488,7 @@ export default defineSchema({
     .index("by_stat_evt", ["status", "nextEventAt"])
     .index("by_origin_stat_evt", ["originColonyId", "status", "nextEventAt"])
     .index("by_target_planet_stat", ["target.planetId", "status"])
+    .index("by_tplanet_st_evt", ["target.planetId", "status", "nextEventAt"])
     .index("by_parent_op", ["parentOperationId"])
     .index("by_fleet_stat", ["fleetId", "status"]),
 
@@ -529,5 +530,6 @@ export default defineSchema({
     .index("by_col_lane_st", ["colonyId", "lane", "status"])
     .index("by_col_st_time", ["colonyId", "status", "completesAt"])
     .index("by_col_lane_time", ["colonyId", "lane", "completesAt"])
-    .index("by_player_st_time", ["playerId", "status", "completesAt"]),
+    .index("by_player_st_time", ["playerId", "status", "completesAt"])
+    .index("by_pl_lane_st_time", ["playerId", "lane", "status", "completesAt"]),
 });

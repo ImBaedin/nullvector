@@ -1,3 +1,3 @@
-import { syncColony } from "../runtime/gameplay/colonyQueue";
+import { getColonyQueueLanes, syncColony } from "../runtime/gameplay/colonyQueue";
 
-export { syncColony };
+export { getColonyQueueLanes, syncColony };
