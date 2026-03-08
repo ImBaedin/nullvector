@@ -339,7 +339,7 @@ function ResourcesRoute() {
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 pb-12 pt-4 text-white">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_450px]">
         {/* ══ Left Column: Summary + Building Groups ══ */}
         <div className="space-y-5">
           {/* Production Summary Strip */}

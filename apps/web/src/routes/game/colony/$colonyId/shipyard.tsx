@@ -1,5 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Clock3, Minus, Plus } from "lucide-react";
+import {
+  Anchor,
+  Clock3,
+  Layers3,
+  Minus,
+  Package,
+  Plus,
+  Ship,
+  X,
+  Zap,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -12,7 +22,6 @@ import {
   CostPill,
   formatDuration,
   LockWarningPopover,
-  QueuePanel,
   type QueueItem,
 } from "./shipyard-mock-shared";
 
@@ -50,6 +59,7 @@ type ShipBuildQueueRow = {
     quantity: number;
     shipKey: ShipKey;
   };
+  startsAt?: number;
   status: "active" | "queued" | "completed" | "cancelled" | "failed";
 };
 
@@ -194,9 +204,58 @@ function ShipyardRoute() {
     return items;
   }, [nowMs, shipsByKey, view?.lane.activeItem, view?.lane.pendingItems]);
 
+  const activeQueueItem = queueItems.find((item) => item.isActive) ?? null;
+  const pendingQueueItems = queueItems.filter((item) => !item.isActive);
+
+  const activeRawItem = view?.lane.activeItem && isShipBuildQueueRow(view.lane.activeItem)
+    ? view.lane.activeItem
+    : null;
+  const activeItemStartsAt = (activeRawItem as Record<string, unknown> | null)?.startsAt as number | undefined;
+  const activeItemDurationMs =
+    activeRawItem && activeItemStartsAt
+      ? activeRawItem.completesAt - activeItemStartsAt
+      : 0;
+  const activeUpgradeProgress =
+    activeRawItem && activeItemDurationMs > 0
+      ? Math.min(
+          100,
+          Math.max(
+            0,
+            ((nowMs - (activeRawItem.completesAt - activeItemDurationMs)) /
+              activeItemDurationMs) *
+              100,
+          ),
+        )
+      : 0;
+
+  const handleCancel = (id: string) => {
+    const queueItemId = id as Id<"colonyQueueItems">;
+    setCancelingQueueItemId(queueItemId);
+    cancelShipBuildQueueItem({
+      colonyId: colonyIdAsId,
+      queueItemId,
+    })
+      .then((result) => {
+        const resourceLabel = `${result.refunded.alloy.toLocaleString()} alloy, ${result.refunded.crystal.toLocaleString()} crystal, ${result.refunded.fuel.toLocaleString()} fuel`;
+        toast.success(
+          `Cancelled ${result.cancelledRemainingQuantity.toLocaleString()} ship(s); refunded ${resourceLabel}.`,
+        );
+      })
+      .catch((error) => {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to cancel ship build",
+        );
+      })
+      .finally(() => {
+        setCancelingQueueItemId(null);
+      });
+  };
+
   if (isAuthLoading || (isAuthenticated && !view)) {
     return (
-      <div className="mx-auto w-full max-w-[1260px] px-4 py-8 text-white/80">
+      <div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
         Loading shipyard...
       </div>
     );
@@ -204,254 +263,599 @@ function ShipyardRoute() {
 
   if (!view) {
     return (
-      <div className="mx-auto w-full max-w-[1260px] px-4 py-8 text-white/80">
+      <div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
         Unable to load shipyard. Please sign in again.
       </div>
     );
   }
 
-  const shipCatalog = view.ships.map((ship) => ({
-    cost: ship.cost,
-    image: SHIP_PRESENTATION[ship.key].image,
-    name: ship.name,
-  }));
   const fleetTotal = view.ships.reduce((sum, ship) => sum + ship.owned, 0);
+  const totalQueued = view.ships.reduce((sum, ship) => sum + ship.queued, 0);
 
   return (
-    <div className="mx-auto w-full max-w-[1260px] px-4 pb-12 pt-6 text-white">
-      <QueuePanel
-        className="mt-1"
-        fleetTotal={fleetTotal}
-        items={queueItems}
-        onCancel={(id) => {
-          const queueItemId = id as Id<"colonyQueueItems">;
-          setCancelingQueueItemId(queueItemId);
-          cancelShipBuildQueueItem({
-            colonyId: colonyIdAsId,
-            queueItemId,
-          })
-            .then((result) => {
-              const resourceLabel = `${result.refunded.alloy.toLocaleString()} alloy, ${result.refunded.crystal.toLocaleString()} crystal, ${result.refunded.fuel.toLocaleString()} fuel`;
-              toast.success(
-                `Cancelled ${result.cancelledRemainingQuantity.toLocaleString()} ship(s); refunded ${resourceLabel}.`,
-              );
-            })
-            .catch((error) => {
-              toast.error(
-                error instanceof Error
-                  ? error.message
-                  : "Failed to cancel ship build",
-              );
-            })
-            .finally(() => {
-              setCancelingQueueItemId(null);
-            });
-        }}
-        shipCatalog={shipCatalog}
-        title="Command Queue"
-      />
-      <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {view.ships.map((ship) => {
-          const qty = quantities[ship.key] ?? 1;
-          const qtyInput = quantityInputs[ship.key] ?? String(qty);
-          const lockedByLevel = view.shipyardLevel < ship.requiredShipyardLevel;
-          const warning = lockedByLevel
-            ? `Requires Shipyard Level ${ship.requiredShipyardLevel} (current: ${view.shipyardLevel}).`
-            : undefined;
-          const isQueueing = queueingShipKey === ship.key;
-          const image = SHIP_PRESENTATION[ship.key].image;
-          const description = SHIP_PRESENTATION[ship.key].description;
-          const canAffordSelectedQuantity =
-            view.availableResources.alloy >= ship.cost.alloy * qty &&
-            view.availableResources.crystal >= ship.cost.crystal * qty &&
-            view.availableResources.fuel >= ship.cost.fuel * qty;
+    <div className="mx-auto w-full max-w-[1440px] px-4 pb-12 pt-4 text-white">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_450px]">
+        {/* ══ Left Column: Shipyard Summary + Ship Catalog ══ */}
+        <div className="space-y-5">
+          {/* Shipyard Summary Strip */}
+          <div className="rounded-2xl border border-white/10 bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))] p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 items-center justify-center rounded-lg border border-cyan-300/25 bg-cyan-400/8">
+                <Anchor className="size-4 text-cyan-300" />
+              </div>
+              <div>
+                <h1 className="font-[family-name:var(--nv-font-display)] text-lg font-bold">
+                  Shipyard
+                </h1>
+                <p className="text-[10px] text-white/40">
+                  Level {view.shipyardLevel} • {fleetTotal} ships
+                  {totalQueued > 0 ? ` • ${totalQueued} in queue` : ""}
+                  {activeQueueItem ? " • 1 building" : ""}
+                </p>
+              </div>
+            </div>
 
-          return (
-            <article
-              className={`relative overflow-hidden rounded-2xl border ${
-                ship.canBuild
-                  ? "border-white/15 bg-[linear-gradient(160deg,rgba(10,16,29,0.95),rgba(4,8,14,0.99))]"
-                  : "border-white/10 bg-[linear-gradient(160deg,rgba(43,47,56,0.55),rgba(20,22,27,0.72))] grayscale"
-              } flex h-full flex-col p-3`}
-              key={ship.key}
-            >
-              <div className="absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(76,185,255,0.15),transparent)]" />
-              <div className="relative z-10 flex h-full flex-col">
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-base font-semibold">{ship.name}</h2>
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full border border-cyan-200/40 bg-cyan-300/10 px-2 py-0.5 text-[11px] font-semibold text-cyan-100">
-                      Fleet {ship.owned.toLocaleString()}
-                    </span>
-                    {warning ? <LockWarningPopover message={warning} /> : null}
-                  </div>
-                </div>
-
-                <div className="mt-2 flex h-44 items-center justify-center">
-                  <img
-                    alt={`${ship.name} render`}
-                    className="h-40 w-40 object-contain"
-                    src={image}
-                  />
-                </div>
-
-                <div className="min-h-[108px]">
-                  <p className="text-xs leading-relaxed text-white/75">{description}</p>
-                  <p className="mt-1 inline-flex items-center gap-1 text-xs text-white/70">
-                    <Clock3 className="size-3.5" />
-                    Build {formatDuration(ship.perUnitDurationSeconds)}
-                  </p>
-                  <p className="mt-1 text-xs text-white/70">
-                    Cargo {ship.cargoCapacity.toLocaleString()} • Speed{" "}
-                    {ship.speed.toLocaleString()}
-                  </p>
-                  {ship.queued > 0 ? (
-                    <p className="mt-1 text-xs text-cyan-100/85">
-                      Queued {ship.queued.toLocaleString()}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="mt-auto pt-3">
-                  <p className="text-[11px] uppercase tracking-[0.12em] text-white/60">
-                    Queue Quantity
-                  </p>
-                  <div className="mt-1 flex items-center justify-between">
-                    <div className="inline-flex items-center rounded-lg border border-white/20 bg-black/25">
-                      <button
-                        className="px-2 py-1 disabled:opacity-35"
-                        disabled={!ship.canBuild || qty <= 1}
-                        onClick={() => {
-                          const nextValue = Math.max(1, qty - 1);
-                          setQuantities((current) => ({
-                            ...current,
-                            [ship.key]: nextValue,
-                          }));
-                          setQuantityInputs((current) => ({
-                            ...current,
-                            [ship.key]: String(nextValue),
-                          }));
-                        }}
-                      >
-                        <Minus className="size-3.5" />
-                      </button>
-                      <input
-                        className="w-14 bg-transparent px-1 text-center text-sm font-semibold text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        max={10_000}
-                        min={1}
-                        onBlur={() => {
-                          const raw = quantityInputs[ship.key];
-                          const parsed = Number(raw);
-                          const normalized =
-                            raw && Number.isFinite(parsed)
-                              ? Math.max(1, Math.min(10_000, parsed))
-                              : qty;
-                          setQuantities((current) => ({
-                            ...current,
-                            [ship.key]: normalized,
-                          }));
-                          setQuantityInputs((current) => ({
-                            ...current,
-                            [ship.key]: String(normalized),
-                          }));
-                        }}
-                        onChange={(event) => {
-                          const raw = event.target.value;
-                          if (!/^\d*$/.test(raw)) {
-                            return;
-                          }
-                          setQuantityInputs((current) => ({
-                            ...current,
-                            [ship.key]: raw,
-                          }));
-                          if (raw === "") {
-                            return;
-                          }
-                          const parsed = Number(raw);
-                          if (!Number.isFinite(parsed)) {
-                            return;
-                          }
-                          const nextValue = Math.max(1, Math.min(10_000, parsed));
-                          setQuantities((current) => ({
-                            ...current,
-                            [ship.key]: nextValue,
-                          }));
-                        }}
-                        type="number"
-                        value={qtyInput}
-                      />
-                      <button
-                        className="px-2 py-1 disabled:opacity-35"
-                        disabled={!ship.canBuild}
-                        onClick={() => {
-                          const nextValue = Math.min(10_000, qty + 1);
-                          setQuantities((current) => ({
-                            ...current,
-                            [ship.key]: nextValue,
-                          }));
-                          setQuantityInputs((current) => ({
-                            ...current,
-                            [ship.key]: String(nextValue),
-                          }));
-                        }}
-                      >
-                        <Plus className="size-3.5" />
-                      </button>
+            <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+              {view.ships.map((ship) => {
+                const image = SHIP_PRESENTATION[ship.key].image;
+                return (
+                  <div
+                    className="flex min-w-[180px] flex-1 items-center gap-3 rounded-xl border border-white/8 bg-white/[0.025] p-3"
+                    key={ship.key}
+                  >
+                    <img
+                      alt={ship.name}
+                      className="size-12 rounded-lg border border-white/8 bg-black/30 object-contain p-1"
+                      src={image}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">{ship.name}</p>
+                      <div className="mt-0.5 flex gap-2 text-[10px]">
+                        <span className="text-emerald-300/70">
+                          {ship.owned} owned
+                        </span>
+                        {ship.queued > 0 ? (
+                          <>
+                            <span className="text-white/30">|</span>
+                            <span className="text-cyan-200/50">
+                              {ship.queued} queued
+                            </span>
+                          </>
+                        ) : null}
+                      </div>
+                      <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8">
+                        <div
+                          className="h-full rounded-full bg-cyan-400/40"
+                          style={{
+                            width: `${
+                              ship.owned + ship.queued > 0
+                                ? Math.min(100, (ship.owned / (ship.owned + ship.queued)) * 100)
+                                : 100
+                            }%`,
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
-                  <button
-                    className="mt-2 w-full rounded-xl border border-cyan-200/55 bg-cyan-300/20 px-3 py-3 text-cyan-100 transition duration-200 hover:-translate-y-0.5 hover:border-cyan-100/80 hover:bg-cyan-300/30 hover:shadow-[0_0_28px_rgba(90,220,255,0.35)] disabled:transform-none disabled:border-white/15 disabled:bg-white/5 disabled:text-white/45 disabled:shadow-none"
-                    disabled={!ship.canBuild || !canAffordSelectedQuantity || isQueueing}
-                    onClick={() => {
-                      setQueueingShipKey(ship.key);
-                      enqueueShipBuild({
-                        colonyId: colonyIdAsId,
-                        quantity: qty,
-                        shipKey: ship.key,
-                      })
-                        .then((result) => {
-                          if (result.status === "active") {
-                            toast.success(`${ship.name} build started`);
-                          } else {
-                            toast.success(`${ship.name} build queued`);
-                          }
-                        })
-                        .catch((error) => {
-                          toast.error(
-                            error instanceof Error
-                              ? error.message
-                              : "Failed to queue ship build",
-                          );
-                        })
-                        .finally(() => {
-                          setQueueingShipKey(null);
-                        });
-                    }}
-                  >
-                    <span className="block text-center text-[12px] font-semibold uppercase tracking-[0.12em]">
-                      {isQueueing ? "Queueing..." : `Queue ${qty}`}
-                    </span>
-                    <span className="mt-1 flex flex-wrap justify-center gap-1.5">
-                      <CostPill amount={ship.cost.alloy * qty} kind="alloy" label="Alloy" />
-                      <CostPill
-                        amount={ship.cost.crystal * qty}
-                        kind="crystal"
-                        label="Crystal"
-                      />
-                      <CostPill amount={ship.cost.fuel * qty} kind="fuel" label="Fuel" />
-                    </span>
-                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Ship Catalog */}
+          <section
+            className="overflow-hidden rounded-2xl border border-l-4 border-white/10 border-l-cyan-400/50 bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))]"
+            style={{
+              animation: "nv-resource-card-in 400ms cubic-bezier(0.21,1,0.34,1) both",
+            }}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
+              <div className="flex items-center gap-2.5">
+                <span className="text-white/50">
+                  <Ship className="size-4" strokeWidth={2.2} />
+                </span>
+                <div>
+                  <h2 className="font-[family-name:var(--nv-font-display)] text-sm font-bold">
+                    Ship Catalog
+                  </h2>
+                  <p className="mt-0.5 text-[10px] text-white/35">
+                    Commission new vessels from the orbital assembly line.
+                  </p>
                 </div>
               </div>
-            </article>
-          );
-        })}
-      </section>
-      {cancelingQueueItemId ? (
-        <p className="mt-3 text-xs text-white/65">
-          Updating queue item {cancelingQueueItemId}...
-        </p>
-      ) : null}
+              <div className="flex items-center gap-1.5">
+                <span className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 font-[family-name:var(--nv-font-mono)] text-[9px] font-semibold text-white/50">
+                  {view.ships.length} designs
+                </span>
+              </div>
+            </div>
+
+            <div className="border-t border-white/6 px-3 py-3 sm:px-4 sm:py-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {view.ships.map((ship, cardIndex) => {
+                  const qty = quantities[ship.key] ?? 1;
+                  const qtyInput = quantityInputs[ship.key] ?? String(qty);
+                  const lockedByLevel = view.shipyardLevel < ship.requiredShipyardLevel;
+                  const warning = lockedByLevel
+                    ? `Requires Shipyard Level ${ship.requiredShipyardLevel} (current: ${view.shipyardLevel}).`
+                    : undefined;
+                  const isQueueing = queueingShipKey === ship.key;
+                  const image = SHIP_PRESENTATION[ship.key].image;
+                  const description = SHIP_PRESENTATION[ship.key].description;
+                  const canAffordSelectedQuantity =
+                    view.availableResources.alloy >= ship.cost.alloy * qty &&
+                    view.availableResources.crystal >= ship.cost.crystal * qty &&
+                    view.availableResources.fuel >= ship.cost.fuel * qty;
+
+                  return (
+                    <article
+                      className={`group relative overflow-hidden rounded-xl border ${
+                        ship.canBuild
+                          ? "border-white/10"
+                          : "border-white/8 opacity-60 grayscale"
+                      } bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))] text-[13px]`}
+                      key={ship.key}
+                      style={{
+                        animation: "nv-resource-card-in 380ms cubic-bezier(0.21,1,0.34,1) both",
+                        animationDelay: `${120 + cardIndex * 60}ms`,
+                      }}
+                    >
+                      <div
+                        className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                        style={{
+                          background:
+                            "linear-gradient(90deg, transparent, rgba(74,233,255,0.5), transparent)",
+                        }}
+                      />
+                      <div
+                        className="pointer-events-none absolute -right-8 -top-8 size-32 rounded-full blur-3xl"
+                        style={{ background: "rgba(74,233,255,0.08)" }}
+                      />
+
+                      <div className="relative z-10 p-4">
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2.5">
+                            <img
+                              alt={ship.name}
+                              className="size-8 rounded-lg border border-white/8 bg-black/30 object-contain p-1"
+                              src={image}
+                            />
+                            <h3 className="font-[family-name:var(--nv-font-display)] text-sm font-bold">
+                              {ship.name}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="inline-flex size-6 items-center justify-center rounded-md border border-white/15 bg-black/25 font-[family-name:var(--nv-font-mono)] text-[10px] font-bold text-white/80"
+                              title={`${ship.owned} owned`}
+                            >
+                              {ship.owned}
+                            </span>
+                            {warning ? (
+                              <LockWarningPopover message={warning} />
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {/* Status badge */}
+                        <p
+                          className={`mt-2 inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
+                            !ship.canBuild
+                              ? "border-amber-300/35 bg-amber-400/10 text-amber-200/80"
+                              : ship.queued > 0
+                                ? "border-cyan-300/30 bg-cyan-400/8 text-cyan-200/80"
+                                : "border-emerald-300/30 bg-emerald-400/8 text-emerald-200/80"
+                          }`}
+                        >
+                          {!ship.canBuild
+                            ? "Locked"
+                            : ship.queued > 0
+                              ? `${ship.queued.toLocaleString()} Queued`
+                              : "Available"}
+                        </p>
+
+                        {/* Ship render */}
+                        <div className="mt-3 flex items-center justify-center">
+                          <div className="relative size-28 rounded-full border border-white/6 bg-black/20 p-2">
+                            <img
+                              alt={`${ship.name} render`}
+                              className="size-full object-contain"
+                              src={image}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        <p className="mt-3 text-[11px] leading-relaxed text-white/50">
+                          {description}
+                        </p>
+
+                        {/* Stats */}
+                        <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+                          <div className="rounded-lg border border-white/6 bg-black/20 px-2 py-1.5 text-center">
+                            <p className="text-[7px] uppercase tracking-[0.1em] text-white/30">
+                              Cargo
+                            </p>
+                            <p className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-[10px] font-bold text-white/80">
+                              {ship.cargoCapacity.toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-white/6 bg-black/20 px-2 py-1.5 text-center">
+                            <p className="text-[7px] uppercase tracking-[0.1em] text-white/30">
+                              Speed
+                            </p>
+                            <p className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-[10px] font-bold text-white/80">
+                              {ship.speed.toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-white/6 bg-black/20 px-2 py-1.5 text-center">
+                            <p className="text-[7px] uppercase tracking-[0.1em] text-white/30">
+                              Build
+                            </p>
+                            <p className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-[10px] font-bold text-white/80">
+                              {formatDuration(ship.perUnitDurationSeconds)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Quantity selector + queue button */}
+                        <div className="mt-3 border-t border-white/6 pt-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
+                            Queue Quantity
+                          </p>
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <div className="flex items-center rounded-lg border border-white/12 bg-black/25">
+                              <button
+                                className="flex size-7 items-center justify-center text-white/60 disabled:opacity-25"
+                                disabled={!ship.canBuild || qty <= 1}
+                                onClick={() => {
+                                  const nextValue = Math.max(1, qty - 1);
+                                  setQuantities((current) => ({
+                                    ...current,
+                                    [ship.key]: nextValue,
+                                  }));
+                                  setQuantityInputs((current) => ({
+                                    ...current,
+                                    [ship.key]: String(nextValue),
+                                  }));
+                                }}
+                              >
+                                <Minus className="size-3" />
+                              </button>
+                              <input
+                                className="w-12 bg-transparent px-0.5 text-center font-[family-name:var(--nv-font-mono)] text-xs font-bold text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                max={10_000}
+                                min={1}
+                                onBlur={() => {
+                                  const raw = quantityInputs[ship.key];
+                                  const parsed = Number(raw);
+                                  const normalized =
+                                    raw && Number.isFinite(parsed)
+                                      ? Math.max(1, Math.min(10_000, parsed))
+                                      : qty;
+                                  setQuantities((current) => ({
+                                    ...current,
+                                    [ship.key]: normalized,
+                                  }));
+                                  setQuantityInputs((current) => ({
+                                    ...current,
+                                    [ship.key]: String(normalized),
+                                  }));
+                                }}
+                                onChange={(event) => {
+                                  const raw = event.target.value;
+                                  if (!/^\d*$/.test(raw)) {
+                                    return;
+                                  }
+                                  setQuantityInputs((current) => ({
+                                    ...current,
+                                    [ship.key]: raw,
+                                  }));
+                                  if (raw === "") {
+                                    return;
+                                  }
+                                  const parsed = Number(raw);
+                                  if (!Number.isFinite(parsed)) {
+                                    return;
+                                  }
+                                  const nextValue = Math.max(1, Math.min(10_000, parsed));
+                                  setQuantities((current) => ({
+                                    ...current,
+                                    [ship.key]: nextValue,
+                                  }));
+                                }}
+                                type="number"
+                                value={qtyInput}
+                              />
+                              <button
+                                className="flex size-7 items-center justify-center text-white/60 disabled:opacity-25"
+                                disabled={!ship.canBuild}
+                                onClick={() => {
+                                  const nextValue = Math.min(10_000, qty + 1);
+                                  setQuantities((current) => ({
+                                    ...current,
+                                    [ship.key]: nextValue,
+                                  }));
+                                  setQuantityInputs((current) => ({
+                                    ...current,
+                                    [ship.key]: String(nextValue),
+                                  }));
+                                }}
+                              >
+                                <Plus className="size-3" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <button
+                            className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-200/50 bg-gradient-to-b from-cyan-400/25 to-cyan-400/10 px-4 py-2.5 font-[family-name:var(--nv-font-display)] text-xs font-bold uppercase tracking-[0.08em] text-cyan-50 shadow-[0_0_20px_rgba(61,217,255,0.12)] transition-all hover:-translate-y-0.5 hover:border-cyan-100/70 hover:shadow-[0_0_30px_rgba(61,217,255,0.25)] disabled:translate-y-0 disabled:border-white/10 disabled:bg-white/5 disabled:text-white/30 disabled:shadow-none"
+                            disabled={
+                              !ship.canBuild || !canAffordSelectedQuantity || isQueueing
+                            }
+                            onClick={() => {
+                              setQueueingShipKey(ship.key);
+                              enqueueShipBuild({
+                                colonyId: colonyIdAsId,
+                                quantity: qty,
+                                shipKey: ship.key,
+                              })
+                                .then((result) => {
+                                  if (result.status === "active") {
+                                    toast.success(`${ship.name} build started`);
+                                  } else {
+                                    toast.success(`${ship.name} build queued`);
+                                  }
+                                })
+                                .catch((error) => {
+                                  toast.error(
+                                    error instanceof Error
+                                      ? error.message
+                                      : "Failed to queue ship build",
+                                  );
+                                })
+                                .finally(() => {
+                                  setQueueingShipKey(null);
+                                });
+                            }}
+                          >
+                            <Zap className="size-3.5" />
+                            {isQueueing ? "Queueing..." : `Queue ${qty}`}
+                          </button>
+
+                          <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+                            <CostPill
+                              amount={ship.cost.alloy * qty}
+                              kind="alloy"
+                              label="Alloy"
+                            />
+                            <CostPill
+                              amount={ship.cost.crystal * qty}
+                              kind="crystal"
+                              label="Crystal"
+                            />
+                            <CostPill
+                              amount={ship.cost.fuel * qty}
+                              kind="fuel"
+                              label="Fuel"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* ══ Right Column: Command Queue ══ */}
+        <div className="lg:sticky lg:top-4 lg:self-start">
+          <div className="rounded-2xl border border-white/12 bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]">
+            <div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
+              <Clock3 className="size-5 text-cyan-300" />
+              <h2 className="font-[family-name:var(--nv-font-display)] text-sm font-bold">
+                Command Queue
+              </h2>
+              {queueItems.length > 0 ? (
+                <span className="ml-auto font-[family-name:var(--nv-font-mono)] text-[9px] text-white/30">
+                  {queueItems.length} item{queueItems.length !== 1 ? "s" : ""}
+                </span>
+              ) : null}
+            </div>
+
+            <div className="p-5">
+              {/* Active Build */}
+              {activeQueueItem ? (
+                <div className="space-y-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
+                    Active
+                  </p>
+                  <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/[0.04] p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        {(() => {
+                          const activeShip = view.ships.find(
+                            (s) => s.name === activeQueueItem.shipName,
+                          );
+                          const activeImage = activeShip
+                            ? SHIP_PRESENTATION[activeShip.key]?.image
+                            : null;
+                          return activeImage ? (
+                            <img
+                              alt={activeQueueItem.shipName}
+                              className="size-10 rounded-lg border border-white/8 bg-black/30 object-contain p-1"
+                              src={activeImage}
+                            />
+                          ) : null;
+                        })()}
+                        <div>
+                          <p className="text-xs font-semibold">
+                            {activeQueueItem.shipName}
+                          </p>
+                          <p className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-[10px] text-white/40">
+                            {activeQueueItem.remaining.toLocaleString()} of{" "}
+                            {activeQueueItem.total.toLocaleString()} remaining
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        className="rounded-md border border-rose-300/20 bg-rose-400/8 px-2 py-1 text-[10px] font-medium text-rose-200/80 transition-colors hover:border-rose-200/35 hover:bg-rose-400/12"
+                        disabled={cancelingQueueItemId === activeQueueItem.id}
+                        onClick={() => handleCancel(activeQueueItem.id)}
+                      >
+                        {cancelingQueueItemId === activeQueueItem.id ? (
+                          "..."
+                        ) : (
+                          <X className="size-3" />
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between text-right">
+                      <div className="flex items-center gap-1.5">
+                        <Layers3 className="size-3 text-emerald-300/50" />
+                        <span className="font-[family-name:var(--nv-font-mono)] text-[10px] text-white/40">
+                          Batch {activeQueueItem.total.toLocaleString()}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-[family-name:var(--nv-font-mono)] text-xs font-bold text-emerald-200">
+                          {formatDuration(activeQueueItem.timeLeftSeconds)}
+                        </p>
+                        <p className="font-[family-name:var(--nv-font-mono)] text-[8px] uppercase tracking-[0.1em] text-emerald-200/45">
+                          remaining
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/8">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-400/60 to-emerald-300/40 transition-all"
+                        style={{ width: `${activeUpgradeProgress}%` }}
+                      />
+                    </div>
+                    <div className="mt-1 flex items-center justify-between">
+                      <span className="font-[family-name:var(--nv-font-mono)] text-[9px] text-white/25">
+                        {Math.round(activeUpgradeProgress)}%
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[9px] text-emerald-300/60">
+                        <span
+                          className="inline-block size-1.5 rounded-full bg-emerald-400"
+                          style={{
+                            animation: "nv-queue-pulse 2s ease-in-out infinite",
+                          }}
+                        />
+                        Building
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Pending Queue Items */}
+              {pendingQueueItems.length > 0 ? (
+                <div className={activeQueueItem ? "mt-4" : ""}>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
+                    Pending ({pendingQueueItems.length})
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {pendingQueueItems.map((item, i) => {
+                      const pendingShip = view.ships.find(
+                        (s) => s.name === item.shipName,
+                      );
+                      const pendingImage = pendingShip
+                        ? SHIP_PRESENTATION[pendingShip.key]?.image
+                        : null;
+
+                      return (
+                        <div
+                          className="flex items-center justify-between rounded-lg border border-white/6 bg-white/[0.02] px-3 py-2"
+                          key={item.id}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="flex size-5 items-center justify-center rounded font-[family-name:var(--nv-font-mono)] text-[9px] font-bold text-white/25">
+                              {i + 1}
+                            </span>
+                            {pendingImage ? (
+                              <img
+                                alt={item.shipName}
+                                className="size-6 rounded border border-white/8 bg-black/20 object-contain p-0.5"
+                                src={pendingImage}
+                              />
+                            ) : null}
+                            <div>
+                              <p className="text-[11px] font-semibold text-white/80">
+                                {item.shipName}
+                              </p>
+                              <p className="font-[family-name:var(--nv-font-mono)] text-[9px] text-white/30">
+                                {item.total.toLocaleString()} ships •{" "}
+                                {formatDuration(item.timeLeftSeconds)}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            className="rounded-md border border-rose-300/20 bg-rose-400/8 px-2 py-1 text-[10px] font-medium text-rose-200/80 transition-colors hover:border-rose-200/35 hover:bg-rose-400/12"
+                            disabled={cancelingQueueItemId === item.id}
+                            onClick={() => handleCancel(item.id)}
+                          >
+                            {cancelingQueueItemId === item.id ? "..." : "Cancel"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Fleet Overview in Queue Panel */}
+              {queueItems.length > 0 ? (
+                <div className="mt-4 rounded-xl border border-cyan-300/15 bg-cyan-400/[0.04] p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <QueueMetricCard
+                      label="Fleet Total"
+                      value={fleetTotal.toLocaleString()}
+                    />
+                    <QueueMetricCard
+                      label="In Queue"
+                      value={totalQueued.toLocaleString()}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Empty state */}
+              {queueItems.length === 0 ? (
+                <div className="flex flex-col items-center py-8 text-center">
+                  <div className="flex size-12 items-center justify-center rounded-full border border-white/8 bg-white/[0.03]">
+                    <Package className="size-5 text-white/20" />
+                  </div>
+                  <p className="mt-3 text-xs font-medium text-white/30">
+                    No active builds
+                  </p>
+                  <p className="mt-1 text-[10px] text-white/18">
+                    Select a ship to begin construction
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QueueMetricCard(props: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-cyan-300/10 bg-cyan-400/[0.03] p-2">
+      <p className="text-[8px] uppercase tracking-[0.1em] text-cyan-200/45">
+        {props.label}
+      </p>
+      <p className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-xs font-bold text-cyan-100">
+        {props.value}
+      </p>
     </div>
   );
 }
