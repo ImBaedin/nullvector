@@ -244,6 +244,8 @@ export function AppHeader({
     const targetPath =
       config.activeTabId === "shipyard"
         ? "/game/colony/$colonyId/shipyard"
+        : config.activeTabId === "fleet"
+          ? "/game/colony/$colonyId/fleet"
         : config.activeTabId === "facilities"
           ? "/game/colony/$colonyId/facilties"
           : "/game/colony/$colonyId/resources";

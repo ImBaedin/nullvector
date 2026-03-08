@@ -47,6 +47,7 @@ const PLACEHOLDER_TAB_ICON_SRC: Record<ContextNavItem["id"], string> = {
 
 function buildPlaceholderTabs(basePaths: {
   facilities: string;
+  fleet: string;
   resources: string;
   shipyard: string;
 }): ContextNavItem[] {
@@ -58,6 +59,8 @@ function buildPlaceholderTabs(basePaths: {
         ? basePaths.resources
         : id === "facilities"
           ? basePaths.facilities
+          : id === "fleet"
+            ? basePaths.fleet
           : id === "shipyard"
             ? basePaths.shipyard
           : `/style-lab`,
@@ -119,9 +122,11 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
   const encodedColonyId = encodeURIComponent(colonyId);
   const resourcesPath = `/game/colony/${encodedColonyId}/resources`;
   const facilitiesPath = `/game/colony/${encodedColonyId}/facilties`;
+  const fleetPath = `/game/colony/${encodedColonyId}/fleet`;
   const shipyardPath = `/game/colony/${encodedColonyId}/shipyard`;
   const isResourcesRoute = pathname === resourcesPath;
   const isFacilitiesRoute = pathname === facilitiesPath;
+  const isFleetRoute = pathname === fleetPath;
   const isShipyardRoute = pathname === shipyardPath;
 
   if (!hud) {
@@ -132,11 +137,14 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
         ? "resources"
         : isFacilitiesRoute
           ? "facilities"
+          : isFleetRoute
+            ? "fleet"
           : isShipyardRoute
             ? "shipyard"
             : "overview",
       contextTabs: buildPlaceholderTabs({
         facilities: facilitiesPath,
+        fleet: fleetPath,
         resources: resourcesPath,
         shipyard: shipyardPath,
       }),
@@ -152,6 +160,8 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
       ? "resources"
       : isFacilitiesRoute
         ? "facilities"
+        : isFleetRoute
+          ? "fleet"
         : isShipyardRoute
           ? "shipyard"
         : "overview",
@@ -163,6 +173,7 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
     })),
     contextTabs: buildPlaceholderTabs({
       facilities: facilitiesPath,
+      fleet: fleetPath,
       resources: resourcesPath,
       shipyard: shipyardPath,
     }),

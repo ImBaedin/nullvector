@@ -8,6 +8,8 @@ import {
   useState,
 } from "react";
 
+import "@/features/game-ui/theme";
+
 import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
