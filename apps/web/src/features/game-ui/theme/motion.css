@@ -213,6 +213,17 @@
   }
 }
 
+@keyframes nv-colony-row-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 @keyframes nv-resource-card-in {
   0% {
     opacity: 0;
@@ -244,6 +255,7 @@
   .nv-progress-scan,
   .nv-starmap-stars,
   [style*="nv-fleet-"],
+  [style*="nv-colony-row-in"],
   [style*="nv-resource-card-in"],
   [style*="nv-queue-pulse"] {
     animation: none !important;

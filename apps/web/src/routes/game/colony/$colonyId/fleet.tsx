@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  Check,
   ChevronDown,
   Clock3,
   Crosshair,
@@ -107,6 +108,44 @@ const ACTIVE_OPS = [
   },
 ];
 
+const MY_COLONIES = [
+  {
+    id: "col-1",
+    name: "Kepler Prime",
+    coords: "1:4:2:1",
+    imageUrl: undefined as string | undefined,
+    isCurrent: true,
+  },
+  {
+    id: "col-2",
+    name: "Vega Outpost",
+    coords: "1:4:7:3",
+    imageUrl: undefined as string | undefined,
+    isCurrent: false,
+  },
+  {
+    id: "col-3",
+    name: "Arcturus Base",
+    coords: "1:2:3:1",
+    imageUrl: undefined as string | undefined,
+    isCurrent: false,
+  },
+  {
+    id: "col-4",
+    name: "Helios Station",
+    coords: "2:1:4:2",
+    imageUrl: undefined as string | undefined,
+    isCurrent: false,
+  },
+  {
+    id: "col-5",
+    name: "Cygnus Forge",
+    coords: "3:2:1:5",
+    imageUrl: undefined as string | undefined,
+    isCurrent: false,
+  },
+];
+
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
@@ -124,6 +163,25 @@ function Fleet5Route() {
   const [roundTrip, setRoundTrip] = useState(true);
   const [coords, setCoords] = useState({ g: "", s: "", ss: "", p: "" });
   const [cargo, setCargo] = useState({ alloy: 0, crystal: 0, fuel: 0 });
+  const [colonyPickerOpen, setColonyPickerOpen] = useState(false);
+  const [selectedColonyId, setSelectedColonyId] = useState<string | null>(null);
+
+  const selectColonyDestination = (colony: (typeof MY_COLONIES)[number]) => {
+    const parts = colony.coords.split(":");
+    setCoords({
+      g: parts[0] ?? "",
+      s: parts[1] ?? "",
+      ss: parts[2] ?? "",
+      p: parts[3] ?? "",
+    });
+    setSelectedColonyId(colony.id);
+    setColonyPickerOpen(false);
+  };
+
+  const clearColonySelection = () => {
+    setSelectedColonyId(null);
+    setCoords({ g: "", s: "", ss: "", p: "" });
+  };
 
   const totalCargo = SHIPS.reduce(
     (sum, s) => sum + (selectedShips[s.key] ?? 0) * s.cargo,
@@ -500,7 +558,13 @@ function Fleet5Route() {
                           : "border-white/10 bg-white/[0.03] text-white/40 hover:text-white/60"
                       }`}
                       key={type}
-                      onClick={() => setMissionType(type)}
+                      onClick={() => {
+                        setMissionType(type);
+                        if (type === "colonize") {
+                          setSelectedColonyId(null);
+                          setColonyPickerOpen(false);
+                        }
+                      }}
                     >
                       {type === "transport" ? (
                         <Package className="size-3.5" />
@@ -516,7 +580,37 @@ function Fleet5Route() {
               {/* Destination */}
               <div>
                 <SectionLabel>Destination</SectionLabel>
-                <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+
+                {/* Colony selection chip (when a colony is selected) */}
+                {selectedColonyId && (() => {
+                  const colony = MY_COLONIES.find((c) => c.id === selectedColonyId);
+                  if (!colony) return null;
+                  return (
+                    <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-400/[0.06] px-3 py-2">
+                      <div className="flex size-6 shrink-0 items-center justify-center rounded-md border border-cyan-300/20 bg-cyan-400/10 text-[8px] font-bold text-cyan-200/80">
+                        {colony.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-semibold text-cyan-50">
+                          {colony.name}
+                        </p>
+                        <p className="font-[family-name:var(--nv-font-mono)] text-[9px] text-cyan-200/40">
+                          {colony.coords}
+                        </p>
+                      </div>
+                      <button
+                        className="flex size-5 items-center justify-center rounded-md text-white/30 transition-colors hover:bg-white/8 hover:text-white/60"
+                        onClick={clearColonySelection}
+                        type="button"
+                      >
+                        <span className="text-xs leading-none">&times;</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* Coordinate inputs */}
+                <div className={`mt-1.5 grid grid-cols-4 gap-1.5 transition-opacity ${selectedColonyId ? "pointer-events-none opacity-35" : ""}`}>
                   {(["g", "s", "ss", "p"] as const).map((field, i) => (
                     <div key={field}>
                       <span className="block text-center text-[7px] uppercase text-white/25">
@@ -525,15 +619,97 @@ function Fleet5Route() {
                       <input
                         className="w-full rounded-md border border-white/12 bg-black/35 px-1 py-1.5 text-center font-[family-name:var(--nv-font-mono)] text-sm text-white outline-none focus:border-cyan-300/40"
                         maxLength={3}
-                        onChange={(e) =>
-                          setCoords((c) => ({ ...c, [field]: e.target.value }))
-                        }
+                        onChange={(e) => {
+                          setSelectedColonyId(null);
+                          setCoords((c) => ({ ...c, [field]: e.target.value }));
+                        }}
                         value={coords[field]}
                       />
                     </div>
                   ))}
                 </div>
-                <button className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/10 py-2 text-[10px] text-white/30 hover:border-cyan-300/20 hover:text-cyan-200/50">
+
+                {/* Quick-select: Colonies (transport only) */}
+                {missionType === "transport" && (
+                  <div className="mt-2">
+                    <button
+                      className={`flex w-full items-center justify-between gap-1.5 rounded-lg border px-3 py-2 text-[10px] transition-all ${
+                        colonyPickerOpen
+                          ? "border-cyan-300/30 bg-cyan-400/[0.06] text-cyan-100"
+                          : "border-dashed border-white/10 text-white/30 hover:border-cyan-300/20 hover:text-cyan-200/50"
+                      }`}
+                      onClick={() => setColonyPickerOpen((prev) => !prev)}
+                      type="button"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Globe2 className="size-3" />
+                        My Colonies
+                      </span>
+                      <ChevronDown
+                        className={`size-3 transition-transform duration-200 ${
+                          colonyPickerOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {/* Colony list — animated with grid-rows */}
+                    <div
+                      className="grid transition-[grid-template-rows] duration-250 ease-[cubic-bezier(0.25,0.8,0.25,1)]"
+                      style={{
+                        gridTemplateRows: colonyPickerOpen ? "1fr" : "0fr",
+                      }}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="pt-1 pb-0.5">
+                          {MY_COLONIES.filter((c) => !c.isCurrent).map(
+                            (colony, i) => (
+                              <button
+                                className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-white/[0.035] ${
+                                  selectedColonyId === colony.id
+                                    ? "bg-cyan-400/[0.06]"
+                                    : ""
+                                }`}
+                                key={colony.id}
+                                onClick={() => selectColonyDestination(colony)}
+                                style={
+                                  colonyPickerOpen
+                                    ? {
+                                        animation:
+                                          "nv-colony-row-in 280ms cubic-bezier(0.21,1,0.34,1) both",
+                                        animationDelay: `${i * 40}ms`,
+                                      }
+                                    : { opacity: 0 }
+                                }
+                                type="button"
+                              >
+                                <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-white/10 bg-[linear-gradient(150deg,rgba(61,217,255,0.08),rgba(255,145,79,0.08))] text-[8px] font-bold text-white/60 transition-colors group-hover:border-cyan-300/20 group-hover:text-white/80">
+                                  {colony.name.slice(0, 2).toUpperCase()}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-[11px] font-semibold text-white/80 transition-colors group-hover:text-white">
+                                    {colony.name}
+                                  </p>
+                                  <p className="font-[family-name:var(--nv-font-mono)] text-[9px] text-white/25">
+                                    {colony.coords}
+                                  </p>
+                                </div>
+                                {selectedColonyId === colony.id ? (
+                                  <Check className="size-3 shrink-0 text-cyan-300" />
+                                ) : (
+                                  <span className="font-[family-name:var(--nv-font-mono)] text-[8px] text-white/15 transition-colors group-hover:text-white/30">
+                                    {colony.coords}
+                                  </span>
+                                )}
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <button className={`${missionType === "transport" ? "mt-1.5" : "mt-2"} flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/10 py-2 text-[10px] text-white/30 hover:border-cyan-300/20 hover:text-cyan-200/50`}>
                   <Crosshair className="size-3" />
                   Select from Star Map
                 </button>
