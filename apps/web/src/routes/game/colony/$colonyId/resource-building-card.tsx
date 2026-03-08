@@ -33,35 +33,43 @@ const BUILDING_VISUALS: Record<
   BuildingKey,
   {
     accent: string;
+    glowColor: string;
     imageUrl: string;
   }
 > = {
   alloyMineLevel: {
     accent: "rgba(74, 233, 255, 0.65)",
+    glowColor: "rgba(74, 233, 255, 0.12)",
     imageUrl: "/game-icons/alloy.png",
   },
   crystalMineLevel: {
     accent: "rgba(122, 181, 255, 0.62)",
+    glowColor: "rgba(122, 181, 255, 0.12)",
     imageUrl: "/game-icons/crystal.png",
   },
   fuelRefineryLevel: {
     accent: "rgba(255, 170, 106, 0.7)",
+    glowColor: "rgba(255, 170, 106, 0.10)",
     imageUrl: "/game-icons/deuterium.png",
   },
   powerPlantLevel: {
     accent: "rgba(255, 125, 167, 0.66)",
+    glowColor: "rgba(255, 125, 167, 0.10)",
     imageUrl: "/game-icons/energy.png",
   },
   alloyStorageLevel: {
     accent: "rgba(83, 205, 235, 0.54)",
+    glowColor: "rgba(83, 205, 235, 0.10)",
     imageUrl: "/game-icons/alloy.png",
   },
   crystalStorageLevel: {
     accent: "rgba(133, 164, 255, 0.52)",
+    glowColor: "rgba(133, 164, 255, 0.10)",
     imageUrl: "/game-icons/crystal.png",
   },
   fuelStorageLevel: {
     accent: "rgba(255, 182, 122, 0.56)",
+    glowColor: "rgba(255, 182, 122, 0.10)",
     imageUrl: "/game-icons/deuterium.png",
   },
 };
@@ -71,20 +79,20 @@ const STATUS_STYLES: Record<
   { badge: string; card: string }
 > = {
   Running: {
-    badge: "border-emerald-300/70 bg-emerald-300/20 text-emerald-100",
-    card: "border-emerald-300/35",
+    badge: "border-emerald-300/30 bg-emerald-400/8 text-emerald-200/80",
+    card: "border-white/10",
   },
   Shortage: {
-    badge: "border-amber-300/80 bg-amber-200/20 text-amber-50",
-    card: "border-amber-200/50",
+    badge: "border-amber-300/35 bg-amber-400/10 text-amber-200/80",
+    card: "border-amber-300/20",
   },
   Overflow: {
-    badge: "border-sky-200/85 bg-sky-200/20 text-sky-50",
-    card: "border-sky-200/55",
+    badge: "border-sky-200/35 bg-sky-400/10 text-sky-200/80",
+    card: "border-sky-300/20",
   },
   Paused: {
-    badge: "border-rose-300/75 bg-rose-300/20 text-rose-50",
-    card: "border-rose-300/45",
+    badge: "border-rose-300/30 bg-rose-400/10 text-rose-200/80",
+    card: "border-rose-300/20",
   },
 };
 
@@ -262,7 +270,7 @@ function OutputPulseIcon(props: {
       <motion.div
         aria-label={`${label} output: ${outputPerMinute.toLocaleString()} ${outputLabel}`}
         animate={{ rotate: hitMotion.rotate, scale: hitMotion.scale }}
-        className="relative size-20 rounded-full border border-white/30 bg-black/35 p-2 shadow-[0_10px_20px_rgba(0,0,0,0.45)]"
+        className="relative size-16 rounded-full border border-white/15 bg-black/30 p-1.5 shadow-[0_6px_14px_rgba(0,0,0,0.35)]"
         key={hitCount}
         role="img"
         title={`${outputPerMinute.toLocaleString()} ${outputLabel}`}
@@ -296,7 +304,7 @@ function OutputPulseIcon(props: {
           />
         </span>
         <span className="pointer-events-none absolute inset-0 grid place-items-center text-center">
-          <span className="rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white/90 shadow-[0_1px_4px_rgba(0,0,0,0.4)]">
+          <span className="rounded-md bg-black/60 px-1.5 py-0.5 font-[family-name:var(--nv-font-mono)] text-[9px] font-bold text-white/80">
             {rateText}
           </span>
         </span>
@@ -706,28 +714,31 @@ export function ResourceBuildingCard(props: {
 
   return (
     <article
-      className={`group relative overflow-hidden rounded-2xl border ${statusStyle.card} bg-[#060f1a] text-[13px] shadow-[0_16px_34px_rgba(0,0,0,0.4)]`}
+      className={`group relative overflow-hidden rounded-xl border ${statusStyle.card} bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))] text-[13px]`}
     >
       <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: `radial-gradient(circle at 78% 24%, ${visual.accent}, transparent 38%), linear-gradient(164deg, rgba(9,17,29,0.74), rgba(1,5,12,0.94) 62%), url(${visual.imageUrl})`,
-          backgroundPosition: "center, center, calc(100% + 35px) 52%",
-          backgroundRepeat: "no-repeat, no-repeat, no-repeat",
-          backgroundSize: "cover, cover, 56%",
-        }}
+        className="pointer-events-none absolute inset-x-0 top-0 h-px"
+        style={{ background: `linear-gradient(90deg, transparent, ${visual.accent}, transparent)` }}
       />
-      <div className="absolute inset-0 bg-[repeating-linear-gradient(125deg,rgba(255,255,255,0.05)_0,rgba(255,255,255,0.05)_1px,transparent_1px,transparent_11px)] opacity-20" />
+      <div
+        className="pointer-events-none absolute -right-8 -top-8 size-32 rounded-full blur-3xl"
+        style={{ background: visual.glowColor }}
+      />
 
       <div className="relative z-10 p-4">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-semibold">{building.name}</h3>
+          <div className="flex items-center gap-2.5">
+            <img
+              alt={building.name}
+              className="size-8 rounded-lg border border-white/8 bg-black/30 object-contain p-1"
+              src={visual.imageUrl}
+            />
+            <h3 className="font-[family-name:var(--nv-font-display)] text-sm font-bold">{building.name}</h3>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span
               aria-label={`Level ${building.currentLevel}`}
-              className="inline-flex size-7 items-center justify-center rounded-full border border-white/30 bg-black/35 text-[11px] font-semibold text-white/90 shadow-[0_6px_16px_rgba(0,0,0,0.4)]"
+              className="inline-flex size-6 items-center justify-center rounded-md border border-white/15 bg-black/25 font-[family-name:var(--nv-font-mono)] text-[10px] font-bold text-white/80"
               title={`Level ${building.currentLevel}`}
             >
               {building.currentLevel}
@@ -735,29 +746,29 @@ export function ResourceBuildingCard(props: {
             {!isStorageBuilding ? (
               <GeneratorInfoPopover
                 details={
-                  <div className="grid gap-1.5 text-[11px]">
-                    <p>
+                  <div className="grid gap-1.5 text-[10px]">
+                    <p className="text-white/50">
                       Efficiency:{" "}
-                      <span className="font-semibold text-white">
+                      <span className="font-[family-name:var(--nv-font-mono)] font-semibold text-white">
                         {efficiencyLabel(cardStatus, energyRatio)}
                       </span>
                     </p>
-                    <p>
+                    <p className="text-white/50">
                       Output:{" "}
-                      <span className="font-semibold text-white">
+                      <span className="font-[family-name:var(--nv-font-mono)] font-semibold text-white">
                         {outputPerMinuteForAnimation.toLocaleString()} {building.outputLabel}
                       </span>
                     </p>
-                    <p>
+                    <p className="text-white/50">
                       Energy Draw:{" "}
-                      <span className="font-semibold text-white">
+                      <span className="font-[family-name:var(--nv-font-mono)] font-semibold text-white">
                         {building.energyUsePerMinute.toLocaleString()} MW
                       </span>
                     </p>
                     {resourceOverflow > 0 ? (
-                      <p>
+                      <p className="text-white/50">
                         Overflow:{" "}
-                        <span className="font-semibold text-amber-200">
+                        <span className="font-[family-name:var(--nv-font-mono)] font-semibold text-amber-200">
                           {resourceOverflow.toLocaleString()}{" "}
                           {resourceNameForBuilding(building.key)}
                         </span>
@@ -772,7 +783,7 @@ export function ResourceBuildingCard(props: {
                         Production is paused while storage is full.
                       </p>
                     ) : (
-                      <p>
+                      <p className="text-white/50">
                         Overflow:{" "}
                         <span className="font-semibold text-white">
                           {isProductionBuilding ? "None" : "N/A"}
@@ -784,38 +795,38 @@ export function ResourceBuildingCard(props: {
               />
             ) : null}
             <Dialog.Root onOpenChange={onTableOpenChange} open={isTableOpen}>
-              <Dialog.Trigger className="rounded-md border border-white/25 bg-white/5 px-2.5 py-1 text-xs text-white/80 transition hover:bg-white/10">
+              <Dialog.Trigger className="rounded-md border border-white/12 bg-white/[0.03] px-2 py-1 text-[10px] font-semibold text-white/50 transition hover:bg-white/6 hover:text-white/80">
                 <span className="inline-flex items-center gap-1">
-                  <Layers3 className="size-3.5" />
+                  <Layers3 className="size-3" />
                   Levels
                 </span>
               </Dialog.Trigger>
               <Dialog.Portal>
                 <Dialog.Backdrop className="fixed inset-0 z-[95] bg-[rgba(3,6,12,0.72)] backdrop-blur-sm transition-all duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-                <Dialog.Popup className="fixed left-1/2 top-1/2 z-[100] max-h-[85vh] w-[min(96vw,860px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-cyan-200/28 bg-[rgba(4,10,19,0.96)] shadow-[0_24px_56px_rgba(0,0,0,0.55)] outline-none transition-all duration-200 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
-                  <div className="p-3.5 sm:p-4">
+                <Dialog.Popup className="fixed left-1/2 top-1/2 z-[100] max-h-[85vh] w-[min(96vw,860px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-white/12 bg-[linear-gradient(170deg,rgba(12,20,36,0.98),rgba(6,10,18,0.99))] shadow-[0_24px_56px_rgba(0,0,0,0.55)] outline-none transition-all duration-200 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
+                  <div className="p-3.5 sm:p-5">
                     <div className="mb-3 flex items-center justify-between gap-2">
-                      <Dialog.Title className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.16em] text-slate-200/90">
-                        <Layers3 className="size-3.5" strokeWidth={2.5} />
+                      <Dialog.Title className="inline-flex items-center gap-2 font-[family-name:var(--nv-font-display)] text-sm font-bold text-white">
+                        <Layers3 className="size-4 text-cyan-300/60" />
                         Level Planner: {building.name}
                       </Dialog.Title>
                       <Dialog.Description className="sr-only">
                         Review level progression, upgrade costs, and timing for{" "}
                         {building.name}.
                       </Dialog.Description>
-                      <Dialog.Close className="rounded-full border border-white/30 bg-black/35 p-1 text-white transition hover:bg-black/55">
+                      <Dialog.Close className="rounded-md border border-white/12 bg-white/[0.03] p-1.5 text-white/50 transition hover:bg-white/6 hover:text-white/80">
                         <X className="size-3.5" strokeWidth={2.4} />
                       </Dialog.Close>
                     </div>
-                    <div className="overflow-hidden rounded-md border border-white/12 bg-black/25">
-                      <table className="w-full text-left text-[11px]">
-                        <thead className="bg-white/6 text-slate-300">
+                    <div className="overflow-hidden rounded-lg border border-white/8 bg-black/20">
+                      <table className="w-full text-left font-[family-name:var(--nv-font-mono)] text-[10px]">
+                        <thead className="bg-white/[0.04] text-[9px] uppercase tracking-[0.1em] text-white/40">
                           <tr>
-                            <th className="px-2 py-1.5">Lv</th>
-                            <th className="px-2 py-1.5">{outputColumnLabel}</th>
-                            <th className="px-2 py-1.5">Energy</th>
-                            <th className="px-2 py-1.5">Cost</th>
-                            <th className="px-2 py-1.5">Time</th>
+                            <th className="px-2.5 py-2 font-semibold">Lv</th>
+                            <th className="px-2.5 py-2 font-semibold">{outputColumnLabel}</th>
+                            <th className="px-2.5 py-2 font-semibold">Energy</th>
+                            <th className="px-2.5 py-2 font-semibold">Cost</th>
+                            <th className="px-2.5 py-2 font-semibold">Time</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -823,28 +834,32 @@ export function ResourceBuildingCard(props: {
                             <tr
                               className={
                                 row.level === building.currentLevel
-                                  ? "bg-cyan-300/10 text-cyan-50"
-                                  : "text-white/85"
+                                  ? "bg-cyan-400/8 text-cyan-100"
+                                  : "text-white/70 hover:bg-white/[0.02]"
                               }
                               key={`${building.key}-${row.level}`}
                             >
-                              <td className="px-2 py-1.5">{row.level}</td>
-                              <td className="px-2 py-1.5">
-                                {row.outputPerMinute.toLocaleString()} (
-                                {row.deltaOutputPerMinute >= 0 ? "+" : ""}
-                                {row.deltaOutputPerMinute.toLocaleString()})
+                              <td className="px-2.5 py-1.5 font-bold">{row.level}</td>
+                              <td className="px-2.5 py-1.5">
+                                {row.outputPerMinute.toLocaleString()}{" "}
+                                <span className={row.deltaOutputPerMinute >= 0 ? "text-emerald-300/60" : "text-rose-300/60"}>
+                                  ({row.deltaOutputPerMinute >= 0 ? "+" : ""}
+                                  {row.deltaOutputPerMinute.toLocaleString()})
+                                </span>
                               </td>
-                              <td className="px-2 py-1.5">
-                                {row.energyUsePerMinute.toLocaleString()} (
-                                {row.deltaEnergyPerMinute >= 0 ? "+" : ""}
-                                {row.deltaEnergyPerMinute.toLocaleString()})
+                              <td className="px-2.5 py-1.5">
+                                {row.energyUsePerMinute.toLocaleString()}{" "}
+                                <span className="text-white/30">
+                                  ({row.deltaEnergyPerMinute >= 0 ? "+" : ""}
+                                  {row.deltaEnergyPerMinute.toLocaleString()})
+                                </span>
                               </td>
-                              <td className="px-2 py-1.5">
+                              <td className="px-2.5 py-1.5">
                                 A {row.cost.alloy.toLocaleString()} / C{" "}
                                 {row.cost.crystal.toLocaleString()} / F{" "}
                                 {row.cost.fuel.toLocaleString()}
                               </td>
-                              <td className="px-2 py-1.5">
+                              <td className="px-2.5 py-1.5">
                                 {formatUpgradeTime(row.durationSeconds)}
                               </td>
                             </tr>
@@ -866,7 +881,7 @@ export function ResourceBuildingCard(props: {
               openOnHover
               render={
                 <button
-                  className={`mt-2 inline-flex cursor-help items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${statusStyle.badge}`}
+                  className={`mt-2 inline-flex cursor-help items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[9px] font-semibold uppercase ${statusStyle.badge}`}
                   type="button"
                 >
                   {statusBadgeLabel}
@@ -885,7 +900,7 @@ export function ResourceBuildingCard(props: {
           </Popover.Root>
         ) : (
           <p
-            className={`mt-2 inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${statusStyle.badge}`}
+            className={`mt-2 inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[9px] font-semibold uppercase ${statusStyle.badge}`}
           >
             {isActiveUpgradeTarget ? (
               <>
@@ -913,11 +928,12 @@ export function ResourceBuildingCard(props: {
         ) : null}
 
         {!isStorageBuilding ? (
-          <div className="mt-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/75">
-            <p className="inline-flex items-center gap-1.5">
-              <Gauge className="size-3.5 text-cyan-200/80" />
-              Energy use: {building.energyUsePerMinute.toLocaleString()} MW
-            </p>
+          <div className="mt-2.5 flex items-center gap-1.5 rounded-lg border border-white/6 bg-black/20 px-2.5 py-1.5 text-[10px] text-white/50">
+            <Gauge className="size-3 text-cyan-300/50" />
+            <span>Energy</span>
+            <span className="ml-auto font-[family-name:var(--nv-font-mono)] font-semibold text-white/70">
+              {building.energyUsePerMinute.toLocaleString()} MW
+            </span>
           </div>
         ) : null}
 
@@ -952,8 +968,8 @@ export function ResourceBuildingCard(props: {
             />
             <Popover.Portal>
               <Popover.Positioner align="end" className="z-[90]" sideOffset={8}>
-                <Popover.Popup className="origin-[var(--transform-origin)] w-[240px] rounded-xl border border-white/30 bg-[rgba(5,10,18,0.82)] p-3 text-xs text-white/90 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">
+                <Popover.Popup className="origin-[var(--transform-origin)] w-[240px] rounded-xl border border-white/12 bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))] p-3 text-xs text-white/80 shadow-[0_20px_45px_rgba(0,0,0,0.5)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/40">
                     Next Upgrade Cost
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -975,7 +991,7 @@ export function ResourceBuildingCard(props: {
                   </div>
                   {nextLevelDeltas.length > 0 ? (
                     <div className="mt-3 border-t border-white/15 pt-3">
-                      <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/40">
                         Next Level Delta
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -1008,10 +1024,10 @@ export function ResourceBuildingCard(props: {
 
 function CostPill(props: { amount: number; icon: string; label: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-black/35 px-2 py-1 text-[11px] font-semibold text-slate-100">
+    <span className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-black/25 px-2 py-1 font-[family-name:var(--nv-font-mono)] text-[10px] font-semibold text-white/80">
       <img
         alt={`${props.label} resource`}
-        className="h-3.5 w-3.5 rounded-[2px] border border-white/25 object-cover"
+        className="size-3.5 rounded-[2px] border border-white/15 object-cover"
         src={props.icon}
       />
       <span>{props.amount.toLocaleString()}</span>
@@ -1027,15 +1043,15 @@ function DeltaPill(props: {
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold ${
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 font-[family-name:var(--nv-font-mono)] text-[10px] font-semibold ${
         props.tone === "positive"
-          ? "border-emerald-300/30 bg-emerald-400/12 text-emerald-100"
-          : "border-rose-300/35 bg-rose-400/14 text-rose-100"
+          ? "border-emerald-300/20 bg-emerald-400/8 text-emerald-200/80"
+          : "border-rose-300/20 bg-rose-400/8 text-rose-200/80"
       }`}
     >
       <img
         alt={`${props.label} resource`}
-        className="h-3.5 w-3.5 rounded-[2px] border border-white/25 object-cover"
+        className="size-3.5 rounded-[2px] border border-white/15 object-cover"
         src={props.icon}
       />
       <span>{props.value}</span>
@@ -1052,16 +1068,16 @@ function GeneratorInfoPopover({ details }: { details: ReactNode }) {
         openOnHover
         render={
           <button
-            className="rounded-full border border-white/30 bg-black/35 p-1.5 text-white transition hover:bg-black/55"
+            className="rounded-md border border-white/12 bg-white/[0.03] p-1.5 text-white/50 transition hover:bg-white/6 hover:text-white/80"
             type="button"
           >
-            <Info className="size-3.5" strokeWidth={2.8} />
+            <Info className="size-3" strokeWidth={2.4} />
           </button>
         }
       />
       <Popover.Portal>
         <Popover.Positioner align="end" className="z-[90]" sideOffset={10}>
-          <Popover.Popup className="origin-[var(--transform-origin)] max-w-[230px] rounded-lg border border-white/25 bg-[rgba(4,10,18,0.86)] p-2.5 text-[11px] text-slate-100 shadow-[0_18px_34px_rgba(0,0,0,0.45)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
+          <Popover.Popup className="origin-[var(--transform-origin)] max-w-[230px] rounded-xl border border-white/12 bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))] p-3 text-[10px] text-white/80 shadow-[0_18px_34px_rgba(0,0,0,0.45)] outline-none backdrop-blur-md transition-[transform,scale,opacity] duration-200 data-[ending-style]:scale-90 data-[ending-style]:opacity-0 data-[starting-style]:scale-90 data-[starting-style]:opacity-0">
             {details}
           </Popover.Popup>
         </Popover.Positioner>

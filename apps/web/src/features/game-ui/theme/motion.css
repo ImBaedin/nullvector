@@ -213,6 +213,26 @@
   }
 }
 
+@keyframes nv-resource-card-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes nv-queue-pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nv-transition {
     transition-duration: 0ms;
@@ -223,7 +243,9 @@
   .nv-progress-stripes,
   .nv-progress-scan,
   .nv-starmap-stars,
-  [style*="nv-fleet-"] {
+  [style*="nv-fleet-"],
+  [style*="nv-resource-card-in"],
+  [style*="nv-queue-pulse"] {
     animation: none !important;
   }
 }
