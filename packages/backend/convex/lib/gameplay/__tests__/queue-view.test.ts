@@ -39,8 +39,14 @@ describe("queue view helpers", () => {
 
     const sorted = [...rows].sort((a, b) =>
       compareQueueOrder(
-        a as unknown as Doc<"colonyQueueItems">,
-        b as unknown as Doc<"colonyQueueItems">,
+        a as unknown as Doc<"colonyQueueItems"> & {
+          cost: { alloy: number; crystal: number; fuel: number };
+          payload: any;
+        },
+        b as unknown as Doc<"colonyQueueItems"> & {
+          cost: { alloy: number; crystal: number; fuel: number };
+          payload: any;
+        },
       ),
     );
 
@@ -75,7 +81,14 @@ describe("queue view helpers", () => {
     ];
 
     expect(
-      queueEventsNextAt(rows as unknown as Array<Doc<"colonyQueueItems">>),
+      queueEventsNextAt(
+        rows as unknown as Array<
+          Doc<"colonyQueueItems"> & {
+            cost: { alloy: number; crystal: number; fuel: number };
+            payload: any;
+          }
+        >,
+      ),
     ).toBe(900);
   });
 });

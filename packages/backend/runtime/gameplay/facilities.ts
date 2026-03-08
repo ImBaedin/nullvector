@@ -31,6 +31,8 @@ import {
   settleColonyAndPersist,
   settleShipyardQueue,
   cloneResourceBucket,
+  upsertColonyCompanionRows,
+  upsertQueuePayloadRow,
 } from "./shared";
 export const getFacilitiesCards = query({
   args: {
@@ -264,9 +266,16 @@ export const enqueueFacilityUpgrade = mutation({
     const completesAt = startsAt + durationSeconds * 1_000;
 
     await ctx.db.patch(settledColony._id, {
-      resources: nextResources,
-      activeUpgrade: undefined,
       updatedAt: now,
+    });
+    await upsertColonyCompanionRows({
+      colony: {
+        ...settledColony,
+        resources: nextResources,
+        updatedAt: now,
+      },
+      ctx,
+      now,
     });
 
     const lane = "building" as const;
@@ -283,15 +292,25 @@ export const enqueueFacilityUpgrade = mutation({
       queuedAt: now,
       startsAt,
       completesAt,
-      cost: upgradeCostScaled,
-      payload: {
-        facilityKey: args.facilityKey,
-        fromLevel,
-        toLevel,
-      },
       createdAt: now,
       updatedAt: now,
     });
+    const insertedQueueItem = await ctx.db.get(queueItemId);
+    if (insertedQueueItem) {
+      await upsertQueuePayloadRow({
+        ctx,
+        item: {
+          ...insertedQueueItem,
+          cost: upgradeCostScaled,
+          payload: {
+            facilityKey: args.facilityKey,
+            fromLevel,
+            toLevel,
+          },
+        },
+        now,
+      });
+    }
 
     return {
       colonyId: settledColony._id,

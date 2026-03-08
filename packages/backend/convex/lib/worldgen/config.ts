@@ -48,7 +48,7 @@ function assertInteger(name: string, value: number, minimum: number) {
 }
 
 export function normalizeGenerationConfig(
-  config: Doc<"universes">["generationConfig"]
+  config: Doc<"universeGeneration">["generationConfig"]
 ): NormalizedGenerationConfig {
   const normalized = {
     galaxyCount: config.galaxyCount,

@@ -17,6 +17,7 @@ import {
   getOwnedColony,
   isShipBuildQueueItem,
   laneQueueViewValidator,
+  loadColonyState,
   listOpenColonyQueueItems,
   listOpenLaneQueueItems,
   queueEventsNextAt,
@@ -25,9 +26,11 @@ import {
   settleColonyAndPersist,
   settleShipyardQueue,
   shipKeyValidator,
+  upsertColonyCompanionRows,
+  upsertQueuePayloadRow,
 } from "./shared";
 
-type QueueItemId = string;
+type QueueItemId = Id<"colonyQueueItems"> | string;
 type ShipQueueTimingPatch = {
   completesAt: number;
   queueItemId: QueueItemId;
@@ -323,8 +326,16 @@ export const enqueueShipBuild = mutation({
     const laneOrder = (laneTail?.order ?? 0) + 1;
 
     await ctx.db.patch(settledColony._id, {
-      resources: nextResources,
       updatedAt: now,
+    });
+    await upsertColonyCompanionRows({
+      colony: {
+        ...settledColony,
+        resources: nextResources,
+        updatedAt: now,
+      },
+      ctx,
+      now,
     });
 
     const queueItemId = await ctx.db.insert("colonyQueueItems", {
@@ -338,16 +349,26 @@ export const enqueueShipBuild = mutation({
       queuedAt: now,
       startsAt,
       completesAt,
-      cost: totalCostScaled,
-      payload: {
-        shipKey: args.shipKey,
-        quantity,
-        completedQuantity: 0,
-        perUnitDurationSeconds,
-      },
       createdAt: now,
       updatedAt: now,
     });
+    const insertedQueueItem = await ctx.db.get(queueItemId);
+    if (insertedQueueItem) {
+      await upsertQueuePayloadRow({
+        ctx,
+        item: {
+          ...insertedQueueItem,
+          cost: totalCostScaled,
+          payload: {
+            shipKey: args.shipKey,
+            quantity,
+            completedQuantity: 0,
+            perUnitDurationSeconds,
+          },
+        },
+        now,
+      });
+    }
 
     return {
       colonyId: settledColony._id,
@@ -415,10 +436,14 @@ export const cancelShipBuildQueueItem = mutation({
       totalScaledCost: target.cost,
     });
 
-    const latestColony = await ctx.db.get(settledColony._id);
-    if (!latestColony) {
+    const latestColonyBase = await ctx.db.get(settledColony._id);
+    if (!latestColonyBase) {
       throw new ConvexError("Colony not found");
     }
+    const latestColony = await loadColonyState({
+      colony: latestColonyBase,
+      ctx,
+    });
     const nextResources = cloneResourceBucket(latestColony.resources);
     const nextOverflow = cloneResourceBucket(latestColony.overflow);
     for (const key of RESOURCE_KEYS) {
@@ -431,9 +456,17 @@ export const cancelShipBuildQueueItem = mutation({
     }
 
     await ctx.db.patch(latestColony._id, {
-      resources: nextResources,
-      overflow: nextOverflow,
       updatedAt: now,
+    });
+    await upsertColonyCompanionRows({
+      colony: {
+        ...latestColony,
+        resources: nextResources,
+        overflow: nextOverflow,
+        updatedAt: now,
+      },
+      ctx,
+      now,
     });
     await ctx.db.patch(target._id, {
       resolvedAt: now,

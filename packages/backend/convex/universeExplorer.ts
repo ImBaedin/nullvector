@@ -532,6 +532,17 @@ export const getSystemPlanetsStatic = query({
       .query("planets")
       .withIndex("by_system_id_and_planet_index", (q) => q.eq("systemId", system._id))
       .collect();
+    const planetEconomyRows = await Promise.all(
+      planets.map((planet) =>
+        ctx.db
+          .query("planetEconomy")
+          .withIndex("by_planet_id", (q) => q.eq("planetId", planet._id))
+          .unique(),
+      ),
+    );
+    const planetEconomyById = new Map(
+      planets.map((planet, idx) => [planet._id, planetEconomyRows[idx]]),
+    );
 
     const orderedPlanets = planets
       .slice()
@@ -545,7 +556,7 @@ export const getSystemPlanetsStatic = query({
         orbitAngularVelocityRadPerSec: planet.orbitAngularVelocityRadPerSec,
         orbitX: Math.cos(planet.orbitPhaseRad) * planet.orbitRadius,
         orbitY: Math.sin(planet.orbitPhaseRad) * planet.orbitRadius,
-        isColonizable: planet.isColonizable,
+        isColonizable: planetEconomyById.get(planet._id)?.isColonizable ?? false,
         addressLabel: planetAddress(
           galaxy.galaxyIndex,
           sector.sectorIndex,

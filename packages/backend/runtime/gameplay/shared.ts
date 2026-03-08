@@ -39,9 +39,63 @@ type QueueItemStatus =
   | "failed";
 type QueueItemKind = "buildingUpgrade" | "facilityUpgrade" | "shipBuild";
 
+type ColonyState = {
+  buildings: {
+    alloyMineLevel: number;
+    crystalMineLevel: number;
+    fuelRefineryLevel: number;
+    powerPlantLevel: number;
+    alloyStorageLevel: number;
+    crystalStorageLevel: number;
+    fuelStorageLevel: number;
+    shipyardLevel: number;
+  };
+  inboundMissionPolicy?: "allowAll" | "denyAll" | "alliesOnly";
+  lastAccruedAt: number;
+  overflow: ResourceBucket;
+  resources: ResourceBucket;
+  storageCaps: ResourceBucket;
+  usedSlots: number;
+};
+
+type PlanetEconomyState = {
+  alloyMultiplier: number;
+  compositionType: "metallic" | "silicate" | "icy" | "volatileRich";
+  crystalMultiplier: number;
+  fuelMultiplier: number;
+  isColonizable: boolean;
+  maxBuildingSlots: number;
+};
+
+type BuildingQueuePayload = {
+  buildingKey: BuildingKey;
+  fromLevel: number;
+  toLevel: number;
+};
+
+type FacilityQueuePayload = {
+  facilityKey: FacilityKey;
+  fromLevel: number;
+  toLevel: number;
+};
+
+type ShipBuildQueuePayload = {
+  shipKey: ShipKey;
+  quantity: number;
+  completedQuantity: number;
+  perUnitDurationSeconds: number;
+};
+
+type QueuePayload = BuildingQueuePayload | FacilityQueuePayload | ShipBuildQueuePayload;
+
+type QueuePayloadState = {
+  cost: ResourceBucket;
+  payload: QueuePayload;
+};
+
 type ColonyWithRelations = {
-  colony: Doc<"colonies">;
-  planet: Doc<"planets">;
+  colony: Doc<"colonies"> & ColonyState;
+  planet: Doc<"planets"> & PlanetEconomyState;
   player: Doc<"players">;
 };
 
@@ -150,6 +204,191 @@ function emptyResourceBucket(): ResourceBucket {
     crystal: 0,
     fuel: 0,
   };
+}
+
+async function upsertColonyCompanionRows(args: {
+  colony: Doc<"colonies"> & ColonyState;
+  ctx: MutationCtx;
+  now: number;
+}) {
+  const { colony, ctx, now } = args;
+
+  const [economyRow, infraRow, policyRow] = await Promise.all([
+    ctx.db
+      .query("colonyEconomy")
+      .withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
+      .unique(),
+    ctx.db
+      .query("colonyInfrastructure")
+      .withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
+      .unique(),
+    ctx.db
+      .query("colonyPolicy")
+      .withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
+      .unique(),
+  ]);
+
+  if (economyRow) {
+    await ctx.db.patch(economyRow._id, {
+      resources: cloneResourceBucket(colony.resources),
+      overflow: cloneResourceBucket(colony.overflow),
+      storageCaps: cloneResourceBucket(colony.storageCaps),
+      lastAccruedAt: colony.lastAccruedAt,
+      updatedAt: now,
+    });
+  } else {
+    await ctx.db.insert("colonyEconomy", {
+      colonyId: colony._id,
+      resources: cloneResourceBucket(colony.resources),
+      overflow: cloneResourceBucket(colony.overflow),
+      storageCaps: cloneResourceBucket(colony.storageCaps),
+      lastAccruedAt: colony.lastAccruedAt,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  if (infraRow) {
+    await ctx.db.patch(infraRow._id, {
+      buildings: { ...colony.buildings },
+      usedSlots: colony.usedSlots,
+      updatedAt: now,
+    });
+  } else {
+    await ctx.db.insert("colonyInfrastructure", {
+      colonyId: colony._id,
+      buildings: { ...colony.buildings },
+      usedSlots: colony.usedSlots,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  if (policyRow) {
+    await ctx.db.patch(policyRow._id, {
+      inboundMissionPolicy: colony.inboundMissionPolicy,
+      updatedAt: now,
+    });
+    return;
+  }
+
+  await ctx.db.insert("colonyPolicy", {
+    colonyId: colony._id,
+    inboundMissionPolicy: colony.inboundMissionPolicy,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+async function upsertQueuePayloadRow(args: {
+  ctx: MutationCtx;
+  item: Doc<"colonyQueueItems"> & QueuePayloadState;
+  now: number;
+}) {
+  const existing = await args.ctx.db
+    .query("colonyQueuePayloads")
+    .withIndex("by_queue_item_id", (q) => q.eq("queueItemId", args.item._id))
+    .unique();
+
+  if (existing) {
+    await args.ctx.db.patch(existing._id, {
+      universeId: args.item.universeId,
+      playerId: args.item.playerId,
+      colonyId: args.item.colonyId,
+      lane: args.item.lane,
+      kind: args.item.kind,
+      cost: cloneResourceBucket(args.item.cost),
+      payload: args.item.payload,
+      updatedAt: args.now,
+    });
+    return;
+  }
+
+  await args.ctx.db.insert("colonyQueuePayloads", {
+    queueItemId: args.item._id,
+    universeId: args.item.universeId,
+    playerId: args.item.playerId,
+    colonyId: args.item.colonyId,
+    lane: args.item.lane,
+    kind: args.item.kind,
+    cost: cloneResourceBucket(args.item.cost),
+    payload: args.item.payload,
+    createdAt: args.now,
+    updatedAt: args.now,
+  });
+}
+
+async function loadColonyState(args: {
+  colony: Doc<"colonies">;
+  ctx: QueryCtx | MutationCtx;
+}) {
+  const [economy, infrastructure, policy] = await Promise.all([
+    args.ctx.db
+      .query("colonyEconomy")
+      .withIndex("by_colony_id", (q) => q.eq("colonyId", args.colony._id))
+      .unique(),
+    args.ctx.db
+      .query("colonyInfrastructure")
+      .withIndex("by_colony_id", (q) => q.eq("colonyId", args.colony._id))
+      .unique(),
+    args.ctx.db
+      .query("colonyPolicy")
+      .withIndex("by_colony_id", (q) => q.eq("colonyId", args.colony._id))
+      .unique(),
+  ]);
+  if (!economy || !infrastructure) {
+    throw new ConvexError("Colony companion rows missing");
+  }
+  return {
+    ...args.colony,
+    resources: economy.resources,
+    overflow: economy.overflow,
+    storageCaps: economy.storageCaps,
+    lastAccruedAt: economy.lastAccruedAt,
+    buildings: infrastructure.buildings,
+    usedSlots: infrastructure.usedSlots,
+    inboundMissionPolicy: policy?.inboundMissionPolicy,
+  } as Doc<"colonies"> & ColonyState;
+}
+
+async function loadPlanetState(args: {
+  planet: Doc<"planets">;
+  ctx: QueryCtx | MutationCtx;
+}) {
+  const economy = await args.ctx.db
+    .query("planetEconomy")
+    .withIndex("by_planet_id", (q) => q.eq("planetId", args.planet._id))
+    .unique();
+  if (!economy) {
+    throw new ConvexError("Planet economy row missing");
+  }
+  return {
+    ...args.planet,
+    compositionType: economy.compositionType,
+    maxBuildingSlots: economy.maxBuildingSlots,
+    alloyMultiplier: economy.alloyMultiplier,
+    crystalMultiplier: economy.crystalMultiplier,
+    fuelMultiplier: economy.fuelMultiplier,
+    isColonizable: economy.isColonizable,
+  } as Doc<"planets"> & PlanetEconomyState;
+}
+
+async function loadQueueWithPayload(args: {
+  ctx: QueryCtx | MutationCtx;
+  row: Doc<"colonyQueueItems">;
+}) {
+  const payload = await args.ctx.db
+    .query("colonyQueuePayloads")
+    .withIndex("by_queue_item_id", (q) => q.eq("queueItemId", args.row._id))
+    .unique();
+  if (!payload) {
+    throw new ConvexError("Queue payload row missing");
+  }
+  return {
+    ...args.row,
+    cost: payload.cost,
+    payload: payload.payload as QueuePayloadState["payload"],
+  } as Doc<"colonyQueueItems"> & QueuePayloadState;
 }
 
 function cloneResourceBucket(bucket: ResourceBucket): ResourceBucket {
@@ -298,7 +537,7 @@ const SHIPYARD_FACILITY_KEY: FacilityKey = "shipyard";
 const EMPTY_RESEARCH_LEVELS: Record<string, number> = {};
 
 function facilityLevelFromColony(
-  colony: Pick<Doc<"colonies">, "buildings">,
+  colony: Pick<ColonyState, "buildings">,
   facilityKey: FacilityKey,
 ) {
   if (facilityKey === "shipyard") {
@@ -307,14 +546,14 @@ function facilityLevelFromColony(
   return 0;
 }
 
-function facilityLevelsFromColony(colony: Pick<Doc<"colonies">, "buildings">) {
+function facilityLevelsFromColony(colony: Pick<ColonyState, "buildings">) {
   return {
     shipyard: colony.buildings.shipyardLevel,
   } satisfies Partial<Record<string, number>>;
 }
 
 function setFacilityLevelOnBuildings(args: {
-  buildings: Doc<"colonies">["buildings"];
+  buildings: ColonyState["buildings"];
   facilityKey: FacilityKey;
   level: number;
 }) {
@@ -380,7 +619,7 @@ function storageUpgradeDurationSeconds(
 }
 
 function storageCapsFromBuildings(
-  buildings: Doc<"colonies">["buildings"],
+  buildings: ColonyState["buildings"],
 ): ResourceBucket {
   return {
     alloy: scaledUnits(storageCapForLevel(buildings.alloyStorageLevel)),
@@ -389,7 +628,7 @@ function storageCapsFromBuildings(
   };
 }
 
-function usedSlotsFromBuildings(buildings: Doc<"colonies">["buildings"]) {
+function usedSlotsFromBuildings(buildings: ColonyState["buildings"]) {
   let used = 0;
   for (const key of ALL_BUILDING_KEYS) {
     if (buildings[key] > 0) {
@@ -440,9 +679,9 @@ function energyConsumptionForLevel(
 }
 
 function productionRatesPerMinute(args: {
-  buildings: Doc<"colonies">["buildings"];
+  buildings: ColonyState["buildings"];
   overflow: ResourceBucket;
-  planet: Doc<"planets">;
+  planet: Doc<"planets"> & PlanetEconomyState;
 }) {
   const { buildings, overflow, planet } = args;
 
@@ -504,8 +743,8 @@ function productionRatesPerMinute(args: {
 }
 
 export function applyAccrualSegment(args: {
-  colony: Doc<"colonies">;
-  planet: Doc<"planets">;
+  colony: Doc<"colonies"> & ColonyState;
+  planet: Doc<"planets"> & PlanetEconomyState;
   segmentEndMs: number;
   resources: ResourceBucket;
 }) {
@@ -656,21 +895,27 @@ async function getOwnedColony(args: {
     throw new ConvexError("Colony access denied");
   }
 
-  const planet = await ctx.db.get(colony.planetId);
+  const colonyWithState = await loadColonyState({ colony, ctx });
+
+  const planet = await ctx.db.get(colonyWithState.planetId);
   if (!planet) {
     throw new ConvexError("Planet not found for colony");
   }
+  const planetWithState = await loadPlanetState({
+    planet,
+    ctx,
+  });
 
   return {
-    colony,
-    planet,
+    colony: colonyWithState,
+    planet: planetWithState,
     player: playerResult.player,
   };
 }
 
 export function compareQueueOrder(
-  left: Doc<"colonyQueueItems">,
-  right: Doc<"colonyQueueItems">,
+  left: Doc<"colonyQueueItems"> & QueuePayloadState,
+  right: Doc<"colonyQueueItems"> & QueuePayloadState,
 ) {
   if (left.order !== right.order) {
     return left.order - right.order;
@@ -707,50 +952,53 @@ async function listOpenLaneQueueItems(args: {
       .collect(),
   ]);
 
-  return [...activeRows, ...queuedRows].sort(compareQueueOrder);
+  const openRows = [...activeRows, ...queuedRows].sort((l, r) => {
+    if (l.order !== r.order) {
+      return l.order - r.order;
+    }
+    if (l.queuedAt !== r.queuedAt) {
+      return l.queuedAt - r.queuedAt;
+    }
+    return l._creationTime - r._creationTime;
+  });
+  return await Promise.all(
+    openRows.map((row) =>
+      loadQueueWithPayload({
+        ctx: args.ctx,
+        row,
+      }),
+    ),
+  );
 }
 
 function isBuildingUpgradeQueueItem(
-  item: Doc<"colonyQueueItems">,
-): item is Doc<"colonyQueueItems"> & {
+  item: Doc<"colonyQueueItems"> & QueuePayloadState,
+): item is Doc<"colonyQueueItems"> & QueuePayloadState & {
   kind: "buildingUpgrade";
-  payload: {
-    buildingKey: BuildingKey;
-    fromLevel: number;
-    toLevel: number;
-  };
+  payload: BuildingQueuePayload;
 } {
   return item.kind === "buildingUpgrade" && "buildingKey" in item.payload;
 }
 
 function isFacilityUpgradeQueueItem(
-  item: Doc<"colonyQueueItems">,
-): item is Doc<"colonyQueueItems"> & {
+  item: Doc<"colonyQueueItems"> & QueuePayloadState,
+): item is Doc<"colonyQueueItems"> & QueuePayloadState & {
   kind: "facilityUpgrade";
-  payload: {
-    facilityKey: FacilityKey;
-    fromLevel: number;
-    toLevel: number;
-  };
+  payload: FacilityQueuePayload;
 } {
   return item.kind === "facilityUpgrade" && "facilityKey" in item.payload;
 }
 
 function isShipBuildQueueItem(
-  item: Doc<"colonyQueueItems">,
-): item is Doc<"colonyQueueItems"> & {
+  item: Doc<"colonyQueueItems"> & QueuePayloadState,
+): item is Doc<"colonyQueueItems"> & QueuePayloadState & {
   kind: "shipBuild";
-  payload: {
-    completedQuantity: number;
-    perUnitDurationSeconds: number;
-    quantity: number;
-    shipKey: ShipKey;
-  };
+  payload: ShipBuildQueuePayload;
 } {
   return item.kind === "shipBuild" && "shipKey" in item.payload;
 }
 
-function queueItemFromToLevel(item: Doc<"colonyQueueItems">) {
+function queueItemFromToLevel(item: Doc<"colonyQueueItems"> & QueuePayloadState) {
   if (!isBuildingUpgradeQueueItem(item) && !isFacilityUpgradeQueueItem(item)) {
     throw new ConvexError("Queue item is not an upgrade");
   }
@@ -762,8 +1010,8 @@ function queueItemFromToLevel(item: Doc<"colonyQueueItems">) {
 
 async function settleColonyAndPersist(args: {
   ctx: MutationCtx;
-  colony: Doc<"colonies">;
-  planet: Doc<"planets">;
+  colony: Doc<"colonies"> & ColonyState;
+  planet: Doc<"planets"> & PlanetEconomyState;
   now: number;
 }) {
   const { ctx, colony, planet, now } = args;
@@ -899,14 +1147,21 @@ async function settleColonyAndPersist(args: {
   }
 
   await ctx.db.patch(colony._id, {
-    resources: workingColony.resources,
-    overflow: workingColony.overflow,
-    buildings: workingColony.buildings,
-    storageCaps: workingColony.storageCaps,
-    usedSlots: usedSlotsFromBuildings(workingColony.buildings),
-    activeUpgrade: undefined,
-    lastAccruedAt: workingColony.lastAccruedAt,
     updatedAt: now,
+  });
+  await upsertColonyCompanionRows({
+    colony: {
+      ...colony,
+      resources: workingColony.resources,
+      overflow: workingColony.overflow,
+      buildings: workingColony.buildings,
+      storageCaps: workingColony.storageCaps,
+      usedSlots: usedSlotsFromBuildings(workingColony.buildings),
+      lastAccruedAt: workingColony.lastAccruedAt,
+      updatedAt: now,
+    },
+    ctx,
+    now,
   });
 
   for (const [queueId, patch] of queuePatchById.entries()) {
@@ -1027,13 +1282,21 @@ async function settleShipyardQueue(args: {
       completedQuantity += 1;
     }
 
-    markPatch(activeQueue._id, {
-      payload: {
-        ...payload,
-        completedQuantity,
-      },
-      updatedAt: args.now,
-    });
+    const activeQueueId = activeQueue._id;
+    const payloadRow = await args.ctx.db
+      .query("colonyQueuePayloads")
+      .withIndex("by_queue_item_id", (q) => q.eq("queueItemId", activeQueueId))
+      .unique();
+    if (payloadRow) {
+      await args.ctx.db.patch(payloadRow._id, {
+        payload: {
+          ...payload,
+          completedQuantity,
+        },
+        updatedAt: args.now,
+      });
+    }
+    markPatch(activeQueue._id, { updatedAt: args.now });
 
     if (completedQuantity < payload.quantity) {
       break;
@@ -1094,7 +1357,23 @@ async function listOpenColonyQueueItems(args: {
       .collect(),
   ]);
 
-  return [...activeRows, ...queuedRows].sort(compareQueueOrder);
+  const rows = [...activeRows, ...queuedRows].sort((l, r) => {
+    if (l.order !== r.order) {
+      return l.order - r.order;
+    }
+    if (l.queuedAt !== r.queuedAt) {
+      return l.queuedAt - r.queuedAt;
+    }
+    return l._creationTime - r._creationTime;
+  });
+  return await Promise.all(
+    rows.map((row) =>
+      loadQueueWithPayload({
+        ctx: args.ctx,
+        row,
+      }),
+    ),
+  );
 }
 
 function sessionStateValidator() {
@@ -1139,7 +1418,10 @@ const queuesViewValidator = v.object({
   }),
 });
 
-function toQueueViewItem(args: { item: Doc<"colonyQueueItems">; now: number }) {
+function toQueueViewItem(args: {
+  item: Doc<"colonyQueueItems"> & QueuePayloadState;
+  now: number;
+}) {
   const { item, now } = args;
   const remainingMs = Math.max(0, item.completesAt - now);
 
@@ -1163,7 +1445,7 @@ function toQueueViewItem(args: { item: Doc<"colonyQueueItems">; now: number }) {
   };
 }
 
-export function queueEventsNextAt(rows: Array<Doc<"colonyQueueItems">>) {
+export function queueEventsNextAt(rows: Array<Doc<"colonyQueueItems"> & QueuePayloadState>) {
   let nextAt: number | null = null;
   for (const row of rows) {
     if (!OPEN_QUEUE_STATUSES.includes(row.status)) {
@@ -1190,7 +1472,7 @@ function emptyLaneQueueView(lane: QueueLane) {
 function buildLaneQueueView(args: {
   lane: QueueLane;
   now: number;
-  rows: Array<Doc<"colonyQueueItems">>;
+  rows: Array<Doc<"colonyQueueItems"> & QueuePayloadState>;
 }) {
   const open = args.rows
     .filter(
@@ -1268,8 +1550,8 @@ const colonyCoordinatesValidator = v.object({
 });
 
 function buildHudResources(args: {
-  colony: Doc<"colonies">;
-  planet: Doc<"planets">;
+  colony: Doc<"colonies"> & ColonyState;
+  planet: Doc<"planets"> & PlanetEconomyState;
 }) {
   const { colony, planet } = args;
   const rates = productionRatesPerMinute({
@@ -1508,6 +1790,9 @@ export {
   listOpenLaneQueueItems,
   listPlayerColonyPlanets,
   listPlayerColonies,
+  loadColonyState,
+  loadPlanetState,
+  loadQueueWithPayload,
   productionRatesPerMinute,
   queueItemFromToLevel,
   queueLaneValidator,
@@ -1534,6 +1819,8 @@ export {
   storageUpgradeCost,
   storageUpgradeDurationSeconds,
   toAddressLabel,
+  upsertColonyCompanionRows,
+  upsertQueuePayloadRow,
   usedSlotsFromBuildings,
   queuesViewValidator,
   colonyQueueStatusValidator,

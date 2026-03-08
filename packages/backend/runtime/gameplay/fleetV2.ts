@@ -19,15 +19,27 @@ import {
 } from "../../convex/_generated/server";
 import { RESOURCE_SCALE } from "../../convex/schema";
 import {
+  cloneResourceBucket,
+  emptyResourceBucket,
   getOwnedColony,
   incrementColonyShipCount,
+  loadColonyState,
+  loadPlanetState,
   resolveCurrentPlayer,
   resourceBucketValidator,
   settleShipyardQueue,
   shipKeyValidator,
+  upsertColonyCompanionRows,
 } from "./shared";
 
 const RESOURCE_KEYS = ["alloy", "crystal", "fuel"] as const;
+
+type FleetResultCode =
+  | "delivered"
+  | "colonized"
+  | "cancelledInFlight"
+  | "notImplemented"
+  | "failed";
 
 const shipCountsValidator = v.object({
   smallCargo: v.number(),
@@ -69,22 +81,6 @@ const fleetTargetValidator = v.object({
   fleetId: v.optional(v.id("fleets")),
   contractNodeKey: v.optional(v.string()),
 });
-
-function emptyResourceBucket(): ResourceBucket {
-  return {
-    alloy: 0,
-    crystal: 0,
-    fuel: 0,
-  };
-}
-
-function cloneResourceBucket(bucket: ResourceBucket): ResourceBucket {
-  return {
-    alloy: bucket.alloy,
-    crystal: bucket.crystal,
-    fuel: bucket.fuel,
-  };
-}
 
 function scaledUnits(unscaledUnits: number) {
   return Math.round(Math.max(0, unscaledUnits) * RESOURCE_SCALE);
@@ -143,15 +139,6 @@ export function euclideanDistance(args: {
   y2: number;
 }) {
   return Math.max(1, Math.hypot(args.x1 - args.x2, args.y1 - args.y2));
-}
-
-function isActiveStatus(status: Doc<"fleetOperations">["status"]) {
-  return (
-    status === "planned" ||
-    status === "inTransit" ||
-    status === "atTarget" ||
-    status === "returning"
-  );
 }
 
 async function readColonyShipCounts(args: {
@@ -240,7 +227,7 @@ async function planetSystemCoords(args: {
   };
 }
 
-function starterColonyBuildings(): Doc<"colonies">["buildings"] {
+function starterColonyBuildings(): Doc<"colonyInfrastructure">["buildings"] {
   return {
     alloyMineLevel: 1,
     crystalMineLevel: 1,
@@ -261,7 +248,7 @@ function storageCapForLevel(level: number) {
 }
 
 function storageCapsFromBuildings(
-  buildings: Doc<"colonies">["buildings"],
+  buildings: Doc<"colonyInfrastructure">["buildings"],
 ): ResourceBucket {
   return {
     alloy: scaledUnits(storageCapForLevel(buildings.alloyStorageLevel)),
@@ -270,7 +257,9 @@ function storageCapsFromBuildings(
   };
 }
 
-function usedSlotsFromBuildings(buildings: Doc<"colonies">["buildings"]) {
+function usedSlotsFromBuildings(
+  buildings: Doc<"colonyInfrastructure">["buildings"],
+) {
   const keys = [
     "alloyMineLevel",
     "crystalMineLevel",
@@ -293,7 +282,7 @@ function usedSlotsFromBuildings(buildings: Doc<"colonies">["buildings"]) {
 
 async function applyCargoToColony(args: {
   cargoScaled: ResourceBucket;
-  colony: Doc<"colonies">;
+  colony: Awaited<ReturnType<typeof loadColonyState>>;
   ctx: MutationCtx;
   now: number;
 }) {
@@ -306,7 +295,10 @@ async function applyCargoToColony(args: {
     const currentStored = nextResources[key];
     const cap = args.colony.storageCaps[key];
     const inbound = args.cargoScaled[key];
-    const accepted = Math.max(0, Math.min(inbound, Math.max(0, cap - currentStored)));
+    const accepted = Math.max(
+      0,
+      Math.min(inbound, Math.max(0, cap - currentStored)),
+    );
     const overflow = Math.max(0, inbound - accepted);
     nextResources[key] = currentStored + accepted;
     nextOverflow[key] += overflow;
@@ -315,9 +307,17 @@ async function applyCargoToColony(args: {
   }
 
   await args.ctx.db.patch(args.colony._id, {
-    resources: nextResources,
-    overflow: nextOverflow,
     updatedAt: args.now,
+  });
+  await upsertColonyCompanionRows({
+    colony: {
+      ...args.colony,
+      resources: nextResources,
+      overflow: nextOverflow,
+      updatedAt: args.now,
+    },
+    ctx: args.ctx,
+    now: args.now,
   });
 
   return {
@@ -348,6 +348,56 @@ async function appendFleetEvent(args: {
   });
 }
 
+async function upsertOperationResult(args: {
+  ctx: MutationCtx;
+  operation: Doc<"fleetOperations">;
+  now: number;
+  patch: {
+    cancelledAt?: number;
+    cargoDeliveredToOverflow?: ResourceBucket;
+    cargoDeliveredToStorage?: ResourceBucket;
+    fuelWaived?: number;
+    resolvedAt?: number;
+    resultCode?: FleetResultCode;
+    resultMessage?: string;
+  };
+}) {
+  const existing = await args.ctx.db
+    .query("fleetOperationResults")
+    .withIndex("by_operation_id", (q) => q.eq("operationId", args.operation._id))
+    .unique();
+
+  const base = {
+    universeId: args.operation.universeId,
+    ownerPlayerId: args.operation.ownerPlayerId,
+    cargoDeliveredToStorage:
+      args.patch.cargoDeliveredToStorage ??
+      existing?.cargoDeliveredToStorage ??
+      emptyResourceBucket(),
+    cargoDeliveredToOverflow:
+      args.patch.cargoDeliveredToOverflow ??
+      existing?.cargoDeliveredToOverflow ??
+      emptyResourceBucket(),
+    fuelWaived: args.patch.fuelWaived ?? existing?.fuelWaived,
+    cancelledAt: args.patch.cancelledAt ?? existing?.cancelledAt,
+    resolvedAt: args.patch.resolvedAt ?? existing?.resolvedAt,
+    resultCode: args.patch.resultCode ?? existing?.resultCode,
+    resultMessage: args.patch.resultMessage ?? existing?.resultMessage,
+    updatedAt: args.now,
+  };
+
+  if (existing) {
+    await args.ctx.db.patch(existing._id, base);
+    return;
+  }
+
+  await args.ctx.db.insert("fleetOperationResults", {
+    operationId: args.operation._id,
+    createdAt: args.now,
+    ...base,
+  });
+}
+
 async function settleTransportAtTarget(args: {
   ctx: MutationCtx;
   now: number;
@@ -357,25 +407,44 @@ async function settleTransportAtTarget(args: {
   if (!destinationId) {
     await args.ctx.db.patch(args.operation._id, {
       status: "failed",
-      resolvedAt: args.now,
-      resultCode: "failed",
-      resultMessage: "Missing transport destination",
       updatedAt: args.now,
+    });
+    await upsertOperationResult({
+      ctx: args.ctx,
+      operation: args.operation,
+      now: args.now,
+      patch: {
+        resolvedAt: args.now,
+        resultCode: "failed",
+        resultMessage: "Missing transport destination",
+      },
     });
     return;
   }
 
-  const destination = await args.ctx.db.get(destinationId);
-  if (!destination) {
+  const destinationBase = await args.ctx.db.get(destinationId);
+  if (!destinationBase) {
     await args.ctx.db.patch(args.operation._id, {
       status: "failed",
-      resolvedAt: args.now,
-      resultCode: "failed",
-      resultMessage: "Destination colony not found",
       updatedAt: args.now,
+    });
+    await upsertOperationResult({
+      ctx: args.ctx,
+      operation: args.operation,
+      now: args.now,
+      patch: {
+        resolvedAt: args.now,
+        resultCode: "failed",
+        resultMessage: "Destination colony not found",
+      },
     });
     return;
   }
+
+  const destination = await loadColonyState({
+    colony: destinationBase,
+    ctx: args.ctx,
+  });
 
   const delivery = await applyCargoToColony({
     cargoScaled: args.operation.cargoRequested,
@@ -411,12 +480,19 @@ async function settleTransportAtTarget(args: {
 
     await args.ctx.db.patch(args.operation._id, {
       status: "completed",
-      resolvedAt: args.now,
       nextEventAt: args.now,
-      cargoDeliveredToStorage: delivery.deliveredToStorage,
-      cargoDeliveredToOverflow: delivery.deliveredToOverflow,
-      resultCode: "delivered",
       updatedAt: args.now,
+    });
+    await upsertOperationResult({
+      ctx: args.ctx,
+      operation: args.operation,
+      now: args.now,
+      patch: {
+        resolvedAt: args.now,
+        cargoDeliveredToStorage: delivery.deliveredToStorage,
+        cargoDeliveredToOverflow: delivery.deliveredToOverflow,
+        resultCode: "delivered",
+      },
     });
 
     await appendFleetEvent({
@@ -442,15 +518,25 @@ async function settleTransportAtTarget(args: {
     updatedAt: args.now,
   });
 
-  const returnDuration = Math.max(30_000, args.operation.arriveAt - args.operation.departAt);
+  const returnDuration = Math.max(
+    30_000,
+    args.operation.arriveAt - args.operation.departAt,
+  );
   await args.ctx.db.patch(args.operation._id, {
     status: "returning",
     departAt: args.now,
     arriveAt: args.now + returnDuration,
     nextEventAt: args.now + returnDuration,
-    cargoDeliveredToStorage: delivery.deliveredToStorage,
-    cargoDeliveredToOverflow: delivery.deliveredToOverflow,
     updatedAt: args.now,
+  });
+  await upsertOperationResult({
+    ctx: args.ctx,
+    operation: args.operation,
+    now: args.now,
+    patch: {
+      cargoDeliveredToStorage: delivery.deliveredToStorage,
+      cargoDeliveredToOverflow: delivery.deliveredToOverflow,
+    },
   });
 
   await appendFleetEvent({
@@ -478,22 +564,59 @@ async function settleColonizeAtTarget(args: {
   if (!targetPlanetId) {
     await args.ctx.db.patch(args.operation._id, {
       status: "failed",
-      resolvedAt: args.now,
-      resultCode: "failed",
-      resultMessage: "Missing colonization target planet",
       updatedAt: args.now,
+    });
+    await upsertOperationResult({
+      ctx: args.ctx,
+      operation: args.operation,
+      now: args.now,
+      patch: {
+        resolvedAt: args.now,
+        resultCode: "failed",
+        resultMessage: "Missing colonization target planet",
+      },
     });
     return;
   }
 
-  const targetPlanet = await args.ctx.db.get(targetPlanetId);
-  if (!targetPlanet || !targetPlanet.isColonizable) {
+  const targetPlanetBase = await args.ctx.db.get(targetPlanetId);
+  if (!targetPlanetBase) {
     await args.ctx.db.patch(args.operation._id, {
       status: "failed",
-      resolvedAt: args.now,
-      resultCode: "failed",
-      resultMessage: "Target planet is not colonizable",
       updatedAt: args.now,
+    });
+    await upsertOperationResult({
+      ctx: args.ctx,
+      operation: args.operation,
+      now: args.now,
+      patch: {
+        resolvedAt: args.now,
+        resultCode: "failed",
+        resultMessage: "Target planet not found",
+      },
+    });
+    return;
+  }
+
+  const targetPlanet = await loadPlanetState({
+    planet: targetPlanetBase,
+    ctx: args.ctx,
+  });
+
+  if (!targetPlanet.isColonizable) {
+    await args.ctx.db.patch(args.operation._id, {
+      status: "failed",
+      updatedAt: args.now,
+    });
+    await upsertOperationResult({
+      ctx: args.ctx,
+      operation: args.operation,
+      now: args.now,
+      patch: {
+        resolvedAt: args.now,
+        resultCode: "failed",
+        resultMessage: "Target planet is not colonizable",
+      },
     });
     return;
   }
@@ -506,10 +629,17 @@ async function settleColonizeAtTarget(args: {
   if (existing) {
     await args.ctx.db.patch(args.operation._id, {
       status: "failed",
-      resolvedAt: args.now,
-      resultCode: "failed",
-      resultMessage: "Target planet already colonized",
       updatedAt: args.now,
+    });
+    await upsertOperationResult({
+      ctx: args.ctx,
+      operation: args.operation,
+      now: args.now,
+      patch: {
+        resolvedAt: args.now,
+        resultCode: "failed",
+        resultMessage: "Target planet already colonized",
+      },
     });
     return;
   }
@@ -521,21 +651,43 @@ async function settleColonizeAtTarget(args: {
     playerId: args.operation.ownerPlayerId,
     planetId: targetPlanetId,
     name: `Colony ${targetPlanet.galaxyIndex + 1}-${targetPlanet.sectorIndex + 1}-${targetPlanet.systemIndex + 1}`,
+    createdAt: args.now,
+    updatedAt: args.now,
+  });
+
+  await args.ctx.db.insert("colonyEconomy", {
+    colonyId,
     resources: emptyResourceBucket(),
     overflow: emptyResourceBucket(),
     storageCaps,
+    lastAccruedAt: args.now,
+    createdAt: args.now,
+    updatedAt: args.now,
+  });
+
+  await args.ctx.db.insert("colonyInfrastructure", {
+    colonyId,
     buildings: starterBuildings,
     usedSlots: usedSlotsFromBuildings(starterBuildings),
-    lastAccruedAt: args.now,
+    createdAt: args.now,
+    updatedAt: args.now,
+  });
+
+  await args.ctx.db.insert("colonyPolicy", {
+    colonyId,
     inboundMissionPolicy: "allowAll",
     createdAt: args.now,
     updatedAt: args.now,
   });
 
-  const createdColony = await args.ctx.db.get(colonyId);
-  if (!createdColony) {
+  const createdColonyBase = await args.ctx.db.get(colonyId);
+  if (!createdColonyBase) {
     throw new ConvexError("Failed to create colony");
   }
+  const createdColony = await loadColonyState({
+    colony: createdColonyBase,
+    ctx: args.ctx,
+  });
 
   const delivery = await applyCargoToColony({
     cargoScaled: args.operation.cargoRequested,
@@ -567,12 +719,19 @@ async function settleColonizeAtTarget(args: {
 
   await args.ctx.db.patch(args.operation._id, {
     status: "completed",
-    resolvedAt: args.now,
     nextEventAt: args.now,
-    cargoDeliveredToStorage: delivery.deliveredToStorage,
-    cargoDeliveredToOverflow: delivery.deliveredToOverflow,
-    resultCode: "colonized",
     updatedAt: args.now,
+  });
+  await upsertOperationResult({
+    ctx: args.ctx,
+    operation: args.operation,
+    now: args.now,
+    patch: {
+      resolvedAt: args.now,
+      cargoDeliveredToStorage: delivery.deliveredToStorage,
+      cargoDeliveredToOverflow: delivery.deliveredToOverflow,
+      resultCode: "colonized",
+    },
   });
 
   await appendFleetEvent({
@@ -595,14 +754,21 @@ async function settleOperationReturn(args: {
   now: number;
   operation: Doc<"fleetOperations">;
 }) {
-  const origin = await args.ctx.db.get(args.operation.originColonyId);
-  if (!origin) {
+  const originBase = await args.ctx.db.get(args.operation.originColonyId);
+  if (!originBase) {
     await args.ctx.db.patch(args.operation._id, {
       status: "failed",
-      resolvedAt: args.now,
-      resultCode: "failed",
-      resultMessage: "Origin colony not found for return",
       updatedAt: args.now,
+    });
+    await upsertOperationResult({
+      ctx: args.ctx,
+      operation: args.operation,
+      now: args.now,
+      patch: {
+        resolvedAt: args.now,
+        resultCode: "failed",
+        resultMessage: "Origin colony not found for return",
+      },
     });
     return;
   }
@@ -613,7 +779,7 @@ async function settleOperationReturn(args: {
     }
     await incrementColonyShipCount({
       amount: args.operation.shipCounts[key],
-      colony: origin,
+      colony: originBase,
       ctx: args.ctx,
       now: args.now,
       shipKey: key,
@@ -623,23 +789,37 @@ async function settleOperationReturn(args: {
   await args.ctx.db.patch(args.operation.fleetId, {
     state: "stationed",
     locationKind: "colony",
-    locationColonyId: origin._id,
+    locationColonyId: originBase._id,
     routeOperationId: undefined,
     updatedAt: args.now,
   });
 
+  const result = await args.ctx.db
+    .query("fleetOperationResults")
+    .withIndex("by_operation_id", (q) => q.eq("operationId", args.operation._id))
+    .unique();
+
   await args.ctx.db.patch(args.operation._id, {
     status: "completed",
-    resolvedAt: args.now,
     nextEventAt: args.now,
-    resultCode: args.operation.cancelledAt ? "cancelledInFlight" : "delivered",
     updatedAt: args.now,
+  });
+  await upsertOperationResult({
+    ctx: args.ctx,
+    operation: args.operation,
+    now: args.now,
+    patch: {
+      resolvedAt: args.now,
+      resultCode: args.operation.status === "returning" && result?.cancelledAt
+        ? "cancelledInFlight"
+        : result?.resultCode ?? "delivered",
+    },
   });
 
   await appendFleetEvent({
     ctx: args.ctx,
     data: {
-      originColonyId: origin._id,
+      originColonyId: originBase._id,
     },
     eventType: "returned",
     fleetId: args.operation.fleetId,
@@ -738,11 +918,18 @@ export async function settleDueFleetOperations(args: {
 
     await args.ctx.db.patch(latest._id, {
       status: "failed",
-      resolvedAt: args.now,
       nextEventAt: args.now,
-      resultCode: "notImplemented",
-      resultMessage: `${latest.kind} operations are not implemented yet`,
       updatedAt: args.now,
+    });
+    await upsertOperationResult({
+      ctx: args.ctx,
+      operation: latest,
+      now: args.now,
+      patch: {
+        resolvedAt: args.now,
+        resultCode: "notImplemented",
+        resultMessage: `${latest.kind} operations are not implemented yet`,
+      },
     });
 
     await args.ctx.db.patch(latest.fleetId, {
@@ -794,14 +981,14 @@ export const getFleetGarrison = query({
     garrisonShips: shipCountsValidator,
   }),
   handler: async (ctx, args) => {
-    const { colony } = await getOwnedColony({
+    await getOwnedColony({
       ctx,
       colonyId: args.colonyId,
     });
 
     const shipRows = await ctx.db
       .query("colonyShips")
-      .withIndex("by_colony", (q) => q.eq("colonyId", colony._id))
+      .withIndex("by_colony", (q) => q.eq("colonyId", args.colonyId))
       .collect();
 
     const garrisonShips = normalizeShipCounts({});
@@ -829,7 +1016,7 @@ export const getFleetActiveOperations = query({
       colonyId: args.colonyId,
     });
 
-    const [operations, returning] = await Promise.all([
+    const [inTransit, returning] = await Promise.all([
       ctx.db
         .query("fleetOperations")
         .withIndex("by_owner_stat_evt", (q) =>
@@ -844,7 +1031,7 @@ export const getFleetActiveOperations = query({
         .collect(),
     ]);
 
-    const activeOps = [...operations, ...returning].sort(
+    const activeOps = [...inTransit, ...returning].sort(
       (left, right) => left.nextEventAt - right.nextEventAt,
     );
 
@@ -893,6 +1080,11 @@ export const getFleetOperation = query({
       throw new ConvexError("Operation not found");
     }
 
+    const result = await ctx.db
+      .query("fleetOperationResults")
+      .withIndex("by_operation_id", (q) => q.eq("operationId", operation._id))
+      .unique();
+
     return {
       operation: {
         id: operation._id,
@@ -913,8 +1105,8 @@ export const getFleetOperation = query({
         nextEventAt: operation.nextEventAt,
         parentOperationId: operation.parentOperationId,
       },
-      resultCode: operation.resultCode,
-      resultMessage: operation.resultMessage,
+      resultCode: result?.resultCode,
+      resultMessage: result?.resultMessage,
     };
   },
 });
@@ -1059,10 +1251,14 @@ export const createOperation = mutation({
         throw new ConvexError("Transport operations require a target colony");
       }
 
-      const destination = await ctx.db.get(args.target.colonyId);
-      if (!destination) {
+      const destinationBase = await ctx.db.get(args.target.colonyId);
+      if (!destinationBase) {
         throw new ConvexError("Transport destination not found");
       }
+      const destination = await loadColonyState({
+        colony: destinationBase,
+        ctx,
+      });
       if (destination.universeId !== origin.colony.universeId) {
         throw new ConvexError("Target colony is in a different universe");
       }
@@ -1101,8 +1297,15 @@ export const createOperation = mutation({
         throw new ConvexError("Colonization operations require a target planet");
       }
 
-      const targetPlanet = await ctx.db.get(args.target.planetId);
-      if (!targetPlanet || !targetPlanet.isColonizable) {
+      const targetPlanetBase = await ctx.db.get(args.target.planetId);
+      if (!targetPlanetBase) {
+        throw new ConvexError("Target planet not found");
+      }
+      const targetPlanet = await loadPlanetState({
+        planet: targetPlanetBase,
+        ctx,
+      });
+      if (!targetPlanet.isColonizable) {
         throw new ConvexError("Target planet is not colonizable");
       }
       if (targetPlanet.universeId !== origin.colony.universeId) {
@@ -1119,7 +1322,7 @@ export const createOperation = mutation({
 
       const activePlanetOps = await ctx.db
         .query("fleetOperations")
-        .withIndex("by_target_planet_stat", (q) =>
+        .withIndex("by_tplanet_st_evt", (q) =>
           q.eq("target.planetId", targetPlanet._id).eq("status", "inTransit"),
         )
         .collect();
@@ -1163,10 +1366,15 @@ export const createOperation = mutation({
       fuel: cargoScaled.fuel + fuelScaled,
     };
 
-    const latestOrigin = await ctx.db.get(origin.colony._id);
-    if (!latestOrigin) {
+    const latestOriginBase = await ctx.db.get(origin.colony._id);
+    if (!latestOriginBase) {
       throw new ConvexError("Origin colony not found");
     }
+    const latestOrigin = await loadColonyState({
+      colony: latestOriginBase,
+      ctx,
+    });
+
     for (const key of RESOURCE_KEYS) {
       if (latestOrigin.resources[key] < deduction[key]) {
         throw new ConvexError(`Not enough ${key} for this operation`);
@@ -1174,12 +1382,20 @@ export const createOperation = mutation({
     }
 
     await ctx.db.patch(latestOrigin._id, {
-      resources: {
-        alloy: latestOrigin.resources.alloy - deduction.alloy,
-        crystal: latestOrigin.resources.crystal - deduction.crystal,
-        fuel: latestOrigin.resources.fuel - deduction.fuel,
-      },
       updatedAt: now,
+    });
+    await upsertColonyCompanionRows({
+      colony: {
+        ...latestOrigin,
+        resources: {
+          alloy: latestOrigin.resources.alloy - deduction.alloy,
+          crystal: latestOrigin.resources.crystal - deduction.crystal,
+          fuel: latestOrigin.resources.fuel - deduction.fuel,
+        },
+        updatedAt: now,
+      },
+      ctx,
+      now,
     });
 
     const fleetId = await ctx.db.insert("fleets", {
@@ -1210,14 +1426,22 @@ export const createOperation = mutation({
       parentOperationId: undefined,
       shipCounts: normalizedShips,
       cargoRequested: cargoScaled,
-      cargoDeliveredToStorage: emptyResourceBucket(),
-      cargoDeliveredToOverflow: emptyResourceBucket(),
       fuelCharged: fuelScaled,
-      fuelWaived: undefined,
       distance,
       departAt: now,
       arriveAt: now + durationMs,
       nextEventAt: now + durationMs,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await ctx.db.insert("fleetOperationResults", {
+      operationId,
+      universeId: latestOrigin.universeId,
+      ownerPlayerId: latestOrigin.playerId,
+      cargoDeliveredToStorage: emptyResourceBucket(),
+      cargoDeliveredToOverflow: emptyResourceBucket(),
+      fuelWaived: undefined,
       cancelledAt: undefined,
       resolvedAt: undefined,
       resultCode: undefined,
@@ -1296,19 +1520,32 @@ export const cancelOperation = mutation({
           shipCounts: operation.shipCounts,
         }),
       );
-      const origin = await ctx.db.get(operation.originColonyId);
-      if (!origin) {
+      const originBase = await ctx.db.get(operation.originColonyId);
+      if (!originBase) {
         throw new ConvexError("Origin colony not found");
       }
+      const origin = await loadColonyState({
+        colony: originBase,
+        ctx,
+      });
       const availableFuel = origin.resources.fuel;
       additionalFuelCharged = Math.min(extraFuelScaled, availableFuel);
       fuelWaived = Math.max(0, extraFuelScaled - additionalFuelCharged);
+
       await ctx.db.patch(origin._id, {
-        resources: {
-          ...origin.resources,
-          fuel: origin.resources.fuel - additionalFuelCharged,
-        },
         updatedAt: now,
+      });
+      await upsertColonyCompanionRows({
+        colony: {
+          ...origin,
+          resources: {
+            ...origin.resources,
+            fuel: origin.resources.fuel - additionalFuelCharged,
+          },
+          updatedAt: now,
+        },
+        ctx,
+        now,
       });
     }
 
@@ -1321,13 +1558,20 @@ export const cancelOperation = mutation({
 
     await ctx.db.patch(operation._id, {
       status: "returning",
-      cancelledAt: now,
       departAt: now,
       arriveAt: now + returnDurationMs,
       nextEventAt: now + returnDurationMs,
       fuelCharged: operation.fuelCharged + additionalFuelCharged,
-      fuelWaived: fuelWaived > 0 ? fuelWaived : operation.fuelWaived,
       updatedAt: now,
+    });
+    await upsertOperationResult({
+      ctx,
+      operation,
+      now,
+      patch: {
+        cancelledAt: now,
+        fuelWaived: fuelWaived > 0 ? fuelWaived : undefined,
+      },
     });
 
     await appendFleetEvent({
@@ -1361,16 +1605,12 @@ export const processDueOperationsCron = internalMutation({
     const now = Date.now();
     const activePlayers = await ctx.db
       .query("fleetOperations")
-      .withIndex("by_stat_evt", (q) =>
-        q.eq("status", "inTransit").lte("nextEventAt", now),
-      )
+      .withIndex("by_stat_evt", (q) => q.eq("status", "inTransit").lte("nextEventAt", now))
       .collect();
 
     const returningPlayers = await ctx.db
       .query("fleetOperations")
-      .withIndex("by_stat_evt", (q) =>
-        q.eq("status", "returning").lte("nextEventAt", now),
-      )
+      .withIndex("by_stat_evt", (q) => q.eq("status", "returning").lte("nextEventAt", now))
       .collect();
 
     const ownerIds = new Set<Id<"players">>();

@@ -111,6 +111,15 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
       q.eq("universeId", universe._id),
     )
     .collect();
+  const planetEconomyRows = await ctx.db
+    .query("planetEconomy")
+    .withIndex("by_uni_colon", (q) => q.eq("universeId", universe._id))
+    .collect();
+  const colonizablePlanetIds = new Set(
+    planetEconomyRows
+      .filter((row) => row.isColonizable)
+      .map((row) => row.planetId),
+  );
 
   const coloniesInUniverse = await ctx.db
     .query("colonies")
@@ -121,7 +130,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
     coloniesInUniverse.map((colony) => colony.planetId),
   );
   let unclaimedColonizablePlanets = planets
-    .filter((planet) => planet.isColonizable)
+    .filter((planet) => colonizablePlanetIds.has(planet._id))
     .filter((planet) => !claimedPlanetIds.has(planet._id));
 
   if (unclaimedColonizablePlanets.length === 0) {
@@ -141,6 +150,15 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
         (q) => q.eq("universeId", universe._id),
       )
       .collect();
+    const refreshedPlanetEconomyRows = await ctx.db
+      .query("planetEconomy")
+      .withIndex("by_uni_colon", (q) => q.eq("universeId", universe._id))
+      .collect();
+    const refreshedColonizablePlanetIds = new Set(
+      refreshedPlanetEconomyRows
+        .filter((row) => row.isColonizable)
+        .map((row) => row.planetId),
+    );
 
     const refreshedColonies = await ctx.db
       .query("colonies")
@@ -151,7 +169,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
       refreshedColonies.map((colony) => colony.planetId),
     );
     unclaimedColonizablePlanets = refreshedPlanets
-      .filter((planet) => planet.isColonizable)
+      .filter((planet) => refreshedColonizablePlanetIds.has(planet._id))
       .filter((planet) => !refreshedClaimedPlanetIds.has(planet._id));
   }
 
@@ -186,7 +204,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
     crystalStorageLevel: 1,
     fuelStorageLevel: 1,
     shipyardLevel: 0,
-  } satisfies Doc<"colonies">["buildings"];
+  } satisfies Doc<"colonyInfrastructure">["buildings"];
 
   const storageCaps = storageCapsFromBuildings(starterBuildings);
   const resources = {
@@ -204,16 +222,31 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
     playerId: player._id,
     planetId: selectedPlanet._id,
     name: `Colony ${selectedPlanet.galaxyIndex + 1}-${selectedPlanet.sectorIndex + 1}-${selectedPlanet.systemIndex + 1}`,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await ctx.db.insert("colonyEconomy", {
+    colonyId,
     resources,
     overflow: emptyResourceBucket(),
     storageCaps,
-    buildings: starterBuildings,
-    usedSlots: usedSlotsFromBuildings(starterBuildings),
     lastAccruedAt: now,
     createdAt: now,
     updatedAt: now,
   });
-
+  await ctx.db.insert("colonyInfrastructure", {
+    colonyId,
+    buildings: starterBuildings,
+    usedSlots: usedSlotsFromBuildings(starterBuildings),
+    createdAt: now,
+    updatedAt: now,
+  });
+  await ctx.db.insert("colonyPolicy", {
+    colonyId,
+    inboundMissionPolicy: "allowAll",
+    createdAt: now,
+    updatedAt: now,
+  });
   return {
     playerId: player._id,
     defaultColonyId: colonyId,

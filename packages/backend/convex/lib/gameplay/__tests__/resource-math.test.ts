@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { Doc } from "../../../_generated/dataModel";
+import type { Id } from "../../../_generated/dataModel";
 
 import {
   applyAccrualSegment,
   scaledUnits,
   storedToWholeUnits,
 } from "../../../../runtime/gameplay/shared";
+
+type AccrualColony = Parameters<typeof applyAccrualSegment>[0]["colony"];
+type AccrualPlanet = Parameters<typeof applyAccrualSegment>[0]["planet"];
 
 describe("resource helpers", () => {
   it("scales and unscales units consistently", () => {
@@ -15,7 +18,15 @@ describe("resource helpers", () => {
   });
 
   it("accrual is segmented across upgraded rates", () => {
-    const baseColony = {
+    const baseColony: AccrualColony = {
+      _id: "colony_1" as unknown as Id<"colonies">,
+      _creationTime: 0,
+      universeId: "universe_1" as unknown as Id<"universes">,
+      playerId: "player_1" as unknown as Id<"players">,
+      planetId: "planet_1" as unknown as Id<"planets">,
+      name: "Test Colony",
+      createdAt: 0,
+      updatedAt: 0,
       lastAccruedAt: 0,
       buildings: {
         alloyMineLevel: 1,
@@ -32,18 +43,42 @@ describe("resource helpers", () => {
         crystal: 0,
         fuel: 0,
       },
+      resources: {
+        alloy: 0,
+        crystal: 0,
+        fuel: 0,
+      },
       storageCaps: {
         alloy: scaledUnits(1_000_000),
         crystal: scaledUnits(1_000_000),
         fuel: scaledUnits(1_000_000),
       },
-    } as unknown as Doc<"colonies">;
+      usedSlots: 7,
+    };
 
-    const planet = {
+    const planet: AccrualPlanet = {
+      _id: "planet_1" as unknown as Id<"planets">,
+      _creationTime: 0,
+      universeId: "universe_1" as unknown as Id<"universes">,
+      systemId: "system_1" as unknown as Id<"systems">,
+      seed: "seed",
+      galaxyIndex: 0,
+      sectorIndex: 0,
+      systemIndex: 0,
+      planetIndex: 0,
+      orbitRadius: 100,
+      orbitPhaseRad: 0,
+      orbitAngularVelocityRadPerSec: 0.01,
+      orbitalDistance: 100,
+      planetSize: 1,
+      createdAt: 0,
+      compositionType: "metallic",
+      maxBuildingSlots: 12,
       alloyMultiplier: 1,
       crystalMultiplier: 1,
       fuelMultiplier: 1,
-    } as unknown as Doc<"planets">;
+      isColonizable: true,
+    };
 
     const start = {
       alloy: 0,
@@ -91,7 +126,15 @@ describe("resource helpers", () => {
   });
 
   it("pauses local production when overflow exists", () => {
-    const overflowColony = {
+    const overflowColony: AccrualColony = {
+      _id: "colony_2" as unknown as Id<"colonies">,
+      _creationTime: 0,
+      universeId: "universe_1" as unknown as Id<"universes">,
+      playerId: "player_1" as unknown as Id<"players">,
+      planetId: "planet_1" as unknown as Id<"planets">,
+      name: "Overflow Colony",
+      createdAt: 0,
+      updatedAt: 0,
       lastAccruedAt: 0,
       buildings: {
         alloyMineLevel: 5,
@@ -108,18 +151,42 @@ describe("resource helpers", () => {
         crystal: 0,
         fuel: 0,
       },
+      resources: {
+        alloy: 0,
+        crystal: 0,
+        fuel: 0,
+      },
       storageCaps: {
         alloy: scaledUnits(1_000_000),
         crystal: scaledUnits(1_000_000),
         fuel: scaledUnits(1_000_000),
       },
-    } as unknown as Doc<"colonies">;
+      usedSlots: 7,
+    };
 
-    const planet = {
+    const planet: AccrualPlanet = {
+      _id: "planet_1" as unknown as Id<"planets">,
+      _creationTime: 0,
+      universeId: "universe_1" as unknown as Id<"universes">,
+      systemId: "system_1" as unknown as Id<"systems">,
+      seed: "seed",
+      galaxyIndex: 0,
+      sectorIndex: 0,
+      systemIndex: 0,
+      planetIndex: 0,
+      orbitRadius: 100,
+      orbitPhaseRad: 0,
+      orbitAngularVelocityRadPerSec: 0.01,
+      orbitalDistance: 100,
+      planetSize: 1,
+      createdAt: 0,
+      compositionType: "metallic",
+      maxBuildingSlots: 12,
       alloyMultiplier: 1,
       crystalMultiplier: 1,
       fuelMultiplier: 1,
-    } as unknown as Doc<"planets">;
+      isColonizable: true,
+    };
 
     const result = applyAccrualSegment({
       colony: overflowColony,

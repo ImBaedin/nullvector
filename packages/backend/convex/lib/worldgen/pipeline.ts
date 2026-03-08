@@ -19,7 +19,12 @@ import {
 } from "./layout";
 import { generatePlanetsForSystem, generateStarKind } from "./planet";
 
-type UniverseDoc = Doc<"universes">;
+type UniverseDoc = Doc<"universes"> & {
+  coordinateConfig: Doc<"universeGeneration">["coordinateConfig"];
+  generationConfig: Doc<"universeGeneration">["generationConfig"];
+  generationState: Doc<"universeGeneration">["generationState"];
+  seed?: string;
+};
 type GenerationState = NonNullable<UniverseDoc["generationState"]>;
 
 type CreationCounters = {
@@ -128,30 +133,14 @@ async function countColonizablePlanetsByUniverse(
   ctx: MutationCtx,
   universeId: Id<"universes">
 ) {
-  let cursor: string | null = null;
-  let count = 0;
-
-  while (true) {
-    const page = await ctx.db
-      .query("planets")
-      .withIndex("by_universe_and_galaxy_and_sector_and_system_and_planet", (q) =>
-        q.eq("universeId", universeId)
+  return await countByQuery((cursor) =>
+    ctx.db
+      .query("planetEconomy")
+      .withIndex("by_uni_colon", (q) =>
+        q.eq("universeId", universeId).eq("isColonizable", true),
       )
-      .paginate({ numItems: 256, cursor });
-
-    for (const planet of page.page) {
-      if (planet.isColonizable) {
-        count += 1;
-      }
-    }
-
-    if (page.isDone) {
-      break;
-    }
-    cursor = page.continueCursor;
-  }
-
-  return count;
+      .paginate({ numItems: 256, cursor }),
+  );
 }
 
 async function getNextSectorIndexForGalaxy(
@@ -232,6 +221,11 @@ async function resolveUniverse(
       name: "Main Universe",
       isActive: true,
       orbitEpochMs: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.insert("universeGeneration", {
+      universeId,
       seed: `universe:${DEFAULT_UNIVERSE_SLUG}`,
       coordinateConfig: defaults.coordinateConfig,
       generationConfig: defaults.generationConfig,
@@ -239,7 +233,7 @@ async function resolveUniverse(
         schemaVersion: GENERATION_STATE_SCHEMA_VERSION,
         nextCoreSectorIndexByGalaxy: Array.from(
           { length: defaults.generationConfig.galaxyCount },
-          () => 0
+          () => 0,
         ),
         nextGalaxyCursor: 0,
         coreSectorsGenerated: 0,
@@ -255,7 +249,51 @@ async function resolveUniverse(
     }
   }
 
-  return universe;
+  const generation = await ctx.db
+    .query("universeGeneration")
+    .withIndex("by_universe_id", (q) => q.eq("universeId", universe._id))
+    .unique();
+  if (!generation) {
+    if (dryRun) {
+      throw new ConvexError("Universe generation data missing");
+    }
+    const defaults = buildDefaultUniverseConfig();
+    const created = {
+      universeId: universe._id,
+      seed: `universe:${universe.slug}`,
+      coordinateConfig: defaults.coordinateConfig,
+      generationConfig: defaults.generationConfig,
+      generationState: {
+        schemaVersion: GENERATION_STATE_SCHEMA_VERSION,
+        nextCoreSectorIndexByGalaxy: Array.from(
+          { length: defaults.generationConfig.galaxyCount },
+          () => 0,
+        ),
+        nextGalaxyCursor: 0,
+        coreSectorsGenerated: 0,
+        colonizablePlanetsGenerated: 0,
+        lastRunAt: now,
+      },
+      createdAt: now,
+      updatedAt: now,
+    };
+    await ctx.db.insert("universeGeneration", created);
+    return {
+      ...universe,
+      seed: created.seed,
+      coordinateConfig: created.coordinateConfig,
+      generationConfig: created.generationConfig,
+      generationState: created.generationState,
+    };
+  }
+
+  return {
+    ...universe,
+    seed: generation.seed,
+    coordinateConfig: generation.coordinateConfig,
+    generationConfig: generation.generationConfig,
+    generationState: generation.generationState,
+  };
 }
 
 async function ensureGalaxies(args: {
@@ -458,7 +496,7 @@ async function generateOneCoreSector(args: {
     });
 
     for (const planet of planets) {
-      await ctx.db.insert("planets", {
+      const planetId = await ctx.db.insert("planets", {
         universeId: universe._id,
         systemId,
         galaxyIndex: galaxyRef.galaxyIndex,
@@ -470,14 +508,20 @@ async function generateOneCoreSector(args: {
         orbitAngularVelocityRadPerSec: planet.orbitAngularVelocityRadPerSec,
         orbitalDistance: planet.orbitalDistance,
         planetSize: planet.planetSize,
+        seed: planet.seed,
+        createdAt: now,
+      });
+      await ctx.db.insert("planetEconomy", {
+        planetId,
+        universeId: universe._id,
         compositionType: planet.compositionType,
         maxBuildingSlots: planet.maxBuildingSlots,
         alloyMultiplier: planet.alloyMultiplier,
         crystalMultiplier: planet.crystalMultiplier,
         fuelMultiplier: planet.fuelMultiplier,
         isColonizable: planet.isColonizable,
-        seed: planet.seed,
         createdAt: now,
+        updatedAt: now,
       });
 
       createdPlanets += 1;
@@ -665,7 +709,16 @@ export async function ensureCoreCapacityPipeline(
 
   if (!params.dryRun) {
     await ctx.db.patch(universe._id, {
+      updatedAt: now,
+    });
+    const generationRow = await ctx.db
+      .query("universeGeneration")
+      .withIndex("by_universe_id", (q) => q.eq("universeId", universe._id))
+      .unique();
+    const generationPayload = {
+      universeId: universe._id,
       seed: universeSeed,
+      coordinateConfig: universe.coordinateConfig,
       generationConfig: {
         ...universe.generationConfig,
         minCoreSectors:
@@ -680,7 +733,15 @@ export async function ensureCoreCapacityPipeline(
       },
       generationState,
       updatedAt: now,
-    });
+    };
+    if (generationRow) {
+      await ctx.db.patch(generationRow._id, generationPayload);
+    } else {
+      await ctx.db.insert("universeGeneration", {
+        ...generationPayload,
+        createdAt: now,
+      });
+    }
   }
 
   return {
