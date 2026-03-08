@@ -3,8 +3,6 @@ import { Link } from "@tanstack/react-router";
 import type { ContextNavItem } from "@/features/game-ui/contracts/navigation";
 import { cn } from "@/lib/utils";
 
-import { NvBadge } from "./badge";
-
 type NvTabsProps = {
   activeId: string;
   className?: string;
@@ -13,16 +11,16 @@ type NvTabsProps = {
 
 export function NvTabs({ className, activeId, items }: NvTabsProps) {
   return (
-    <div className={cn("flex h-full items-stretch justify-center gap-1 overflow-x-auto", className)}>
+    <div className={cn("flex h-full items-end justify-center gap-0.5 overflow-x-auto", className)}>
       {items.map((item) => (
         <Link
           className={cn(
-            "inline-flex h-full min-w-[150px] items-center justify-center gap-2 rounded-t-[var(--nv-r-sm)] border border-b-4 px-3 text-xs font-medium nv-transition",
+            "group inline-flex items-center gap-1.5 border-b-2 px-3 pb-2 pt-1.5 text-[11px] font-semibold transition-all",
             item.isDisabled
-              ? "pointer-events-none border-[color:rgba(255,255,255,0.1)] border-b-transparent bg-[rgba(255,255,255,0.03)] text-[color:var(--nv-text-muted)]"
+              ? "pointer-events-none border-transparent text-white/20 [&_img]:opacity-30"
               : item.id === activeId
-                ? "border-[color:rgba(61,217,255,0.5)] border-b-[color:var(--nv-cyan)] bg-[rgba(61,217,255,0.14)] text-[color:#e7faff]"
-                : "border-[color:var(--nv-glass-stroke)] border-b-transparent bg-[rgba(255,255,255,0.03)] text-[color:var(--nv-text-secondary)] hover:border-b-[color:rgba(61,217,255,0.45)] hover:bg-[rgba(61,217,255,0.09)] hover:text-white"
+                ? "border-cyan-400/80 text-cyan-50 [&_img]:opacity-90"
+                : "border-transparent text-white/35 hover:border-white/15 hover:text-white/60 [&_img]:opacity-40 [&_img]:hover:opacity-60"
           )}
           key={item.id}
           to={item.to}
@@ -30,9 +28,9 @@ export function NvTabs({ className, activeId, items }: NvTabsProps) {
           {item.icon}
           <span>{item.label}</span>
           {item.badgeCount ? (
-            <NvBadge className="h-5 min-w-5 justify-center px-1.5 py-0 text-[10px] leading-none" tone="info">
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-400/15 px-1 text-[9px] font-bold text-cyan-200/80">
               {item.badgeCount}
-            </NvBadge>
+            </span>
           ) : null}
         </Link>
       ))}

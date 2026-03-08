@@ -10,7 +10,7 @@ type ContextNavProps = {
 
 export function ContextNav({ activeId, className, items }: ContextNavProps) {
   return (
-    <div className={cn("h-14", className)}>
+    <div className={cn("h-10", className)}>
       <NvTabs activeId={activeId} items={items} />
     </div>
   );

@@ -11,7 +11,6 @@ import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdat
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ResourceStrip } from "@/features/game-ui/shell/resource-strip";
-import { NvBadge, NvIconButton, NvPanel } from "@/features/game-ui/primitives";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
 
@@ -307,14 +306,6 @@ export function AppHeader({
     }
   }, [isStarMapOpen, starMapNavigation]);
 
-  const notificationsBadge = useMemo(() => {
-    if (!config.notificationsCount || config.notificationsCount <= 0) {
-      return null;
-    }
-
-    return <NvBadge tone="info">{config.notificationsCount}</NvBadge>;
-  }, [config.notificationsCount]);
-
   if (config.mode !== "game") {
     return null;
   }
@@ -323,46 +314,47 @@ export function AppHeader({
     <>
       <header
         className={cn(
-          "sticky top-0 z-[var(--nv-z-popover)] px-2 pt-2 transition-all duration-200 lg:px-3",
-          isCompact ? "pb-1" : "pb-2"
+          "sticky top-0 z-(--nv-z-popover) px-2 pt-2 transition-all duration-200 lg:px-3",
+          isCompact ? "pb-0.5" : "pb-2"
         )}
       >
-        <NvPanel
+        <div
           className={cn(
-            "rounded-b-[var(--nv-r-xl)] border-x-0 border-t-0 p-0",
+            "rounded-xl border border-white/8 bg-[linear-gradient(170deg,rgba(10,16,28,0.94),rgba(6,10,18,0.98))] shadow-[0_4px_20px_rgba(0,0,0,0.4)]",
             isStarMapOpen && starMapNavigation ? "overflow-visible" : "overflow-hidden"
           )}
-          density="compact"
         >
+          {/* ═══ Command Bar ═══ */}
           <div
             className={cn(
-              "grid grid-cols-[1fr_auto_1fr] items-center gap-2 bg-[rgba(255,255,255,0.02)] px-3 transition-all duration-200 lg:px-4",
-              isCompact ? "py-2" : "py-3"
+              "grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 transition-all duration-200",
+              isCompact ? "py-2" : "py-2.5"
             )}
           >
-            <div className="flex items-center gap-2 justify-self-start lg:gap-3">
+            {/* Left: logo + colony name */}
+            <div className="flex items-center gap-2.5 justify-self-start">
               <img
-                alt="Nullvector logo"
+                alt="Nullvector"
                 className={cn(
-                  "rounded-md border border-[color:var(--nv-glass-highlight)] bg-[rgba(255,255,255,0.05)] object-contain p-1 transition-all",
-                  isCompact ? "h-9 w-9" : "h-11 w-11"
+                  "shrink-0 rounded-md border border-white/10 bg-black/30 object-contain p-0.5 transition-all",
+                  isCompact ? "size-7" : "size-8"
                 )}
                 src="/game-icons/logo.png"
               />
-              <div>
-                <p className="nv-caps text-[10px] text-[color:var(--nv-text-muted)]">
+              <div className="min-w-0">
+                <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-white/25">
                   NullVector
                 </p>
                 <h1
                   className={cn(
-                    "nv-display font-semibold text-[color:var(--nv-text-primary)] transition-all",
-                    isCompact ? "text-base" : "text-xl"
+                    "font-(family-name:--nv-font-display) font-bold text-white transition-all",
+                    isCompact ? "text-sm" : "text-[15px]"
                   )}
                 >
                   {isRenamingColony && activeColony ? (
                     <input
                       autoFocus
-                      className="w-[min(52vw,420px)] rounded-[var(--nv-r-xs)] border border-[color:var(--nv-glass-highlight)] bg-[rgba(255,255,255,0.04)] px-2 py-0.5 text-inherit focus:outline-none"
+                      className="w-[min(48vw,360px)] rounded-md border border-cyan-300/30 bg-black/40 px-2 py-0.5 text-inherit outline-none"
                       disabled={isSavingColonyName}
                       maxLength={40}
                       onBlur={() => {
@@ -386,7 +378,7 @@ export function AppHeader({
                     />
                   ) : (
                     <button
-                      className="cursor-pointer text-left hover:text-white"
+                      className="cursor-pointer truncate text-left transition-colors hover:text-cyan-100"
                       disabled={!activeColony}
                       onClick={() => {
                         if (!activeColony) {
@@ -404,6 +396,7 @@ export function AppHeader({
               </div>
             </div>
 
+            {/* Center: star map button / navigation */}
             <div
               className={cn(
                 "justify-self-center",
@@ -414,35 +407,37 @@ export function AppHeader({
                 <div className="relative flex items-center gap-2 text-left">
                   <Tooltip.Root>
                     <Tooltip.Trigger
-                      className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[var(--nv-r-xs)] border border-white/20 bg-white/10 text-slate-100 hover:bg-white/16"
+                      className="inline-flex size-7 shrink-0 items-center justify-center rounded-md border border-white/12 bg-white/4 text-white/50 transition-colors hover:bg-white/8 hover:text-white/80"
                       delay={160}
                       onClick={starMapNavigation.onExit}
                     >
-                      <Earth className="size-4" />
+                      <Earth className="size-3.5" />
                     </Tooltip.Trigger>
                     <Tooltip.Portal>
                       <Tooltip.Positioner
-                        className="z-[var(--nv-z-tooltip)]"
+                        className="z-(--nv-z-tooltip)"
                         side="bottom"
                         sideOffset={6}
                       >
-                        <Tooltip.Popup className="rounded-[var(--nv-r-xs)] border border-white/15 bg-[rgba(7,18,34,0.95)] px-2 py-1 text-[11px] font-medium text-slate-100 shadow-[0_8px_20px_rgba(0,0,0,0.35)]">
+                        <Tooltip.Popup className="rounded-md border border-white/12 bg-[rgba(7,14,28,0.96)] px-2 py-1 text-[10px] font-medium text-white/80 shadow-[0_8px_20px_rgba(0,0,0,0.4)]">
                           Return to colony
                         </Tooltip.Popup>
                       </Tooltip.Positioner>
                     </Tooltip.Portal>
                   </Tooltip.Root>
-                  <span className="hidden text-[10px] uppercase tracking-[0.18em] text-cyan-200/80 lg:inline">
+
+                  <span className="hidden text-[9px] font-semibold uppercase tracking-[0.14em] text-cyan-200/50 lg:inline">
                     {starMapNavigation.levelLabel}
                   </span>
-                  <div className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-xs text-slate-100/95">
+
+                  <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto whitespace-nowrap text-[11px] text-white/70">
                     {starMapNavigation.pathItems.map((item, index) => (
-                      <span className="inline-flex items-center gap-1" key={item.id}>
+                      <span className="inline-flex items-center gap-0.5" key={item.id}>
                         {index > 0 ? (
-                          <span className="text-slate-400/80">/</span>
+                          <span className="text-white/20">/</span>
                         ) : null}
                         <button
-                          className="rounded px-1 py-0.5 hover:bg-white/10"
+                          className="rounded px-1 py-0.5 transition-colors hover:bg-white/6 hover:text-white"
                           onClick={item.onSelect}
                           type="button"
                         >
@@ -452,9 +447,15 @@ export function AppHeader({
                     ))}
                   </div>
 
-                  <div className="relative flex-shrink-0">
+                  {/* Entities dropdown */}
+                  <div className="relative shrink-0">
                     <button
-                      className="inline-flex h-8 items-center gap-1 rounded-[var(--nv-r-xs)] border border-white/18 bg-white/10 px-2 text-[11px] font-semibold text-slate-100 hover:bg-white/16"
+                      className={cn(
+                        "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[10px] font-semibold transition-all",
+                        starMapEntitiesOpen
+                          ? "border-cyan-300/30 bg-cyan-400/10 text-cyan-100"
+                          : "border-white/12 bg-white/4 text-white/60 hover:bg-white/8"
+                      )}
                       onClick={() => {
                         setStarMapQualityOpen(false);
                         setStarMapEntitiesOpen((current) => !current);
@@ -464,18 +465,18 @@ export function AppHeader({
                       Entities ({starMapNavigation.entityItems.length})
                       <ChevronDown
                         className={cn(
-                          "size-3.5 transition-transform",
+                          "size-3 transition-transform",
                           starMapEntitiesOpen ? "rotate-180" : null
                         )}
                       />
                     </button>
 
                     {starMapEntitiesOpen ? (
-                      <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-[min(86vw,420px)] rounded-[var(--nv-r-sm)] border border-white/18 bg-[rgba(7,18,34,0.96)] p-1 shadow-[0_10px_24px_rgba(0,0,0,0.45)]">
-                        <div className="max-h-56 space-y-1 overflow-y-auto pr-0.5">
+                      <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-[min(86vw,400px)] rounded-xl border border-white/12 bg-[rgba(8,14,26,0.97)] p-1 shadow-[0_10px_28px_rgba(0,0,0,0.5)]">
+                        <div className="max-h-56 space-y-0.5 overflow-y-auto">
                           {starMapNavigation.entityItems.map((item) => (
                             <button
-                              className="flex w-full items-center justify-between rounded-[var(--nv-r-xs)] border border-white/12 bg-white/6 px-2 py-1 text-left text-[11px] text-slate-100 hover:border-cyan-200/35 hover:bg-white/12"
+                              className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[11px] text-white/70 transition-colors hover:bg-white/4 hover:text-white"
                               key={item.id}
                               onClick={() => {
                                 starMapNavigation.onSelectEntity(item.id);
@@ -484,7 +485,7 @@ export function AppHeader({
                               type="button"
                             >
                               <span className="truncate font-semibold">{item.label}</span>
-                              <span className="ml-2 font-mono text-[10px] text-slate-300/85">
+                              <span className="ml-2 font-(family-name:--nv-font-mono) text-[10px] text-white/25">
                                 {item.subtitle}
                               </span>
                             </button>
@@ -494,9 +495,15 @@ export function AppHeader({
                     ) : null}
                   </div>
 
-                  <div className="relative flex-shrink-0">
+                  {/* Quality dropdown */}
+                  <div className="relative shrink-0">
                     <button
-                      className="inline-flex h-8 items-center gap-1 rounded-[var(--nv-r-xs)] border border-white/18 bg-white/10 px-2 text-[11px] font-semibold text-slate-100 hover:bg-white/16"
+                      className={cn(
+                        "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[10px] font-semibold transition-all",
+                        starMapQualityOpen
+                          ? "border-cyan-300/30 bg-cyan-400/10 text-cyan-100"
+                          : "border-white/12 bg-white/4 text-white/60 hover:bg-white/8"
+                      )}
                       onClick={() => {
                         setStarMapEntitiesOpen(false);
                         setStarMapQualityOpen((current) => !current);
@@ -511,22 +518,22 @@ export function AppHeader({
                       }
                       <ChevronDown
                         className={cn(
-                          "size-3.5 transition-transform",
+                          "size-3 transition-transform",
                           starMapQualityOpen ? "rotate-180" : null
                         )}
                       />
                     </button>
 
                     {starMapQualityOpen ? (
-                      <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-40 rounded-[var(--nv-r-sm)] border border-white/18 bg-[rgba(7,18,34,0.96)] p-1 shadow-[0_10px_24px_rgba(0,0,0,0.45)]">
-                        <div className="space-y-1">
+                      <div className="absolute right-0 top-[calc(100%+6px)] z-20 w-36 rounded-xl border border-white/12 bg-[rgba(8,14,26,0.97)] p-1 shadow-[0_10px_28px_rgba(0,0,0,0.5)]">
+                        <div className="space-y-0.5">
                           {QUALITY_OPTIONS.map((entry) => (
                             <button
                               className={cn(
-                                "flex w-full items-center justify-between rounded-[var(--nv-r-xs)] border px-2 py-1 text-left text-[11px]",
+                                "flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors",
                                 entry.value === starMapNavigation.qualityPreset
-                                  ? "border-cyan-300/55 bg-cyan-400/16 text-cyan-100"
-                                  : "border-white/12 bg-white/6 text-slate-100 hover:border-cyan-200/35 hover:bg-white/12"
+                                  ? "bg-cyan-400/10 text-cyan-100"
+                                  : "text-white/50 hover:bg-white/4 hover:text-white/80"
                               )}
                               key={entry.value}
                               onClick={() => {
@@ -546,11 +553,11 @@ export function AppHeader({
               ) : (
                 <button
                   className={cn(
-                    "nv-starmap-hero nv-transition relative flex min-w-[170px] items-center justify-center gap-2 rounded-[var(--nv-r-sm)] border border-[color:rgba(61,217,255,0.42)] bg-[linear-gradient(165deg,rgba(61,217,255,0.18),rgba(61,217,255,0.06))] px-4 font-semibold text-[color:#e9fbff] shadow-[0_0_0_1px_rgba(61,217,255,0.12),0_8px_22px_rgba(4,8,20,0.46)] hover:border-[color:rgba(61,217,255,0.6)]",
+                    "nv-starmap-hero relative flex items-center justify-center gap-2 rounded-lg border px-4 font-(family-name:--nv-font-display) text-xs font-semibold transition-all",
                     isStarMapOpen
-                      ? "border-[color:rgba(61,217,255,0.74)] shadow-[0_0_0_1px_rgba(61,217,255,0.28),0_10px_24px_rgba(4,8,20,0.56)]"
-                      : null,
-                    isCompact ? "h-10 text-xs" : "h-12 text-sm"
+                      ? "border-cyan-300/40 bg-cyan-400/12 text-cyan-50 shadow-[0_0_16px_rgba(61,217,255,0.12)]"
+                      : "border-white/12 bg-white/4 text-white/60 hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100",
+                    isCompact ? "h-8" : "h-9"
                   )}
                   onClick={handleStarMapToggle}
                   type="button"
@@ -558,11 +565,8 @@ export function AppHeader({
                   <span className="nv-starmap-stars" />
                   <span className="nv-starmap-stars is-slower" />
                   <img
-                    alt="Star map icon"
-                    className={cn(
-                      "relative z-10 object-contain drop-shadow-[0_0_8px_rgba(61,217,255,0.55)]",
-                      isCompact ? "h-5 w-5" : "h-6 w-6"
-                    )}
+                    alt="Star map"
+                    className="relative z-10 size-4 object-contain drop-shadow-[0_0_6px_rgba(61,217,255,0.4)]"
                     src="/game-icons/nav/starmap.png"
                   />
                   <span className="relative z-10">Star Map</span>
@@ -570,7 +574,8 @@ export function AppHeader({
               )}
             </div>
 
-            <div className="hidden items-center gap-2 justify-self-end lg:flex">
+            {/* Right: colony switcher + utilities (desktop) */}
+            <div className="hidden items-center gap-1.5 justify-self-end lg:flex">
               {config.colonies &&
               config.activeColonyId &&
               (config.onColonyChange || handleColonyChange) ? (
@@ -580,34 +585,43 @@ export function AppHeader({
                   onColonyChange={config.onColonyChange ?? handleColonyChange}
                 />
               ) : null}
-              <NvIconButton
-                label="Notifications"
+              <button
+                aria-label="Notifications"
+                className="relative flex size-8 items-center justify-center rounded-lg text-white/30 transition-colors hover:bg-white/4 hover:text-white/60"
                 onClick={config.onOpenNotifications}
-                variant="ghost"
+                type="button"
               >
-                <Bell className="size-4" />
-              </NvIconButton>
-              {notificationsBadge}
-              <NvIconButton
-                label="Settings"
+                <Bell className="size-3.5" />
+                {config.notificationsCount && config.notificationsCount > 0 ? (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-400/20 px-1 text-[8px] font-bold text-cyan-200">
+                    {config.notificationsCount}
+                  </span>
+                ) : null}
+              </button>
+              <button
+                aria-label="Settings"
+                className="flex size-8 items-center justify-center rounded-lg text-white/30 transition-colors hover:bg-white/4 hover:text-white/60"
                 onClick={config.onOpenSettings}
-                variant="ghost"
+                type="button"
               >
-                <Settings className="size-4" />
-              </NvIconButton>
+                <Settings className="size-3.5" />
+              </button>
             </div>
 
+            {/* Mobile hamburger */}
             <div className="flex justify-self-end lg:hidden">
-              <NvIconButton
-                label="Open Menu"
+              <button
+                aria-label="Open Menu"
+                className="flex size-8 items-center justify-center rounded-lg text-white/30 transition-colors hover:bg-white/4 hover:text-white/60"
                 onClick={() => setDrawerOpen(true)}
-                variant="ghost"
+                type="button"
               >
                 <Menu className="size-4" />
-              </NvIconButton>
+              </button>
             </div>
           </div>
 
+          {/* ═══ Resources ═══ */}
           {config.resources?.length ? (
             <div
               className={cn(
@@ -620,7 +634,7 @@ export function AppHeader({
               <div className="min-h-0">
                 <div
                   className={cn(
-                    "border-t border-[color:var(--nv-glass-stroke)] bg-[rgba(255,255,255,0.015)] px-3 lg:px-4",
+                    "border-t border-white/6 px-4",
                     isCompact ? "py-1.5" : "py-2"
                   )}
                 >
@@ -630,6 +644,7 @@ export function AppHeader({
             </div>
           ) : null}
 
+          {/* ═══ Context Navigation ═══ */}
           {config.contextTabs?.length && config.activeTabId ? (
             <div
               className={cn(
@@ -642,7 +657,7 @@ export function AppHeader({
               <div className="min-h-0">
                 <div
                   className={cn(
-                    "bg-[rgba(255,255,255,0.01)] px-3 lg:px-4",
+                    "border-t border-white/6 px-4",
                     isCompact ? "py-0" : "py-0.5"
                   )}
                 >
@@ -654,7 +669,7 @@ export function AppHeader({
               </div>
             </div>
           ) : null}
-        </NvPanel>
+        </div>
       </header>
 
       <AppHeaderMobileDrawer

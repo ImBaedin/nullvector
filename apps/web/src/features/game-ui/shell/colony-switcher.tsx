@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { ColonyOption } from "@/features/game-ui/contracts/navigation";
-import { NvInput } from "@/features/game-ui/primitives";
 import { cn } from "@/lib/utils";
 
 type ColonySwitcherProps = {
@@ -110,7 +109,7 @@ export function ColonySwitcher({
 
   const menu = (
     <div
-      className="fixed z-[var(--nv-z-tooltip)] overflow-hidden rounded-[var(--nv-r-md)] border border-[color:var(--nv-glass-stroke)] bg-[color:var(--nv-glass-bg-strong)] shadow-[var(--nv-shadow-2)] backdrop-blur-[var(--nv-blur-md)]"
+      className="fixed z-(--nv-z-tooltip) overflow-hidden rounded-xl border border-white/12 bg-[rgba(8,14,26,0.97)] shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
       ref={menuRef}
       style={
         menuStyle
@@ -122,12 +121,12 @@ export function ColonySwitcher({
           : undefined
       }
     >
-      <div className="border-b border-[color:var(--nv-glass-stroke)] p-2">
+      <div className="border-b border-white/8 p-2">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-[color:var(--nv-text-muted)]" />
-          <NvInput
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-white/30" />
+          <input
             autoFocus
-            className="pl-8"
+            className="h-8 w-full rounded-lg border border-white/10 bg-black/30 pl-8 pr-3 text-xs text-white outline-none placeholder:text-white/25 focus:border-cyan-300/30"
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search colonies"
             value={query}
@@ -139,34 +138,39 @@ export function ColonySwitcher({
         {filteredColonies.length > 0 ? (
           filteredColonies.map((colony) => (
             <button
-              className="flex w-full items-center justify-between rounded-[var(--nv-r-sm)] px-2 py-2 text-left nv-transition hover:bg-[rgba(61,217,255,0.14)]"
+              className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-white/4"
               key={colony.id}
               onClick={() => selectColony(colony.id)}
               type="button"
             >
               <ColonyRow colony={colony} />
               {colony.id === activeColonyId ? (
-                <Check className="size-4 shrink-0 text-[color:var(--nv-cyan)]" />
+                <Check className="size-3.5 shrink-0 text-cyan-300" />
               ) : null}
             </button>
           ))
         ) : (
-          <p className="px-2 py-3 text-sm text-[color:var(--nv-text-muted)]">No colonies found.</p>
+          <p className="px-2 py-3 text-xs text-white/30">No colonies found.</p>
         )}
       </div>
     </div>
   );
 
   return (
-    <div className="relative z-[var(--nv-z-popover)] min-w-[300px]" ref={rootRef}>
+    <div className="relative z-(--nv-z-popover) min-w-[220px]" ref={rootRef}>
       <button
-        className="flex h-11 w-full items-center justify-between rounded-[var(--nv-r-sm)] border border-[color:var(--nv-glass-stroke)] bg-[rgba(5,11,21,0.75)] px-2.5 text-left nv-transition hover:bg-[rgba(61,217,255,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--nv-focus-ring)]"
+        className={cn(
+          "flex h-9 w-full items-center justify-between rounded-lg border px-2.5 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30",
+          isOpen
+            ? "border-cyan-300/30 bg-white/6"
+            : "border-white/10 bg-white/2.5 hover:border-white/18 hover:bg-white/4"
+        )}
         ref={triggerRef}
         onClick={() => setIsOpen((open) => !open)}
         type="button"
       >
-        {activeColony ? <ColonyRow colony={activeColony} compact /> : <span className="text-sm">Select colony</span>}
-        <ChevronDown className={cn("ml-2 size-4 text-[color:var(--nv-text-muted)] nv-transition", isOpen ? "rotate-180" : null)} />
+        {activeColony ? <ColonyRow colony={activeColony} compact /> : <span className="text-xs text-white/40">Select colony</span>}
+        <ChevronDown className={cn("ml-2 size-3.5 text-white/25 transition-transform", isOpen ? "rotate-180" : null)} />
       </button>
 
       {isOpen && menuStyle && typeof document !== "undefined"
@@ -182,29 +186,25 @@ function ColonyRow({ colony, compact = false }: { colony: ColonyOption; compact?
       {colony.imageUrl ? (
         <img
           alt={`${colony.name} thumbnail`}
-          className={cn("rounded-[var(--nv-r-xs)] border border-[color:var(--nv-glass-highlight)] object-cover", compact ? "h-7 w-7" : "h-8 w-8")}
+          className={cn("shrink-0 rounded-md border border-white/10 object-cover", compact ? "size-6" : "size-7")}
           src={colony.imageUrl}
         />
       ) : (
         <div
           className={cn(
-            "flex items-center justify-center rounded-[var(--nv-r-xs)] border border-[color:var(--nv-glass-highlight)] bg-[linear-gradient(150deg,rgba(61,217,255,0.2),rgba(255,145,79,0.2))] text-[10px] font-semibold text-[color:var(--nv-text-primary)]",
-            compact ? "h-7 w-7" : "h-8 w-8"
+            "flex shrink-0 items-center justify-center rounded-md border border-white/10 bg-[linear-gradient(150deg,rgba(61,217,255,0.15),rgba(255,145,79,0.15))] text-[9px] font-bold text-white/70",
+            compact ? "size-6" : "size-7"
           )}
         >
           {colony.name.slice(0, 2).toUpperCase()}
         </div>
       )}
       <div className="min-w-0">
-        <p className="truncate text-sm text-[color:var(--nv-text-primary)]">{colony.name}</p>
-        {compact ? (
-          <p className="truncate text-[11px] text-[color:var(--nv-text-muted)]">{colony.addressLabel}</p>
-        ) : (
-          <p className="truncate text-xs text-[color:var(--nv-text-secondary)]">
-            {colony.addressLabel}
-            {colony.status ? ` • ${colony.status}` : ""}
-          </p>
-        )}
+        <p className={cn("truncate font-semibold text-white", compact ? "text-xs" : "text-[13px]")}>{colony.name}</p>
+        <p className="truncate font-(family-name:--nv-font-mono) text-[10px] text-white/25">
+          {colony.addressLabel}
+          {!compact && colony.status ? ` · ${colony.status}` : ""}
+        </p>
       </div>
     </div>
   );

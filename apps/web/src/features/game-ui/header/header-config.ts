@@ -66,7 +66,7 @@ function buildPlaceholderTabs(basePaths: {
           : `/style-lab`,
     icon: createElement("img", {
       alt: `${id} nav icon`,
-      className: "h-10 w-10 shrink-0 object-contain",
+      className: "size-5 shrink-0 object-contain",
       src: PLACEHOLDER_TAB_ICON_SRC[id],
     }),
     badgeCount: id === "defenses" ? 1 : undefined,

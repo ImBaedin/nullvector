@@ -1,13 +1,7 @@
-import type { ResourceDatum } from "@/features/game-ui/contracts/navigation";
-import { NvProgress } from "@/features/game-ui/primitives";
-import { cn } from "@/lib/utils";
+import { Fragment } from "react";
 
-const ACCENT_FILL_BY_RESOURCE = {
-  alloy: "from-cyan-300/35 to-cyan-400/10",
-  crystal: "from-sky-300/35 to-indigo-300/10",
-  fuel: "from-amber-300/35 to-orange-300/10",
-  energy: "from-rose-300/35 to-pink-300/10",
-} as const;
+import type { ResourceDatum } from "@/features/game-ui/contracts/navigation";
+import { cn } from "@/lib/utils";
 
 const RESOURCE_ICON_BY_KEY = {
   alloy: "/game-icons/alloy.png",
@@ -16,11 +10,19 @@ const RESOURCE_ICON_BY_KEY = {
   energy: "/game-icons/energy.png",
 } as const;
 
-type ResourceStripProps = {
-  className?: string;
-  resources: ResourceDatum[];
-  storageUsagePercent?: number;
-};
+const ACCENT_BAR = {
+  alloy: "bg-cyan-400/50",
+  crystal: "bg-indigo-400/50",
+  fuel: "bg-amber-400/50",
+  energy: "bg-emerald-400/50",
+} as const;
+
+const ACCENT_RATE = {
+  alloy: "text-cyan-200/55",
+  crystal: "text-indigo-200/55",
+  fuel: "text-amber-200/55",
+  energy: "text-emerald-200/55",
+} as const;
 
 function formatResourceValue(units: number) {
   if (units >= 1_000_000) {
@@ -32,147 +34,115 @@ function formatResourceValue(units: number) {
   return units.toString();
 }
 
-export function ResourceStrip({
-  className,
-  resources,
-  storageUsagePercent = 58,
-}: ResourceStripProps) {
+type ResourceStripProps = {
+  className?: string;
+  resources: ResourceDatum[];
+  storageUsagePercent?: number;
+};
+
+export function ResourceStrip({ className, resources }: ResourceStripProps) {
   return (
-    <div className={className}>
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        {resources.map((resource) => {
-          const overflowAmount = resource.overflowAmount ?? 0;
-          const hasOverflow = overflowAmount > 0;
-          const storedAmount = resource.storageCurrentAmount ?? resource.valueAmount;
-          const capAmount = resource.storageCapAmount;
-          const isStorageFull =
-            resource.key !== "energy" &&
-            storedAmount !== undefined &&
-            capAmount !== undefined &&
-            storedAmount >= capAmount;
-          const displayAmount =
-            resource.key !== "energy" && storedAmount !== undefined
-              ? storedAmount + overflowAmount
-              : resource.valueAmount;
-          const displayValue =
-            resource.key !== "energy" && displayAmount !== undefined
-              ? formatResourceValue(displayAmount)
-              : resource.value;
-          const valueTitle =
-            resource.key !== "energy"
-              ? displayAmount !== undefined
-                ? displayAmount.toLocaleString()
-                : resource.value
-              : resource.value;
+    <div className={cn("flex flex-wrap items-center justify-center gap-x-1 gap-y-2", className)}>
+      {resources.map((resource, i) => {
+        const overflowAmount = resource.overflowAmount ?? 0;
+        const hasOverflow = overflowAmount > 0;
+        const storedAmount = resource.storageCurrentAmount ?? resource.valueAmount;
+        const capAmount = resource.storageCapAmount;
+        const isStorageFull =
+          resource.key !== "energy" &&
+          storedAmount !== undefined &&
+          capAmount !== undefined &&
+          storedAmount >= capAmount;
+        const displayAmount =
+          resource.key !== "energy" && storedAmount !== undefined
+            ? storedAmount + overflowAmount
+            : resource.valueAmount;
+        const displayValue =
+          resource.key !== "energy" && displayAmount !== undefined
+            ? formatResourceValue(displayAmount)
+            : resource.value;
+        const valueTitle =
+          resource.key !== "energy"
+            ? displayAmount !== undefined
+              ? displayAmount.toLocaleString()
+              : resource.value
+            : resource.value;
 
-          return (
-            <div
-              className="relative min-h-[68px] min-w-[220px] overflow-hidden rounded-[var(--nv-r-sm)] border border-[color:var(--nv-glass-stroke)] bg-[rgba(255,255,255,0.03)] px-3 py-2"
-              key={resource.key}
-            >
-              {resource.key !== "energy" ? (
-                <>
-                  <div
-                    className={`pointer-events-none absolute inset-y-0 left-0 rounded-r-[var(--nv-r-sm)] bg-gradient-to-r ${
-                      ACCENT_FILL_BY_RESOURCE[resource.key]
-                    }`}
-                    style={{
-                      width: `${Math.max(
-                        0,
-                        Math.min(
-                          100,
-                          hasOverflow || isStorageFull
-                            ? 100
-                            : resource.storagePercent ?? 0,
-                        )
-                      )}%`,
-                    }}
-                  />
-                  <div
-                    className="pointer-events-none absolute inset-0 nv-progress-stripes opacity-30"
-                    style={
-                      hasOverflow || isStorageFull
-                        ? { animationPlayState: "paused", opacity: 0.18 }
-                        : undefined
-                    }
-                  />
-                </>
-              ) : null}
+        const isEnergy = resource.key === "energy";
+        const percent = isEnergy
+          ? 100
+          : Math.max(
+              0,
+              Math.min(100, hasOverflow || isStorageFull ? 100 : resource.storagePercent ?? 0)
+            );
 
-              <div className="relative z-10 flex h-full items-center gap-3">
-                <img
-                  alt={`${resource.key} icon`}
-                  className="h-10 w-10 rounded-md border border-[color:var(--nv-glass-highlight)] bg-[rgba(255,255,255,0.1)] object-cover"
-                  src={RESOURCE_ICON_BY_KEY[resource.key]}
-                />
-                <div className="min-w-0">
-                  <p className="nv-caps text-[10px] text-[color:var(--nv-text-muted)]">
+        return (
+          <Fragment key={resource.key}>
+            {i > 0 && <div className="hidden h-5 w-px shrink-0 bg-white/6 sm:block" />}
+            <div className="flex items-center gap-2">
+              <img
+                alt={`${resource.key} icon`}
+                className="size-7 shrink-0 rounded-md border border-white/10 bg-black/30 object-contain p-0.5"
+                src={RESOURCE_ICON_BY_KEY[resource.key]}
+              />
+              <div className="min-w-0">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">
                     {resource.key}
-                  </p>
-                  <p
+                  </span>
+                  <span
                     className={cn(
-                      "nv-mono text-base",
-                      hasOverflow
-                        ? "text-rose-200"
-                        : "text-[color:var(--nv-text-primary)]",
+                      "font-(family-name:--nv-font-mono) text-[13px] font-bold leading-none",
+                      hasOverflow ? "text-rose-200" : "text-white"
                     )}
                     title={valueTitle}
                   >
                     {displayValue}
-                    {resource.key !== "energy" &&
-                    resource.storageCurrentLabel &&
-                    resource.storageCapLabel ? (
-                      <span
-                        className={cn(
-                          "ml-2 text-[11px]",
-                          hasOverflow
-                            ? "text-rose-200/80"
-                            : "text-[color:var(--nv-text-muted)]",
-                        )}
-                      >
-                        / {resource.storageCapLabel}
-                      </span>
-                    ) : null}
-                  </p>
-                  {resource.key !== "energy" &&
-                  (hasOverflow || isStorageFull || resource.deltaPerMinute) ? (
-                    <p
-                      className={cn(
-                        "text-[11px]",
-                        hasOverflow || resource.pausedByOverflow
-                          ? "text-amber-200"
+                  </span>
+                  {!isEnergy && capAmount !== undefined && (
+                    <span className="font-(family-name:--nv-font-mono) text-[10px] text-white/20">
+                      / {formatResourceValue(capAmount)}
+                    </span>
+                  )}
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium",
+                      isEnergy
+                        ? (resource.energyBalance ?? 0) < 0
+                          ? "text-rose-300/70"
+                          : "text-emerald-300/55"
+                        : hasOverflow || resource.pausedByOverflow
+                          ? "text-amber-200/70"
                           : isStorageFull
-                            ? "text-rose-200"
-                          : "text-[color:var(--nv-text-secondary)]",
-                      )}
-                    >
-                      {hasOverflow
-                        ? resource.deltaPerMinute ?? "Paused by overflow"
+                            ? "text-rose-300/55"
+                            : ACCENT_RATE[resource.key]
+                    )}
+                  >
+                    {isEnergy
+                      ? `${resource.energyBalance ?? 0} MW`
+                      : hasOverflow
+                        ? resource.deltaPerMinute ?? "Overflow"
                         : isStorageFull
                           ? "Storage full"
                           : resource.deltaPerMinute}
-                    </p>
-                  ) : null}
-                  {resource.key === "energy" ? (
-                    <p
-                      className={cn(
-                        "text-[11px]",
-                        (resource.energyBalance ?? 0) < 0
-                          ? "text-[color:var(--nv-danger)]"
-                          : "text-[color:var(--nv-success)]"
-                      )}
-                    >
-                      {(resource.energyBalance ?? 0) < 0
-                        ? `${resource.energyBalance} MW`
-                        : `${resource.energyBalance ?? 0} MW`}
-                    </p>
-                  ) : null}
+                  </span>
                 </div>
+                {!isEnergy && (
+                  <div className="mt-0.5 h-[2px] w-full min-w-[72px] overflow-hidden rounded-full bg-white/8">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all",
+                        hasOverflow || isStorageFull ? "bg-rose-400/40" : ACCENT_BAR[resource.key]
+                      )}
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                )}
               </div>
             </div>
-          );
-        })}
-      </div>
+          </Fragment>
+        );
+      })}
     </div>
   );
 }
