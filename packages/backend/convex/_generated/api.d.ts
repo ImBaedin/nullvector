@@ -21,6 +21,7 @@ import type * as lib_worldgen_layout from "../lib/worldgen/layout.js";
 import type * as lib_worldgen_pipeline from "../lib/worldgen/pipeline.js";
 import type * as lib_worldgen_planet from "../lib/worldgen/planet.js";
 import type * as lib_worldgen_prng from "../lib/worldgen/prng.js";
+import type * as migrations from "../migrations.js";
 import type * as privateData from "../privateData.js";
 import type * as resources from "../resources.js";
 import type * as session from "../session.js";
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   "lib/worldgen/pipeline": typeof lib_worldgen_pipeline;
   "lib/worldgen/planet": typeof lib_worldgen_planet;
   "lib/worldgen/prng": typeof lib_worldgen_prng;
+  migrations: typeof migrations;
   privateData: typeof privateData;
   resources: typeof resources;
   session: typeof session;

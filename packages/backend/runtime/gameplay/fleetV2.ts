@@ -237,6 +237,7 @@ function starterColonyBuildings(): Doc<"colonyInfrastructure">["buildings"] {
     alloyStorageLevel: 1,
     crystalStorageLevel: 1,
     fuelStorageLevel: 1,
+    roboticsHubLevel: 0,
     shipyardLevel: 0,
   };
 }
@@ -269,12 +270,13 @@ function usedSlotsFromBuildings(
     "alloyStorageLevel",
     "crystalStorageLevel",
     "fuelStorageLevel",
+    "roboticsHubLevel",
     "shipyardLevel",
   ] as const;
 
   let used = 0;
   for (const key of keys) {
-    if (buildings[key] > 0) {
+    if ((buildings[key] ?? 0) > 0) {
       used += 1;
     }
   }

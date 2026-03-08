@@ -22,6 +22,11 @@ const FACILITY_VISUALS: Record<
     summary: string;
   }
 > = {
+  robotics_hub: {
+    image: "/game-icons/facilities/robotics-hub.png",
+    summary:
+      "Expands building queue capacity, letting you stage more upgrades in advance.",
+  },
   shipyard: {
     image: "/game-icons/facilities/shipyard.png",
     summary:

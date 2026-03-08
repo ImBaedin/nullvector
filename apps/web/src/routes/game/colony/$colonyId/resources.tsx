@@ -12,7 +12,11 @@ import {
 } from "lucide-react";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import type { BuildingKey, LaneQueueItem } from "@nullvector/game-logic";
+import type {
+  BuildingKey,
+  FacilityKey,
+  LaneQueueItem,
+} from "@nullvector/game-logic";
 
 import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
@@ -153,6 +157,54 @@ function isBuildingQueueItemPayload(item: {
   );
 }
 
+function isFacilityQueueItemPayload(item: {
+  kind: string;
+  payload: unknown;
+}): item is {
+  kind: "facilityUpgrade";
+  payload: {
+    facilityKey: FacilityKey;
+    fromLevel: number;
+    toLevel: number;
+  };
+} {
+  return (
+    item.kind === "facilityUpgrade" &&
+    typeof item.payload === "object" &&
+    item.payload !== null &&
+    "facilityKey" in item.payload
+  );
+}
+
+type BuildingLaneQueueItem =
+  | {
+      kind: "buildingUpgrade";
+      payload: {
+        buildingKey: BuildingKey;
+        fromLevel: number;
+        toLevel: number;
+      };
+      startsAt: number;
+      completesAt: number;
+    }
+  | {
+      kind: "facilityUpgrade";
+      payload: {
+        facilityKey: FacilityKey;
+        fromLevel: number;
+        toLevel: number;
+      };
+      startsAt: number;
+      completesAt: number;
+    };
+
+function isBuildingLaneQueueItem(item: {
+  kind: string;
+  payload: unknown;
+}): item is BuildingLaneQueueItem {
+  return isBuildingQueueItemPayload(item) || isFacilityQueueItemPayload(item);
+}
+
 const BUILDING_KEY_LABELS: Record<BuildingKey, string> = {
   alloyMineLevel: "Alloy Mine",
   crystalMineLevel: "Crystal Mine",
@@ -161,6 +213,11 @@ const BUILDING_KEY_LABELS: Record<BuildingKey, string> = {
   alloyStorageLevel: "Alloy Storage",
   crystalStorageLevel: "Crystal Storage",
   fuelStorageLevel: "Fuel Storage",
+};
+
+const FACILITY_KEY_LABELS: Record<FacilityKey, string> = {
+  robotics_hub: "Robotics Hub",
+  shipyard: "Shipyard",
 };
 
 function ResourcesRoute() {
@@ -258,6 +315,13 @@ function ResourcesRoute() {
   const buildingQueue = view?.queues.lanes.building;
   const activeQueueItem = buildingQueue?.activeItem;
   const pendingQueueItems = buildingQueue?.pendingItems ?? [];
+  const activeLaneQueueItem: BuildingLaneQueueItem | null =
+    activeQueueItem && isBuildingLaneQueueItem(activeQueueItem)
+      ? (activeQueueItem as BuildingLaneQueueItem)
+      : null;
+  const pendingLaneQueueItems: BuildingLaneQueueItem[] = pendingQueueItems.filter(
+    isBuildingLaneQueueItem,
+  ) as BuildingLaneQueueItem[];
   const activeBuildingQueueItem: LaneQueueItem | null =
     activeQueueItem && isBuildingQueueItemPayload(activeQueueItem)
       ? (activeQueueItem as LaneQueueItem)
@@ -323,13 +387,13 @@ function ResourcesRoute() {
   }, [view?.buildings]);
 
   const totalBuildings = view?.buildings.length ?? 0;
-  const activeItemStartsAt = (activeBuildingQueueItem as Record<string, unknown> | null)?.startsAt as number | undefined;
+  const activeItemStartsAt = (activeLaneQueueItem as Record<string, unknown> | null)?.startsAt as number | undefined;
   const activeItemDurationMs =
-    activeBuildingQueueItem && activeItemStartsAt
-      ? activeBuildingQueueItem.completesAt - activeItemStartsAt
+    activeLaneQueueItem && activeItemStartsAt
+      ? activeLaneQueueItem.completesAt - activeItemStartsAt
       : 0;
-  const activeUpgradeProgress = activeBuildingQueueItem && activeItemDurationMs > 0
-    ? Math.min(100, Math.max(0, ((nowMs - (activeBuildingQueueItem.completesAt - activeItemDurationMs)) / activeItemDurationMs) * 100))
+  const activeUpgradeProgress = activeLaneQueueItem && activeItemDurationMs > 0
+    ? Math.min(100, Math.max(0, ((nowMs - (activeLaneQueueItem.completesAt - activeItemDurationMs)) / activeItemDurationMs) * 100))
     : 0;
 
   if (isAuthLoading || (isAuthenticated && !view)) {
@@ -367,9 +431,9 @@ function ResourcesRoute() {
                 </h1>
                 <p className="text-[10px] text-white/40">
                   {totalBuildings} structures
-                  {activeBuildingQueueItem ? " \u2022 1 upgrading" : ""}
-                  {pendingBuildingQueueItems.length > 0
-                    ? ` \u2022 ${pendingBuildingQueueItems.length} queued`
+                  {activeLaneQueueItem ? " \u2022 1 upgrading" : ""}
+                  {pendingLaneQueueItems.length > 0
+                    ? ` \u2022 ${pendingLaneQueueItems.length} queued`
                     : ""}
                 </p>
               </div>
@@ -611,16 +675,16 @@ function ResourcesRoute() {
               <h2 className="font-[family-name:var(--nv-font-display)] text-sm font-bold">
                 Building Queue
               </h2>
-              {(activeBuildingQueueItem || pendingBuildingQueueItems.length > 0) ? (
+              {(activeLaneQueueItem || pendingLaneQueueItems.length > 0) ? (
                 <span className="ml-auto font-[family-name:var(--nv-font-mono)] text-[9px] text-white/30">
-                  {(activeBuildingQueueItem ? 1 : 0) + pendingBuildingQueueItems.length} item{(activeBuildingQueueItem ? 1 : 0) + pendingBuildingQueueItems.length !== 1 ? "s" : ""}
+                  {(activeLaneQueueItem ? 1 : 0) + pendingLaneQueueItems.length} item{(activeLaneQueueItem ? 1 : 0) + pendingLaneQueueItems.length !== 1 ? "s" : ""}
                 </span>
               ) : null}
             </div>
 
             <div className="p-5">
               {/* Active Upgrade */}
-              {activeBuildingQueueItem ? (
+              {activeLaneQueueItem ? (
                 <div className="space-y-3">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
                     Active
@@ -629,11 +693,14 @@ function ResourcesRoute() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs font-semibold">
-                          {BUILDING_KEY_LABELS[activeBuildingQueueItem.payload.buildingKey] ??
-                            activeBuildingQueueItem.payload.buildingKey}
+                          {activeLaneQueueItem.kind === "buildingUpgrade"
+                            ? (BUILDING_KEY_LABELS[activeLaneQueueItem.payload.buildingKey] ??
+                              activeLaneQueueItem.payload.buildingKey)
+                            : (FACILITY_KEY_LABELS[activeLaneQueueItem.payload.facilityKey] ??
+                              activeLaneQueueItem.payload.facilityKey)}
                         </p>
                         <p className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-[10px] text-white/40">
-                          Lv {activeBuildingQueueItem.payload.fromLevel} → {activeBuildingQueueItem.payload.toLevel}
+                          Lv {activeLaneQueueItem.payload.fromLevel} → {activeLaneQueueItem.payload.toLevel}
                         </p>
                       </div>
                       <div className="text-right">
@@ -668,16 +735,16 @@ function ResourcesRoute() {
               ) : null}
 
               {/* Pending Queue Items */}
-              {pendingBuildingQueueItems.length > 0 ? (
-                <div className={activeBuildingQueueItem ? "mt-4" : ""}>
+              {pendingLaneQueueItems.length > 0 ? (
+                <div className={activeLaneQueueItem ? "mt-4" : ""}>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
-                    Pending ({pendingBuildingQueueItems.length})
+                    Pending ({pendingLaneQueueItems.length})
                   </p>
                   <div className="mt-2 space-y-1">
-                    {pendingBuildingQueueItems.map((item, i) => (
+                    {pendingLaneQueueItems.map((item, i) => (
                       <div
                         className="flex items-center justify-between rounded-lg border border-white/6 bg-white/[0.02] px-3 py-2"
-                        key={`pending-${item.payload.buildingKey}-${item.payload.toLevel}`}
+                        key={`pending-${item.kind}-${item.completesAt}-${item.payload.toLevel}`}
                       >
                         <div className="flex items-center gap-2">
                           <span className="flex size-5 items-center justify-center rounded font-[family-name:var(--nv-font-mono)] text-[9px] font-bold text-white/25">
@@ -685,8 +752,11 @@ function ResourcesRoute() {
                           </span>
                           <div>
                             <p className="text-[11px] font-semibold text-white/80">
-                              {BUILDING_KEY_LABELS[item.payload.buildingKey] ??
-                                item.payload.buildingKey}
+                              {item.kind === "buildingUpgrade"
+                                ? (BUILDING_KEY_LABELS[item.payload.buildingKey] ??
+                                  item.payload.buildingKey)
+                                : (FACILITY_KEY_LABELS[item.payload.facilityKey] ??
+                                  item.payload.facilityKey)}
                             </p>
                             <p className="font-[family-name:var(--nv-font-mono)] text-[9px] text-white/30">
                               Lv {item.payload.fromLevel} → {item.payload.toLevel}
@@ -707,7 +777,7 @@ function ResourcesRoute() {
               ) : null}
 
               {/* Empty state */}
-              {!activeBuildingQueueItem && pendingBuildingQueueItems.length === 0 ? (
+              {!activeLaneQueueItem && pendingLaneQueueItems.length === 0 ? (
                 <div className="flex flex-col items-center py-8 text-center">
                   <div className="flex size-12 items-center justify-center rounded-full border border-white/8 bg-white/[0.03]">
                     <Clock3 className="size-5 text-white/20" />

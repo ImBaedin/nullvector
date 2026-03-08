@@ -36,6 +36,7 @@ describe("resource helpers", () => {
         alloyStorageLevel: 1,
         crystalStorageLevel: 1,
         fuelStorageLevel: 1,
+        roboticsHubLevel: 0,
         shipyardLevel: 0,
       },
       overflow: {
@@ -144,6 +145,7 @@ describe("resource helpers", () => {
         alloyStorageLevel: 1,
         crystalStorageLevel: 1,
         fuelStorageLevel: 1,
+        roboticsHubLevel: 0,
         shipyardLevel: 0,
       },
       overflow: {

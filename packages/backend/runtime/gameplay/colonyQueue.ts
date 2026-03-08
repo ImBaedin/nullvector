@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import {
   buildLaneQueueView,
   emptyLaneQueueView,
+  getBuildingLaneCapacity,
   getOwnedColony,
   listOpenColonyQueueItems,
   queueEventsNextAt,
@@ -32,6 +33,7 @@ export const getColonyQueueLanes = query({
       lanes: {
         building: buildLaneQueueView({
           lane: "building",
+          maxItems: getBuildingLaneCapacity(colony),
           now,
           rows: queueRows,
         }),

@@ -11,7 +11,6 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "../../convex/_generated/server";
 import {
   BUILDING_CONFIG,
-  BUILDING_LANE_CAPACITY,
   OPEN_QUEUE_STATUSES,
   RESOURCE_KEYS,
   STORAGE_BUILDING_MAX_LEVEL,
@@ -22,6 +21,7 @@ import {
   emptyResourceBucket,
   energyConsumptionForLevel,
   getGeneratorOrThrow,
+  getBuildingLaneCapacity,
   getOwnedColony,
   isBuildingUpgradeQueueItem,
   isStorageBuildingKey,
@@ -148,7 +148,8 @@ export const getColonyBuildingCards = query({
       overflow: colony.overflow,
       planet,
     });
-    const queueBlocked = openBuildingQueueRows.length >= BUILDING_LANE_CAPACITY;
+    const queueBlocked =
+      openBuildingQueueRows.length >= getBuildingLaneCapacity(colony);
     const affordable = (cost: ResourceBucket) =>
       RESOURCE_KEYS.every(
         (key) => colony.resources[key] >= scaledUnits(cost[key]),
@@ -308,7 +309,8 @@ export const enqueueBuildingUpgrade = mutation({
       ctx,
       lane: "building",
     });
-    if (queueRows.length >= BUILDING_LANE_CAPACITY) {
+    const laneCapacity = getBuildingLaneCapacity(settledColony);
+    if (queueRows.length >= laneCapacity) {
       throw new ConvexError("Building queue is full");
     }
 

@@ -37,6 +37,7 @@ const buildingLevelsValidator = v.object({
   alloyStorageLevel: v.number(),
   crystalStorageLevel: v.number(),
   fuelStorageLevel: v.number(),
+  roboticsHubLevel: v.optional(v.number()),
   shipyardLevel: v.number(),
 });
 
@@ -70,7 +71,10 @@ const queueItemKindValidator = v.union(
   v.literal("shipBuild"),
 );
 
-const facilityKeyValidator = v.union(v.literal("shipyard"));
+const facilityKeyValidator = v.union(
+  v.literal("robotics_hub"),
+  v.literal("shipyard"),
+);
 
 const queuePayloadValidator = v.union(
   v.object({

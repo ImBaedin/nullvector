@@ -9,7 +9,6 @@ import { ConvexError, v } from "convex/values";
 
 import { mutation, query } from "../../convex/_generated/server";
 import {
-  BUILDING_LANE_CAPACITY,
   EMPTY_RESEARCH_LEVELS,
   OPEN_QUEUE_STATUSES,
   RESOURCE_KEYS,
@@ -19,6 +18,7 @@ import {
   facilityKeyValidator,
   facilityLevelFromColony,
   facilityLevelsFromColony,
+  getBuildingLaneCapacity,
   getOwnedColony,
   isFacilityUpgradeQueueItem,
   listOpenColonyQueueItems,
@@ -60,12 +60,12 @@ export const getFacilitiesCards = query({
         (key) => colony.resources[key] >= scaledUnits(cost[key]),
       );
 
-    const shipyard = DEFAULT_FACILITY_REGISTRY.get(SHIPYARD_FACILITY_KEY);
-    if (!shipyard) {
-      throw new ConvexError("Missing shipyard facility config");
-    }
-
-    const facilities = [shipyard].map((facility) => {
+    const orderedKeys: FacilityKey[] = ["robotics_hub", SHIPYARD_FACILITY_KEY];
+    const facilities = orderedKeys.map((facilityKey) => {
+      const facility = DEFAULT_FACILITY_REGISTRY.get(facilityKey);
+      if (!facility) {
+        throw new ConvexError(`Missing ${facilityKey} facility config`);
+      }
       const key = facility.id as FacilityKey;
       const currentLevel = facilityLevelFromColony(colony, key);
       const projectedLevel = openBuildingQueueRows.reduce((level, row) => {
@@ -104,10 +104,11 @@ export const getFacilitiesCards = query({
         );
       }
 
+      const laneCapacity = getBuildingLaneCapacity(colony);
       const canUpgrade =
         isUnlocked &&
         !isMaxLevel &&
-        openBuildingQueueRows.length < BUILDING_LANE_CAPACITY &&
+        openBuildingQueueRows.length < laneCapacity &&
         affordable(nextUpgradeCost);
       const status: "Online" | "Queued" | "Constructing" | "Locked" | "Maxed" =
         !isUnlocked
@@ -212,7 +213,8 @@ export const enqueueFacilityUpgrade = mutation({
       ctx,
       lane: "building",
     });
-    if (queueRows.length >= BUILDING_LANE_CAPACITY) {
+    const laneCapacity = getBuildingLaneCapacity(settledColony);
+    if (queueRows.length >= laneCapacity) {
       throw new ConvexError("Building queue is full");
     }
 

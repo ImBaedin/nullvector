@@ -48,6 +48,7 @@ type ColonyState = {
     alloyStorageLevel: number;
     crystalStorageLevel: number;
     fuelStorageLevel: number;
+    roboticsHubLevel: number;
     shipyardLevel: number;
   };
   inboundMissionPolicy?: "allowAll" | "denyAll" | "alliesOnly";
@@ -108,6 +109,7 @@ const ALL_BUILDING_KEYS = [
   "alloyStorageLevel",
   "crystalStorageLevel",
   "fuelStorageLevel",
+  "roboticsHubLevel",
   "shipyardLevel",
 ] as const;
 
@@ -118,9 +120,9 @@ const OPEN_QUEUE_STATUSES: ReadonlyArray<QueueItemStatus> = [
   "active",
   "queued",
 ];
-const BUILDING_LANE_CAPACITY = 2;
+const BUILDING_LANE_BASE_CAPACITY = 2;
 const LANE_QUEUE_CAPACITY: Record<QueueLane, number> = {
-  building: BUILDING_LANE_CAPACITY,
+  building: BUILDING_LANE_BASE_CAPACITY,
   shipyard: 5,
   research: 2,
 };
@@ -146,7 +148,10 @@ const buildingKeyValidator = v.union(
   v.literal("crystalStorageLevel"),
   v.literal("fuelStorageLevel"),
 );
-const facilityKeyValidator = v.union(v.literal("shipyard"));
+const facilityKeyValidator = v.union(
+  v.literal("robotics_hub"),
+  v.literal("shipyard"),
+);
 
 const queueLaneValidator = v.union(
   v.literal("building"),
@@ -339,13 +344,17 @@ async function loadColonyState(args: {
   if (!economy || !infrastructure) {
     throw new ConvexError("Colony companion rows missing");
   }
+  const buildings = {
+    ...infrastructure.buildings,
+    roboticsHubLevel: infrastructure.buildings.roboticsHubLevel ?? 0,
+  };
   return {
     ...args.colony,
     resources: economy.resources,
     overflow: economy.overflow,
     storageCaps: economy.storageCaps,
     lastAccruedAt: economy.lastAccruedAt,
-    buildings: infrastructure.buildings,
+    buildings,
     usedSlots: infrastructure.usedSlots,
     inboundMissionPolicy: policy?.inboundMissionPolicy,
   } as Doc<"colonies"> & ColonyState;
@@ -534,12 +543,23 @@ const BUILDING_CONFIG: Record<BuildingKey, BuildingConfig> = {
 };
 
 const SHIPYARD_FACILITY_KEY: FacilityKey = "shipyard";
+const ROBOTICS_HUB_FACILITY_KEY: FacilityKey = "robotics_hub";
 const EMPTY_RESEARCH_LEVELS: Record<string, number> = {};
+
+function getBuildingLaneCapacity(colony: Pick<ColonyState, "buildings">) {
+  return (
+    BUILDING_LANE_BASE_CAPACITY +
+    Math.floor(Math.max(0, colony.buildings.roboticsHubLevel) / 2)
+  );
+}
 
 function facilityLevelFromColony(
   colony: Pick<ColonyState, "buildings">,
   facilityKey: FacilityKey,
 ) {
+  if (facilityKey === ROBOTICS_HUB_FACILITY_KEY) {
+    return colony.buildings.roboticsHubLevel;
+  }
   if (facilityKey === "shipyard") {
     return colony.buildings.shipyardLevel;
   }
@@ -548,6 +568,7 @@ function facilityLevelFromColony(
 
 function facilityLevelsFromColony(colony: Pick<ColonyState, "buildings">) {
   return {
+    robotics_hub: colony.buildings.roboticsHubLevel,
     shipyard: colony.buildings.shipyardLevel,
   } satisfies Partial<Record<string, number>>;
 }
@@ -557,6 +578,13 @@ function setFacilityLevelOnBuildings(args: {
   facilityKey: FacilityKey;
   level: number;
 }) {
+  if (args.facilityKey === ROBOTICS_HUB_FACILITY_KEY) {
+    args.buildings.roboticsHubLevel = Math.max(
+      args.level,
+      args.buildings.roboticsHubLevel,
+    );
+    return;
+  }
   if (args.facilityKey === "shipyard") {
     args.buildings.shipyardLevel = Math.max(args.level, args.buildings.shipyardLevel);
   }
@@ -1471,6 +1499,7 @@ function emptyLaneQueueView(lane: QueueLane) {
 
 function buildLaneQueueView(args: {
   lane: QueueLane;
+  maxItems?: number;
   now: number;
   rows: Array<Doc<"colonyQueueItems"> & QueuePayloadState>;
 }) {
@@ -1484,12 +1513,13 @@ function buildLaneQueueView(args: {
   const active = open.find((row) => row.status === "active");
   const pending = open.filter((row) => row.status === "queued");
   const totalItems = open.length;
+  const maxItems = args.maxItems ?? LANE_QUEUE_CAPACITY[args.lane];
 
   return {
     lane: args.lane,
-    maxItems: LANE_QUEUE_CAPACITY[args.lane],
+    maxItems,
     totalItems,
-    isFull: totalItems >= LANE_QUEUE_CAPACITY[args.lane],
+    isFull: totalItems >= maxItems,
     activeItem: active
       ? toQueueViewItem({ item: active, now: args.now })
       : undefined,
@@ -1748,7 +1778,7 @@ const shipDefinitionViewValidator = v.object({
 
 
 export {
-  BUILDING_LANE_CAPACITY,
+  BUILDING_LANE_BASE_CAPACITY,
   BUILDING_CONFIG,
   EMPTY_RESEARCH_LEVELS,
   ENERGY_BASE_CONSUMPTION,
@@ -1774,6 +1804,7 @@ export {
   facilityLevelFromColony,
   facilityLevelsFromColony,
   formatResourceValue,
+  getBuildingLaneCapacity,
   generatorConfigForBuilding,
   getBuildingQueueStatusForColony,
   getGeneratorOrThrow,
