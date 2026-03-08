@@ -17,6 +17,8 @@ import {
   AppHeader,
   type StarMapHeaderNavigation,
 } from "@/features/game-ui/header";
+import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
+import { toast } from "sonner";
 import { ExplorerCanvas } from "@/features/universe-explorer-realdata/components/explorer-canvas";
 import { HoverPanel } from "@/features/universe-explorer-realdata/components/hover-panel";
 import { LevelGalaxy } from "@/features/universe-explorer-realdata/components/level-galaxy";
@@ -35,8 +37,11 @@ import type {
   RenderableEntity,
 } from "@/features/universe-explorer-realdata/types";
 import { cn } from "@/lib/utils";
-import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
-import { Stats } from "@react-three/drei";
+import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
+import {
+  ColonyStarMapPickerProvider,
+  useColonyStarMapPicker,
+} from "./$colonyId/star-map-picker-context";
 
 export const Route = createFileRoute("/game/colony/$colonyId")({
   component: ColonyLayoutRoute,
@@ -52,11 +57,93 @@ const STAR_MAP_CONTENT_TRANSITION_MS = 500;
 
 type OverlayContentPhase = "visible" | "hiding" | "hidden" | "revealing";
 
+function isSameHeaderNavigation(
+  current: StarMapHeaderNavigation | null,
+  next: StarMapHeaderNavigation | null
+) {
+  if (current === next) {
+    return true;
+  }
+  if (!current || !next) {
+    return false;
+  }
+  if (
+    current.levelLabel !== next.levelLabel ||
+    current.qualityPreset !== next.qualityPreset
+  ) {
+    return false;
+  }
+  if (current.pathItems.length !== next.pathItems.length) {
+    return false;
+  }
+  for (let i = 0; i < current.pathItems.length; i += 1) {
+    const currentItem = current.pathItems[i];
+    const nextItem = next.pathItems[i];
+    if (currentItem.id !== nextItem.id || currentItem.label !== nextItem.label) {
+      return false;
+    }
+  }
+  if (current.entityItems.length !== next.entityItems.length) {
+    return false;
+  }
+  for (let i = 0; i < current.entityItems.length; i += 1) {
+    const currentItem = current.entityItems[i];
+    const nextItem = next.entityItems[i];
+    if (
+      currentItem.id !== nextItem.id ||
+      currentItem.label !== nextItem.label ||
+      currentItem.subtitle !== nextItem.subtitle
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function ColonyLayoutRoute() {
+  return (
+    <ColonyStarMapPickerProvider>
+      <ColonyLayoutContent />
+    </ColonyStarMapPickerProvider>
+  );
+}
+
+function ColonyLayoutContent() {
   const { colonyId } = Route.useParams();
+  const colonyIdAsId = colonyId as Id<"colonies">;
+  const { isAuthenticated } = useConvexAuth();
   const [isStarMapOpen, setIsStarMapOpen] = useState(false);
   const [headerStarMapNavigation, setHeaderStarMapNavigation] =
     useState<StarMapHeaderNavigation | null>(null);
+  const handleHeaderNavigationChange = useCallback(
+    (navigation: StarMapHeaderNavigation | null) => {
+      setHeaderStarMapNavigation((current) =>
+        isSameHeaderNavigation(current, navigation) ? current : navigation
+      );
+    },
+    []
+  );
+  const { pickerRequest } = useColonyStarMapPicker();
+  const fleetActiveOperations = useQuery(
+    api.fleetV2.getFleetOperationsForColony,
+    isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+  );
+  const syncColony = useMutation(api.colonyQueue.syncColony);
+  const isSyncingRef = useRef(false);
+  const sync = useCallback(async () => {
+    if (!isAuthenticated || isSyncingRef.current) {
+      return;
+    }
+
+    isSyncingRef.current = true;
+    try {
+      await syncColony({ colonyId: colonyIdAsId });
+    } catch {
+      // Route-level timed sync should be silent; leaf pages already surface sync errors.
+    } finally {
+      isSyncingRef.current = false;
+    }
+  }, [colonyIdAsId, isAuthenticated, syncColony]);
   const [contentPhase, setContentPhase] =
     useState<OverlayContentPhase>("visible");
   const revealRafRef = useRef<number | null>(null);
@@ -108,6 +195,25 @@ function ColonyLayoutRoute() {
     };
   }, [isStarMapOpen]);
 
+  useEffect(() => {
+    if (!pickerRequest) {
+      return;
+    }
+    setIsStarMapOpen(true);
+  }, [pickerRequest]);
+
+  useGameTimedSync({
+    enabled: isAuthenticated,
+    events: [
+      {
+        id: "fleet-next-event-player",
+        atMs: fleetActiveOperations?.nextEventAt ?? null,
+      },
+    ],
+    onDue: () => sync(),
+    scopeId: `colony:${colonyId}:layout:fleet`,
+  });
+
   const shouldCollapseContent =
     contentPhase === "hiding" ||
     contentPhase === "hidden" ||
@@ -129,7 +235,7 @@ function ColonyLayoutRoute() {
           colonyId={colonyId as Id<"colonies">}
           isOpen={isStarMapOpen}
           onClose={handleCloseStarMap}
-          onHeaderNavigationChange={setHeaderStarMapNavigation}
+          onHeaderNavigationChange={handleHeaderNavigationChange}
         />
       </ExplorerProvider>
 
@@ -185,6 +291,7 @@ function ColonyStarMapLayer({
   ) => void;
 }) {
   const explorer = useExplorerContext();
+  const { completeSelection, pickerRequest } = useColonyStarMapPicker();
   const { isAuthenticated } = useConvexAuth();
   const data = useExplorerData();
   const {
@@ -328,6 +435,45 @@ function ColonyStarMapLayer({
       y: number;
     }
   ) => {
+    if (pickerRequest) {
+      if (
+        !data.selectedGalaxy ||
+        !data.selectedSector ||
+        !data.selectedSystem
+      ) {
+        toast.error("Zoom into a system before selecting a destination.");
+        return;
+      }
+
+      const selectedPlanet = data.systemData?.planets.find(
+        (planet) => planet.id === (entity.sourceId as Id<"planets">)
+      );
+      if (!selectedPlanet) {
+        toast.error("Unable to resolve the selected planet.");
+        return;
+      }
+
+      if (pickerRequest.missionKind === "transport" && !selectedPlanet.colony) {
+        toast.error("Transport missions require a colonized destination.");
+        return;
+      }
+
+      completeSelection({
+        missionKind: pickerRequest.missionKind,
+        galaxyIndex: data.selectedGalaxy.galaxyIndex,
+        sectorIndex: data.selectedSector.sectorIndex,
+        systemIndex: data.selectedSystem.systemIndex,
+        planetIndex: selectedPlanet.planetIndex,
+        planetId: selectedPlanet.id,
+        planetName: selectedPlanet.displayName,
+        addressLabel: selectedPlanet.addressLabel,
+        colonyId: selectedPlanet.colony?.id,
+        colonyName: selectedPlanet.colony?.name,
+      });
+      onClose();
+      return;
+    }
+
     if (
       !explorer.path.galaxyId ||
       !explorer.path.sectorId ||
@@ -671,10 +817,6 @@ function ColonyStarMapLayer({
       qualityPreset,
       onQualityPresetChange: setQualityPreset,
     });
-
-    return () => {
-      onHeaderNavigationChange(null);
-    };
   }, [
     displayedLevel,
     headerEntityItems,
@@ -685,6 +827,12 @@ function ColonyStarMapLayer({
     onHeaderNavigationChange,
     setQualityPreset,
   ]);
+
+  useEffect(() => {
+    return () => {
+      onHeaderNavigationChange(null);
+    };
+  }, [onHeaderNavigationChange]);
 
   return (
     <>
@@ -704,7 +852,6 @@ function ColonyStarMapLayer({
           sceneKey={explorer.level}
         >
           {sceneContent}
-          <Stats />
         </ExplorerCanvas>
       </div>
 

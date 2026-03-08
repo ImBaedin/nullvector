@@ -8,6 +8,7 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import type { FacilityKey } from "@nullvector/game-logic";
 
 import { UpgradeButton } from "@/features/ui-mockups/components/upgrade-button";
+import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 export const Route = createFileRoute("/game/colony/$colonyId/facilties")({
@@ -165,6 +166,18 @@ function FacilitiesRoute() {
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [isAuthenticated, sync]);
+
+  useGameTimedSync({
+    enabled: isAuthenticated,
+    events: [
+      {
+        id: "colony-next-event",
+        atMs: view?.queues.nextEventAt ?? null,
+      },
+    ],
+    onDue: () => sync(),
+    scopeId: `colony:${colonyId}:facilities`,
+  });
 
   if (isAuthLoading || (isAuthenticated && !view)) {
     return (

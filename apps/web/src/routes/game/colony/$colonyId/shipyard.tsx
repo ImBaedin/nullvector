@@ -17,6 +17,7 @@ import { api } from "@nullvector/backend/convex/_generated/api";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import type { ShipKey } from "@nullvector/game-logic";
 
+import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import {
   CostPill,
@@ -170,6 +171,18 @@ function ShipyardRoute() {
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [isAuthenticated, sync]);
+
+  useGameTimedSync({
+    enabled: isAuthenticated,
+    events: [
+      {
+        id: "colony-next-event",
+        atMs: view?.nextEventAt ?? null,
+      },
+    ],
+    onDue: () => sync(),
+    scopeId: `colony:${colonyId}:shipyard`,
+  });
 
   const shipsByKey = useMemo(
     () => new Map((view?.ships ?? []).map((ship) => [ship.key, ship])),

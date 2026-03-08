@@ -29,6 +29,7 @@ import {
   resourceBucketValidator,
   settleShipyardQueue,
   shipKeyValidator,
+  toAddressLabel,
   upsertColonyCompanionRows,
 } from "./shared";
 
@@ -233,9 +234,9 @@ function starterColonyBuildings(): Doc<"colonyInfrastructure">["buildings"] {
     crystalMineLevel: 1,
     fuelRefineryLevel: 1,
     powerPlantLevel: 1,
-    alloyStorageLevel: 0,
-    crystalStorageLevel: 0,
-    fuelStorageLevel: 0,
+    alloyStorageLevel: 1,
+    crystalStorageLevel: 1,
+    fuelStorageLevel: 1,
     shipyardLevel: 0,
   };
 }
@@ -973,6 +974,66 @@ const operationSummaryValidator = v.object({
   parentOperationId: v.optional(v.id("fleetOperations")),
 });
 
+const fleetOperationTargetPreviewValidator = v.object({
+  isOwnedByPlayer: v.optional(v.boolean()),
+  kind: v.union(v.literal("colony"), v.literal("planet")),
+  label: v.string(),
+});
+
+const fleetOperationOriginColonySummaryValidator = v.object({
+  id: v.id("fleetOperations"),
+  fleetId: v.id("fleets"),
+  kind: fleetOperationKindValidator,
+  status: fleetOperationStatusValidator,
+  originColonyId: v.id("colonies"),
+  originName: v.string(),
+  originAddressLabel: v.string(),
+  target: fleetTargetValidator,
+  targetPreview: fleetOperationTargetPreviewValidator,
+  shipCounts: shipCountsValidator,
+  cargoRequested: resourceBucketValidator,
+  postDeliveryAction: v.optional(transportPostDeliveryActionValidator),
+  departAt: v.number(),
+  arriveAt: v.number(),
+  nextEventAt: v.number(),
+  distance: v.number(),
+  canCancel: v.boolean(),
+});
+const fleetOperationColonyRelationValidator = v.union(
+  v.literal("outgoing"),
+  v.literal("incoming"),
+);
+const fleetOperationColonySummaryValidator = v.object({
+  id: v.id("fleetOperations"),
+  fleetId: v.id("fleets"),
+  kind: fleetOperationKindValidator,
+  status: fleetOperationStatusValidator,
+  relation: fleetOperationColonyRelationValidator,
+  originColonyId: v.id("colonies"),
+  originName: v.string(),
+  originAddressLabel: v.string(),
+  target: fleetTargetValidator,
+  targetPreview: fleetOperationTargetPreviewValidator,
+  shipCounts: shipCountsValidator,
+  cargoRequested: resourceBucketValidator,
+  postDeliveryAction: v.optional(transportPostDeliveryActionValidator),
+  departAt: v.number(),
+  arriveAt: v.number(),
+  nextEventAt: v.number(),
+  distance: v.number(),
+  canCancel: v.boolean(),
+});
+
+const missionKindValidator = v.union(v.literal("transport"), v.literal("colonize"));
+
+const resolveFleetTargetResultValidator = v.object({
+  ok: v.boolean(),
+  reason: v.optional(v.string()),
+  distance: v.optional(v.number()),
+  target: v.optional(fleetTargetValidator),
+  targetPreview: v.optional(fleetOperationTargetPreviewValidator),
+});
+
 export const getFleetGarrison = query({
   args: {
     colonyId: v.id("colonies"),
@@ -1056,6 +1117,407 @@ export const getFleetActiveOperations = query({
         parentOperationId: operation.parentOperationId,
       })),
       nextEventAt: activeOps[0]?.nextEventAt,
+    };
+  },
+});
+
+export const getFleetOperationsForOriginColony = query({
+  args: {
+    colonyId: v.id("colonies"),
+  },
+  returns: v.object({
+    active: v.array(fleetOperationOriginColonySummaryValidator),
+    nextEventAt: v.optional(v.number()),
+  }),
+  handler: async (ctx, args) => {
+    const { colony, player } = await getOwnedColony({
+      ctx,
+      colonyId: args.colonyId,
+    });
+
+    const [inTransit, returning] = await Promise.all([
+      ctx.db
+        .query("fleetOperations")
+        .withIndex("by_origin_stat_evt", (q) =>
+          q.eq("originColonyId", colony._id).eq("status", "inTransit"),
+        )
+        .collect(),
+      ctx.db
+        .query("fleetOperations")
+        .withIndex("by_origin_stat_evt", (q) =>
+          q.eq("originColonyId", colony._id).eq("status", "returning"),
+        )
+        .collect(),
+    ]);
+
+    const activeOps = [...inTransit, ...returning]
+      .filter((operation) => operation.ownerPlayerId === player._id)
+      .sort((left, right) => left.nextEventAt - right.nextEventAt);
+
+    const originPlanet = await ctx.db.get(colony.planetId);
+    const originAddressLabel = originPlanet ? toAddressLabel(originPlanet) : "Unknown";
+
+    const rows = await Promise.all(
+      activeOps.map(async (operation) => {
+        let targetPreview: {
+          isOwnedByPlayer?: boolean;
+          kind: "colony" | "planet";
+          label: string;
+        } = {
+          kind: "planet",
+          label: "Unknown target",
+        };
+
+        if (operation.target.kind === "colony" && operation.target.colonyId) {
+          const targetColony = await ctx.db.get(operation.target.colonyId);
+          if (targetColony) {
+            const targetPlanet = await ctx.db.get(targetColony.planetId);
+            targetPreview = {
+              kind: "colony",
+              label: `${targetColony.name}${targetPlanet ? ` (${toAddressLabel(targetPlanet)})` : ""}`,
+              isOwnedByPlayer: targetColony.playerId === player._id,
+            };
+          }
+        } else if (operation.target.kind === "planet" && operation.target.planetId) {
+          const targetPlanet = await ctx.db.get(operation.target.planetId);
+          if (targetPlanet) {
+            targetPreview = {
+              kind: "planet",
+              label: toAddressLabel(targetPlanet),
+            };
+          }
+        }
+
+        return {
+          id: operation._id,
+          fleetId: operation.fleetId,
+          kind: operation.kind,
+          status: operation.status,
+          originColonyId: operation.originColonyId,
+          originName: colony.name,
+          originAddressLabel,
+          target: operation.target,
+          targetPreview,
+          shipCounts: operation.shipCounts,
+          cargoRequested: {
+            alloy: wholeUnits(operation.cargoRequested.alloy),
+            crystal: wholeUnits(operation.cargoRequested.crystal),
+            fuel: wholeUnits(operation.cargoRequested.fuel),
+          },
+          postDeliveryAction: operation.postDeliveryAction,
+          departAt: operation.departAt,
+          arriveAt: operation.arriveAt,
+          nextEventAt: operation.nextEventAt,
+          distance: operation.distance,
+          canCancel: operation.status === "inTransit",
+        };
+      }),
+    );
+
+    return {
+      active: rows,
+      nextEventAt: rows[0]?.nextEventAt,
+    };
+  },
+});
+
+export const getFleetOperationsForColony = query({
+  args: {
+    colonyId: v.id("colonies"),
+  },
+  returns: v.object({
+    active: v.array(fleetOperationColonySummaryValidator),
+    nextEventAt: v.optional(v.number()),
+  }),
+  handler: async (ctx, args) => {
+    const { colony, player } = await getOwnedColony({
+      ctx,
+      colonyId: args.colonyId,
+    });
+
+    const [inTransit, returning] = await Promise.all([
+      ctx.db
+        .query("fleetOperations")
+        .withIndex("by_owner_stat_evt", (q) =>
+          q.eq("ownerPlayerId", player._id).eq("status", "inTransit"),
+        )
+        .collect(),
+      ctx.db
+        .query("fleetOperations")
+        .withIndex("by_owner_stat_evt", (q) =>
+          q.eq("ownerPlayerId", player._id).eq("status", "returning"),
+        )
+        .collect(),
+    ]);
+
+    const relevantOps = [...inTransit, ...returning]
+      .filter((operation) => {
+        if (operation.originColonyId === colony._id) {
+          return true;
+        }
+        return (
+          operation.target.kind === "colony" &&
+          operation.target.colonyId === colony._id
+        );
+      })
+      .sort((left, right) => left.nextEventAt - right.nextEventAt);
+
+    const colonySummaryCache = new Map<
+      Id<"colonies">,
+      { addressLabel: string; name: string }
+    >();
+    const getColonySummary = async (colonyId: Id<"colonies">) => {
+      const cached = colonySummaryCache.get(colonyId);
+      if (cached) {
+        return cached;
+      }
+      const colonyRow = await ctx.db.get(colonyId);
+      if (!colonyRow) {
+        const fallback = {
+          name: "Unknown colony",
+          addressLabel: "Unknown",
+        };
+        colonySummaryCache.set(colonyId, fallback);
+        return fallback;
+      }
+      const planetRow = await ctx.db.get(colonyRow.planetId);
+      const summary = {
+        name: colonyRow.name,
+        addressLabel: planetRow ? toAddressLabel(planetRow) : "Unknown",
+      };
+      colonySummaryCache.set(colonyId, summary);
+      return summary;
+    };
+
+    const rows = await Promise.all(
+      relevantOps.map(async (operation) => {
+        const relation: "incoming" | "outgoing" =
+          operation.originColonyId === colony._id ? "outgoing" : "incoming";
+        const originSummary = await getColonySummary(operation.originColonyId);
+
+        let targetPreview: {
+          isOwnedByPlayer?: boolean;
+          kind: "colony" | "planet";
+          label: string;
+        } = {
+          kind: "planet",
+          label: "Unknown target",
+        };
+
+        if (operation.target.kind === "colony" && operation.target.colonyId) {
+          const targetSummary = await getColonySummary(operation.target.colonyId);
+          const targetColony = await ctx.db.get(operation.target.colonyId);
+          targetPreview = {
+            kind: "colony",
+            label: `${targetSummary.name} (${targetSummary.addressLabel})`,
+            isOwnedByPlayer: targetColony?.playerId === player._id,
+          };
+        } else if (operation.target.kind === "planet" && operation.target.planetId) {
+          const targetPlanet = await ctx.db.get(operation.target.planetId);
+          if (targetPlanet) {
+            targetPreview = {
+              kind: "planet",
+              label: toAddressLabel(targetPlanet),
+            };
+          }
+        }
+
+        return {
+          id: operation._id,
+          fleetId: operation.fleetId,
+          kind: operation.kind,
+          status: operation.status,
+          relation,
+          originColonyId: operation.originColonyId,
+          originName: originSummary.name,
+          originAddressLabel: originSummary.addressLabel,
+          target: operation.target,
+          targetPreview,
+          shipCounts: operation.shipCounts,
+          cargoRequested: {
+            alloy: wholeUnits(operation.cargoRequested.alloy),
+            crystal: wholeUnits(operation.cargoRequested.crystal),
+            fuel: wholeUnits(operation.cargoRequested.fuel),
+          },
+          postDeliveryAction: operation.postDeliveryAction,
+          departAt: operation.departAt,
+          arriveAt: operation.arriveAt,
+          nextEventAt: operation.nextEventAt,
+          distance: operation.distance,
+          canCancel: operation.status === "inTransit",
+        };
+      }),
+    );
+
+    return {
+      active: rows,
+      nextEventAt: rows[0]?.nextEventAt,
+    };
+  },
+});
+
+export const resolveFleetTarget = query({
+  args: {
+    originColonyId: v.id("colonies"),
+    missionKind: missionKindValidator,
+    galaxyIndex: v.number(),
+    sectorIndex: v.number(),
+    systemIndex: v.number(),
+    planetIndex: v.number(),
+  },
+  returns: resolveFleetTargetResultValidator,
+  handler: async (ctx, args) => {
+    const safeIndex = (value: number) =>
+      Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+    const galaxyIndex = safeIndex(args.galaxyIndex);
+    const sectorIndex = safeIndex(args.sectorIndex);
+    const systemIndex = safeIndex(args.systemIndex);
+    const planetIndex = safeIndex(args.planetIndex);
+
+    const origin = await getOwnedColony({
+      ctx,
+      colonyId: args.originColonyId,
+    });
+
+    const planet = await ctx.db
+      .query("planets")
+      .withIndex("by_universe_and_galaxy_and_sector_and_system_and_planet", (q) =>
+        q
+          .eq("universeId", origin.colony.universeId)
+          .eq("galaxyIndex", galaxyIndex)
+          .eq("sectorIndex", sectorIndex)
+          .eq("systemIndex", systemIndex)
+          .eq("planetIndex", planetIndex),
+      )
+      .unique();
+
+    if (!planet) {
+      return {
+        ok: false,
+        reason: "No planet found at those coordinates",
+      };
+    }
+
+    if (args.missionKind === "transport") {
+      const targetColony = await ctx.db
+        .query("colonies")
+        .withIndex("by_planet_id", (q) => q.eq("planetId", planet._id))
+        .unique();
+
+      if (!targetColony) {
+        return {
+          ok: false,
+          reason: "Transport missions require a colonized destination",
+        };
+      }
+
+      const targetColonyState = await loadColonyState({
+        colony: targetColony,
+        ctx,
+      });
+      if ((targetColonyState.inboundMissionPolicy ?? "allowAll") === "denyAll") {
+        return {
+          ok: false,
+          reason: "Destination colony does not accept inbound missions",
+        };
+      }
+
+      const [originCoords, targetCoords] = await Promise.all([
+        colonySystemCoords({
+          colonyId: origin.colony._id,
+          ctx,
+        }),
+        colonySystemCoords({
+          colonyId: targetColony._id,
+          ctx,
+        }),
+      ]);
+
+      const distance = euclideanDistance({
+        x1: originCoords.x,
+        y1: originCoords.y,
+        x2: targetCoords.x,
+        y2: targetCoords.y,
+      });
+
+      return {
+        ok: true,
+        distance,
+        target: {
+          kind: "colony" as const,
+          colonyId: targetColony._id,
+        },
+        targetPreview: {
+          kind: "colony" as const,
+          label: `${targetColony.name} (${toAddressLabel(planet)})`,
+          isOwnedByPlayer: targetColony.playerId === origin.player._id,
+        },
+      };
+    }
+
+    const planetState = await loadPlanetState({
+      planet,
+      ctx,
+    });
+    if (!planetState.isColonizable) {
+      return {
+        ok: false,
+        reason: "Target planet is not colonizable",
+      };
+    }
+
+    const existingColony = await ctx.db
+      .query("colonies")
+      .withIndex("by_planet_id", (q) => q.eq("planetId", planet._id))
+      .first();
+    if (existingColony) {
+      return {
+        ok: false,
+        reason: "Target planet is already colonized",
+      };
+    }
+
+    const activeColonizeOps = await ctx.db
+      .query("fleetOperations")
+      .withIndex("by_tplanet_st_evt", (q) =>
+        q.eq("target.planetId", planet._id).eq("status", "inTransit"),
+      )
+      .collect();
+    if (activeColonizeOps.some((row) => row.kind === "colonize")) {
+      return {
+        ok: false,
+        reason: "Target planet already has an active colonization mission",
+      };
+    }
+
+    const [originCoords, targetCoords] = await Promise.all([
+      colonySystemCoords({
+        colonyId: origin.colony._id,
+        ctx,
+      }),
+      planetSystemCoords({
+        planetId: planet._id,
+        ctx,
+      }),
+    ]);
+    const distance = euclideanDistance({
+      x1: originCoords.x,
+      y1: originCoords.y,
+      x2: targetCoords.x,
+      y2: targetCoords.y,
+    });
+
+    return {
+      ok: true,
+      distance,
+      target: {
+        kind: "planet" as const,
+        planetId: planet._id,
+      },
+      targetPreview: {
+        kind: "planet" as const,
+        label: toAddressLabel(planet),
+      },
     };
   },
 });

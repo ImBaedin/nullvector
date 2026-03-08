@@ -12,3 +12,7 @@
 - Ship build completion is materialized by `settleShipyardQueue` (typically via colony sync/enqueue paths); `convex/fleet.ts` mutations do not currently run that settlement, so fleet actions can see stale ship counts until a sync occurs.
 - Shipyard wiring decisions (2026-03-05): implement ship queue cancellation with full refunds, keep unlock checks shipyard-level-only for now (no research gating yet), and set ship build quantity UI cap to 10,000 to match backend.
 - Overflow reconciliation rule: `settleColonyAndPersist` must persist `colony.overflow`, and sync should move overflow back into `resources` whenever storage headroom exists; otherwise production can stay paused with stale overflow.
+- Fleet page implementation scope (2026-03-08): `/game/colony/$colonyId/fleet` should be colony-scoped (active colony only), not empire-wide.
+- Fleet transport targeting policy (2026-03-08): transport missions may target other players' colonies when inbound policy allows; own-colony-only is not required.
+- Fleet destination UX decision (2026-03-08): fleet planner destination selection should include Star Map picking (not coordinates-only fallback).
+- Fleet sync/UI direction (2026-03-08): colony layout timed sync should use colony-relevant fleet events (outgoing + incoming) rather than player-wide-only timestamps; fleet route active expeditions should include incoming operations for the viewed colony.

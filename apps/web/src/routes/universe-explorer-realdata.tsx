@@ -23,7 +23,6 @@ import type {
   HoverPanelState,
   RenderableEntity,
 } from "@/features/universe-explorer-realdata/types";
-import { Stats } from "@react-three/drei";
 
 export const Route = createFileRoute("/universe-explorer-realdata")({
   component: UniverseExplorerRealDataRoute,
@@ -479,7 +478,6 @@ function UniverseExplorerScene() {
           sceneKey={explorer.level}
         >
           {sceneContent}
-          <Stats />
         </ExplorerCanvas>
       }
       hoverPanel={<HoverPanel hover={hover} />}

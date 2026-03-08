@@ -14,196 +14,558 @@ import {
   RotateCcw,
   Ship,
   Sparkles,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
+import { api } from "@nullvector/backend/convex/_generated/api";
+import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
+import {
+  getFleetCargoCapacity,
+  getFleetFuelCostForDistance,
+  getFleetSlowestSpeed,
+  normalizeShipCounts,
+  type ResourceBucket,
+  type ShipKey,
+} from "@nullvector/game-logic";
+
+import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import { formatDuration } from "./shipyard-mock-shared";
+import {
+  useColonyStarMapPicker,
+  type FleetMissionKind,
+} from "./star-map-picker-context";
 
 export const Route = createFileRoute("/game/colony/$colonyId/fleet")({
-  component: Fleet5Route,
+  component: FleetRoute,
 });
 
-/* ------------------------------------------------------------------ */
-/*  Mock data                                                          */
-/* ------------------------------------------------------------------ */
+type FleetOperationRow = {
+  id: Id<"fleetOperations">;
+  kind: "transport" | "colonize" | "contract" | "combat";
+  status:
+    | "planned"
+    | "inTransit"
+    | "atTarget"
+    | "returning"
+    | "completed"
+    | "cancelled"
+    | "failed";
+  relation: "incoming" | "outgoing";
+  originName: string;
+  originAddressLabel: string;
+  targetPreview: {
+    kind: "colony" | "planet";
+    label: string;
+  };
+  shipCounts: Record<ShipKey, number>;
+  cargoRequested: ResourceBucket;
+  postDeliveryAction?: "returnToOrigin" | "stationAtDestination";
+  departAt: number;
+  arriveAt: number;
+  canCancel: boolean;
+};
 
-const SHIPS = [
-  {
-    key: "smallCargo" as const,
-    name: "Small Cargo",
-    image: "/game-icons/ships/small-cargo.png",
-    owned: 37,
-    deployed: 12,
-    cargo: 5_000,
-    speed: 10_000,
-    fuelPerDist: 1,
-  },
-  {
-    key: "largeCargo" as const,
-    name: "Large Cargo",
-    image: "/game-icons/ships/large-cargo.png",
-    owned: 8,
-    deployed: 2,
-    cargo: 25_000,
-    speed: 7_500,
-    fuelPerDist: 2,
-  },
-  {
-    key: "colonyShip" as const,
-    name: "Colony Ship",
-    image: "/game-icons/ships/colony-ship.png",
-    owned: 1,
-    deployed: 0,
-    cargo: 7_500,
-    speed: 2_500,
-    fuelPerDist: 8,
-  },
-];
+type PlannerCoords = {
+  g: string;
+  p: string;
+  s: string;
+  ss: string;
+};
 
-const ACTIVE_OPS = [
-  {
-    id: "op-1",
-    kind: "transport" as const,
-    status: "inTransit" as const,
-    origin: "Kepler Prime",
-    originCoords: "1:4:2:1",
-    destination: "Vega Outpost",
-    destCoords: "1:4:7:3",
-    ships: { smallCargo: 8, largeCargo: 0, colonyShip: 0 },
-    cargo: { alloy: 18_000, crystal: 12_000, fuel: 0 },
-    departedAt: Date.now() - 340_000,
-    arrivesAt: Date.now() + 480_000,
-    totalDuration: 820_000,
-    roundTrip: true,
-  },
-  {
-    id: "op-2",
-    kind: "transport" as const,
-    status: "returning" as const,
-    origin: "Kepler Prime",
-    originCoords: "1:4:2:1",
-    destination: "Arcturus Base",
-    destCoords: "1:2:3:1",
-    ships: { smallCargo: 4, largeCargo: 2, colonyShip: 0 },
-    cargo: { alloy: 0, crystal: 0, fuel: 0 },
-    departedAt: Date.now() - 900_000,
-    arrivesAt: Date.now() + 120_000,
-    totalDuration: 1_020_000,
-    roundTrip: true,
-  },
-  {
-    id: "op-3",
-    kind: "colonize" as const,
-    status: "inTransit" as const,
-    origin: "Kepler Prime",
-    originCoords: "1:4:2:1",
-    destination: "Uncharted World",
-    destCoords: "2:1:5:4",
-    ships: { smallCargo: 0, largeCargo: 0, colonyShip: 1 },
-    cargo: { alloy: 5_000, crystal: 3_000, fuel: 2_000 },
-    departedAt: Date.now() - 1_200_000,
-    arrivesAt: Date.now() + 2_400_000,
-    totalDuration: 3_600_000,
-    roundTrip: false,
-  },
-];
+const EMPTY_COORDS: PlannerCoords = {
+  g: "",
+  p: "",
+  s: "",
+  ss: "",
+};
 
-const MY_COLONIES = [
-  {
-    id: "col-1",
-    name: "Kepler Prime",
-    coords: "1:4:2:1",
-    imageUrl: undefined as string | undefined,
-    isCurrent: true,
-  },
-  {
-    id: "col-2",
-    name: "Vega Outpost",
-    coords: "1:4:7:3",
-    imageUrl: undefined as string | undefined,
-    isCurrent: false,
-  },
-  {
-    id: "col-3",
-    name: "Arcturus Base",
-    coords: "1:2:3:1",
-    imageUrl: undefined as string | undefined,
-    isCurrent: false,
-  },
-  {
-    id: "col-4",
-    name: "Helios Station",
-    coords: "2:1:4:2",
-    imageUrl: undefined as string | undefined,
-    isCurrent: false,
-  },
-  {
-    id: "col-5",
-    name: "Cygnus Forge",
-    coords: "3:2:1:5",
-    imageUrl: undefined as string | undefined,
-    isCurrent: false,
-  },
-];
+const EMPTY_CARGO: ResourceBucket = {
+  alloy: 0,
+  crystal: 0,
+  fuel: 0,
+};
 
-/* ------------------------------------------------------------------ */
-/*  Component                                                          */
-/* ------------------------------------------------------------------ */
+const EMPTY_SHIP_COUNTS: Record<ShipKey, number> = {
+  colonyShip: 0,
+  largeCargo: 0,
+  smallCargo: 0,
+};
 
-function Fleet5Route() {
+function parseAddressLabel(addressLabel: string): PlannerCoords | null {
+  const match = addressLabel.match(/^G(\d+):S(\d+):SYS(\d+):P(\d+)$/);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    g: match[1] ?? "",
+    s: match[2] ?? "",
+    ss: match[3] ?? "",
+    p: match[4] ?? "",
+  };
+}
+
+function isIntegerText(value: string) {
+  return /^\d+$/.test(value);
+}
+
+function FleetRoute() {
+  const { colonyId } = Route.useParams();
+  const colonyIdAsId = colonyId as Id<"colonies">;
+  const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+  const { consumedSelection, openPicker, selectedTarget } = useColonyStarMapPicker();
+
+  const shipCatalog = useQuery(
+    api.shipyard.getShipCatalog,
+    isAuthenticated ? {} : "skip",
+  );
+  const garrison = useQuery(
+    api.fleetV2.getFleetGarrison,
+    isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+  );
+  const operations = useQuery(
+    api.fleetV2.getFleetOperationsForColony,
+    isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+  );
+  const resourceSnapshot = useQuery(
+    api.resources.getColonyResourceSnapshot,
+    isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+  );
+  const colonyNav = useQuery(
+    api.colonyNav.getColonyNav,
+    isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+  );
+
+  const syncColony = useMutation(api.colonyQueue.syncColony);
+  const createOperation = useMutation(api.fleetV2.createOperation);
+  const cancelOperation = useMutation(api.fleetV2.cancelOperation);
+
   const [expandedOp, setExpandedOp] = useState<string | null>(null);
-  const [selectedShips, setSelectedShips] = useState<Record<string, number>>({
-    smallCargo: 0,
-    largeCargo: 0,
-    colonyShip: 0,
-  });
-  const [missionType, setMissionType] = useState<"transport" | "colonize">(
-    "transport"
-  );
+  const [missionType, setMissionType] = useState<FleetMissionKind>("transport");
   const [roundTrip, setRoundTrip] = useState(true);
-  const [coords, setCoords] = useState({ g: "", s: "", ss: "", p: "" });
-  const [cargo, setCargo] = useState({ alloy: 0, crystal: 0, fuel: 0 });
-  const [colonyPickerOpen, setColonyPickerOpen] = useState(false);
+  const [coords, setCoords] = useState<PlannerCoords>(EMPTY_COORDS);
   const [selectedColonyId, setSelectedColonyId] = useState<string | null>(null);
+  const [colonyPickerOpen, setColonyPickerOpen] = useState(false);
+  const [cargo, setCargo] = useState<ResourceBucket>(EMPTY_CARGO);
+  const [selectedShips, setSelectedShips] =
+    useState<Record<ShipKey, number>>(EMPTY_SHIP_COUNTS);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [cancelingOperationId, setCancelingOperationId] = useState<
+    Id<"fleetOperations"> | null
+  >(null);
 
-  const selectColonyDestination = (colony: (typeof MY_COLONIES)[number]) => {
-    const parts = colony.coords.split(":");
+  const isSyncingRef = useRef(false);
+
+  const sync = useCallback(async () => {
+    if (!isAuthenticated || isSyncingRef.current) {
+      return;
+    }
+    isSyncingRef.current = true;
+    try {
+      await syncColony({ colonyId: colonyIdAsId });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to sync colony");
+    } finally {
+      isSyncingRef.current = false;
+    }
+  }, [colonyIdAsId, isAuthenticated, syncColony]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    void sync();
+
+    const tick = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1_000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void sync();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.clearInterval(tick);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [isAuthenticated, sync]);
+
+  useEffect(() => {
+    if (!selectedTarget) {
+      return;
+    }
+
+    if (selectedTarget.missionKind !== missionType) {
+      consumedSelection();
+      return;
+    }
+
     setCoords({
-      g: parts[0] ?? "",
-      s: parts[1] ?? "",
-      ss: parts[2] ?? "",
-      p: parts[3] ?? "",
+      g: String(selectedTarget.galaxyIndex),
+      s: String(selectedTarget.sectorIndex),
+      ss: String(selectedTarget.systemIndex),
+      p: String(selectedTarget.planetIndex),
     });
-    setSelectedColonyId(colony.id);
-    setColonyPickerOpen(false);
-  };
 
-  const clearColonySelection = () => {
-    setSelectedColonyId(null);
-    setCoords({ g: "", s: "", ss: "", p: "" });
-  };
+    if (selectedTarget.colonyId) {
+      setSelectedColonyId(selectedTarget.colonyId);
+      setColonyPickerOpen(false);
+    } else {
+      setSelectedColonyId(null);
+    }
 
-  const totalCargo = SHIPS.reduce(
-    (sum, s) => sum + (selectedShips[s.key] ?? 0) * s.cargo,
-    0
+    consumedSelection();
+  }, [consumedSelection, missionType, selectedTarget]);
+
+  const ready =
+    !isAuthLoading &&
+    isAuthenticated &&
+    Boolean(shipCatalog && garrison && operations && resourceSnapshot && colonyNav);
+
+  const parsedCoords = useMemo(() => {
+    if (
+      !isIntegerText(coords.g) ||
+      !isIntegerText(coords.s) ||
+      !isIntegerText(coords.ss) ||
+      !isIntegerText(coords.p)
+    ) {
+      return null;
+    }
+
+    return {
+      galaxyIndex: Number(coords.g),
+      sectorIndex: Number(coords.s),
+      systemIndex: Number(coords.ss),
+      planetIndex: Number(coords.p),
+    };
+  }, [coords.g, coords.p, coords.s, coords.ss]);
+
+  const targetResolution = useQuery(
+    api.fleetV2.resolveFleetTarget,
+    isAuthenticated && parsedCoords
+      ? {
+          originColonyId: colonyIdAsId,
+          missionKind: missionType,
+          ...parsedCoords,
+        }
+      : "skip",
   );
+
+  if (isAuthLoading || (isAuthenticated && !ready)) {
+    return (
+      <div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
+        Loading fleet data...
+      </div>
+    );
+  }
+
+  if (!ready || !shipCatalog || !garrison || !operations || !resourceSnapshot || !colonyNav) {
+    return (
+      <div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
+        Unable to load fleet. Please sign in again.
+      </div>
+    );
+  }
+
+  const deployedByShip: Record<ShipKey, number> = {
+    colonyShip: 0,
+    largeCargo: 0,
+    smallCargo: 0,
+  };
+
+  for (const operation of operations.active) {
+    if (operation.relation !== "outgoing") {
+      continue;
+    }
+    deployedByShip.smallCargo += operation.shipCounts.smallCargo;
+    deployedByShip.largeCargo += operation.shipCounts.largeCargo;
+    deployedByShip.colonyShip += operation.shipCounts.colonyShip;
+  }
+
+  const ships = shipCatalog.ships.map((ship) => {
+    const available = garrison.garrisonShips[ship.key] ?? 0;
+    const deployed = deployedByShip[ship.key] ?? 0;
+    return {
+      ...ship,
+      available,
+      deployed,
+      owned: available + deployed,
+    };
+  });
+
+  const shipsByKey = new Map(ships.map((ship) => [ship.key, ship]));
+  const fleetTotal = ships.reduce((sum, ship) => sum + ship.owned, 0);
+  const fleetDeployed = ships.reduce((sum, ship) => sum + ship.deployed, 0);
+
+  const selectedShipCounts = normalizeShipCounts(selectedShips);
+  const hasShips = Object.values(selectedShipCounts).some((value) => value > 0);
+  const cargoCapacity = getFleetCargoCapacity(selectedShipCounts);
   const cargoUsed = cargo.alloy + cargo.crystal + cargo.fuel;
-  const hasShips = Object.values(selectedShips).some((v) => v > 0);
-  const slowest = SHIPS.reduce(
-    (min, s) =>
-      (selectedShips[s.key] ?? 0) > 0 ? Math.min(min, s.speed) : min,
-    Infinity
-  );
-  const estDist = 42;
-  const etaSec = hasShips ? Math.max(30, (estDist / slowest) * 3600) : 0;
-  const fuelCost = SHIPS.reduce(
-    (sum, s) => sum + (selectedShips[s.key] ?? 0) * s.fuelPerDist * estDist,
-    0
+  const distance = targetResolution?.ok ? (targetResolution.distance ?? 0) : 0;
+  const slowestSpeed = getFleetSlowestSpeed(selectedShipCounts);
+  const oneWaySeconds =
+    hasShips && slowestSpeed > 0 && distance > 0
+      ? Math.max(30, Math.ceil((distance / slowestSpeed) * 3_600))
+      : 0;
+  const oneWayFuelCost = hasShips
+    ? getFleetFuelCostForDistance({ distance, shipCounts: selectedShipCounts })
+    : 0;
+  const travelFuelCost =
+    missionType === "transport" && roundTrip ? oneWayFuelCost * 2 : oneWayFuelCost;
+
+  const requiredResources = {
+    alloy: cargo.alloy,
+    crystal: cargo.crystal,
+    fuel: cargo.fuel + travelFuelCost,
+  };
+
+  const availableResources = resourceSnapshot.resources.stored;
+  const hasResources =
+    availableResources.alloy >= requiredResources.alloy &&
+    availableResources.crystal >= requiredResources.crystal &&
+    availableResources.fuel >= requiredResources.fuel;
+
+  const supportsStationing = Boolean(
+    missionType === "transport" &&
+      targetResolution?.ok &&
+      targetResolution.targetPreview?.kind === "colony" &&
+      targetResolution.targetPreview.isOwnedByPlayer === true,
   );
 
-  const fleetTotal = SHIPS.reduce((s, sh) => s + sh.owned, 0);
-  const fleetDeployed = SHIPS.reduce((s, sh) => s + sh.deployed, 0);
-  const activeExpeditionsSection = (
+  const missionShipConstraint =
+    missionType === "transport"
+      ? selectedShipCounts.colonyShip === 0
+      : selectedShipCounts.colonyShip === 1;
+
+  const canLaunch = Boolean(
+    hasShips &&
+      cargoUsed <= cargoCapacity &&
+      missionShipConstraint &&
+      hasResources &&
+      Boolean(targetResolution?.ok && targetResolution.target) &&
+      (missionType !== "transport" || roundTrip || supportsStationing) &&
+      !isLaunching,
+  );
+  const launchCtaLabel = (() => {
+    if (isLaunching) {
+      return "Launching...";
+    }
+    if (!hasShips) {
+      return "Assign Ships";
+    }
+    if (!parsedCoords) {
+      return "Set Destination";
+    }
+    if (!targetResolution?.ok) {
+      return "Invalid Destination";
+    }
+    if (!missionShipConstraint) {
+      return missionType === "transport"
+        ? "Remove Colony Ship"
+        : "Need 1 Colony Ship";
+    }
+    if (cargoUsed > cargoCapacity) {
+      return "Reduce Cargo";
+    }
+    if (!hasResources) {
+      return "Insufficient Resources";
+    }
+    if (missionType === "transport" && !roundTrip && !supportsStationing) {
+      return "Choose Own Colony";
+    }
+    return "Launch Expedition";
+  })();
+
+  const nonCurrentColonies = colonyNav.colonies.filter((colony) => colony.id !== colonyId);
+
+  const launch = async () => {
+    if (!targetResolution?.ok || !targetResolution.target) {
+      toast.error(targetResolution?.reason ?? "Select a valid destination");
+      return;
+    }
+
+    if (!canLaunch) {
+      toast.error("Expedition requirements are not met");
+      return;
+    }
+
+    setIsLaunching(true);
+    try {
+      await createOperation({
+        originColonyId: colonyIdAsId,
+        kind: missionType,
+        target: targetResolution.target,
+        shipCounts: selectedShipCounts,
+        cargoRequested: cargo,
+        postDeliveryAction:
+          missionType === "transport"
+            ? roundTrip
+              ? "returnToOrigin"
+              : "stationAtDestination"
+            : undefined,
+      });
+      toast.success("Expedition launched");
+      setSelectedShips(EMPTY_SHIP_COUNTS);
+      setCargo(EMPTY_CARGO);
+      if (missionType === "transport") {
+        setRoundTrip(true);
+      }
+      await sync();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to launch expedition");
+    } finally {
+      setIsLaunching(false);
+    }
+  };
+
+  const handleCancel = async (operationId: Id<"fleetOperations">) => {
+    setCancelingOperationId(operationId);
+    try {
+      await cancelOperation({ operationId });
+      toast.success("Operation cancelled; fleet is returning");
+      await sync();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to cancel operation");
+    } finally {
+      setCancelingOperationId(null);
+    }
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-[1440px] px-4 pb-12 pt-4 text-white">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_450px]">
+        <div className="space-y-5">
+          <ActiveOperationsPanel
+            cancelingOperationId={cancelingOperationId}
+            expandedOp={expandedOp}
+            nowMs={nowMs}
+            onCancel={handleCancel}
+            onToggle={(operationId) =>
+              setExpandedOp((current) => (current === operationId ? null : operationId))
+            }
+            operations={operations.active}
+            shipsByKey={shipsByKey}
+          />
+
+          <FleetSummaryStrip
+            fleetDeployed={fleetDeployed}
+            fleetTotal={fleetTotal}
+            ships={ships}
+          />
+        </div>
+
+        <MissionPlannerPanel
+          availableResources={availableResources}
+          canLaunch={canLaunch}
+          cargo={cargo}
+          cargoCapacity={cargoCapacity}
+          cargoUsed={cargoUsed}
+          colonyPickerOpen={colonyPickerOpen}
+          coords={coords}
+          distance={distance}
+          hasShips={hasShips}
+          missionType={missionType}
+          nonCurrentColonies={nonCurrentColonies}
+          oneWaySeconds={oneWaySeconds}
+          roundTrip={roundTrip}
+          selectedColonyId={selectedColonyId}
+          selectedShips={selectedShipCounts}
+          ships={ships}
+          slowestSpeed={slowestSpeed}
+          supportsStationing={supportsStationing}
+          targetResolution={targetResolution}
+          travelFuelCost={travelFuelCost}
+          launchCtaLabel={launchCtaLabel}
+          onCargoChange={setCargo}
+          onCoordsChange={setCoords}
+          onLaunch={launch}
+          onMissionTypeChange={(nextMissionType) => {
+            setMissionType(nextMissionType);
+            setSelectedColonyId(null);
+            if (nextMissionType === "colonize") {
+              setRoundTrip(false);
+              setColonyPickerOpen(false);
+            } else {
+              setRoundTrip(true);
+            }
+          }}
+          onOpenMapPicker={() =>
+            openPicker({
+              missionKind: missionType,
+              originColonyId: colonyIdAsId,
+            })
+          }
+          onRoundTripChange={setRoundTrip}
+          onSelectColony={(nextColonyId) => {
+            const colony = nonCurrentColonies.find((entry) => entry.id === nextColonyId);
+            if (!colony) {
+              return;
+            }
+            const parsed = parseAddressLabel(colony.addressLabel);
+            if (!parsed) {
+              toast.error("Unable to parse colony coordinates");
+              return;
+            }
+            setCoords(parsed);
+            setSelectedColonyId(colony.id);
+            setColonyPickerOpen(false);
+          }}
+          onSetColonyPickerOpen={setColonyPickerOpen}
+          onSetSelectedColonyId={setSelectedColonyId}
+          onShipCountChange={(shipKey, nextCount) => {
+            const ship = shipsByKey.get(shipKey);
+            if (!ship) {
+              return;
+            }
+            const clamped = Math.max(0, Math.min(ship.available, Math.floor(nextCount)));
+            setSelectedShips((current) => ({
+              ...current,
+              [shipKey]: clamped,
+            }));
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ActiveOperationsPanel(props: {
+  cancelingOperationId: Id<"fleetOperations"> | null;
+  expandedOp: string | null;
+  nowMs: number;
+  onCancel: (operationId: Id<"fleetOperations">) => void;
+  onToggle: (operationId: string) => void;
+  operations: FleetOperationRow[];
+  shipsByKey: Map<
+    ShipKey,
+    {
+      name: string;
+    }
+  >;
+}) {
+  if (props.operations.length === 0) {
+    return (
+      <div>
+        <h2 className="flex items-center gap-2 font-[family-name:var(--nv-font-display)] text-sm font-bold">
+          <Layers3 className="size-4 text-cyan-300/60" />
+          Active Expeditions
+        </h2>
+        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-6 text-center text-xs text-white/45">
+          No active expeditions.
+        </div>
+      </div>
+    );
+  }
+
+  return (
     <div>
       <h2 className="flex items-center gap-2 font-[family-name:var(--nv-font-display)] text-sm font-bold">
         <Layers3 className="size-4 text-cyan-300/60" />
@@ -211,25 +573,26 @@ function Fleet5Route() {
       </h2>
 
       <div className="mt-3 space-y-2">
-        {ACTIVE_OPS.map((op) => {
-          const elapsed = Date.now() - op.departedAt;
-          const progress = Math.min(100, (elapsed / op.totalDuration) * 100);
-          const eta = Math.max(0, (op.arrivesAt - Date.now()) / 1000);
-          const totalCargoAmt =
-            op.cargo.alloy + op.cargo.crystal + op.cargo.fuel;
-          const isExpanded = expandedOp === op.id;
-          const isReturning = op.status === "returning";
-          const accentColor = isReturning ? "amber" : "cyan";
+        {props.operations.map((operation) => {
+          const totalDuration = Math.max(1, operation.arriveAt - operation.departAt);
+          const elapsed = Math.max(0, props.nowMs - operation.departAt);
+          const progress = Math.min(100, (elapsed / totalDuration) * 100);
+          const etaSeconds = Math.max(0, Math.ceil((operation.arriveAt - props.nowMs) / 1_000));
+          const totalCargo =
+            operation.cargoRequested.alloy +
+            operation.cargoRequested.crystal +
+            operation.cargoRequested.fuel;
+          const isExpanded = props.expandedOp === operation.id;
+          const isReturning = operation.status === "returning";
 
           return (
             <div
               className="overflow-hidden rounded-xl border border-white/10 bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]"
-              key={op.id}
+              key={operation.id}
             >
-              {/* Compact row (always visible) */}
               <button
                 className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/[0.02]"
-                onClick={() => setExpandedOp(isExpanded ? null : op.id)}
+                onClick={() => props.onToggle(operation.id)}
                 type="button"
               >
                 <span
@@ -237,11 +600,9 @@ function Fleet5Route() {
                     isReturning ? "bg-amber-400" : "bg-cyan-400"
                   }`}
                 />
-
                 <span className="min-w-0 shrink-0 text-xs font-semibold">
-                  {op.destination}
+                  {operation.targetPreview.label}
                 </span>
-
                 <span
                   className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
                     isReturning
@@ -249,13 +610,21 @@ function Fleet5Route() {
                       : "bg-cyan-400/12 text-cyan-200/80"
                   }`}
                 >
-                  {isReturning ? "Returning" : op.kind}
+                  {isReturning ? "Returning" : operation.kind}
+                </span>
+                <span
+                  className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
+                    operation.relation === "incoming"
+                      ? "border border-amber-300/20 bg-amber-300/10 text-amber-100/80"
+                      : "border border-cyan-300/20 bg-cyan-300/10 text-cyan-100/80"
+                  }`}
+                >
+                  {operation.relation}
                 </span>
 
-                {/* Inline progress bar */}
                 <div className="mx-1 hidden h-1 min-w-[60px] flex-1 overflow-hidden rounded-full bg-white/8 sm:block">
                   <div
-                    className={`h-full rounded-full transition-all ${
+                    className={`h-full rounded-full ${
                       isReturning ? "bg-amber-400/50" : "bg-cyan-400/50"
                     }`}
                     style={{ width: `${progress}%` }}
@@ -269,7 +638,7 @@ function Fleet5Route() {
                 <div className="flex shrink-0 items-center gap-1 text-[10px] text-white/45">
                   <Clock3 className="size-3" />
                   <span className="font-[family-name:var(--nv-font-mono)] font-semibold text-cyan-100">
-                    {formatDuration(eta)}
+                    {formatDuration(etaSeconds)}
                   </span>
                 </div>
 
@@ -280,136 +649,138 @@ function Fleet5Route() {
                 />
               </button>
 
-              {/* Expanded details — height animated via grid-row */}
               <div
                 className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.25,0.8,0.25,1)]"
                 style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
               >
                 <div className="overflow-hidden">
                   <div className="border-t border-white/6">
-                    {/* Journey visualization */}
-                    <div className="relative px-5 pt-5 pb-8">
-                      <div className="flex items-center justify-between">
-                        {/* Origin */}
+                    <div className="flex items-start px-5 pt-5 pb-8">
+                      <div
+                        className="z-10 w-[100px] shrink-0 text-center"
+                        style={
+                          isExpanded
+                            ? {
+                                animation:
+                                  "nv-fleet-node-in 360ms cubic-bezier(0.21,1,0.34,1) both",
+                                animationDelay: "60ms",
+                              }
+                            : { opacity: 0 }
+                        }
+                      >
+                        <div className="mx-auto flex size-10 items-center justify-center rounded-full border border-cyan-300/25 bg-cyan-400/10">
+                          <MapPin className="size-4 text-cyan-300" />
+                        </div>
+                        <p className="mt-1.5 truncate text-[11px] font-semibold">{operation.originName}</p>
+                        <p className="truncate font-[family-name:var(--nv-font-mono)] text-[9px] text-white/30">
+                          {operation.originAddressLabel}
+                        </p>
+                      </div>
+
+                      <div className="relative z-0 -mx-2 mt-5 min-w-[40px] flex-1">
+                        <div className="h-px bg-white/10" />
                         <div
-                          className="z-10 text-center"
+                          className={`absolute top-0 h-px ${
+                            isReturning
+                              ? "bg-gradient-to-r from-amber-400/60 to-amber-400/20"
+                              : "bg-gradient-to-r from-cyan-400/60 to-cyan-400/20"
+                          }`}
                           style={
                             isExpanded
                               ? {
+                                  width: `${progress}%`,
                                   animation:
-                                    "nv-fleet-node-in 360ms cubic-bezier(0.21,1,0.34,1) both",
-                                  animationDelay: "60ms",
+                                    "nv-fleet-line-draw 500ms cubic-bezier(0.21,1,0.34,1) both",
+                                  animationDelay: "140ms",
                                 }
-                              : { opacity: 0 }
+                              : { width: 0, opacity: 0 }
+                          }
+                        />
+                        <div
+                          className="absolute -top-3 flex flex-col items-center"
+                          style={
+                            isExpanded
+                              ? {
+                                  left: `calc(${progress}% - 12px)`,
+                                  animation:
+                                    "nv-fleet-ship-in 400ms cubic-bezier(0.21,1,0.34,1) both",
+                                  animationDelay: "280ms",
+                                }
+                              : {
+                                  left: `calc(${progress}% - 12px)`,
+                                  opacity: 0,
+                                }
                           }
                         >
-                          <div className="mx-auto flex size-10 items-center justify-center rounded-full border border-white/15 bg-white/5">
-                            <MapPin className="size-4 text-white/50" />
-                          </div>
-                          <p className="mt-1.5 text-[11px] font-semibold">
-                            {op.origin}
-                          </p>
-                          <p className="font-[family-name:var(--nv-font-mono)] text-[9px] text-white/30">
-                            {op.originCoords}
-                          </p>
-                        </div>
-
-                        {/* Journey line with ship indicator */}
-                        <div className="absolute inset-x-[72px] top-[40px]">
-                          <div className="h-px bg-white/10" />
                           <div
-                            className={`absolute top-0 h-px ${
+                            className={`flex size-6 items-center justify-center rounded-full border-2 shadow-lg ${
                               isReturning
-                                ? "bg-gradient-to-r from-amber-400/60 to-amber-400/20"
-                                : "bg-gradient-to-r from-cyan-400/60 to-cyan-400/20"
+                                ? "border-amber-300 bg-amber-400/20 shadow-amber-400/30"
+                                : "border-cyan-300 bg-cyan-400/20 shadow-cyan-400/30"
                             }`}
-                            style={
-                              isExpanded
-                                ? {
-                                    width: `${progress}%`,
-                                    animation:
-                                      "nv-fleet-line-draw 500ms cubic-bezier(0.21,1,0.34,1) both",
-                                    animationDelay: "140ms",
-                                  }
-                                : { width: 0, opacity: 0 }
-                            }
-                          />
-                          <div
-                            className="absolute -top-3 flex flex-col items-center"
-                            style={
-                              isExpanded
-                                ? {
-                                    left: `calc(${progress}% - 12px)`,
-                                    animation:
-                                      "nv-fleet-ship-in 400ms cubic-bezier(0.21,1,0.34,1) both",
-                                    animationDelay: "280ms",
-                                  }
-                                : {
-                                    left: `calc(${progress}% - 12px)`,
-                                    opacity: 0,
-                                  }
-                            }
                           >
-                            <div
-                              className={`flex size-6 items-center justify-center rounded-full border-2 shadow-lg ${
+                            <Ship
+                              className={`size-3 ${
                                 isReturning
-                                  ? "border-amber-300 bg-amber-400/20 shadow-amber-400/30"
-                                  : "border-cyan-300 bg-cyan-400/20 shadow-cyan-400/30"
+                                  ? "rotate-180 text-amber-300"
+                                  : "text-cyan-300"
                               }`}
-                            >
-                              <Ship
-                                className={`size-3 ${
-                                  isReturning
-                                    ? "rotate-180 text-amber-300"
-                                    : "text-cyan-300"
-                                }`}
-                              />
-                            </div>
-                            <span className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-[8px] text-white/30">
-                              {Math.round(progress)}%
-                            </span>
+                            />
                           </div>
+                          <span className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-[8px] text-white/30">
+                            {Math.round(progress)}%
+                          </span>
                         </div>
+                      </div>
 
-                        {/* Destination */}
+                      <div
+                        className="z-10 w-[100px] shrink-0 text-center"
+                        style={
+                          isExpanded
+                            ? {
+                                animation:
+                                  "nv-fleet-node-in 360ms cubic-bezier(0.21,1,0.34,1) both",
+                                animationDelay: "180ms",
+                              }
+                            : { opacity: 0 }
+                        }
+                      >
                         <div
-                          className="z-10 text-center"
-                          style={
-                            isExpanded
-                              ? {
-                                  animation:
-                                    "nv-fleet-node-in 360ms cubic-bezier(0.21,1,0.34,1) both",
-                                  animationDelay: "180ms",
-                                }
-                              : { opacity: 0 }
-                          }
+                          className={`mx-auto flex size-10 items-center justify-center rounded-full border ${
+                            operation.kind === "colonize"
+                              ? "border-amber-300/25 bg-amber-400/10"
+                              : "border-cyan-300/25 bg-cyan-400/10"
+                          }`}
                         >
-                          <div
-                            className={`mx-auto flex size-10 items-center justify-center rounded-full border ${
-                              op.kind === "colonize"
-                                ? "border-amber-300/25 bg-amber-400/10"
-                                : "border-cyan-300/25 bg-cyan-400/10"
-                            }`}
-                          >
-                            {op.kind === "colonize" ? (
-                              <Globe2 className="size-4 text-amber-300" />
-                            ) : (
-                              <MapPin className="size-4 text-cyan-300" />
-                            )}
-                          </div>
-                          <p className="mt-1.5 text-[11px] font-semibold">
-                            {op.destination}
-                          </p>
-                          <p className="font-[family-name:var(--nv-font-mono)] text-[9px] text-white/30">
-                            {op.destCoords}
-                          </p>
+                          {operation.kind === "colonize" ? (
+                            <Globe2 className="size-4 text-amber-300" />
+                          ) : (
+                            <MapPin className="size-4 text-cyan-300" />
+                          )}
                         </div>
+                        {(() => {
+                          const m = operation.targetPreview.label.match(/^(.+?)\s*\(([^)]+)\)$/);
+                          if (m) {
+                            return (
+                              <>
+                                <p className="mt-1.5 truncate text-[11px] font-semibold">{m[1]}</p>
+                                <p className="truncate font-[family-name:var(--nv-font-mono)] text-[9px] text-white/30">
+                                  {m[2]}
+                                </p>
+                              </>
+                            );
+                          }
+                          return (
+                            <p className="mt-1.5 truncate text-[11px] font-semibold">
+                              {operation.targetPreview.label}
+                            </p>
+                          );
+                        })()}
                       </div>
                     </div>
 
-                    {/* Detail chips */}
                     <div
-                      className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/6 px-5 py-3"
+                      className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/6 px-5 py-3 text-[10px] text-white/45"
                       style={
                         isExpanded
                           ? {
@@ -420,41 +791,46 @@ function Fleet5Route() {
                           : { opacity: 0 }
                       }
                     >
-                      <div className="flex items-center gap-1 text-[10px] text-white/45">
+                      <div className="rounded border border-white/10 bg-white/[0.03] px-1.5 py-0.5 text-[9px] font-semibold uppercase">
+                        {operation.relation}
+                      </div>
+                      <div className="flex items-center gap-1">
                         <Ship className="size-3" />
-                        {Object.entries(op.ships)
-                          .filter(([, c]) => c > 0)
-                          .map(
-                            ([k, c]) =>
-                              `${c}x ${SHIPS.find((s) => s.key === k)?.name}`
-                          )
+                        {Object.entries(operation.shipCounts)
+                          .filter(([, count]) => count > 0)
+                          .map(([shipKey, count]) => `${count}x ${props.shipsByKey.get(shipKey as ShipKey)?.name ?? shipKey}`)
                           .join(", ")}
                       </div>
-
-                      {totalCargoAmt > 0 && (
-                        <div className="flex items-center gap-1 text-[10px] text-white/45">
+                      {totalCargo > 0 ? (
+                        <div className="flex items-center gap-1">
                           <Package className="size-3" />
-                          {totalCargoAmt.toLocaleString()} cargo
+                          {totalCargo.toLocaleString()} cargo
                         </div>
-                      )}
-
-                      {op.roundTrip && (
-                        <div className="flex items-center gap-1 text-[10px] text-white/45">
+                      ) : null}
+                      {operation.postDeliveryAction === "returnToOrigin" ? (
+                        <div className="flex items-center gap-1">
                           <RotateCcw className="size-3" />
                           Round trip
                         </div>
-                      )}
-
+                      ) : null}
                       <span className="font-[family-name:var(--nv-font-mono)] text-[10px] text-white/30">
-                        {op.destCoords}
+                        {operation.status}
                       </span>
 
-                      <button
-                        className="ml-auto rounded-md border border-rose-300/20 bg-rose-400/8 px-2.5 py-1 text-[10px] font-medium text-rose-200/80 transition-colors hover:border-rose-200/35 hover:bg-rose-400/12"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Cancel
-                      </button>
+                      {operation.canCancel ? (
+                        <button
+                          className="ml-auto inline-flex items-center gap-1 rounded-md border border-rose-300/20 bg-rose-400/8 px-2.5 py-1 text-[10px] font-medium text-rose-200/80 transition-colors hover:border-rose-200/35 hover:bg-rose-400/12"
+                          disabled={props.cancelingOperationId === operation.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            props.onCancel(operation.id);
+                          }}
+                          type="button"
+                        >
+                          <X className="size-3" />
+                          Cancel
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -465,432 +841,428 @@ function Fleet5Route() {
       </div>
     </div>
   );
+}
 
+function FleetSummaryStrip(props: {
+  fleetDeployed: number;
+  fleetTotal: number;
+  ships: Array<{
+    available: number;
+    deployed: number;
+    key: ShipKey;
+    name: string;
+    owned: number;
+  }>;
+}) {
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-4 pb-12 pt-4 text-white">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_450px]">
-        {/* ══ Left Column: Garrison + Active Expeditions ══ */}
-        <div className="space-y-5">
-          {/* Active Expeditions */}
-          {activeExpeditionsSection}
-          {/* Garrison Strip */}
-          <div className="rounded-2xl border border-white/10 bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))] p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-8 items-center justify-center rounded-lg border border-cyan-300/25 bg-cyan-400/8">
-                <Ship className="size-4 text-cyan-300" />
+    <div className="rounded-2xl border border-white/10 bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))] p-4">
+      <div className="flex items-center gap-3">
+        <div className="flex size-8 items-center justify-center rounded-lg border border-cyan-300/25 bg-cyan-400/8">
+          <Ship className="size-4 text-cyan-300" />
+        </div>
+        <div>
+          <h1 className="font-[family-name:var(--nv-font-display)] text-lg font-bold">Fleet</h1>
+          <p className="text-[10px] text-white/40">
+            {props.fleetTotal} ships • {props.fleetDeployed} deployed • {props.fleetTotal - props.fleetDeployed} available
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+        {props.ships.map((ship) => (
+          <div
+            className="flex min-w-[180px] flex-1 items-center gap-3 rounded-xl border border-white/8 bg-white/[0.025] p-3"
+            key={ship.key}
+          >
+            <img
+              alt={ship.name}
+              className="size-12 rounded-lg border border-white/8 bg-black/30 object-contain p-1"
+              src={`/game-icons/ships/${
+                ship.key === "smallCargo"
+                  ? "small-cargo"
+                  : ship.key === "largeCargo"
+                    ? "large-cargo"
+                    : "colony-ship"
+              }.png`}
+            />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">{ship.name}</p>
+              <div className="mt-0.5 flex gap-2 text-[10px]">
+                <span className="text-emerald-300/70">{ship.available} avail</span>
+                <span className="text-white/30">|</span>
+                <span className="text-cyan-200/50">{ship.deployed} out</span>
               </div>
-              <div>
-                <h1 className="font-[family-name:var(--nv-font-display)] text-lg font-bold">
-                  Fleet
-                </h1>
-                <p className="text-[10px] text-white/40">
-                  {fleetTotal} ships • {fleetDeployed} deployed •{" "}
-                  {fleetTotal - fleetDeployed} available
-                </p>
+              <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8">
+                <div
+                  className="h-full rounded-full bg-cyan-400/40"
+                  style={{
+                    width: `${ship.owned > 0 ? (ship.deployed / ship.owned) * 100 : 0}%`,
+                  }}
+                />
               </div>
             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-            <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-              {SHIPS.map((ship) => {
-                const avail = ship.owned - ship.deployed;
+function MissionPlannerPanel(props: {
+  availableResources: ResourceBucket;
+  canLaunch: boolean;
+  cargo: ResourceBucket;
+  cargoCapacity: number;
+  cargoUsed: number;
+  colonyPickerOpen: boolean;
+  coords: PlannerCoords;
+  distance: number;
+  hasShips: boolean;
+  missionType: FleetMissionKind;
+  nonCurrentColonies: Array<{ addressLabel: string; id: string; name: string }>;
+  oneWaySeconds: number;
+  roundTrip: boolean;
+  selectedColonyId: string | null;
+  selectedShips: Record<ShipKey, number>;
+  ships: Array<{
+    available: number;
+    cargoCapacity: number;
+    fuelPerDistance: number;
+    key: ShipKey;
+    name: string;
+    speed: number;
+  }>;
+  slowestSpeed: number;
+  supportsStationing: boolean;
+  targetResolution:
+    | {
+        ok: boolean;
+        reason?: string;
+        targetPreview?: {
+          kind: "colony" | "planet";
+          label: string;
+        };
+      }
+    | undefined;
+  travelFuelCost: number;
+  launchCtaLabel: string;
+  onCargoChange: (cargo: ResourceBucket) => void;
+  onCoordsChange: (coords: PlannerCoords) => void;
+  onLaunch: () => void;
+  onMissionTypeChange: (missionType: FleetMissionKind) => void;
+  onOpenMapPicker: () => void;
+  onRoundTripChange: (value: boolean) => void;
+  onSelectColony: (colonyId: string) => void;
+  onSetColonyPickerOpen: (open: boolean) => void;
+  onSetSelectedColonyId: (colonyId: string | null) => void;
+  onShipCountChange: (shipKey: ShipKey, nextCount: number) => void;
+}) {
+  return (
+    <div className="lg:sticky lg:top-4 lg:self-start">
+      <div className="rounded-2xl border border-white/12 bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]">
+        <div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
+          <Rocket className="size-5 text-cyan-300" />
+          <h2 className="font-[family-name:var(--nv-font-display)] text-sm font-bold">Plan Expedition</h2>
+        </div>
+
+        <div className="space-y-4 p-5">
+          <div>
+            <SectionLabel>Mission Type</SectionLabel>
+            <div className="mt-1.5 flex gap-2">
+              {(["transport", "colonize"] as const).map((type) => (
+                <button
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-semibold transition-all ${
+                    props.missionType === type
+                      ? "border-cyan-300/40 bg-cyan-400/12 text-cyan-100"
+                      : "border-white/10 bg-white/[0.03] text-white/40 hover:text-white/60"
+                  }`}
+                  key={type}
+                  onClick={() => props.onMissionTypeChange(type)}
+                  type="button"
+                >
+                  {type === "transport" ? <Package className="size-3.5" /> : <Globe2 className="size-3.5" />}
+                  <span className="capitalize">{type}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <SectionLabel>Destination</SectionLabel>
+            {props.targetResolution?.ok && props.targetResolution.targetPreview ? (
+              <p className="mt-1.5 rounded-lg border border-cyan-300/20 bg-cyan-400/[0.06] px-3 py-2 text-[11px] text-cyan-100">
+                {props.targetResolution.targetPreview.label}
+              </p>
+            ) : null}
+
+            <div
+              className={`mt-1.5 grid grid-cols-4 gap-1.5 transition-opacity ${
+                props.selectedColonyId ? "pointer-events-none opacity-35" : ""
+              }`}
+            >
+              {(["g", "s", "ss", "p"] as const).map((field, index) => (
+                <div key={field}>
+                  <span className="block text-center text-[7px] uppercase text-white/25">
+                    {["Gal", "Sec", "Sys", "Pla"][index]}
+                  </span>
+                  <input
+                    className="w-full rounded-md border border-white/12 bg-black/35 px-1 py-1.5 text-center font-[family-name:var(--nv-font-mono)] text-sm text-white outline-none focus:border-cyan-300/40"
+                    maxLength={4}
+                    onChange={(event) => {
+                      props.onSetSelectedColonyId(null);
+                      props.onCoordsChange({
+                        ...props.coords,
+                        [field]: event.target.value.replace(/[^\d]/g, ""),
+                      });
+                    }}
+                    value={props.coords[field]}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {props.missionType === "transport" ? (
+              <div className="mt-2">
+                <button
+                  className={`flex w-full items-center justify-between gap-1.5 rounded-lg border px-3 py-2 text-[10px] transition-all ${
+                    props.colonyPickerOpen
+                      ? "border-cyan-300/30 bg-cyan-400/[0.06] text-cyan-100"
+                      : "border-dashed border-white/10 text-white/30 hover:border-cyan-300/20 hover:text-cyan-200/50"
+                  }`}
+                  onClick={() => props.onSetColonyPickerOpen(!props.colonyPickerOpen)}
+                  type="button"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Globe2 className="size-3" />
+                    My Colonies
+                  </span>
+                  <ChevronDown
+                    className={`size-3 transition-transform duration-200 ${
+                      props.colonyPickerOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                {props.colonyPickerOpen ? (
+                  <div className="pt-1 pb-0.5">
+                    {props.nonCurrentColonies.map((colony) => (
+                      <button
+                        className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-white/[0.035] ${
+                          props.selectedColonyId === colony.id ? "bg-cyan-400/[0.06]" : ""
+                        }`}
+                        key={colony.id}
+                        onClick={() => props.onSelectColony(colony.id)}
+                        type="button"
+                      >
+                        <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-white/10 bg-[linear-gradient(150deg,rgba(61,217,255,0.08),rgba(255,145,79,0.08))] text-[8px] font-bold text-white/60 transition-colors group-hover:border-cyan-300/20 group-hover:text-white/80">
+                          {colony.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[11px] font-semibold text-white/80 transition-colors group-hover:text-white">
+                            {colony.name}
+                          </p>
+                          <p className="font-[family-name:var(--nv-font-mono)] text-[9px] text-white/25">
+                            {colony.addressLabel}
+                          </p>
+                        </div>
+                        {props.selectedColonyId === colony.id ? (
+                          <Check className="size-3 shrink-0 text-cyan-300" />
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <button
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/10 py-2 text-[10px] text-white/30 hover:border-cyan-300/20 hover:text-cyan-200/50"
+              onClick={props.onOpenMapPicker}
+              type="button"
+            >
+              <Crosshair className="size-3" />
+              Select from Star Map
+            </button>
+
+            {!props.targetResolution?.ok && props.targetResolution?.reason ? (
+              <p className="mt-2 text-[10px] text-amber-200/70">{props.targetResolution.reason}</p>
+            ) : null}
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-white/8 bg-black/15 p-2.5">
+            <div className="flex items-center gap-2">
+              <RotateCcw className={`size-3.5 ${props.roundTrip ? "text-cyan-300" : "text-white/25"}`} />
+              <span className="text-xs text-white/55">Round Trip</span>
+            </div>
+            <button
+              className={`relative h-6 w-10 rounded-full border transition-all ${
+                props.roundTrip
+                  ? "border-cyan-300/40 bg-cyan-400/20"
+                  : "border-white/15 bg-white/8"
+              }`}
+              disabled={props.missionType === "colonize"}
+              onClick={() => props.onRoundTripChange(!props.roundTrip)}
+              type="button"
+            >
+              <span
+                className={`absolute left-[3px] top-1/2 size-4 -translate-y-1/2 rounded-full bg-white shadow transition-transform ${
+                  props.roundTrip ? "translate-x-4" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+
+          {props.missionType === "transport" && !props.roundTrip && !props.supportsStationing ? (
+            <p className="text-[10px] text-amber-200/70">
+              One-way stationing is available only for your own colony destinations.
+            </p>
+          ) : null}
+
+          <div>
+            <SectionLabel>Fleet</SectionLabel>
+            <div className="mt-1.5">
+              {props.ships.map((ship, index) => {
+                const count = props.selectedShips[ship.key] ?? 0;
                 return (
                   <div
-                    className="flex min-w-[180px] flex-1 items-center gap-3 rounded-xl border border-white/8 bg-white/[0.025] p-3"
+                    className={`flex items-center gap-2 py-1.5 ${
+                      index < props.ships.length - 1 ? "border-b border-white/6" : ""
+                    }`}
                     key={ship.key}
                   >
                     <img
                       alt={ship.name}
-                      className="size-12 rounded-lg border border-white/8 bg-black/30 object-contain p-1"
-                      src={ship.image}
+                      className="size-5 shrink-0 object-contain"
+                      src={`/game-icons/ships/${
+                        ship.key === "smallCargo"
+                          ? "small-cargo"
+                          : ship.key === "largeCargo"
+                            ? "large-cargo"
+                            : "colony-ship"
+                      }.png`}
                     />
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">{ship.name}</p>
-                      <div className="mt-0.5 flex gap-2 text-[10px]">
-                        <span className="text-emerald-300/70">
-                          {avail} avail
-                        </span>
-                        <span className="text-white/30">|</span>
-                        <span className="text-cyan-200/50">
-                          {ship.deployed} out
-                        </span>
-                      </div>
-                      <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8">
-                        <div
-                          className="h-full rounded-full bg-cyan-400/40"
-                          style={{
-                            width: `${
-                              ship.owned > 0
-                                ? (ship.deployed / ship.owned) * 100
-                                : 0
-                            }%`,
-                          }}
-                        />
-                      </div>
+                    <span
+                      className={`min-w-0 flex-1 truncate text-xs ${
+                        count > 0 ? "font-semibold text-white" : "text-white/70"
+                      }`}
+                    >
+                      {ship.name}
+                    </span>
+                    <span className="shrink-0 font-[family-name:var(--nv-font-mono)] text-[9px] text-white/30">
+                      ({ship.available})
+                    </span>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <button
+                        className="flex size-5 items-center justify-center rounded border border-white/10 bg-black/25 text-white/60 disabled:opacity-25"
+                        disabled={count <= 0}
+                        onClick={() => props.onShipCountChange(ship.key, count - 1)}
+                        type="button"
+                      >
+                        <Minus className="size-2.5" />
+                      </button>
+                      <span
+                        className={`w-6 text-center font-[family-name:var(--nv-font-mono)] text-xs font-bold ${
+                          count > 0 ? "text-cyan-100" : "text-white/30"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                      <button
+                        className="flex size-5 items-center justify-center rounded border border-white/10 bg-black/25 text-white/60 disabled:opacity-25"
+                        disabled={count >= ship.available}
+                        onClick={() => props.onShipCountChange(ship.key, count + 1)}
+                        type="button"
+                      >
+                        <Plus className="size-2.5" />
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
-        </div>
 
-        {/* ══ Right Column: Expedition Planner (always visible) ══ */}
-        <div className="lg:sticky lg:top-4 lg:self-start">
-          <div className="rounded-2xl border border-white/12 bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]">
-            {/* Planner header */}
-            <div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
-              <Rocket className="size-5 text-cyan-300" />
-              <h2 className="font-[family-name:var(--nv-font-display)] text-sm font-bold">
-                Plan Expedition
-              </h2>
+          <div>
+            <div className="flex items-center justify-between">
+              <SectionLabel>Cargo</SectionLabel>
+              <span className="font-[family-name:var(--nv-font-mono)] text-[9px] text-white/25">
+                {props.cargoUsed.toLocaleString()} / {props.cargoCapacity.toLocaleString()}
+              </span>
             </div>
-
-            <div className="space-y-4 p-5">
-              {/* Mission Type */}
-              <div>
-                <SectionLabel>Mission Type</SectionLabel>
-                <div className="mt-1.5 flex gap-2">
-                  {(["transport", "colonize"] as const).map((type) => (
-                    <button
-                      className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-semibold transition-all ${
-                        missionType === type
-                          ? "border-cyan-300/40 bg-cyan-400/12 text-cyan-100"
-                          : "border-white/10 bg-white/[0.03] text-white/40 hover:text-white/60"
-                      }`}
-                      key={type}
-                      onClick={() => {
-                        setMissionType(type);
-                        if (type === "colonize") {
-                          setSelectedColonyId(null);
-                          setColonyPickerOpen(false);
-                        }
-                      }}
-                    >
-                      {type === "transport" ? (
-                        <Package className="size-3.5" />
-                      ) : (
-                        <Globe2 className="size-3.5" />
-                      )}
-                      <span className="capitalize">{type}</span>
-                    </button>
-                  ))}
-                </div>
+            {props.cargoCapacity > 0 ? (
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/8">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-400/60 to-cyan-300/40"
+                  style={{ width: `${Math.min(100, (props.cargoUsed / props.cargoCapacity) * 100)}%` }}
+                />
               </div>
+            ) : null}
 
-              {/* Destination */}
-              <div>
-                <SectionLabel>Destination</SectionLabel>
-
-                {/* Colony selection chip (when a colony is selected) */}
-                {selectedColonyId && (() => {
-                  const colony = MY_COLONIES.find((c) => c.id === selectedColonyId);
-                  if (!colony) return null;
-                  return (
-                    <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-cyan-300/25 bg-cyan-400/[0.06] px-3 py-2">
-                      <div className="flex size-6 shrink-0 items-center justify-center rounded-md border border-cyan-300/20 bg-cyan-400/10 text-[8px] font-bold text-cyan-200/80">
-                        {colony.name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-semibold text-cyan-50">
-                          {colony.name}
-                        </p>
-                        <p className="font-[family-name:var(--nv-font-mono)] text-[9px] text-cyan-200/40">
-                          {colony.coords}
-                        </p>
-                      </div>
-                      <button
-                        className="flex size-5 items-center justify-center rounded-md text-white/30 transition-colors hover:bg-white/8 hover:text-white/60"
-                        onClick={clearColonySelection}
-                        type="button"
-                      >
-                        <span className="text-xs leading-none">&times;</span>
-                      </button>
-                    </div>
-                  );
-                })()}
-
-                {/* Coordinate inputs */}
-                <div className={`mt-1.5 grid grid-cols-4 gap-1.5 transition-opacity ${selectedColonyId ? "pointer-events-none opacity-35" : ""}`}>
-                  {(["g", "s", "ss", "p"] as const).map((field, i) => (
-                    <div key={field}>
-                      <span className="block text-center text-[7px] uppercase text-white/25">
-                        {["Gal", "Sec", "Sys", "Pla"][i]}
-                      </span>
-                      <input
-                        className="w-full rounded-md border border-white/12 bg-black/35 px-1 py-1.5 text-center font-[family-name:var(--nv-font-mono)] text-sm text-white outline-none focus:border-cyan-300/40"
-                        maxLength={3}
-                        onChange={(e) => {
-                          setSelectedColonyId(null);
-                          setCoords((c) => ({ ...c, [field]: e.target.value }));
-                        }}
-                        value={coords[field]}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Quick-select: Colonies (transport only) */}
-                {missionType === "transport" && (
-                  <div className="mt-2">
-                    <button
-                      className={`flex w-full items-center justify-between gap-1.5 rounded-lg border px-3 py-2 text-[10px] transition-all ${
-                        colonyPickerOpen
-                          ? "border-cyan-300/30 bg-cyan-400/[0.06] text-cyan-100"
-                          : "border-dashed border-white/10 text-white/30 hover:border-cyan-300/20 hover:text-cyan-200/50"
-                      }`}
-                      onClick={() => setColonyPickerOpen((prev) => !prev)}
-                      type="button"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Globe2 className="size-3" />
-                        My Colonies
-                      </span>
-                      <ChevronDown
-                        className={`size-3 transition-transform duration-200 ${
-                          colonyPickerOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </button>
-
-                    {/* Colony list — animated with grid-rows */}
-                    <div
-                      className="grid transition-[grid-template-rows] duration-250 ease-[cubic-bezier(0.25,0.8,0.25,1)]"
-                      style={{
-                        gridTemplateRows: colonyPickerOpen ? "1fr" : "0fr",
-                      }}
-                    >
-                      <div className="overflow-hidden">
-                        <div className="pt-1 pb-0.5">
-                          {MY_COLONIES.filter((c) => !c.isCurrent).map(
-                            (colony, i) => (
-                              <button
-                                className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-white/[0.035] ${
-                                  selectedColonyId === colony.id
-                                    ? "bg-cyan-400/[0.06]"
-                                    : ""
-                                }`}
-                                key={colony.id}
-                                onClick={() => selectColonyDestination(colony)}
-                                style={
-                                  colonyPickerOpen
-                                    ? {
-                                        animation:
-                                          "nv-colony-row-in 280ms cubic-bezier(0.21,1,0.34,1) both",
-                                        animationDelay: `${i * 40}ms`,
-                                      }
-                                    : { opacity: 0 }
-                                }
-                                type="button"
-                              >
-                                <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-white/10 bg-[linear-gradient(150deg,rgba(61,217,255,0.08),rgba(255,145,79,0.08))] text-[8px] font-bold text-white/60 transition-colors group-hover:border-cyan-300/20 group-hover:text-white/80">
-                                  {colony.name.slice(0, 2).toUpperCase()}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-[11px] font-semibold text-white/80 transition-colors group-hover:text-white">
-                                    {colony.name}
-                                  </p>
-                                  <p className="font-[family-name:var(--nv-font-mono)] text-[9px] text-white/25">
-                                    {colony.coords}
-                                  </p>
-                                </div>
-                                {selectedColonyId === colony.id ? (
-                                  <Check className="size-3 shrink-0 text-cyan-300" />
-                                ) : (
-                                  <span className="font-[family-name:var(--nv-font-mono)] text-[8px] text-white/15 transition-colors group-hover:text-white/30">
-                                    {colony.coords}
-                                  </span>
-                                )}
-                              </button>
-                            )
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <button className={`${missionType === "transport" ? "mt-1.5" : "mt-2"} flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/10 py-2 text-[10px] text-white/30 hover:border-cyan-300/20 hover:text-cyan-200/50`}>
-                  <Crosshair className="size-3" />
-                  Select from Star Map
-                </button>
-              </div>
-
-              {/* Round Trip */}
-              <div className="flex items-center justify-between rounded-lg border border-white/8 bg-black/15 p-2.5">
-                <div className="flex items-center gap-2">
-                  <RotateCcw
-                    className={`size-3.5 ${
-                      roundTrip ? "text-cyan-300" : "text-white/25"
-                    }`}
+            <div className="mt-2 space-y-2">
+              {(["alloy", "crystal", "fuel"] as const).map((resourceKey) => (
+                <div className="flex items-center gap-2" key={resourceKey}>
+                  <img
+                    alt={resourceKey}
+                    className="size-4 object-contain"
+                    src={`/game-icons/${resourceKey === "fuel" ? "deuterium" : resourceKey}.png`}
                   />
-                  <span className="text-xs text-white/55">Round Trip</span>
-                </div>
-                <button
-                  className={`relative h-6 w-10 rounded-full border transition-all ${
-                    roundTrip
-                      ? "border-cyan-300/40 bg-cyan-400/20"
-                      : "border-white/15 bg-white/8"
-                  }`}
-                  onClick={() => setRoundTrip(!roundTrip)}
-                  type="button"
-                >
-                  <span
-                    className={`absolute left-[3px] top-1/2 size-4 -translate-y-1/2 rounded-full bg-white shadow transition-transform ${
-                      roundTrip ? "translate-x-4" : "translate-x-0"
-                    }`}
+                  <span className="w-12 text-[10px] capitalize text-white/45">{resourceKey}</span>
+                  <input
+                    className="flex-1 rounded-md border border-white/10 bg-black/25 px-2 py-1 text-right font-[family-name:var(--nv-font-mono)] text-xs text-white outline-none focus:border-cyan-300/30 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    min={0}
+                    onChange={(event) => {
+                      const nextValue = Math.max(0, Math.floor(Number(event.target.value) || 0));
+                      props.onCargoChange({
+                        ...props.cargo,
+                        [resourceKey]: nextValue,
+                      });
+                    }}
+                    type="number"
+                    value={props.cargo[resourceKey]}
                   />
-                </button>
-              </div>
-
-              {/* Fleet Selection */}
-              <div>
-                <SectionLabel>Fleet</SectionLabel>
-                <div className="mt-1.5">
-                  {SHIPS.map((ship, i) => {
-                    const avail = ship.owned - ship.deployed;
-                    const count = selectedShips[ship.key] ?? 0;
-                    return (
-                      <div
-                        className={`flex items-center gap-2 py-1.5 ${
-                          i < SHIPS.length - 1 ? "border-b border-white/6" : ""
-                        }`}
-                        key={ship.key}
-                      >
-                        <img
-                          alt={ship.name}
-                          className="size-5 shrink-0 object-contain"
-                          src={ship.image}
-                        />
-                        <span className={`min-w-0 flex-1 truncate text-xs ${count > 0 ? "font-semibold text-white" : "text-white/70"}`}>
-                          {ship.name}
-                        </span>
-                        <span className="shrink-0 font-[family-name:var(--nv-font-mono)] text-[9px] text-white/30">
-                          ({avail})
-                        </span>
-                        <div className="flex shrink-0 items-center gap-0.5">
-                          <button
-                            className="flex size-5 items-center justify-center rounded border border-white/10 bg-black/25 text-white/60 disabled:opacity-25"
-                            disabled={count <= 0}
-                            onClick={() =>
-                              setSelectedShips((s) => ({
-                                ...s,
-                                [ship.key]: Math.max(0, count - 1),
-                              }))
-                            }
-                          >
-                            <Minus className="size-2.5" />
-                          </button>
-                          <span className={`w-6 text-center font-[family-name:var(--nv-font-mono)] text-xs font-bold ${count > 0 ? "text-cyan-100" : "text-white/30"}`}>
-                            {count}
-                          </span>
-                          <button
-                            className="flex size-5 items-center justify-center rounded border border-white/10 bg-black/25 text-white/60 disabled:opacity-25"
-                            disabled={count >= avail}
-                            onClick={() =>
-                              setSelectedShips((s) => ({
-                                ...s,
-                                [ship.key]: Math.min(avail, count + 1),
-                              }))
-                            }
-                          >
-                            <Plus className="size-2.5" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
                 </div>
-              </div>
-
-              {/* Cargo */}
-              <div>
-                <div className="flex items-center justify-between">
-                  <SectionLabel>Cargo</SectionLabel>
-                  <span className="font-[family-name:var(--nv-font-mono)] text-[9px] text-white/25">
-                    {cargoUsed.toLocaleString()} / {totalCargo.toLocaleString()}
-                  </span>
-                </div>
-                {totalCargo > 0 && (
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/8">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-cyan-400/60 to-cyan-300/40 transition-all"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          (cargoUsed / totalCargo) * 100
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                )}
-                <div className="mt-2 space-y-2">
-                  {(["alloy", "crystal", "fuel"] as const).map((res) => (
-                    <div className="flex items-center gap-2" key={res}>
-                      <img
-                        alt={res}
-                        className="size-4 object-contain"
-                        src={`/game-icons/${
-                          res === "fuel" ? "deuterium" : res
-                        }.png`}
-                      />
-                      <span className="w-12 text-[10px] capitalize text-white/45">
-                        {res}
-                      </span>
-                      <input
-                        className="flex-1 rounded-md border border-white/10 bg-black/25 px-2 py-1 text-right font-[family-name:var(--nv-font-mono)] text-xs text-white outline-none focus:border-cyan-300/30 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        max={totalCargo}
-                        min={0}
-                        onChange={(e) =>
-                          setCargo((c) => ({
-                            ...c,
-                            [res]: Math.max(
-                              0,
-                              Math.min(totalCargo, Number(e.target.value) || 0)
-                            ),
-                          }))
-                        }
-                        type="number"
-                        value={cargo[res]}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Trip summary */}
-              {hasShips && (
-                <div className="rounded-xl border border-cyan-300/15 bg-cyan-400/[0.04] p-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <MetricCard
-                      label="One Way"
-                      value={formatDuration(etaSec)}
-                    />
-                    <MetricCard
-                      label={roundTrip ? "Round Trip" : "Total"}
-                      value={formatDuration(roundTrip ? etaSec * 2 : etaSec)}
-                    />
-                    <MetricCard
-                      label="Fuel Cost"
-                      value={fuelCost.toLocaleString()}
-                    />
-                    <MetricCard
-                      label="Speed"
-                      value={isFinite(slowest) ? slowest.toLocaleString() : "—"}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Launch button */}
-              <button
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-200/50 bg-gradient-to-b from-cyan-400/25 to-cyan-400/10 px-4 py-3 font-[family-name:var(--nv-font-display)] text-sm font-bold uppercase tracking-[0.08em] text-cyan-50 shadow-[0_0_20px_rgba(61,217,255,0.12)] transition-all hover:-translate-y-0.5 hover:border-cyan-100/70 hover:shadow-[0_0_30px_rgba(61,217,255,0.25)] disabled:translate-y-0 disabled:border-white/10 disabled:bg-white/5 disabled:text-white/30 disabled:shadow-none"
-                disabled={!hasShips}
-              >
-                <Sparkles className="size-4" />
-                {hasShips ? "Launch Expedition" : "Assign Ships"}
-              </button>
+              ))}
             </div>
           </div>
+
+          {props.hasShips ? (
+            <div className="rounded-xl border border-cyan-300/15 bg-cyan-400/[0.04] p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <MetricCard label="Distance" value={props.distance > 0 ? props.distance.toFixed(1) : "—"} />
+                <MetricCard label="One Way" value={formatDuration(props.oneWaySeconds)} />
+                <MetricCard
+                  label={props.roundTrip ? "Travel Fuel" : "One Way Fuel"}
+                  value={props.travelFuelCost.toLocaleString()}
+                />
+                <MetricCard
+                  label="Speed"
+                  value={props.slowestSpeed > 0 ? props.slowestSpeed.toLocaleString() : "—"}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <div className="rounded-lg border border-white/8 bg-black/20 px-3 py-2 text-[10px] text-white/55">
+            <p>
+              Resources after launch: Alloy {props.availableResources.alloy.toLocaleString()} / Crystal {" "}
+              {props.availableResources.crystal.toLocaleString()} / Fuel {props.availableResources.fuel.toLocaleString()}
+            </p>
+            <p className="mt-1 text-white/35">
+              Required now: Alloy {props.cargo.alloy.toLocaleString()} / Crystal {props.cargo.crystal.toLocaleString()} / Fuel {(
+                props.cargo.fuel + props.travelFuelCost
+              ).toLocaleString()}
+            </p>
+          </div>
+
+          <button
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-200/50 bg-gradient-to-b from-cyan-400/25 to-cyan-400/10 px-4 py-3 font-[family-name:var(--nv-font-display)] text-sm font-bold uppercase tracking-[0.08em] text-cyan-50 shadow-[0_0_20px_rgba(61,217,255,0.12)] transition-all hover:-translate-y-0.5 hover:border-cyan-100/70 hover:shadow-[0_0_30px_rgba(61,217,255,0.25)] disabled:translate-y-0 disabled:border-white/10 disabled:bg-white/5 disabled:text-white/30 disabled:shadow-none"
+            disabled={!props.canLaunch}
+            onClick={props.onLaunch}
+            type="button"
+          >
+            <Sparkles className="size-4" />
+            {props.launchCtaLabel}
+          </button>
         </div>
       </div>
     </div>
@@ -908,9 +1280,7 @@ function SectionLabel(props: { children: React.ReactNode }) {
 function MetricCard(props: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-cyan-300/10 bg-cyan-400/[0.03] p-2">
-      <p className="text-[8px] uppercase tracking-[0.1em] text-cyan-200/45">
-        {props.label}
-      </p>
+      <p className="text-[8px] uppercase tracking-[0.1em] text-cyan-200/45">{props.label}</p>
       <p className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-xs font-bold text-cyan-100">
         {props.value}
       </p>
