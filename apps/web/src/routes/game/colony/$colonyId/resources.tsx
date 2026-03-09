@@ -395,6 +395,28 @@ function ResourcesRoute() {
   const activeUpgradeProgress = activeLaneQueueItem && activeItemDurationMs > 0
     ? Math.min(100, Math.max(0, ((nowMs - (activeLaneQueueItem.completesAt - activeItemDurationMs)) / activeItemDurationMs) * 100))
     : 0;
+  const simulatedStored = useMemo(() => {
+    if (!view) {
+      return null;
+    }
+
+    const elapsedMinutes = Math.max(
+      0,
+      (nowMs - view.colony.lastAccruedAt) / 60_000,
+    );
+    const nextStored = { ...view.resources.stored };
+
+    for (const resourceKey of ["alloy", "crystal", "fuel"] as const) {
+      const gained = view.resources.ratesPerMinute[resourceKey] * elapsedMinutes;
+      const cappedValue = Math.min(
+        view.resources.storageCaps[resourceKey],
+        view.resources.stored[resourceKey] + gained,
+      );
+      nextStored[resourceKey] = Math.floor(cappedValue);
+    }
+
+    return nextStored;
+  }, [nowMs, view]);
 
   if (isAuthLoading || (isAuthenticated && !view)) {
     return (
@@ -447,7 +469,8 @@ function ResourcesRoute() {
                   { key: "fuel" as const, label: "Fuel", icon: "/game-icons/deuterium.png" },
                 ] as const
               ).map((res) => {
-                const stored = view.resources.stored[res.key];
+                const stored =
+                  simulatedStored?.[res.key] ?? view.resources.stored[res.key];
                 const cap = view.resources.storageCaps[res.key];
                 const pct = cap > 0 ? Math.min(100, (stored / cap) * 100) : 0;
 
@@ -595,7 +618,7 @@ function ResourcesRoute() {
                               isBusy={targetBusy}
                               isTableOpen={targetTableOpen}
                               overflow={view.resources.overflow}
-                              resourcesStored={view.resources.stored}
+                              resourcesStored={simulatedStored ?? view.resources.stored}
                               storageCaps={view.resources.storageCaps}
                               planetMultipliers={view.planetMultipliers}
                               queuedForBuilding={targetQueued ?? null}

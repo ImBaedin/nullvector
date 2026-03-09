@@ -70,6 +70,7 @@ function buildPlaceholderTabs(basePaths: {
       src: PLACEHOLDER_TAB_ICON_SRC[id],
     }),
     badgeCount: id === "defenses" ? 1 : undefined,
+    isDisabled: id === "overview" || id === "defenses",
   }));
 }
 
