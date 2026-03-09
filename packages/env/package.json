@@ -1,19 +1,25 @@
 {
-  "name": "@nullvector/env",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "exports": {
-    "./web": "./src/web.ts",
-    "./native": "./src/native.ts"
-  },
-  "dependencies": {
-    "@t3-oss/env-core": "^0.13.1",
-    "dotenv": "catalog:",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@nullvector/config": "workspace:*",
-    "typescript": "catalog:"
-  }
+	"name": "@nullvector/env",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./web": "./src/web.ts",
+		"./native": "./src/native.ts"
+	},
+	"scripts": {
+		"lint": "oxlint .",
+		"lint:fix": "oxlint . --fix --fix-suggestions",
+		"format": "oxfmt .",
+		"format:check": "oxfmt . --check"
+	},
+	"dependencies": {
+		"@t3-oss/env-core": "^0.13.1",
+		"dotenv": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@nullvector/config": "workspace:*",
+		"typescript": "catalog:"
+	}
 }

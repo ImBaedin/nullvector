@@ -22,6 +22,10 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "check-types": "turbo check-types",
+    "lint": "turbo lint",
+    "lint:fix": "turbo lint:fix",
+    "format": "turbo format",
+    "format:check": "turbo format:check",
     "dev:native": "turbo -F native dev",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F @nullvector/backend dev",
@@ -34,6 +38,9 @@
   },
   "devDependencies": {
     "@nullvector/config": "workspace:*",
+    "eslint-plugin-better-tailwindcss": "^4.3.2",
+    "oxfmt": "^0.36.0",
+    "oxlint": "^1.51.0",
     "turbo": "^2.6.3",
     "typescript": "catalog:"
   },

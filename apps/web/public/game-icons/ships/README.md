@@ -3,6 +3,7 @@
 This folder contains generated ship art for the web UI.
 
 ## Visual style
+
 - Top-down sci-fi ship icon
 - Icon-adjacent (readable at small sizes)
 - Semi-flat digital painting with crisp edges
@@ -10,6 +11,7 @@ This folder contains generated ship art for the web UI.
 - No text, no logos, no watermark
 
 ## Consistency rules
+
 - Camera: top-down gameplay-readable angle
 - Composition: centered hull with strong silhouette and generous margin
 - Palette: gunmetal, steel, cyan engine glow, restrained amber accents
@@ -17,6 +19,7 @@ This folder contains generated ship art for the web UI.
 - Lighting: cool rim highlights, soft metallic reflections, controlled contrast
 
 ## Base prompt template
+
 Use this template and only swap `<SHIP SUBJECT>`:
 
 ```txt
@@ -33,6 +36,7 @@ Avoid: cluttered background, blur, excessive FX, noisy details.
 ```
 
 ## Generation settings
+
 - Model: `gpt-image-1.5`
 - Size: `1024x1024`
 - Quality: `high`
@@ -40,6 +44,7 @@ Avoid: cluttered background, blur, excessive FX, noisy details.
 - Output format: `png`
 
 ## Command pattern
+
 From repo root:
 
 ```bash
@@ -54,6 +59,7 @@ python3 /Users/baedin/.codex/skills/imagegen/scripts/image_gen.py generate \
 ```
 
 ## Current assets
+
 - `small-cargo.png`
 - `large-cargo.png`
 - `colony-ship.png`

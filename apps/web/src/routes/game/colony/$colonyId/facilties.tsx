@@ -1,5 +1,9 @@
-import { Clock3, Cog, Layers3, Wrench, Zap } from "lucide-react";
+import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
+import type { FacilityKey } from "@nullvector/game-logic";
+
+import { api } from "@nullvector/backend/convex/_generated/api";
 import { createFileRoute } from "@tanstack/react-router";
+import { Clock3, Cog, Layers3, Wrench, Zap } from "lucide-react";
 import {
   type ReactElement,
   useCallback,
@@ -9,12 +13,10 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import { api } from "@nullvector/backend/convex/_generated/api";
-import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import type { FacilityKey } from "@nullvector/game-logic";
 
 import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
+
 import { CostPill, formatDuration } from "./shipyard-mock-shared";
 
 export const Route = createFileRoute("/game/colony/$colonyId/facilties")({
@@ -262,8 +264,11 @@ function FacilitiesRoute(): ReactElement {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-4 pb-12 pt-4 text-white">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_450px]">
+    <div className="mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white">
+      <div className="
+        grid gap-5
+        lg:grid-cols-[minmax(0,1fr)_450px]
+      ">
         <div className="space-y-5">
           <FacilityCatalogSection
             buildingLaneIsFull={buildingLane?.isFull ?? false}
@@ -335,18 +340,27 @@ function FacilityCatalogSection(
 ): ReactElement {
   return (
     <section
-      className="overflow-hidden rounded-2xl border border-l-4 border-white/10 border-l-violet-400/50 bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))]"
+      className="
+        overflow-hidden rounded-2xl border border-l-4 border-white/10
+        border-l-violet-400/50
+        bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))]
+      "
       style={{
         animation: "nv-resource-card-in 400ms cubic-bezier(0.21,1,0.34,1) both",
       }}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
+      <div className="
+        flex flex-wrap items-center justify-between gap-2 px-4 py-3
+        sm:px-5
+      ">
         <div className="flex items-center gap-2.5">
           <span className="text-white/50">
             <Wrench className="size-4" strokeWidth={2.2} />
           </span>
           <div>
-            <h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
+            <h2 className="
+              font-(family-name:--nv-font-display) text-sm font-bold
+            ">
               Facility Bay
             </h2>
             <p className="mt-0.5 text-[10px] text-white/35">
@@ -355,14 +369,24 @@ function FacilityCatalogSection(
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="rounded-md border border-white/10 bg-white/3 px-2 py-0.5 font-(family-name:--nv-font-mono) text-[9px] font-semibold text-white/50">
+          <span className="
+            rounded-md border border-white/10 bg-white/3 px-2 py-0.5
+            font-(family-name:--nv-font-mono) text-[9px] font-semibold
+            text-white/50
+          ">
             {props.facilities.length} facilities
           </span>
         </div>
       </div>
 
-      <div className="border-t border-white/6 px-3 py-3 sm:px-4 sm:py-4">
-        <div className="grid gap-4 md:grid-cols-2">
+      <div className="
+        border-t border-white/6 p-3 
+        sm:p-4 
+      ">
+        <div className="
+          grid gap-4
+          md:grid-cols-2
+        ">
           {props.facilities.map((facility, cardIndex) => {
             const visual = FACILITY_VISUALS[facility.key];
             const isActive =
@@ -395,11 +419,16 @@ function FacilityCatalogSection(
 
             return (
               <article
-                className={`group relative overflow-hidden rounded-xl border ${
+                className={`
+                  group relative overflow-hidden rounded-xl border
+                  ${
                   isLocked
                     ? "border-white/8 opacity-60 grayscale"
                     : "border-white/10"
-                } bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))] text-[13px]`}
+                }
+                  bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
+                  text-[13px]
+                `}
                 key={facility.key}
                 style={{
                   animation:
@@ -415,7 +444,10 @@ function FacilityCatalogSection(
                   }}
                 />
                 <div
-                  className="pointer-events-none absolute -right-8 -top-8 size-32 rounded-full blur-3xl"
+                  className="
+                    pointer-events-none absolute -top-8 -right-8 size-32
+                    rounded-full blur-3xl
+                  "
                   style={{ background: "rgba(167,139,250,0.08)" }}
                 />
 
@@ -424,16 +456,26 @@ function FacilityCatalogSection(
                     <div className="flex items-center gap-2.5">
                       <img
                         alt={facility.name}
-                        className="size-8 rounded-lg border border-white/8 bg-black/30 object-contain p-1"
+                        className="
+                          size-8 rounded-lg border border-white/8 bg-black/30
+                          object-contain p-1
+                        "
                         src={visual.image}
                       />
-                      <h3 className="font-(family-name:--nv-font-display) text-sm font-bold">
+                      <h3 className="
+                        font-(family-name:--nv-font-display) text-sm font-bold
+                      ">
                         {facility.name}
                       </h3>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span
-                        className="inline-flex size-6 items-center justify-center rounded-md border border-white/15 bg-black/25 font-[family-name:var(--nv-font-mono)] text-[10px] font-bold text-white/80"
+                        className="
+                          inline-flex size-6 items-center justify-center
+                          rounded-md border border-white/15 bg-black/25
+                          font-(family-name:--nv-font-mono) text-[10px]
+                          font-bold text-white/80
+                        "
                         title={`Level ${facility.currentLevel}`}
                       >
                         {facility.currentLevel}
@@ -442,13 +484,21 @@ function FacilityCatalogSection(
                   </div>
 
                   <p
-                    className={`mt-2 inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[9px] font-semibold uppercase ${availabilityClasses}`}
+                    className={`
+                      mt-2 inline-flex items-center gap-1 rounded-md border
+                      px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap
+                      uppercase
+                      ${availabilityClasses}
+                    `}
                   >
                     {availabilityLabel}
                   </p>
 
                   <div className="mt-3 flex items-center justify-center">
-                    <div className="relative size-28 rounded-full border border-white/6 bg-black/20 p-2">
+                    <div className="
+                      relative size-28 rounded-full border border-white/6
+                      bg-black/20 p-2
+                    ">
                       <img
                         alt={`${facility.name} render`}
                         className="size-full object-contain"
@@ -462,19 +512,35 @@ function FacilityCatalogSection(
                   </p>
 
                   <div className="mt-2.5 grid grid-cols-2 gap-1.5">
-                    <div className="rounded-lg border border-white/6 bg-black/20 px-2 py-1.5 text-center">
-                      <p className="text-[7px] uppercase tracking-[0.1em] text-white/30">
+                    <div className="
+                      rounded-lg border border-white/6 bg-black/20 px-2 py-1.5
+                      text-center
+                    ">
+                      <p className="
+                        text-[7px] tracking-widest text-white/30 uppercase
+                      ">
                         Level
                       </p>
-                      <p className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-[10px] font-bold text-white/80">
+                      <p className="
+                        mt-0.5 font-(family-name:--nv-font-mono) text-[10px]
+                        font-bold text-white/80
+                      ">
                         {facility.currentLevel}
                       </p>
                     </div>
-                    <div className="rounded-lg border border-white/6 bg-black/20 px-2 py-1.5 text-center">
-                      <p className="text-[7px] uppercase tracking-[0.1em] text-white/30">
+                    <div className="
+                      rounded-lg border border-white/6 bg-black/20 px-2 py-1.5
+                      text-center
+                    ">
+                      <p className="
+                        text-[7px] tracking-widest text-white/30 uppercase
+                      ">
                         Build Time
                       </p>
-                      <p className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-[10px] font-bold text-white/80">
+                      <p className="
+                        mt-0.5 font-(family-name:--nv-font-mono) text-[10px]
+                        font-bold text-white/80
+                      ">
                         {durationLabel ?? "—"}
                       </p>
                     </div>
@@ -482,7 +548,19 @@ function FacilityCatalogSection(
 
                   <div className="mt-3 border-t border-white/6 pt-3">
                     <button
-                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200/50 bg-gradient-to-b from-violet-400/25 to-violet-400/10 px-4 py-2.5 font-[family-name:var(--nv-font-display)] text-xs font-bold uppercase tracking-[0.08em] text-violet-50 shadow-[0_0_20px_rgba(167,139,250,0.12)] transition-all hover:-translate-y-0.5 hover:border-violet-100/70 hover:shadow-[0_0_30px_rgba(167,139,250,0.25)] disabled:translate-y-0 disabled:border-white/10 disabled:bg-white/5 disabled:text-white/30 disabled:shadow-none"
+                      className="
+                        flex w-full items-center justify-center gap-2 rounded-xl
+                        border border-violet-200/50 bg-linear-to-b
+                        from-violet-400/25 to-violet-400/10 px-4 py-2.5
+                        font-(family-name:--nv-font-display) text-xs font-bold
+                        tracking-[0.08em] text-violet-50 uppercase
+                        shadow-[0_0_20px_rgba(167,139,250,0.12)] transition-all
+                        hover:-translate-y-0.5 hover:border-violet-100/70
+                        hover:shadow-[0_0_30px_rgba(167,139,250,0.25)]
+                        disabled:translate-y-0 disabled:border-white/10
+                        disabled:bg-white/5 disabled:text-white/30
+                        disabled:shadow-none
+                      "
                       disabled={
                         !facility.canUpgrade ||
                         isBusy ||
@@ -541,14 +619,22 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 
   return (
     <div className="lg:sticky lg:top-4 lg:self-start">
-      <div className="rounded-2xl border border-white/12 bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]">
-        <div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
+      <div className="
+        rounded-2xl border border-white/12
+        bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
+      ">
+        <div className="
+          flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
+        ">
           <Clock3 className="size-5 text-violet-300" />
-          <h2 className="font-[family-name:var(--nv-font-display)] text-sm font-bold">
+          <h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
             Facility Queue
           </h2>
           {totalQueueItems > 0 ? (
-            <span className="ml-auto font-[family-name:var(--nv-font-mono)] text-[9px] text-white/30">
+            <span className="
+              font-(family-name:--nv-font-mono)-[9px]
+              ml-auto text-white/30
+            ">
               {totalQueueItems} item{totalQueueItems !== 1 ? "s" : ""}
             </span>
           ) : null}
@@ -557,10 +643,15 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
         <div className="p-5">
           {props.activeFacilityItem ? (
             <div className="space-y-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
+              <p className="
+                text-[10px] font-semibold tracking-[0.14em] text-white/45
+                uppercase
+              ">
                 Active
               </p>
-              <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/[0.04] p-3">
+              <div className="
+                rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3
+              ">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2.5">
                     <img
@@ -569,7 +660,10 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
                           props.activeFacilityItem.payload.facilityKey
                         )?.name ?? props.activeFacilityItem.payload.facilityKey
                       }
-                      className="size-10 rounded-lg border border-white/8 bg-black/30 object-contain p-1"
+                      className="
+                        size-10 rounded-lg border border-white/8 bg-black/30
+                        object-contain p-1
+                      "
                       src={
                         FACILITY_VISUALS[
                           props.activeFacilityItem.payload.facilityKey
@@ -582,37 +676,59 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
                           props.activeFacilityItem.payload.facilityKey
                         )?.name ?? props.activeFacilityItem.payload.facilityKey}
                       </p>
-                      <p className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-[10px] text-white/40">
+                      <p className="
+                        mt-0.5 font-(family-name:--nv-font-mono) text-[10px]
+                        text-white/40
+                      ">
                         Lv {props.activeFacilityItem.payload.fromLevel} →{" "}
                         {props.activeFacilityItem.payload.toLevel}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-[family-name:var(--nv-font-mono)] text-xs font-bold text-emerald-200">
+                    <p className="
+                      font-(family-name:--nv-font-mono) text-xs font-bold
+                      text-emerald-200
+                    ">
                       {props.remainingTimeLabel ?? "—"}
                     </p>
-                    <p className="font-[family-name:var(--nv-font-mono)] text-[8px] uppercase tracking-[0.1em] text-emerald-200/45">
+                    <p className="
+                      font-(family-name:--nv-font-mono) text-[8px]
+                      tracking-widest text-emerald-200/45 uppercase
+                    ">
                       remaining
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/8">
+                <div className="
+                  mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/8
+                ">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-400/60 to-emerald-300/40 transition-all"
+                    className="
+                      h-full rounded-full bg-linear-to-r from-emerald-400/60
+                      to-emerald-300/40 transition-all
+                    "
                     style={{
                       width: `${props.activeUpgradeProgress}%`,
                     }}
                   />
                 </div>
                 <div className="mt-1 flex items-center justify-between">
-                  <span className="font-[family-name:var(--nv-font-mono)] text-[9px] text-white/25">
+                  <span className="
+                    font-(family-name:--nv-font-mono) text-[9px]
+                    text-white/25
+                  ">
                     {Math.round(props.activeUpgradeProgress)}%
                   </span>
-                  <span className="inline-flex items-center gap-1 text-[9px] text-emerald-300/60">
+                  <span className="
+                    inline-flex items-center gap-1 text-[9px]
+                    text-emerald-300/60
+                  ">
                     <span
-                      className="inline-block size-1.5 rounded-full bg-emerald-400"
+                      className="
+                        inline-block size-1.5 rounded-full bg-emerald-400
+                      "
                       style={{
                         animation: "nv-queue-pulse 2s ease-in-out infinite",
                       }}
@@ -626,7 +742,10 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 
           {props.pendingFacilityItems.length > 0 ? (
             <div className={props.activeFacilityItem ? "mt-4" : ""}>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
+              <p className="
+                text-[10px] font-semibold tracking-[0.14em] text-white/45
+                uppercase
+              ">
                 Pending ({props.pendingFacilityItems.length})
               </p>
               <div className="mt-2 space-y-1">
@@ -637,29 +756,45 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 
                   return (
                     <div
-                      className="flex items-center justify-between rounded-lg border border-white/6 bg-white/[0.02] px-3 py-2"
+                      className="
+                        flex items-center justify-between rounded-lg border
+                        border-white/6 bg-white/2 px-3 py-2
+                      "
                       key={`pending-${item.payload.facilityKey}-${item.completesAt}`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="flex size-5 items-center justify-center rounded font-[family-name:var(--nv-font-mono)] text-[9px] font-bold text-white/25">
+                        <span className="
+                          flex size-5 items-center justify-center rounded-sm
+                          font-(family-name:--nv-font-mono) text-[9px]
+                          font-bold text-white/25
+                        ">
                           {i + 1}
                         </span>
                         <img
                           alt={facility?.name ?? item.payload.facilityKey}
-                          className="size-6 rounded border border-white/8 bg-black/20 object-contain p-0.5"
+                          className="
+                            size-6 rounded-sm border border-white/8 bg-black/20
+                            object-contain p-0.5
+                          "
                           src={FACILITY_VISUALS[item.payload.facilityKey].image}
                         />
                         <div>
                           <p className="text-[11px] font-semibold text-white/80">
                             {facility?.name ?? item.payload.facilityKey}
                           </p>
-                          <p className="font-[family-name:var(--nv-font-mono)] text-[9px] text-white/30">
+                          <p className="
+                            font-(family-name:--nv-font-mono) text-[9px]
+                            text-white/30
+                          ">
                             Lv {item.payload.fromLevel} → {item.payload.toLevel}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-[family-name:var(--nv-font-mono)] text-[10px] text-white/35">
+                        <p className="
+                          font-(family-name:--nv-font-mono) text-[10px]
+                          text-white/35
+                        ">
                           {itemDurationMs > 0
                             ? formatDurationMs(itemDurationMs)
                             : formatDurationMs(item.completesAt - props.nowMs)}
@@ -671,55 +806,8 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
               </div>
             </div>
           ) : null}
-
-          {totalQueueItems > 0 ? (
-            <div className="mt-4 rounded-xl border border-violet-300/15 bg-violet-400/[0.04] p-3">
-              <div className="grid grid-cols-2 gap-2">
-                <QueueMetricCard
-                  label="Total Facilities"
-                  value={String(props.facilities.length)}
-                />
-                <QueueMetricCard
-                  label="In Queue"
-                  value={String(totalQueueItems)}
-                />
-              </div>
-            </div>
-          ) : null}
-
-          {totalQueueItems === 0 ? (
-            <div className="flex flex-col items-center py-8 text-center">
-              <div className="flex size-12 items-center justify-center rounded-full border border-white/8 bg-white/[0.03]">
-                <Cog className="size-5 text-white/20" />
-              </div>
-              <p className="mt-3 text-xs font-medium text-white/30">
-                No facility upgrades in progress
-              </p>
-              <p className="mt-1 text-[10px] text-white/18">
-                Select a facility to begin upgrading
-              </p>
-            </div>
-          ) : null}
         </div>
       </div>
-    </div>
-  );
-}
-
-type QueueMetricCardProps = {
-  label: string;
-  value: string;
-};
-
-function QueueMetricCard(props: QueueMetricCardProps): ReactElement {
-  return (
-    <div className="rounded-lg border border-violet-300/10 bg-violet-400/[0.03] p-2">
-      <p className="text-[8px] uppercase tracking-[0.1em] text-violet-200/45">
-        {props.label}
-      </p>
-      <p className="mt-0.5 font-[family-name:var(--nv-font-mono)] text-xs font-bold text-violet-100">
-        {props.value}
-      </p>
     </div>
   );
 }

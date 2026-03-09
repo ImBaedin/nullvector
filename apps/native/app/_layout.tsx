@@ -11,34 +11,34 @@ import { AppThemeProvider } from "@/contexts/app-theme-context";
 import { authClient } from "@/lib/auth-client";
 
 export const unstable_settings = {
-  initialRouteName: "(drawer)",
+	initialRouteName: "(drawer)",
 };
 
 const convex = new ConvexReactClient(env.EXPO_PUBLIC_CONVEX_URL, {
-  unsavedChangesWarning: false,
+	unsavedChangesWarning: false,
 });
 
 function StackLayout() {
-  return (
-    <Stack screenOptions={{}}>
-      <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-      <Stack.Screen name="modal" options={{ title: "Modal", presentation: "modal" }} />
-    </Stack>
-  );
+	return (
+		<Stack screenOptions={{}}>
+			<Stack.Screen name="(drawer)" options={{ headerShown: false }} />
+			<Stack.Screen name="modal" options={{ title: "Modal", presentation: "modal" }} />
+		</Stack>
+	);
 }
 
 export default function Layout() {
-  return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <KeyboardProvider>
-          <AppThemeProvider>
-            <HeroUINativeProvider>
-              <StackLayout />
-            </HeroUINativeProvider>
-          </AppThemeProvider>
-        </KeyboardProvider>
-      </GestureHandlerRootView>
-    </ConvexBetterAuthProvider>
-  );
+	return (
+		<ConvexBetterAuthProvider client={convex} authClient={authClient}>
+			<GestureHandlerRootView style={{ flex: 1 }}>
+				<KeyboardProvider>
+					<AppThemeProvider>
+						<HeroUINativeProvider>
+							<StackLayout />
+						</HeroUINativeProvider>
+					</AppThemeProvider>
+				</KeyboardProvider>
+			</GestureHandlerRootView>
+		</ConvexBetterAuthProvider>
+	);
 }

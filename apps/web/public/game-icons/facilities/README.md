@@ -3,6 +3,7 @@
 This folder contains generated facility art for the web UI.
 
 ## Visual style
+
 - Isometric sci-fi facility portrait
 - Icon-adjacent (simplified, readable at small sizes)
 - Semi-flat digital painting with crisp edges
@@ -10,6 +11,7 @@ This folder contains generated facility art for the web UI.
 - No text, no logos, no watermark
 
 ## Consistency rules
+
 - Camera: slight top-down 3/4 isometric view
 - Composition: centered object with clear silhouette
 - Palette: steel blue, cyan, slate, restrained warm highlights
@@ -17,6 +19,7 @@ This folder contains generated facility art for the web UI.
 - Lighting: cool rim light, soft ambient shadows, subtle glow accents
 
 ## Base prompt template
+
 Use this template and only swap `<FACILITY SUBJECT>`:
 
 ```txt
@@ -33,6 +36,7 @@ Avoid: photorealism, cluttered background, noisy details.
 ```
 
 ## Generation settings
+
 - Model: `gpt-image-1.5`
 - Size: `1024x1024`
 - Quality: `high`
@@ -40,6 +44,7 @@ Avoid: photorealism, cluttered background, noisy details.
 - Output format: `png`
 
 ## Command pattern
+
 From repo root:
 
 ```bash
@@ -54,6 +59,7 @@ python3 /Users/baedin/.codex/skills/imagegen/scripts/image_gen.py generate \
 ```
 
 ## Current assets
+
 - `shipyard.png`
 - `robotics-hub.png`
 - `logistics-nexus.png`

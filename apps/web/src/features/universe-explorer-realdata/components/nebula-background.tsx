@@ -2,16 +2,17 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { type OrthographicCamera, Vector2, type Vector3 } from "three";
 
-import { createNebulaMaterial } from "./nebula-shader";
 import type { ExplorerResolvedQuality } from "../types";
 
+import { createNebulaMaterial } from "./nebula-shader";
+
 type BasicMapControls = {
-  target: Vector3;
+	target: Vector3;
 };
 
 type NebulaBackgroundProps = {
-  controlsRef: RefObject<BasicMapControls | null>;
-  quality: ExplorerResolvedQuality;
+	controlsRef: RefObject<BasicMapControls | null>;
+	quality: ExplorerResolvedQuality;
 };
 
 const SCREEN_QUAD_SIZE = 2; // Full-screen clip-space quad size.
@@ -36,162 +37,154 @@ const SCREEN_DETAIL_WIDTH_THRESHOLD = 920; // Lower detail under this viewport w
 const SCREEN_DETAIL_DPR_THRESHOLD = 1.8; // Lower detail above this device pixel ratio.
 
 function getDetailSetting(width: number) {
-  const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
-  if (
-    width < SCREEN_DETAIL_WIDTH_THRESHOLD ||
-    dpr > SCREEN_DETAIL_DPR_THRESHOLD
-  ) {
-    return 0.72;
-  }
-  return 1;
+	const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+	if (width < SCREEN_DETAIL_WIDTH_THRESHOLD || dpr > SCREEN_DETAIL_DPR_THRESHOLD) {
+		return 0.72;
+	}
+	return 1;
 }
 
 function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
+	return Math.min(max, Math.max(min, value));
 }
 
 export function NebulaBackground({ controlsRef, quality }: NebulaBackgroundProps) {
-  const camera = useThree((state) => state.camera as OrthographicCamera);
-  const size = useThree((state) => state.size);
-  const previousCameraRef = useRef<{ x: number; y: number; z: number } | null>(
-    null
-  );
-  const baseZoomRef = useRef<number | null>(null);
-  const previousTargetRef = useRef<Vector2 | null>(null);
-  const baseAppearanceDetailRef = useRef<number | null>(null);
-  const parallaxOffsetRef = useRef(new Vector2(0, 0));
-  const viewScaleRef = useRef(1);
-  const frameCounterRef = useRef(0);
-  const material = useMemo(() => createNebulaMaterial(), []);
-  const qualityDetailMultiplier = quality === "high" ? 1 : quality === "medium" ? 0.68 : 0;
-  const updateEveryNFrames = quality === "high" ? 1 : 2;
+	const camera = useThree((state) => state.camera as OrthographicCamera);
+	const size = useThree((state) => state.size);
+	const previousCameraRef = useRef<{ x: number; y: number; z: number } | null>(null);
+	const baseZoomRef = useRef<number | null>(null);
+	const previousTargetRef = useRef<Vector2 | null>(null);
+	const baseAppearanceDetailRef = useRef<number | null>(null);
+	const parallaxOffsetRef = useRef(new Vector2(0, 0));
+	const viewScaleRef = useRef(1);
+	const frameCounterRef = useRef(0);
+	const material = useMemo(() => createNebulaMaterial(), []);
+	const qualityDetailMultiplier = quality === "high" ? 1 : quality === "medium" ? 0.68 : 0;
+	const updateEveryNFrames = quality === "high" ? 1 : 2;
 
-  useEffect(() => {
-    material.depthWrite = false;
-    material.depthTest = false;
-    material.transparent = false;
-    if (baseAppearanceDetailRef.current === null) {
-      baseAppearanceDetailRef.current = material.uniforms.uDetail.value;
-    }
-    material.uniforms.uResolution.value.set(size.width, size.height);
-    material.uniforms.uDetail.value =
-      (baseAppearanceDetailRef.current ?? 1) *
-      getDetailSetting(size.width) *
-      qualityDetailMultiplier;
-  }, [material, qualityDetailMultiplier, size.height, size.width]);
+	useEffect(() => {
+		material.depthWrite = false;
+		material.depthTest = false;
+		material.transparent = false;
+		if (baseAppearanceDetailRef.current === null) {
+			baseAppearanceDetailRef.current = material.uniforms.uDetail.value;
+		}
+		material.uniforms.uResolution.value.set(size.width, size.height);
+		material.uniforms.uDetail.value =
+			(baseAppearanceDetailRef.current ?? 1) *
+			getDetailSetting(size.width) *
+			qualityDetailMultiplier;
+	}, [material, qualityDetailMultiplier, size.height, size.width]);
 
-  useEffect(() => {
-    return () => {
-      material.dispose();
-    };
-  }, [material]);
+	useEffect(() => {
+		return () => {
+			material.dispose();
+		};
+	}, [material]);
 
-  useFrame((_, delta) => {
-    if (quality === "low") {
-      return;
-    }
+	useFrame((_, delta) => {
+		if (quality === "low") {
+			return;
+		}
 
-    frameCounterRef.current += 1;
-    if (frameCounterRef.current % updateEveryNFrames !== 0) {
-      return;
-    }
+		frameCounterRef.current += 1;
+		if (frameCounterRef.current % updateEveryNFrames !== 0) {
+			return;
+		}
 
-    const matrix = camera.matrixWorld.elements;
-    const rightX = matrix[0];
-    const rightY = matrix[1];
-    const rightZ = matrix[2];
-    const upX = matrix[4];
-    const upY = matrix[5];
-    const upZ = matrix[6];
+		const matrix = camera.matrixWorld.elements;
+		const rightX = matrix[0];
+		const rightY = matrix[1];
+		const rightZ = matrix[2];
+		const upX = matrix[4];
+		const upY = matrix[5];
+		const upZ = matrix[6];
 
-    if (!previousCameraRef.current) {
-      previousCameraRef.current = {
-        x: camera.position.x,
-        y: camera.position.y,
-        z: camera.position.z,
-      };
-    }
+		if (!previousCameraRef.current) {
+			previousCameraRef.current = {
+				x: camera.position.x,
+				y: camera.position.y,
+				z: camera.position.z,
+			};
+		}
 
-    const previousCamera = previousCameraRef.current;
-    const deltaX = camera.position.x - previousCamera.x;
-    const deltaY = camera.position.y - previousCamera.y;
-    const deltaZ = camera.position.z - previousCamera.z;
-    previousCamera.x = camera.position.x;
-    previousCamera.y = camera.position.y;
-    previousCamera.z = camera.position.z;
+		const previousCamera = previousCameraRef.current;
+		const deltaX = camera.position.x - previousCamera.x;
+		const deltaY = camera.position.y - previousCamera.y;
+		const deltaZ = camera.position.z - previousCamera.z;
+		previousCamera.x = camera.position.x;
+		previousCamera.y = camera.position.y;
+		previousCamera.z = camera.position.z;
 
-    const cameraDeltaRight = clamp(
-      deltaX * rightX + deltaY * rightY + deltaZ * rightZ,
-      -MAX_WORLD_DELTA_PER_FRAME,
-      MAX_WORLD_DELTA_PER_FRAME
-    );
-    const cameraDeltaUp = clamp(
-      deltaX * upX + deltaY * upY + deltaZ * upZ,
-      -MAX_WORLD_DELTA_PER_FRAME,
-      MAX_WORLD_DELTA_PER_FRAME
-    );
+		const cameraDeltaRight = clamp(
+			deltaX * rightX + deltaY * rightY + deltaZ * rightZ,
+			-MAX_WORLD_DELTA_PER_FRAME,
+			MAX_WORLD_DELTA_PER_FRAME,
+		);
+		const cameraDeltaUp = clamp(
+			deltaX * upX + deltaY * upY + deltaZ * upZ,
+			-MAX_WORLD_DELTA_PER_FRAME,
+			MAX_WORLD_DELTA_PER_FRAME,
+		);
 
-    const zoomFactor =
-      Math.max(camera.zoom, PARALLAX_EPSILON) * PARALLAX_ZOOM_SCALE;
-    const mappedU =
-      (cameraDeltaRight * PARALLAX_MAP_XX + cameraDeltaUp * PARALLAX_MAP_XY) *
-      PARALLAX_WORLD_TO_UV *
-      zoomFactor;
-    const mappedV =
-      (cameraDeltaRight * PARALLAX_MAP_YX + cameraDeltaUp * PARALLAX_MAP_YY) *
-      PARALLAX_WORLD_TO_UV *
-      zoomFactor;
+		const zoomFactor = Math.max(camera.zoom, PARALLAX_EPSILON) * PARALLAX_ZOOM_SCALE;
+		const mappedU =
+			(cameraDeltaRight * PARALLAX_MAP_XX + cameraDeltaUp * PARALLAX_MAP_XY) *
+			PARALLAX_WORLD_TO_UV *
+			zoomFactor;
+		const mappedV =
+			(cameraDeltaRight * PARALLAX_MAP_YX + cameraDeltaUp * PARALLAX_MAP_YY) *
+			PARALLAX_WORLD_TO_UV *
+			zoomFactor;
 
-    parallaxOffsetRef.current.x += mappedU;
-    parallaxOffsetRef.current.y += mappedV;
+		parallaxOffsetRef.current.x += mappedU;
+		parallaxOffsetRef.current.y += mappedV;
 
-    if (baseZoomRef.current === null) {
-      baseZoomRef.current = Math.max(camera.zoom, PARALLAX_EPSILON);
-    }
-    const zoomLogDelta = Math.log2(
-      Math.max(camera.zoom, PARALLAX_EPSILON) /
-        Math.max(baseZoomRef.current, PARALLAX_EPSILON)
-    );
-    const targetViewScale = clamp(
-      1 - zoomLogDelta * ZOOM_TO_NEBULA_STRENGTH,
-      ZOOM_TO_NEBULA_MIN_SCALE,
-      ZOOM_TO_NEBULA_MAX_SCALE
-    );
-    const zoomAlpha = 1 - Math.exp(-ZOOM_TO_NEBULA_SMOOTHING * delta);
-    viewScaleRef.current += (targetViewScale - viewScaleRef.current) * zoomAlpha;
+		if (baseZoomRef.current === null) {
+			baseZoomRef.current = Math.max(camera.zoom, PARALLAX_EPSILON);
+		}
+		const zoomLogDelta = Math.log2(
+			Math.max(camera.zoom, PARALLAX_EPSILON) / Math.max(baseZoomRef.current, PARALLAX_EPSILON),
+		);
+		const targetViewScale = clamp(
+			1 - zoomLogDelta * ZOOM_TO_NEBULA_STRENGTH,
+			ZOOM_TO_NEBULA_MIN_SCALE,
+			ZOOM_TO_NEBULA_MAX_SCALE,
+		);
+		const zoomAlpha = 1 - Math.exp(-ZOOM_TO_NEBULA_SMOOTHING * delta);
+		viewScaleRef.current += (targetViewScale - viewScaleRef.current) * zoomAlpha;
 
-    const target = controlsRef.current?.target;
-    if (target) {
-      if (!previousTargetRef.current) {
-        previousTargetRef.current = new Vector2(target.x, target.y);
-      }
+		const target = controlsRef.current?.target;
+		if (target) {
+			if (!previousTargetRef.current) {
+				previousTargetRef.current = new Vector2(target.x, target.y);
+			}
 
-      const targetDeltaX = target.x - previousTargetRef.current.x;
-      const targetDeltaY = target.y - previousTargetRef.current.y;
-      previousTargetRef.current.set(target.x, target.y);
+			const targetDeltaX = target.x - previousTargetRef.current.x;
+			const targetDeltaY = target.y - previousTargetRef.current.y;
+			previousTargetRef.current.set(target.x, target.y);
 
-      const targetJumpMagnitude = Math.hypot(targetDeltaX, targetDeltaY);
-      if (targetJumpMagnitude > 20_000) {
-        parallaxOffsetRef.current.multiplyScalar(0.6);
-      }
-    }
+			const targetJumpMagnitude = Math.hypot(targetDeltaX, targetDeltaY);
+			if (targetJumpMagnitude > 20_000) {
+				parallaxOffsetRef.current.multiplyScalar(0.6);
+			}
+		}
 
-    material.uniforms.uTime.value =
-      (Date.now() * 0.001) % EPOCH_TIME_WRAP_SECONDS;
-    material.uniforms.uParallaxOffset.value.copy(parallaxOffsetRef.current);
-    material.uniforms.uViewScale.value = viewScaleRef.current;
-  });
+		material.uniforms.uTime.value = (Date.now() * 0.001) % EPOCH_TIME_WRAP_SECONDS;
+		material.uniforms.uParallaxOffset.value.copy(parallaxOffsetRef.current);
+		material.uniforms.uViewScale.value = viewScaleRef.current;
+	});
 
-  return (
-    <mesh
-      frustumCulled={false}
-      position={[0, 0, 0]}
-      raycast={() => {}}
-      renderOrder={-100}
-      visible={quality !== "low"}
-    >
-      <planeGeometry args={[SCREEN_QUAD_SIZE, SCREEN_QUAD_SIZE]} />
-      <primitive attach="material" object={material} />
-    </mesh>
-  );
+	return (
+		<mesh
+			frustumCulled={false}
+			position={[0, 0, 0]}
+			raycast={() => {}}
+			renderOrder={-100}
+			visible={quality !== "low"}
+		>
+			<planeGeometry args={[SCREEN_QUAD_SIZE, SCREEN_QUAD_SIZE]} />
+			<primitive attach="material" object={material} />
+		</mesh>
+	);
 }

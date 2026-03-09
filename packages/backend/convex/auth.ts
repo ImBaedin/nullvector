@@ -15,35 +15,35 @@ const nativeAppUrl = process.env.NATIVE_APP_URL || "mybettertapp://";
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
 function createAuth(ctx: GenericCtx<DataModel>) {
-  return betterAuth({
-    trustedOrigins: [
-      siteUrl,
-      nativeAppUrl,
-      ...(process.env.NODE_ENV === "development"
-        ? ["exp://", "exp://**", "exp://192.168.*.*:*/**"]
-        : []),
-    ],
-    database: authComponent.adapter(ctx),
-    emailAndPassword: {
-      enabled: true,
-      requireEmailVerification: false,
-    },
-    plugins: [
-      expo(),
-      crossDomain({ siteUrl }),
-      convex({
-        authConfig,
-        jwksRotateOnTokenGenerationError: true,
-      }),
-    ],
-  });
+	return betterAuth({
+		trustedOrigins: [
+			siteUrl,
+			nativeAppUrl,
+			...(process.env.NODE_ENV === "development"
+				? ["exp://", "exp://**", "exp://192.168.*.*:*/**"]
+				: []),
+		],
+		database: authComponent.adapter(ctx),
+		emailAndPassword: {
+			enabled: true,
+			requireEmailVerification: false,
+		},
+		plugins: [
+			expo(),
+			crossDomain({ siteUrl }),
+			convex({
+				authConfig,
+				jwksRotateOnTokenGenerationError: true,
+			}),
+		],
+	});
 }
 
 export { createAuth };
 
 export const getCurrentUser = query({
-  args: {},
-  handler: async (ctx) => {
-    return await authComponent.safeGetAuthUser(ctx);
-  },
+	args: {},
+	handler: async (ctx) => {
+		return await authComponent.safeGetAuthUser(ctx);
+	},
 });

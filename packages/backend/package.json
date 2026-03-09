@@ -1,28 +1,32 @@
 {
-  "name": "@nullvector/backend",
-  "version": "1.0.0",
-  "description": "",
-  "license": "ISC",
-  "author": "",
-  "scripts": {
-    "dev": "convex dev",
-    "dev:setup": "convex dev --configure --until-success",
-    "test": "vitest run --config convex/vitest.config.ts",
-    "test:watch": "vitest --config convex/vitest.config.ts"
-  },
-  "dependencies": {
-    "@better-auth/expo": "catalog:",
-    "@convex-dev/better-auth": "catalog:",
-    "@nullvector/game-logic": "workspace:*",
-    "better-auth": "catalog:",
-    "convex": "catalog:",
-    "dotenv": "catalog:",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@nullvector/config": "workspace:*",
-    "@types/node": "^24.3.0",
-    "typescript": "catalog:",
-    "vitest": "^3.2.4"
-  }
+	"name": "@nullvector/backend",
+	"version": "1.0.0",
+	"description": "",
+	"license": "ISC",
+	"author": "",
+	"scripts": {
+		"dev": "convex dev",
+		"dev:setup": "convex dev --configure --until-success",
+		"test": "vitest run --config convex/vitest.config.ts",
+		"test:watch": "vitest --config convex/vitest.config.ts",
+		"lint": "oxlint .",
+		"lint:fix": "oxlint . --fix --fix-suggestions",
+		"format": "oxfmt .",
+		"format:check": "oxfmt . --check"
+	},
+	"dependencies": {
+		"@better-auth/expo": "catalog:",
+		"@convex-dev/better-auth": "catalog:",
+		"@nullvector/game-logic": "workspace:*",
+		"better-auth": "catalog:",
+		"convex": "catalog:",
+		"dotenv": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@nullvector/config": "workspace:*",
+		"@types/node": "^24.3.0",
+		"typescript": "catalog:",
+		"vitest": "^3.2.4"
+	}
 }

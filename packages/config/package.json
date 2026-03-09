@@ -1,5 +1,11 @@
 {
-  "name": "@nullvector/config",
-  "version": "0.0.0",
-  "private": true
+	"name": "@nullvector/config",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"lint": "oxlint .",
+		"lint:fix": "oxlint . --fix --fix-suggestions",
+		"format": "oxfmt .",
+		"format:check": "oxfmt . --check"
+	}
 }

@@ -9,64 +9,67 @@ import { SignUp } from "@/components/sign-up";
 import { authClient } from "@/lib/auth-client";
 
 export default function Home() {
-  const healthCheck = useQuery(api.healthCheck.get);
-  const { isAuthenticated } = useConvexAuth();
-  const user = useQuery(api.auth.getCurrentUser, isAuthenticated ? {} : "skip");
-  const successColor = useThemeColor("success");
-  const dangerColor = useThemeColor("danger");
+	const healthCheck = useQuery(api.healthCheck.get);
+	const { isAuthenticated } = useConvexAuth();
+	const user = useQuery(api.auth.getCurrentUser, isAuthenticated ? {} : "skip");
+	const successColor = useThemeColor("success");
+	const dangerColor = useThemeColor("danger");
 
-  const isConnected = healthCheck === "OK";
-  const isLoading = healthCheck === undefined;
+	const isConnected = healthCheck === "OK";
+	const isLoading = healthCheck === undefined;
 
-  return (
-    <Container className="px-4 pb-4">
-      <View className="py-6 mb-5">
-        <Text className="text-3xl font-semibold text-foreground tracking-tight">
-          Better T Stack
-        </Text>
-        <Text className="text-muted text-sm mt-1">Full-stack TypeScript starter</Text>
-      </View>
+	return (
+		<Container className="px-4 pb-4">
+			<View className="mb-5 py-6">
+				<Text className="text-3xl font-semibold tracking-tight text-foreground">
+					Better T Stack
+				</Text>
+				<Text className="mt-1 text-sm text-muted">Full-stack TypeScript starter</Text>
+			</View>
 
-      {user ? (
-        <Surface variant="secondary" className="mb-4 p-4 rounded-xl">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1">
-              <Text className="text-foreground font-medium">{user.name}</Text>
-              <Text className="text-muted text-xs mt-0.5">{user.email}</Text>
-            </View>
-            <Button
-              variant="danger"
-              size="sm"
-              onPress={() => {
-                authClient.signOut();
-              }}
-            >
-              Sign Out
-            </Button>
-          </View>
-        </Surface>
-      ) : null}
-      <Surface variant="secondary" className="p-4 rounded-xl">
-        <Text className="text-foreground font-medium mb-2">API Status</Text>
-        <View className="flex-row items-center gap-2">
-          <View
-            className={`w-2 h-2 rounded-full ${healthCheck === "OK" ? "bg-success" : "bg-danger"}`}
-          />
-          <Text className="text-muted text-xs">
-            {healthCheck === undefined
-              ? "Checking..."
-              : healthCheck === "OK"
-                ? "Connected to API"
-                : "API Disconnected"}
-          </Text>
-        </View>
-      </Surface>
-      {!user && (
-        <View className="mt-5 gap-4">
-          <SignIn />
-          <SignUp />
-        </View>
-      )}
-    </Container>
-  );
+			{user ? (
+				<Surface variant="secondary" className="mb-4 rounded-xl p-4">
+					<View className="flex-row items-center justify-between">
+						<View className="flex-1">
+							<Text className="font-medium text-foreground">{user.name}</Text>
+							<Text className="mt-0.5 text-xs text-muted">{user.email}</Text>
+						</View>
+						<Button
+							variant="danger"
+							size="sm"
+							onPress={() => {
+								authClient.signOut();
+							}}
+						>
+							Sign Out
+						</Button>
+					</View>
+				</Surface>
+			) : null}
+			<Surface variant="secondary" className="rounded-xl p-4">
+				<Text className="mb-2 font-medium text-foreground">API Status</Text>
+				<View className="flex-row items-center gap-2">
+					<View
+						className={`
+        size-2  rounded-full
+        ${healthCheck === "OK" ? "bg-success" : `bg-danger`}
+      `}
+					/>
+					<Text className="text-xs text-muted">
+						{healthCheck === undefined
+							? "Checking..."
+							: healthCheck === "OK"
+								? "Connected to API"
+								: "API Disconnected"}
+					</Text>
+				</View>
+			</Surface>
+			{!user && (
+				<View className="mt-5 gap-4">
+					<SignIn />
+					<SignUp />
+				</View>
+			)}
+		</Container>
+	);
 }

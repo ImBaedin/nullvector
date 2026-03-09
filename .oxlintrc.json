@@ -1,0 +1,23 @@
+{
+  "plugins": [],
+  "categories": {
+    "correctness": "warn"
+  },
+  "rules": {},
+  "settings": {},
+  "env": {
+    "builtin": true
+  },
+  "globals": {},
+  "ignorePatterns": [
+    "node_modules/",
+    ".turbo/",
+    ".playwright-cli/",
+    "output/",
+    "tmp/",
+    "dist/",
+    "coverage/",
+    ".expo/",
+    ".next/"
+  ]
+}

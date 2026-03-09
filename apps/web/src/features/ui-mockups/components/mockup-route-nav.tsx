@@ -1,25 +1,29 @@
 import { Link } from "@tanstack/react-router";
 
 const mockupLinks = [
-  { label: "Style Lab", to: "/style-lab" },
-  { label: "Explorer", to: "/universe-explorer-realdata" },
+	{ label: "Style Lab", to: "/style-lab" },
+	{ label: "Explorer", to: "/universe-explorer-realdata" },
 ] as const;
 
 export function MockupRouteNav({ className }: { className?: string }) {
-  return (
-    <div className={className}>
-      <div className="flex flex-wrap items-center gap-2">
-        {mockupLinks.map((item) => (
-          <Link
-            activeProps={{ className: "bg-white text-black" }}
-            className="rounded-full border border-white/30 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.14em] text-white/90 transition hover:bg-white/20"
-            key={item.to}
-            to={item.to}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
+	return (
+		<div className={className}>
+			<div className="flex flex-wrap items-center gap-2">
+				{mockupLinks.map((item) => (
+					<Link
+						activeProps={{ className: "bg-white text-black" }}
+						className="
+        rounded-full border border-white/30 bg-white/10 px-3 py-1 text-[11px]
+        tracking-[0.14em] text-white/90 uppercase transition
+        hover:bg-white/20
+      "
+						key={item.to}
+						to={item.to}
+					>
+						{item.label}
+					</Link>
+				))}
+			</div>
+		</div>
+	);
 }

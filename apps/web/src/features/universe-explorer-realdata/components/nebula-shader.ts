@@ -2,64 +2,64 @@ import { shaderMaterial } from "@react-three/drei";
 import { Color, type ShaderMaterial, Vector2 } from "three";
 
 export type NebulaAppearance = {
-  backgroundColor: string;
-  blueA: string;
-  blueB: string;
-  purpleA: string;
-  purpleB: string;
-  tealA: string;
-  tealB: string;
-  roseA: string;
-  goldA: string;
-  emeraldA: string;
-  veinBlue: string;
-  veinPurple: string;
-  opacity: number;
-  detail: number;
-  timeScale: number;
-  bluePurpleMix: number;
-  densityGain: number;
-  densityBias: number;
-  warpStrength: number;
-  largeScale: number;
-  midScale: number;
-  fineScale: number;
-  filamentScale: number;
-  filamentStrength: number;
-  sparkleStrength: number;
-  regionContrast: number;
-  accentStrength: number;
+	backgroundColor: string;
+	blueA: string;
+	blueB: string;
+	purpleA: string;
+	purpleB: string;
+	tealA: string;
+	tealB: string;
+	roseA: string;
+	goldA: string;
+	emeraldA: string;
+	veinBlue: string;
+	veinPurple: string;
+	opacity: number;
+	detail: number;
+	timeScale: number;
+	bluePurpleMix: number;
+	densityGain: number;
+	densityBias: number;
+	warpStrength: number;
+	largeScale: number;
+	midScale: number;
+	fineScale: number;
+	filamentScale: number;
+	filamentStrength: number;
+	sparkleStrength: number;
+	regionContrast: number;
+	accentStrength: number;
 };
 
 // Primary art-direction knobs. Start here for color, density, and noise look changes.
 export const DEFAULT_NEBULA_APPEARANCE: NebulaAppearance = {
-  backgroundColor: "#030812", // Base space color behind nebula clouds.
-  blueA: "#0a2d73", // Deep blue shadow tone in blue-biased regions.
-  blueB: "#2a8dff", // Bright blue highlight tone in blue-biased regions.
-  purpleA: "#43229f", // Deep purple shadow tone in purple-biased regions.
-  purpleB: "#c052ff", // Bright purple highlight tone in purple-biased regions.
-  tealA: "#0f4861", // Deep teal shadow tone in teal-biased regions.
-  tealB: "#42d8d2", // Bright teal highlight tone in teal-biased regions.
-  roseA: "#ff82c9", // Warm pink accent color for dense pockets.
-  goldA: "#ffd17e", // Warm gold accent color mixed with rose.
-  emeraldA: "#60ffc0", // Cool accent color that balances warm accents.
-  veinBlue: "#84b8ff", // Filament color contribution in blue/teal zones.
-  veinPurple: "#d78bff", // Filament color contribution in purple zones.
-  opacity: 0.86, // Overall nebula visibility vs. background.
-  detail: 1.5, // Fine-noise detail multiplier (lower = smoother, cheaper look).
-  timeScale: 0.3, // Global animation speed multiplier.
-  bluePurpleMix: 0.58, // Global bias between blue and purple families.
-  densityGain: 1, // Increases overall cloud coverage/contrast.
-  densityBias: 0.2, // Shifts baseline cloud density before masking.
-  warpStrength: 1, // Strength of gaseous flow distortion.
-  largeScale: 1.25, // Frequency of broad cloud shapes.
-  midScale: 3.25, // Frequency of medium cloud shapes.
-  fineScale: 5.4, // Frequency of fine cloud breakup details.
-  filamentScale: 10.6, // Frequency of filament/web structures.
-  filamentStrength: 0.58, // Intensity of filament contribution.
-  sparkleStrength: 0.2, // Intensity of sparse bright sparkles.
-  regionContrast: 0.7, // Region separation between blue/purple/teal zones.
-  accentStrength: 0.6, // Strength of rose/gold/emerald accent override.
+	backgroundColor: "#030812", // Base space color behind nebula clouds.
+	blueA: "#0a2d73", // Deep blue shadow tone in blue-biased regions.
+	blueB: "#2a8dff", // Bright blue highlight tone in blue-biased regions.
+	purpleA: "#43229f", // Deep purple shadow tone in purple-biased regions.
+	purpleB: "#c052ff", // Bright purple highlight tone in purple-biased regions.
+	tealA: "#0f4861", // Deep teal shadow tone in teal-biased regions.
+	tealB: "#42d8d2", // Bright teal highlight tone in teal-biased regions.
+	roseA: "#ff82c9", // Warm pink accent color for dense pockets.
+	goldA: "#ffd17e", // Warm gold accent color mixed with rose.
+	emeraldA: "#60ffc0", // Cool accent color that balances warm accents.
+	veinBlue: "#84b8ff", // Filament color contribution in blue/teal zones.
+	veinPurple: "#d78bff", // Filament color contribution in purple zones.
+	opacity: 0.86, // Overall nebula visibility vs. background.
+	detail: 1.5, // Fine-noise detail multiplier (lower = smoother, cheaper look).
+	timeScale: 0.3, // Global animation speed multiplier.
+	bluePurpleMix: 0.58, // Global bias between blue and purple families.
+	densityGain: 1, // Increases overall cloud coverage/contrast.
+	densityBias: 0.2, // Shifts baseline cloud density before masking.
+	warpStrength: 1, // Strength of gaseous flow distortion.
+	largeScale: 1.25, // Frequency of broad cloud shapes.
+	midScale: 3.25, // Frequency of medium cloud shapes.
+	fineScale: 5.4, // Frequency of fine cloud breakup details.
+	filamentScale: 10.6, // Frequency of filament/web structures.
+	filamentStrength: 0.58, // Intensity of filament contribution.
+	sparkleStrength: 0.2, // Intensity of sparse bright sparkles.
+	regionContrast: 0.7, // Region separation between blue/purple/teal zones.
+	accentStrength: 0.6, // Strength of rose/gold/emerald accent override.
 };
 
 const nebulaVertexShader = `
@@ -234,114 +234,114 @@ void main() {
 `;
 
 const NebulaShaderMaterial = shaderMaterial(
-  {
-    uTime: 0,
-    uResolution: new Vector2(1, 1),
-    uParallaxOffset: new Vector2(0, 0),
-    uViewScale: 1,
-    uOpacity: DEFAULT_NEBULA_APPEARANCE.opacity,
-    uDetail: DEFAULT_NEBULA_APPEARANCE.detail,
-    uTimeScale: DEFAULT_NEBULA_APPEARANCE.timeScale,
-    uBluePurpleMix: DEFAULT_NEBULA_APPEARANCE.bluePurpleMix,
-    uDensityGain: DEFAULT_NEBULA_APPEARANCE.densityGain,
-    uDensityBias: DEFAULT_NEBULA_APPEARANCE.densityBias,
-    uWarpStrength: DEFAULT_NEBULA_APPEARANCE.warpStrength,
-    uLargeScale: DEFAULT_NEBULA_APPEARANCE.largeScale,
-    uMidScale: DEFAULT_NEBULA_APPEARANCE.midScale,
-    uFineScale: DEFAULT_NEBULA_APPEARANCE.fineScale,
-    uFilamentScale: DEFAULT_NEBULA_APPEARANCE.filamentScale,
-    uFilamentStrength: DEFAULT_NEBULA_APPEARANCE.filamentStrength,
-    uSparkleStrength: DEFAULT_NEBULA_APPEARANCE.sparkleStrength,
-    uBackgroundColor: new Color(DEFAULT_NEBULA_APPEARANCE.backgroundColor),
-    uBlueA: new Color(DEFAULT_NEBULA_APPEARANCE.blueA),
-    uBlueB: new Color(DEFAULT_NEBULA_APPEARANCE.blueB),
-    uPurpleA: new Color(DEFAULT_NEBULA_APPEARANCE.purpleA),
-    uPurpleB: new Color(DEFAULT_NEBULA_APPEARANCE.purpleB),
-    uTealA: new Color(DEFAULT_NEBULA_APPEARANCE.tealA),
-    uTealB: new Color(DEFAULT_NEBULA_APPEARANCE.tealB),
-    uRoseA: new Color(DEFAULT_NEBULA_APPEARANCE.roseA),
-    uGoldA: new Color(DEFAULT_NEBULA_APPEARANCE.goldA),
-    uEmeraldA: new Color(DEFAULT_NEBULA_APPEARANCE.emeraldA),
-    uVeinBlue: new Color(DEFAULT_NEBULA_APPEARANCE.veinBlue),
-    uVeinPurple: new Color(DEFAULT_NEBULA_APPEARANCE.veinPurple),
-    uRegionContrast: DEFAULT_NEBULA_APPEARANCE.regionContrast,
-    uAccentStrength: DEFAULT_NEBULA_APPEARANCE.accentStrength,
-  },
-  nebulaVertexShader,
-  nebulaFragmentShader
+	{
+		uTime: 0,
+		uResolution: new Vector2(1, 1),
+		uParallaxOffset: new Vector2(0, 0),
+		uViewScale: 1,
+		uOpacity: DEFAULT_NEBULA_APPEARANCE.opacity,
+		uDetail: DEFAULT_NEBULA_APPEARANCE.detail,
+		uTimeScale: DEFAULT_NEBULA_APPEARANCE.timeScale,
+		uBluePurpleMix: DEFAULT_NEBULA_APPEARANCE.bluePurpleMix,
+		uDensityGain: DEFAULT_NEBULA_APPEARANCE.densityGain,
+		uDensityBias: DEFAULT_NEBULA_APPEARANCE.densityBias,
+		uWarpStrength: DEFAULT_NEBULA_APPEARANCE.warpStrength,
+		uLargeScale: DEFAULT_NEBULA_APPEARANCE.largeScale,
+		uMidScale: DEFAULT_NEBULA_APPEARANCE.midScale,
+		uFineScale: DEFAULT_NEBULA_APPEARANCE.fineScale,
+		uFilamentScale: DEFAULT_NEBULA_APPEARANCE.filamentScale,
+		uFilamentStrength: DEFAULT_NEBULA_APPEARANCE.filamentStrength,
+		uSparkleStrength: DEFAULT_NEBULA_APPEARANCE.sparkleStrength,
+		uBackgroundColor: new Color(DEFAULT_NEBULA_APPEARANCE.backgroundColor),
+		uBlueA: new Color(DEFAULT_NEBULA_APPEARANCE.blueA),
+		uBlueB: new Color(DEFAULT_NEBULA_APPEARANCE.blueB),
+		uPurpleA: new Color(DEFAULT_NEBULA_APPEARANCE.purpleA),
+		uPurpleB: new Color(DEFAULT_NEBULA_APPEARANCE.purpleB),
+		uTealA: new Color(DEFAULT_NEBULA_APPEARANCE.tealA),
+		uTealB: new Color(DEFAULT_NEBULA_APPEARANCE.tealB),
+		uRoseA: new Color(DEFAULT_NEBULA_APPEARANCE.roseA),
+		uGoldA: new Color(DEFAULT_NEBULA_APPEARANCE.goldA),
+		uEmeraldA: new Color(DEFAULT_NEBULA_APPEARANCE.emeraldA),
+		uVeinBlue: new Color(DEFAULT_NEBULA_APPEARANCE.veinBlue),
+		uVeinPurple: new Color(DEFAULT_NEBULA_APPEARANCE.veinPurple),
+		uRegionContrast: DEFAULT_NEBULA_APPEARANCE.regionContrast,
+		uAccentStrength: DEFAULT_NEBULA_APPEARANCE.accentStrength,
+	},
+	nebulaVertexShader,
+	nebulaFragmentShader,
 );
 
 export type NebulaMaterialInstance = ShaderMaterial & {
-  uniforms: {
-    uTime: { value: number };
-    uResolution: { value: Vector2 };
-    uParallaxOffset: { value: Vector2 };
-    uViewScale: { value: number };
-    uOpacity: { value: number };
-    uDetail: { value: number };
-    uTimeScale: { value: number };
-    uBluePurpleMix: { value: number };
-    uDensityGain: { value: number };
-    uDensityBias: { value: number };
-    uWarpStrength: { value: number };
-    uLargeScale: { value: number };
-    uMidScale: { value: number };
-    uFineScale: { value: number };
-    uFilamentScale: { value: number };
-    uFilamentStrength: { value: number };
-    uSparkleStrength: { value: number };
-    uBackgroundColor: { value: Color };
-    uBlueA: { value: Color };
-    uBlueB: { value: Color };
-    uPurpleA: { value: Color };
-    uPurpleB: { value: Color };
-    uTealA: { value: Color };
-    uTealB: { value: Color };
-    uRoseA: { value: Color };
-    uGoldA: { value: Color };
-    uEmeraldA: { value: Color };
-    uVeinBlue: { value: Color };
-    uVeinPurple: { value: Color };
-    uRegionContrast: { value: number };
-    uAccentStrength: { value: number };
-  };
+	uniforms: {
+		uTime: { value: number };
+		uResolution: { value: Vector2 };
+		uParallaxOffset: { value: Vector2 };
+		uViewScale: { value: number };
+		uOpacity: { value: number };
+		uDetail: { value: number };
+		uTimeScale: { value: number };
+		uBluePurpleMix: { value: number };
+		uDensityGain: { value: number };
+		uDensityBias: { value: number };
+		uWarpStrength: { value: number };
+		uLargeScale: { value: number };
+		uMidScale: { value: number };
+		uFineScale: { value: number };
+		uFilamentScale: { value: number };
+		uFilamentStrength: { value: number };
+		uSparkleStrength: { value: number };
+		uBackgroundColor: { value: Color };
+		uBlueA: { value: Color };
+		uBlueB: { value: Color };
+		uPurpleA: { value: Color };
+		uPurpleB: { value: Color };
+		uTealA: { value: Color };
+		uTealB: { value: Color };
+		uRoseA: { value: Color };
+		uGoldA: { value: Color };
+		uEmeraldA: { value: Color };
+		uVeinBlue: { value: Color };
+		uVeinPurple: { value: Color };
+		uRegionContrast: { value: number };
+		uAccentStrength: { value: number };
+	};
 };
 
 export function createNebulaMaterial(appearance = DEFAULT_NEBULA_APPEARANCE) {
-  const material = new NebulaShaderMaterial() as unknown as NebulaMaterialInstance;
-  applyNebulaAppearance(material, appearance);
-  return material;
+	const material = new NebulaShaderMaterial() as unknown as NebulaMaterialInstance;
+	applyNebulaAppearance(material, appearance);
+	return material;
 }
 
 export function applyNebulaAppearance(
-  material: NebulaMaterialInstance,
-  appearance: NebulaAppearance
+	material: NebulaMaterialInstance,
+	appearance: NebulaAppearance,
 ) {
-  material.uniforms.uOpacity.value = appearance.opacity;
-  material.uniforms.uDetail.value = appearance.detail;
-  material.uniforms.uTimeScale.value = appearance.timeScale;
-  material.uniforms.uBluePurpleMix.value = appearance.bluePurpleMix;
-  material.uniforms.uDensityGain.value = appearance.densityGain;
-  material.uniforms.uDensityBias.value = appearance.densityBias;
-  material.uniforms.uWarpStrength.value = appearance.warpStrength;
-  material.uniforms.uLargeScale.value = appearance.largeScale;
-  material.uniforms.uMidScale.value = appearance.midScale;
-  material.uniforms.uFineScale.value = appearance.fineScale;
-  material.uniforms.uFilamentScale.value = appearance.filamentScale;
-  material.uniforms.uFilamentStrength.value = appearance.filamentStrength;
-  material.uniforms.uSparkleStrength.value = appearance.sparkleStrength;
-  material.uniforms.uRegionContrast.value = appearance.regionContrast;
-  material.uniforms.uAccentStrength.value = appearance.accentStrength;
-  material.uniforms.uBackgroundColor.value.set(appearance.backgroundColor);
-  material.uniforms.uBlueA.value.set(appearance.blueA);
-  material.uniforms.uBlueB.value.set(appearance.blueB);
-  material.uniforms.uPurpleA.value.set(appearance.purpleA);
-  material.uniforms.uPurpleB.value.set(appearance.purpleB);
-  material.uniforms.uTealA.value.set(appearance.tealA);
-  material.uniforms.uTealB.value.set(appearance.tealB);
-  material.uniforms.uRoseA.value.set(appearance.roseA);
-  material.uniforms.uGoldA.value.set(appearance.goldA);
-  material.uniforms.uEmeraldA.value.set(appearance.emeraldA);
-  material.uniforms.uVeinBlue.value.set(appearance.veinBlue);
-  material.uniforms.uVeinPurple.value.set(appearance.veinPurple);
+	material.uniforms.uOpacity.value = appearance.opacity;
+	material.uniforms.uDetail.value = appearance.detail;
+	material.uniforms.uTimeScale.value = appearance.timeScale;
+	material.uniforms.uBluePurpleMix.value = appearance.bluePurpleMix;
+	material.uniforms.uDensityGain.value = appearance.densityGain;
+	material.uniforms.uDensityBias.value = appearance.densityBias;
+	material.uniforms.uWarpStrength.value = appearance.warpStrength;
+	material.uniforms.uLargeScale.value = appearance.largeScale;
+	material.uniforms.uMidScale.value = appearance.midScale;
+	material.uniforms.uFineScale.value = appearance.fineScale;
+	material.uniforms.uFilamentScale.value = appearance.filamentScale;
+	material.uniforms.uFilamentStrength.value = appearance.filamentStrength;
+	material.uniforms.uSparkleStrength.value = appearance.sparkleStrength;
+	material.uniforms.uRegionContrast.value = appearance.regionContrast;
+	material.uniforms.uAccentStrength.value = appearance.accentStrength;
+	material.uniforms.uBackgroundColor.value.set(appearance.backgroundColor);
+	material.uniforms.uBlueA.value.set(appearance.blueA);
+	material.uniforms.uBlueB.value.set(appearance.blueB);
+	material.uniforms.uPurpleA.value.set(appearance.purpleA);
+	material.uniforms.uPurpleB.value.set(appearance.purpleB);
+	material.uniforms.uTealA.value.set(appearance.tealA);
+	material.uniforms.uTealB.value.set(appearance.tealB);
+	material.uniforms.uRoseA.value.set(appearance.roseA);
+	material.uniforms.uGoldA.value.set(appearance.goldA);
+	material.uniforms.uEmeraldA.value.set(appearance.emeraldA);
+	material.uniforms.uVeinBlue.value.set(appearance.veinBlue);
+	material.uniforms.uVeinPurple.value.set(appearance.veinPurple);
 }
