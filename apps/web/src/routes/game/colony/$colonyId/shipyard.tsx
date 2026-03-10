@@ -76,9 +76,14 @@ function ShipyardRoute() {
 		api.shipyard.getShipyardState,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
+	const devConsoleState = useQuery(
+		api.devConsole.getDevConsoleState,
+		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+	);
 	const syncColony = useMutation(api.colonyQueue.syncColony);
 	const enqueueShipBuild = useMutation(api.shipyard.enqueueShipBuild);
 	const cancelShipBuildQueueItem = useMutation(api.shipyard.cancelShipBuildQueueItem);
+	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
 
 	const [nowMs, setNowMs] = useState(() => Date.now());
 	const [quantities, setQuantities] = useState<Partial<Record<ShipKey, number>>>({});
@@ -87,7 +92,9 @@ function ShipyardRoute() {
 	const [cancelingQueueItemId, setCancelingQueueItemId] = useState<Id<"colonyQueueItems"> | null>(
 		null,
 	);
+	const [isCompletingQueueItem, setIsCompletingQueueItem] = useState(false);
 	const isSyncingRef = useRef(false);
+	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
 	const view = useMemo(() => {
 		if (!shipCatalogQuery || !shipyardState) {
 			return undefined;
@@ -234,6 +241,25 @@ function ShipyardRoute() {
 			});
 	};
 
+	const handleCompleteActiveQueue = async () => {
+		if (!canShowDevUi || !devConsoleState?.canUseDevConsole || isCompletingQueueItem) {
+			return;
+		}
+		setIsCompletingQueueItem(true);
+		try {
+			await completeActiveQueueItem({
+				colonyId: colonyIdAsId,
+				lane: "shipyard",
+			});
+			toast.success("Active ship build completed");
+			await sync();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to complete ship build");
+		} finally {
+			setIsCompletingQueueItem(false);
+		}
+	};
+
 	if (isAuthLoading || (isAuthenticated && !view)) {
 		return <ShipyardRouteSkeleton />;
 	}
@@ -251,28 +277,36 @@ function ShipyardRoute() {
 
 	return (
 		<div className="mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white">
-			<div className="
+			<div
+				className="
      grid gap-5
      lg:grid-cols-[minmax(0,1fr)_450px]
-   ">
+   "
+			>
 				{/* ══ Left Column: Shipyard Summary + Ship Catalog ══ */}
 				<div className="space-y-5">
 					{/* Shipyard Summary Strip */}
-					<div className="
+					<div
+						className="
        rounded-2xl border border-white/10
        bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))] p-4
-     ">
+     "
+					>
 						<div className="flex items-center gap-3">
-							<div className="
+							<div
+								className="
          flex size-8 items-center justify-center rounded-lg border
          border-cyan-300/25 bg-cyan-400/8
-       ">
+       "
+							>
 								<Anchor className="size-4 text-cyan-300" />
 							</div>
 							<div>
-								<h1 className="
+								<h1
+									className="
           font-(family-name:--nv-font-display) text-lg font-bold
-        ">
+        "
+								>
 									Shipyard
 								</h1>
 								<p className="text-[10px] text-white/40">
@@ -313,9 +347,11 @@ function ShipyardRoute() {
 													</>
 												) : null}
 											</div>
-											<div className="
+											<div
+												className="
              mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8
-           ">
+           "
+											>
 												<div
 													className="h-full rounded-full bg-cyan-400/40"
 													style={{
@@ -345,18 +381,22 @@ function ShipyardRoute() {
 							animation: "nv-resource-card-in 400ms cubic-bezier(0.21,1,0.34,1) both",
 						}}
 					>
-						<div className="
+						<div
+							className="
         flex flex-wrap items-center justify-between gap-2 px-4 py-3
         sm:px-5
-      ">
+      "
+						>
 							<div className="flex items-center gap-2.5">
 								<span className="text-white/50">
 									<Ship className="size-4" strokeWidth={2.2} />
 								</span>
 								<div>
-									<h2 className="
+									<h2
+										className="
            font-(family-name:--nv-font-display) text-sm font-bold
-         ">
+         "
+									>
 										Ship Catalog
 									</h2>
 									<p className="mt-0.5 text-[10px] text-white/35">
@@ -365,25 +405,31 @@ function ShipyardRoute() {
 								</div>
 							</div>
 							<div className="flex items-center gap-1.5">
-								<span className="
+								<span
+									className="
           rounded-md border border-white/10 bg-white/3 px-2 py-0.5
           font-(family-name:--nv-font-mono) text-[9px] font-semibold
           text-white/50
-        ">
+        "
+								>
 									{view.ships.length} designs
 								</span>
 							</div>
 						</div>
 
-						<div className="
+						<div
+							className="
         border-t border-white/6 p-3 
         sm:p-4 
-      ">
-							<div className="
+      "
+						>
+							<div
+								className="
          grid gap-4
          md:grid-cols-2
          xl:grid-cols-3
-       ">
+       "
+							>
 								{view.ships.map((ship, cardIndex) => {
 									const qty = quantities[ship.key] ?? 1;
 									const qtyInput = quantityInputs[ship.key] ?? String(qty);
@@ -403,11 +449,9 @@ function ShipyardRoute() {
 										<article
 											className={`
              group relative overflow-hidden rounded-xl border
-             ${
-												ship.canBuild ? "border-white/10" : `
+             ${ship.canBuild ? "border-white/10" : `
               border-white/8 opacity-60 grayscale
-            `
-											}
+            `}
              bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
              text-[13px]
            `}
@@ -444,9 +488,11 @@ function ShipyardRoute() {
                "
 															src={image}
 														/>
-														<h3 className="
+														<h3
+															className="
                 font-(family-name:--nv-font-display) text-sm font-bold
-              ">
+              "
+														>
 															{ship.name}
 														</h3>
 													</div>
@@ -467,32 +513,20 @@ function ShipyardRoute() {
 												</div>
 
 												{/* Status badge */}
-												<p
-													className={`
+												<p className={`
                mt-2 inline-flex items-center gap-1 rounded-md border px-1.5
                py-0.5 text-[9px] font-semibold whitespace-nowrap uppercase
-               ${
-														!ship.canBuild
-															? "border-amber-300/35 bg-amber-400/10 text-amber-200/80"
-															: ship.queued > 0
-																? "border-cyan-300/30 bg-cyan-400/8 text-cyan-200/80"
-																: "border-emerald-300/30 bg-emerald-400/8 text-emerald-200/80"
-													}
-             `}
-												>
-													{!ship.canBuild
-														? "Locked"
-														: ship.queued > 0
-															? `${ship.queued.toLocaleString()} Queued`
-															: "Available"}
-												</p>
+               ${!ship.canBuild ? "border-amber-300/35 bg-amber-400/10 text-amber-200/80" : ship.queued > 0 ? "border-cyan-300/30 bg-cyan-400/8 text-cyan-200/80" : "border-emerald-300/30 bg-emerald-400/8 text-emerald-200/80"}
+             `}>{!ship.canBuild ? "Locked" : ship.queued > 0 ? `${ship.queued.toLocaleString()} Queued` : "Available"}</p>
 
 												{/* Ship render */}
 												<div className="mt-3 flex items-center justify-center">
-													<div className="
+													<div
+														className="
                relative size-28 rounded-full border border-white/6 bg-black/20
                p-2
-             ">
+             "
+													>
 														<img
 															alt={`${ship.name} render`}
 															className="size-full object-contain"
@@ -508,45 +542,57 @@ function ShipyardRoute() {
 
 												{/* Stats */}
 												<div className="mt-2.5 grid grid-cols-3 gap-1.5">
-													<div className="
+													<div
+														className="
                rounded-lg border border-white/6 bg-black/20 px-2 py-1.5
                text-center
-             ">
+             "
+													>
 														<p className="text-[7px] tracking-widest text-white/30 uppercase">
 															Cargo
 														</p>
-														<p className="
+														<p
+															className="
                 mt-0.5 font-(family-name:--nv-font-mono) text-[10px]
                 font-bold text-white/80
-              ">
+              "
+														>
 															{ship.cargoCapacity.toLocaleString()}
 														</p>
 													</div>
-													<div className="
+													<div
+														className="
                rounded-lg border border-white/6 bg-black/20 px-2 py-1.5
                text-center
-             ">
+             "
+													>
 														<p className="text-[7px] tracking-widest text-white/30 uppercase">
 															Speed
 														</p>
-														<p className="
+														<p
+															className="
                 mt-0.5 font-(family-name:--nv-font-mono) text-[10px]
                 font-bold text-white/80
-              ">
+              "
+														>
 															{ship.speed.toLocaleString()}
 														</p>
 													</div>
-													<div className="
+													<div
+														className="
                rounded-lg border border-white/6 bg-black/20 px-2 py-1.5
                text-center
-             ">
+             "
+													>
 														<p className="text-[7px] tracking-widest text-white/30 uppercase">
 															Build
 														</p>
-														<p className="
+														<p
+															className="
                 mt-0.5 font-(family-name:--nv-font-mono) text-[10px]
                 font-bold text-white/80
-              ">
+              "
+														>
 															{formatDuration(ship.perUnitDurationSeconds)}
 														</p>
 													</div>
@@ -554,16 +600,20 @@ function ShipyardRoute() {
 
 												{/* Quantity selector + queue button */}
 												<div className="mt-3 border-t border-white/6 pt-3">
-													<p className="
+													<p
+														className="
                text-[10px] font-semibold tracking-[0.14em] text-white/45
                uppercase
-             ">
+             "
+													>
 														Queue Quantity
 													</p>
 													<div className="mt-1.5 flex items-center gap-2">
-														<div className="
+														<div
+															className="
                 flex items-center rounded-lg border border-white/12 bg-black/25
-              ">
+              "
+														>
 															<button
 																className="
                   flex size-7 items-center justify-center text-white/60
@@ -723,24 +773,32 @@ function ShipyardRoute() {
 
 				{/* ══ Right Column: Command Queue ══ */}
 				<div className="lg:sticky lg:top-4 lg:self-start">
-					<div className="
+					<div
+						className="
        rounded-2xl border border-white/12
        bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
-     ">
-						<div className="
+     "
+					>
+						<div
+							className="
         flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
-      ">
+      "
+						>
 							<Clock3 className="size-5 text-cyan-300" />
-							<h2 className="
+							<h2
+								className="
          font-(family-name:--nv-font-display) text-sm font-bold
-       ">
+       "
+							>
 								Command Queue
 							</h2>
 							{queueItems.length > 0 ? (
-								<span className="
+								<span
+									className="
           ml-auto font-(family-name:--nv-font-mono) text-[9px]
           text-white/30
-        ">
+        "
+								>
 									{queueItems.length} item{queueItems.length !== 1 ? "s" : ""}
 								</span>
 							) : null}
@@ -750,14 +808,18 @@ function ShipyardRoute() {
 							{/* Active Build */}
 							{activeQueueItem ? (
 								<div className="space-y-3">
-									<p className="
+									<p
+										className="
            text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
-         ">
+         "
+									>
 										Active
 									</p>
-									<div className="
+									<div
+										className="
            rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3
-         ">
+         "
+									>
 										<div className="flex items-start justify-between gap-2">
 											<div className="flex items-center gap-2.5">
 												{(() => {
@@ -780,52 +842,80 @@ function ShipyardRoute() {
 												})()}
 												<div>
 													<p className="text-xs font-semibold">{activeQueueItem.shipName}</p>
-													<p className="
+													<p
+														className="
                mt-0.5 font-(family-name:--nv-font-mono) text-[10px]
                text-white/40
-             ">
+             "
+													>
 														{activeQueueItem.remaining.toLocaleString()} of{" "}
 														{activeQueueItem.total.toLocaleString()} remaining
 													</p>
 												</div>
 											</div>
-											<button
-												className="
+											<div className="flex items-center gap-1.5">
+												{canShowDevUi ? (
+													<button
+														className="
+               rounded-md border border-cyan-300/20 bg-cyan-400/8 px-2 py-1
+               text-[10px] font-medium text-cyan-100 transition-colors
+               hover:border-cyan-200/35 hover:bg-cyan-400/12
+               disabled:cursor-not-allowed disabled:opacity-50
+             "
+														disabled={isCompletingQueueItem || !devConsoleState?.canUseDevConsole}
+														onClick={() => {
+															void handleCompleteActiveQueue();
+														}}
+														type="button"
+													>
+														{isCompletingQueueItem ? "..." : "Complete"}
+													</button>
+												) : null}
+												<button
+													className="
               rounded-md border border-rose-300/20 bg-rose-400/8 px-2 py-1
               text-[10px] font-medium text-rose-200/80 transition-colors
               hover:border-rose-200/35 hover:bg-rose-400/12
             "
-												disabled={cancelingQueueItemId === activeQueueItem.id}
-												onClick={() => handleCancel(activeQueueItem.id)}
-											>
-												{cancelingQueueItemId === activeQueueItem.id ? (
-													"..."
-												) : (
-													<X className="size-3" />
-												)}
-											</button>
+													disabled={cancelingQueueItemId === activeQueueItem.id}
+													onClick={() => handleCancel(activeQueueItem.id)}
+													type="button"
+												>
+													{cancelingQueueItemId === activeQueueItem.id ? (
+														"..."
+													) : (
+														<X className="size-3" />
+													)}
+												</button>
+											</div>
 										</div>
 
 										<div className="mt-2 flex items-center justify-between text-right">
 											<div className="flex items-center gap-1.5">
 												<Layers3 className="size-3 text-emerald-300/50" />
-												<span className="
+												<span
+													className="
               font-(family-name:--nv-font-mono) text-[10px] text-white/40
-            ">
+            "
+												>
 													Batch {activeQueueItem.total.toLocaleString()}
 												</span>
 											</div>
 											<div>
-												<p className="
+												<p
+													className="
               font-(family-name:--nv-font-mono) text-xs font-bold
               text-emerald-200
-            ">
+            "
+												>
 													{formatDuration(activeQueueItem.timeLeftSeconds)}
 												</p>
-												<p className="
+												<p
+													className="
               font-(family-name:--nv-font-mono) text-[8px] tracking-widest
               text-emerald-200/45 uppercase
-            ">
+            "
+												>
 													remaining
 												</p>
 											</div>
@@ -841,14 +931,18 @@ function ShipyardRoute() {
 											/>
 										</div>
 										<div className="mt-1 flex items-center justify-between">
-											<span className="
+											<span
+												className="
              font-(family-name:--nv-font-mono) text-[9px] text-white/25
-           ">
+           "
+											>
 												{Math.round(activeUpgradeProgress)}%
 											</span>
-											<span className="
+											<span
+												className="
              inline-flex items-center gap-1 text-[9px] text-emerald-300/60
-           ">
+           "
+											>
 												<span
 													className="inline-block size-1.5 rounded-full bg-emerald-400"
 													style={{
@@ -865,9 +959,11 @@ function ShipyardRoute() {
 							{/* Pending Queue Items */}
 							{pendingQueueItems.length > 0 ? (
 								<div className={activeQueueItem ? "mt-4" : ""}>
-									<p className="
+									<p
+										className="
            text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
-         ">
+         "
+									>
 										Pending ({pendingQueueItems.length})
 									</p>
 									<div className="mt-2 space-y-1">
@@ -886,11 +982,13 @@ function ShipyardRoute() {
 													key={item.id}
 												>
 													<div className="flex items-center gap-2">
-														<span className="
+														<span
+															className="
                 flex size-5 items-center justify-center rounded-sm
                 font-(family-name:--nv-font-mono) text-[9px] font-bold
                 text-white/25
-              ">
+              "
+														>
 															{i + 1}
 														</span>
 														{pendingImage ? (
@@ -907,9 +1005,11 @@ function ShipyardRoute() {
 															<p className="text-[11px] font-semibold text-white/80">
 																{item.shipName}
 															</p>
-															<p className="
+															<p
+																className="
                  font-(family-name:--nv-font-mono) text-[9px] text-white/30
-               ">
+               "
+															>
 																{item.total.toLocaleString()} ships •{" "}
 																{formatDuration(item.timeLeftSeconds)}
 															</p>
@@ -933,25 +1033,15 @@ function ShipyardRoute() {
 								</div>
 							) : null}
 
-							{/* Fleet Overview in Queue Panel */}
-							{queueItems.length > 0 ? (
-								<div className="
-          mt-4 rounded-xl border border-cyan-300/15 bg-cyan-400/4 p-3
-        ">
-									<div className="grid grid-cols-2 gap-2">
-										<QueueMetricCard label="Fleet Total" value={fleetTotal.toLocaleString()} />
-										<QueueMetricCard label="In Queue" value={totalQueued.toLocaleString()} />
-									</div>
-								</div>
-							) : null}
-
 							{/* Empty state */}
 							{queueItems.length === 0 ? (
 								<div className="flex flex-col items-center py-8 text-center">
-									<div className="
+									<div
+										className="
            flex size-12 items-center justify-center rounded-full border
            border-white/8 bg-white/3
-         ">
+         "
+									>
 										<Package className="size-5 text-white/20" />
 									</div>
 									<p className="mt-3 text-xs font-medium text-white/30">No active builds</p>
@@ -964,20 +1054,6 @@ function ShipyardRoute() {
 					</div>
 				</div>
 			</div>
-		</div>
-	);
-}
-
-function QueueMetricCard(props: { label: string; value: string }) {
-	return (
-		<div className="rounded-lg border border-cyan-300/10 bg-cyan-400/3 p-2">
-			<p className="text-[8px] tracking-widest text-cyan-200/45 uppercase">{props.label}</p>
-			<p className="
-     mt-0.5 font-(family-name:--nv-font-mono) text-xs font-bold
-     text-cyan-100
-   ">
-				{props.value}
-			</p>
 		</div>
 	);
 }

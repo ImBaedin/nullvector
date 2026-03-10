@@ -4,4 +4,5 @@ export { GameShell } from "./game-shell";
 export type { GameShellProps } from "./game-shell";
 export { GlobalNav } from "./global-nav";
 export { ResourceStrip } from "./resource-strip";
+export { SettingsModal } from "./settings-modal";
 export { ShellRail } from "./shell-rails";

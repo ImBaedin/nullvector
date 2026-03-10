@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as colonyNav from "../colonyNav.js";
 import type * as colonyQueue from "../colonyQueue.js";
 import type * as crons from "../crons.js";
+import type * as devConsole from "../devConsole.js";
 import type * as facilities from "../facilities.js";
 import type * as fleetV2 from "../fleetV2.js";
 import type * as healthCheck from "../healthCheck.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   colonyNav: typeof colonyNav;
   colonyQueue: typeof colonyQueue;
   crons: typeof crons;
+  devConsole: typeof devConsole;
   facilities: typeof facilities;
   fleetV2: typeof fleetV2;
   healthCheck: typeof healthCheck;

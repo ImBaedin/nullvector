@@ -16,6 +16,8 @@ import { ResourceStrip } from "@/features/game-ui/shell/resource-strip";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
 
+import { SettingsModal } from "@/features/game-ui/shell/settings-modal";
+
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";
 import { getHeaderConfig, parseColonyId } from "./header-config";
 
@@ -163,6 +165,7 @@ export function AppHeader({
 	const navigate = useNavigate();
 	const { isAuthenticated } = useConvexAuth();
 	const [drawerOpen, setDrawerOpen] = useState(false);
+	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [starMapEntitiesOpen, setStarMapEntitiesOpen] = useState(false);
 	const [starMapQualityOpen, setStarMapQualityOpen] = useState(false);
 	const pathname = useRouterState({
@@ -245,7 +248,7 @@ export function AppHeader({
 				: config.activeTabId === "fleet"
 					? "/game/colony/$colonyId/fleet"
 					: config.activeTabId === "facilities"
-						? "/game/colony/$colonyId/facilties"
+						? "/game/colony/$colonyId/facilities"
 						: "/game/colony/$colonyId/resources";
 		navigate({
 			to: targetPath,
@@ -703,7 +706,7 @@ export function AppHeader({
           transition-colors
           hover:bg-white/4 hover:text-white/60
         "
-								onClick={config.onOpenSettings}
+								onClick={() => setSettingsOpen(true)}
 								type="button"
 							>
 								<Settings className="size-3.5" />
@@ -779,10 +782,19 @@ export function AppHeader({
 			</header>
 
 			<AppHeaderMobileDrawer
-				config={config}
+				config={{
+					...config,
+					onOpenSettings: () => setSettingsOpen(true),
+				}}
 				onOpenStarMap={handleStarMapToggle}
 				onClose={() => setDrawerOpen(false)}
 				open={drawerOpen}
+			/>
+
+			<SettingsModal
+				activeColonyId={colonyIdAsId}
+				onOpenChange={setSettingsOpen}
+				open={settingsOpen}
 			/>
 		</>
 	);

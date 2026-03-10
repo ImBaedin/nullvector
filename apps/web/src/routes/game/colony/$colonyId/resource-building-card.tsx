@@ -567,6 +567,11 @@ export function ResourceBuildingCard(props: {
 	planetMultipliers: PlanetMultipliers;
 	queuedForBuilding: LaneQueueItem | null;
 	remainingTimeLabel: string | null;
+	devInlineLevelEditor?: {
+		enabled: boolean;
+		isSaving: boolean;
+		onCommit: (nextLevel: number) => Promise<void> | void;
+	};
 	onTableOpenChange: (open: boolean) => void;
 	onUpgrade: () => void;
 }) {
@@ -584,9 +589,12 @@ export function ResourceBuildingCard(props: {
 		planetMultipliers,
 		queuedForBuilding,
 		remainingTimeLabel,
+		devInlineLevelEditor,
 		onTableOpenChange,
 		onUpgrade,
 	} = props;
+	const [isEditingLevel, setIsEditingLevel] = useState(false);
+	const [draftLevel, setDraftLevel] = useState(() => String(building.currentLevel));
 
 	const isStorageBuilding = isStorageBuildingKey(building.key);
 	const isProductionBuilding = isProductionBuildingKey(building.key);
@@ -661,6 +669,19 @@ export function ResourceBuildingCard(props: {
 			? "Paused (Overflow)"
 			: cardStatus;
 
+	useEffect(() => {
+		setDraftLevel(String(building.currentLevel));
+	}, [building.currentLevel]);
+
+	const handleCommitInlineLevel = async () => {
+		if (!devInlineLevelEditor?.enabled || devInlineLevelEditor.isSaving) {
+			return;
+		}
+		const parsed = Math.max(0, Math.floor(Number(draftLevel) || 0));
+		await devInlineLevelEditor.onCommit(parsed);
+		setIsEditingLevel(false);
+	};
+
 	if (outputDeltaPerMinute !== 0) {
 		nextLevelDeltas.push({
 			key: outputResourceKey,
@@ -712,17 +733,73 @@ export function ResourceBuildingCard(props: {
 						</h3>
 					</div>
 					<div className="flex items-center gap-1.5">
-						<span
-							aria-label={`Level ${building.currentLevel}`}
-							className="
-         inline-flex size-6 items-center justify-center rounded-md border
-         border-white/15 bg-black/25 font-(family-name:--nv-font-mono)
-         text-[10px] font-bold text-white/80
-       "
-							title={`Level ${building.currentLevel}`}
-						>
-							{building.currentLevel}
-						</span>
+						{devInlineLevelEditor?.enabled ? (
+							isEditingLevel ? (
+								<input
+									autoFocus
+									className="
+          inline-flex h-6 w-14 items-center justify-center rounded-md border
+          border-cyan-300/35 bg-black/45 px-1 text-center
+          font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
+          outline-none
+          focus:border-cyan-200/60
+        "
+									inputMode="numeric"
+									onBlur={() => {
+										setIsEditingLevel(false);
+										setDraftLevel(String(building.currentLevel));
+									}}
+									onChange={(event) => {
+										setDraftLevel(event.target.value.replace(/[^\d]/g, ""));
+									}}
+									onKeyDown={(event) => {
+										if (event.key === "Escape") {
+											setIsEditingLevel(false);
+											setDraftLevel(String(building.currentLevel));
+											return;
+										}
+										if (event.key === "Enter") {
+											event.preventDefault();
+											void handleCommitInlineLevel();
+										}
+									}}
+									value={draftLevel}
+								/>
+							) : (
+								<button
+									aria-label={`Level ${building.currentLevel}`}
+									className="
+          inline-flex h-6 min-w-9 items-center justify-center rounded-md border
+          border-cyan-300/20 bg-cyan-400/8 px-1.5
+          font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
+          transition
+          hover:border-cyan-200/45 hover:bg-cyan-400/14
+          disabled:cursor-not-allowed disabled:opacity-50
+        "
+									disabled={devInlineLevelEditor.isSaving}
+									onClick={() => {
+										setDraftLevel(String(building.currentLevel));
+										setIsEditingLevel(true);
+									}}
+									title={`Level ${building.currentLevel}`}
+									type="button"
+								>
+									{building.currentLevel}
+								</button>
+							)
+						) : (
+							<span
+								aria-label={`Level ${building.currentLevel}`}
+								className="
+          inline-flex size-6 items-center justify-center rounded-md border
+          border-white/15 bg-black/25 font-(family-name:--nv-font-mono)
+          text-[10px] font-bold text-white/80
+        "
+								title={`Level ${building.currentLevel}`}
+							>
+								{building.currentLevel}
+							</span>
+						)}
 						{!isStorageBuilding ? (
 							<GeneratorInfoPopover
 								details={
