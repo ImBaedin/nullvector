@@ -27,7 +27,7 @@ import { useExplorerData } from "@/features/universe-explorer-realdata/hooks/use
 import { useExplorerQuality } from "@/features/universe-explorer-realdata/hooks/use-explorer-quality";
 import { computeOrbitWorldPosition } from "@/features/universe-explorer-realdata/lib/orbits";
 import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
-import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
+import { useConvex, useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
 
 import {
@@ -100,7 +100,9 @@ function ColonyLayoutRoute() {
 function ColonyLayoutContent() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
+	const convex = useConvex();
 	const { isAuthenticated } = useConvexAuth();
+	const prefetchedColonyIdsRef = useRef(new Set<string>());
 	const [isStarMapOpen, setIsStarMapOpen] = useState(false);
 	const [headerStarMapNavigation, setHeaderStarMapNavigation] =
 		useState<StarMapHeaderNavigation | null>(null);
@@ -198,6 +200,45 @@ function ColonyLayoutContent() {
 		onDue: () => sync(),
 		scopeId: `colony:${colonyId}:layout:fleet`,
 	});
+
+	useEffect(() => {
+		if (!isAuthenticated) {
+			return;
+		}
+
+		if (prefetchedColonyIdsRef.current.has(colonyId)) {
+			return;
+		}
+		prefetchedColonyIdsRef.current.add(colonyId);
+
+		void Promise.allSettled([
+			convex.query(api.resources.getColonyResourceSnapshot, {
+				colonyId: colonyIdAsId,
+			}),
+			convex.query(api.resources.getColonyBuildingCards, {
+				colonyId: colonyIdAsId,
+			}),
+			convex.query(api.colonyQueue.getColonyQueueLanes, {
+				colonyId: colonyIdAsId,
+			}),
+			convex.query(api.facilities.getFacilitiesCards, {
+				colonyId: colonyIdAsId,
+			}),
+			convex.query(api.shipyard.getShipCatalog, {}),
+			convex.query(api.shipyard.getShipyardState, {
+				colonyId: colonyIdAsId,
+			}),
+			convex.query(api.fleetV2.getFleetGarrison, {
+				colonyId: colonyIdAsId,
+			}),
+			convex.query(api.fleetV2.getFleetOperationsForColony, {
+				colonyId: colonyIdAsId,
+			}),
+			convex.query(api.colonyNav.getColonyNav, {
+				colonyId: colonyIdAsId,
+			}),
+		]);
+	}, [colonyId, colonyIdAsId, convex, isAuthenticated]);
 
 	const shouldCollapseContent =
 		contentPhase === "hiding" || contentPhase === "hidden" || contentPhase === "revealing";
