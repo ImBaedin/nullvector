@@ -30,6 +30,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { FleetRouteSkeleton } from "./loading-skeletons";
@@ -118,10 +119,6 @@ function FleetRoute() {
 		api.fleetV2.getFleetOperationsForColony,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
-	const resourceSnapshot = useQuery(
-		api.resources.getColonyResourceSnapshot,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
 	const colonyNav = useQuery(
 		api.colonyNav.getColonyNav,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
@@ -130,6 +127,7 @@ function FleetRoute() {
 		api.devConsole.getDevConsoleState,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
+	const colonyResources = useColonyResources(isAuthenticated ? colonyIdAsId : null);
 
 	const createOperation = useMutation(api.fleetV2.createOperation);
 	const cancelOperation = useMutation(api.fleetV2.cancelOperation);
@@ -196,7 +194,7 @@ function FleetRoute() {
 	const ready =
 		!isAuthLoading &&
 		isAuthenticated &&
-		Boolean(shipCatalog && garrison && operations && resourceSnapshot && colonyNav);
+		Boolean(shipCatalog && garrison && operations && colonyNav && colonyResources.projected);
 	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
 
 	const parsedCoords = useMemo(() => {
@@ -232,7 +230,7 @@ function FleetRoute() {
 		return <FleetRouteSkeleton />;
 	}
 
-	if (!ready || !shipCatalog || !garrison || !operations || !resourceSnapshot || !colonyNav) {
+	if (!ready || !shipCatalog || !garrison || !operations || !colonyNav || !colonyResources.projected) {
 		return (
 			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
 				Unable to load fleet. Please sign in again.
@@ -292,7 +290,7 @@ function FleetRoute() {
 		fuel: cargo.fuel + travelFuelCost,
 	};
 
-	const availableResources = resourceSnapshot.resources.stored;
+	const availableResources = colonyResources.projected.stored;
 	const hasResources =
 		availableResources.alloy >= requiredResources.alloy &&
 		availableResources.crystal >= requiredResources.crystal &&

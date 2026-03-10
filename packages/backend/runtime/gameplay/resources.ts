@@ -13,6 +13,7 @@ import {
 	RESOURCE_KEYS,
 	STORAGE_BUILDING_MAX_LEVEL,
 	UPGRADE_BUILDING_KEYS,
+	buildHudResources,
 	buildingCardValidator,
 	buildingKeyValidator,
 	cloneResourceBucket,
@@ -29,9 +30,9 @@ import {
 	queueLaneValidator,
 	queueItemStatusValidator,
 	resourceBucketValidator,
+	resourceHudDatumValidator,
 	resourceMapToScaledBucket,
 	resourceMapToWholeUnitBucket,
-	scaledUnits,
 	settleColonyAndPersist,
 	storageUpgradeCost,
 	storageUpgradeDurationSeconds,
@@ -46,6 +47,8 @@ export const getColonyResourceSnapshot = query({
 		colonyId: v.id("colonies"),
 	},
 	returns: v.object({
+		serverNowMs: v.number(),
+		hudResources: v.array(resourceHudDatumValidator),
 		colony: v.object({
 			id: v.id("colonies"),
 			name: v.string(),
@@ -68,6 +71,7 @@ export const getColonyResourceSnapshot = query({
 		}),
 	}),
 	handler: async (ctx, args) => {
+		const serverNowMs = Date.now();
 		const { colony, planet } = await getOwnedColony({
 			ctx,
 			colonyId: args.colonyId,
@@ -80,6 +84,8 @@ export const getColonyResourceSnapshot = query({
 		});
 
 		return {
+			serverNowMs,
+			hudResources: buildHudResources({ colony, planet }),
 			colony: {
 				id: colony._id,
 				name: colony.name,
@@ -144,9 +150,6 @@ export const getColonyBuildingCards = query({
 			overflow: colony.overflow,
 			planet,
 		});
-		const queueBlocked = openBuildingQueueRows.length >= getBuildingLaneCapacity(colony);
-		const affordable = (cost: ResourceBucket) =>
-			RESOURCE_KEYS.every((key) => colony.resources[key] >= scaledUnits(cost[key]));
 
 		const buildings: ResourceBuildingCardData[] = UPGRADE_BUILDING_KEYS.map((key) => {
 			const config = BUILDING_CONFIG[key];
@@ -198,7 +201,6 @@ export const getColonyBuildingCards = query({
 
 			let nextUpgradeCost: ResourceBucket = emptyResourceBucket();
 			let nextUpgradeDurationSeconds: number | undefined;
-			let canUpgrade = false;
 
 			if (projectedLevel < maxLevel) {
 				if (config.kind === "generator") {
@@ -212,7 +214,6 @@ export const getColonyBuildingCards = query({
 						projectedLevel,
 					);
 				}
-				canUpgrade = !queueBlocked && affordable(nextUpgradeCost);
 			}
 
 			const status: "Running" | "Overflow" | "Paused" | "Upgrading" | "Queued" = isUpgrading
@@ -238,7 +239,6 @@ export const getColonyBuildingCards = query({
 				outputPerMinute,
 				outputLabel,
 				energyUsePerMinute,
-				canUpgrade,
 				nextUpgradeDurationSeconds,
 				nextUpgradeCost,
 			};

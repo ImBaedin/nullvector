@@ -1593,7 +1593,6 @@ const buildingCardValidator = v.object({
 	outputPerMinute: v.number(),
 	outputLabel: v.string(),
 	energyUsePerMinute: v.number(),
-	canUpgrade: v.boolean(),
 	nextUpgradeDurationSeconds: v.optional(v.number()),
 	nextUpgradeCost: resourceBucketValidator,
 });
@@ -1607,7 +1606,6 @@ const facilityCardValidator = v.object({
 	isUnlocked: v.boolean(),
 	isUpgrading: v.boolean(),
 	isQueued: v.boolean(),
-	canUpgrade: v.boolean(),
 	status: v.union(
 		v.literal("Online"),
 		v.literal("Queued"),
@@ -1630,7 +1628,6 @@ const shipDefinitionViewValidator = v.object({
 	fuelPerDistance: v.number(),
 	cost: resourceBucketValidator,
 	perUnitDurationSeconds: v.number(),
-	canBuild: v.boolean(),
 });
 
 export {

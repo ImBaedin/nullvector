@@ -14,7 +14,7 @@ import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { ResourceStrip } from "@/features/game-ui/shell/resource-strip";
 import { SettingsModal } from "@/features/game-ui/shell/settings-modal";
-import { useSimulatedHudResources } from "@/hooks/use-simulated-colony-resources";
+import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
 
@@ -99,16 +99,13 @@ export function AppHeader({
 		api.colonyNav.getColonyNav,
 		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
-	const colonyResourceStrip = useQuery(
-		api.colonyNav.getColonyResourceStrip,
-		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
 	const allColonyQueueStatuses = useQuery(
 		api.colonyNav.getAllColonyQueueStatuses,
 		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
+	const colonyResources = useColonyResources(colonyIdAsId && isAuthenticated ? colonyIdAsId : null);
 	const hud = useMemo<HeaderHudData | undefined>(() => {
-		if (!colonyNav || !colonyResourceStrip) {
+		if (!colonyNav || !colonyResources.hudResources) {
 			return undefined;
 		}
 
@@ -123,13 +120,9 @@ export function AppHeader({
 				...colony,
 				status: statusByColonyId.get(colony.id),
 			})),
-			resources: colonyResourceStrip.resources as ResourceDatum[],
+			resources: colonyResources.hudResources as ResourceDatum[],
 		};
-	}, [allColonyQueueStatuses?.statuses, colonyNav, colonyResourceStrip]);
-	const simulatedResources = useSimulatedHudResources({
-		lastAccruedAt: colonyResourceStrip?.lastAccruedAt,
-		resources: hud?.resources ?? colonyResourceStrip?.resources,
-	});
+	}, [allColonyQueueStatuses?.statuses, colonyNav, colonyResources.hudResources]);
 	const [isRenamingColony, setIsRenamingColony] = useState(false);
 	const [isSavingColonyName, setIsSavingColonyName] = useState(false);
 	const [draftColonyName, setDraftColonyName] = useState("");
@@ -141,12 +134,12 @@ export function AppHeader({
 					? {
 							activeColonyId: hud.activeColonyId,
 							colonies: hud.colonies,
-							resources: simulatedResources ?? hud.resources,
+							resources: hud.resources,
 							title: hud.title,
 						}
 					: undefined,
 			),
-		[hud, pathname, simulatedResources],
+		[hud, pathname],
 	);
 	const isCompact = useCompactHeaderMode();
 	const activeColony = useMemo(

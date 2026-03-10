@@ -8,7 +8,7 @@ import { BatteryCharging, Clock3, Factory, Layers3, Pickaxe, Radar } from "lucid
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { useSimulatedColonyResources } from "@/hooks/use-simulated-colony-resources";
+import { useColonyResources } from "@/hooks/use-colony-resources";
 import { formatResourceValue } from "@/lib/colony-resource-simulation";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
@@ -208,10 +208,6 @@ function ResourcesRoute() {
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
-	const resourceSnapshot = useQuery(
-		api.resources.getColonyResourceSnapshot,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
 	const buildingCards = useQuery(
 		api.resources.getColonyBuildingCards,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
@@ -224,16 +220,17 @@ function ResourcesRoute() {
 		api.devConsole.getDevConsoleState,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
+	const colonyResources = useColonyResources(isAuthenticated ? colonyIdAsId : null);
 	const view = useMemo(() => {
-		if (!resourceSnapshot || !buildingCards || !queueLanes) {
+		if (!colonyResources.snapshot || !buildingCards || !queueLanes) {
 			return undefined;
 		}
 		return {
-			...resourceSnapshot,
+			...colonyResources.snapshot,
 			queues: queueLanes,
 			buildings: buildingCards.buildings,
 		};
-	}, [buildingCards, queueLanes, resourceSnapshot]);
+	}, [buildingCards, colonyResources.snapshot, queueLanes]);
 	const enqueueBuildingUpgrade = useMutation(api.resources.enqueueBuildingUpgrade);
 	const setColonyResources = useMutation(api.devConsole.setColonyResources);
 	const setBuildingLevels = useMutation(api.devConsole.setBuildingLevels);
@@ -247,13 +244,8 @@ function ResourcesRoute() {
 	const [savingBuildingLevelKey, setSavingBuildingLevelKey] = useState<BuildingKey | null>(null);
 	const [isCompletingQueueItem, setIsCompletingQueueItem] = useState(false);
 	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
-	const { nowMs, simulated } = useSimulatedColonyResources({
-		lastAccruedAt: view?.colony.lastAccruedAt,
-		overflow: view?.resources.overflow,
-		ratesPerMinute: view?.resources.ratesPerMinute,
-		storageCaps: view?.resources.storageCaps,
-		stored: view?.resources.stored,
-	});
+	const nowMs = colonyResources.nowMs;
+	const projectedResources = colonyResources.projected;
 
 	const buildingQueue = view?.queues.lanes.building;
 	const activeQueueItem = buildingQueue?.activeItem;
@@ -497,9 +489,12 @@ function ResourcesRoute() {
 												? "/game-icons/alloy.png"
 												: "/game-icons/crystal.png",
 								} as const;
-								const stored = simulated?.stored[res.key] ?? view.resources.stored[res.key];
-								const overflow = simulated?.overflow[res.key] ?? view.resources.overflow[res.key];
-								const cap = view.resources.storageCaps[res.key];
+								const stored =
+									projectedResources?.stored[res.key] ?? view.resources.stored[res.key];
+								const overflow =
+									projectedResources?.overflow[res.key] ?? view.resources.overflow[res.key];
+								const cap =
+									projectedResources?.storageCaps[res.key] ?? view.resources.storageCaps[res.key];
 								const pct = cap > 0 ? Math.min(100, (stored / cap) * 100) : 0;
 
 								return (
@@ -753,13 +748,21 @@ function ResourcesRoute() {
 															building={targetBuilding}
 															buildingLevels={buildingLevels}
 															buildingQueueIsFull={buildingQueue?.isFull ?? false}
-															energyRatio={view.resources.energyRatio}
+															energyRatio={
+																projectedResources?.energyRatio ?? view.resources.energyRatio
+															}
 															isBusy={targetBusy}
 															isTableOpen={targetTableOpen}
-															overflow={simulated?.overflow ?? view.resources.overflow}
-															resourcesStored={simulated?.stored ?? view.resources.stored}
-															storageCaps={view.resources.storageCaps}
-															planetMultipliers={view.planetMultipliers}
+															overflow={projectedResources?.overflow ?? view.resources.overflow}
+															resourcesStored={
+																projectedResources?.stored ?? view.resources.stored
+															}
+															storageCaps={
+																projectedResources?.storageCaps ?? view.resources.storageCaps
+															}
+															planetMultipliers={
+																colonyResources.planetMultipliers ?? view.planetMultipliers
+															}
 															queuedForBuilding={targetQueued ?? null}
 															remainingTimeLabel={remainingTimeLabel}
 															devInlineLevelEditor={{

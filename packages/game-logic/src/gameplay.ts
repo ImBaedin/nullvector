@@ -64,7 +64,6 @@ export type ResourceBuildingLevelRow = {
 };
 
 export type ResourceBuildingCardData = {
-	canUpgrade: boolean;
 	currentLevel: number;
 	energyUsePerMinute: number;
 	group: "Production" | "Power" | "Storage";

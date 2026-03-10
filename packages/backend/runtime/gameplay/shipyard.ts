@@ -118,7 +118,6 @@ const shipyardStateItemValidator = v.object({
 	owned: v.number(),
 	queued: v.number(),
 	perUnitDurationSeconds: v.number(),
-	canBuild: v.boolean(),
 });
 
 export const getShipCatalog = query({
@@ -150,11 +149,6 @@ export const getShipyardState = query({
 	returns: v.object({
 		colonyId: v.id("colonies"),
 		shipyardLevel: v.number(),
-		availableResources: v.object({
-			alloy: v.number(),
-			crystal: v.number(),
-			fuel: v.number(),
-		}),
 		nextEventAt: v.optional(v.number()),
 		lane: laneQueueViewValidator,
 		shipStates: v.array(shipyardStateItemValidator),
@@ -190,8 +184,6 @@ export const getShipyardState = query({
 		}
 
 		const shipStates = (Object.keys(DEFAULT_SHIP_DEFINITIONS) as ShipKey[]).map((shipKey) => {
-			const definition = DEFAULT_SHIP_DEFINITIONS[shipKey];
-			const costScaled = resourceMapToScaledBucket(definition.cost);
 			const queued = openShipyardRows.reduce((total, row) => {
 				if (!isShipBuildQueueItem(row)) {
 					return total;
@@ -201,11 +193,6 @@ export const getShipyardState = query({
 				}
 				return total + Math.max(0, row.payload.quantity - row.payload.completedQuantity);
 			}, 0);
-			const canAfford = RESOURCE_KEYS.every(
-				(resourceKey) => colony.resources[resourceKey] >= costScaled[resourceKey],
-			);
-			const unlocked = colony.buildings.shipyardLevel >= definition.requiredShipyardLevel;
-			const canBuild = unlocked && canAfford && !shipyardLane.isFull;
 
 			return {
 				key: shipKey,
@@ -215,18 +202,12 @@ export const getShipyardState = query({
 					shipKey,
 					shipyardLevel: colony.buildings.shipyardLevel,
 				}),
-				canBuild,
 			};
 		});
 
 		return {
 			colonyId: colony._id,
 			shipyardLevel: colony.buildings.shipyardLevel,
-			availableResources: {
-				alloy: Math.floor(colony.resources.alloy / RESOURCE_SCALE),
-				crystal: Math.floor(colony.resources.crystal / RESOURCE_SCALE),
-				fuel: Math.floor(colony.resources.fuel / RESOURCE_SCALE),
-			},
 			nextEventAt: queueEventsNextAt(queueRows) ?? undefined,
 			lane: shipyardLane,
 			shipStates,

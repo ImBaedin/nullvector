@@ -1,12 +1,13 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import type { BuildingKey, FacilityKey } from "@nullvector/game-logic";
+import type { BuildingKey, FacilityKey, ResourceBucket } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { createFileRoute } from "@tanstack/react-router";
-import { Clock3, Cog, Layers3, Wrench, Zap } from "lucide-react";
+import { Clock3, Wrench, Zap } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { FacilitiesRouteSkeleton } from "./loading-skeletons";
@@ -181,6 +182,7 @@ function FacilitiesRoute(): ReactElement {
 		api.devConsole.getDevConsoleState,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
+	const colonyResources = useColonyResources(isAuthenticated ? colonyIdAsId : null);
 	const enqueueFacilityUpgrade = useMutation(api.facilities.enqueueFacilityUpgrade);
 	const setFacilityLevels = useMutation(api.devConsole.setFacilityLevels);
 	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
@@ -307,7 +309,10 @@ function FacilitiesRoute(): ReactElement {
 		isCompletingQueueItem,
 	]);
 
-	if (isAuthLoading || (isAuthenticated && !view)) {
+	if (
+		isAuthLoading ||
+		(isAuthenticated && (!view || colonyResources.isLoading || !colonyResources.projected))
+	) {
 		return <FacilitiesRouteSkeleton />;
 	}
 
@@ -332,6 +337,7 @@ function FacilitiesRoute(): ReactElement {
 						buildingLaneIsFull={buildingLane?.isFull ?? false}
 						canShowDevUi={canShowDevUi}
 						canUseDevConsole={canUseDevConsole}
+						availableResources={colonyResources.projected?.stored ?? null}
 						facilities={view.facilities}
 						activeFacilityItem={activeFacilityItem}
 						editingFacilityKey={editingFacilityKey}
@@ -393,9 +399,12 @@ function FacilitiesRoute(): ReactElement {
 }
 
 type FacilityCardData = {
-	canUpgrade: boolean;
 	currentLevel: number;
+	isQueued: boolean;
+	isUnlocked: boolean;
+	isUpgrading: boolean;
 	key: FacilityKey;
+	maxLevel: number;
 	name: string;
 	nextUpgradeCost: { alloy: number; crystal: number; fuel: number };
 	nextUpgradeDurationSeconds: number | undefined;
@@ -404,6 +413,7 @@ type FacilityCardData = {
 
 type FacilityCatalogSectionProps = {
 	activeFacilityItem: FacilityQueueItem | null;
+	availableResources: ResourceBucket | null;
 	buildingLaneIsFull: boolean;
 	canShowDevUi: boolean;
 	canUseDevConsole: boolean;
@@ -489,6 +499,20 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 							? formatDuration(facility.nextUpgradeDurationSeconds)
 							: null;
 						const isLocked = facility.status === "Locked";
+						const isMaxLevel = facility.nextUpgradeDurationSeconds === undefined;
+						const hasRequiredResources =
+							props.availableResources !== null &&
+							(props.availableResources.alloy >= facility.nextUpgradeCost.alloy &&
+								props.availableResources.crystal >= facility.nextUpgradeCost.crystal &&
+								props.availableResources.fuel >= facility.nextUpgradeCost.fuel);
+						const isActionDisabled =
+							isLocked ||
+							facility.isUpgrading ||
+							facility.isQueued ||
+							isMaxLevel ||
+							props.buildingLaneIsFull ||
+							isBusy ||
+							!hasRequiredResources;
 						const availabilityLabel = getFacilityAvailabilityLabel(
 							isLocked,
 							isActive,
@@ -690,13 +714,13 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
              border-violet-200/50 bg-linear-to-b from-violet-400/25
              to-violet-400/10 px-4 py-2.5 font-(family-name:--nv-font-display)
              text-xs font-bold tracking-[0.08em] text-violet-50 uppercase
-             shadow-[0_0_20px_rgba(167,139,250,0.12)] transition-all
-             hover:-translate-y-0.5 hover:border-violet-100/70
-             hover:shadow-[0_0_30px_rgba(167,139,250,0.25)]
-             disabled:translate-y-0 disabled:border-white/10 disabled:bg-white/5
-             disabled:text-white/30 disabled:shadow-none
+           shadow-[0_0_20px_rgba(167,139,250,0.12)] transition-all
+           hover:-translate-y-0.5 hover:border-violet-100/70
+           hover:shadow-[0_0_30px_rgba(167,139,250,0.25)]
+           disabled:translate-y-0 disabled:border-white/10 disabled:bg-white/5
+           disabled:text-white/30 disabled:shadow-none
            "
-											disabled={!facility.canUpgrade || isBusy || props.buildingLaneIsFull}
+											disabled={isActionDisabled}
 											onClick={() => props.onUpgrade(facility.key, facility.name)}
 											type="button"
 										>

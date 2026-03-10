@@ -129,7 +129,6 @@ function formatSignedDelta(value: number, suffix: string) {
 }
 
 function statusFromBuilding(args: {
-	canUpgrade: boolean;
 	isProduction: boolean;
 	overflow: number;
 	storageFull: boolean;
@@ -145,7 +144,7 @@ function statusFromBuilding(args: {
 	if (args.isProduction && args.energyRatio < 0.55) {
 		return "Shortage";
 	}
-	if (!args.canUpgrade && args.outputPerMinute <= 0) {
+	if (args.outputPerMinute <= 0) {
 		return "Paused";
 	}
 	return "Running";
@@ -644,8 +643,18 @@ export function ResourceBuildingCard(props: {
 		resourceOverflow <= 0 &&
 		resourceStorageCap > 0 &&
 		resourceStored >= resourceStorageCap;
+	const hasRequiredResources =
+		resourcesStored.alloy >= building.nextUpgradeCost.alloy &&
+		resourcesStored.crystal >= building.nextUpgradeCost.crystal &&
+		resourcesStored.fuel >= building.nextUpgradeCost.fuel;
+	const canStartUpgrade =
+		hasRequiredResources &&
+		!buildingQueueIsFull &&
+		!isBusy &&
+		!isActiveUpgradeTarget &&
+		!queuedForBuilding &&
+		building.nextUpgradeDurationSeconds !== undefined;
 	const cardStatus = statusFromBuilding({
-		canUpgrade: building.canUpgrade,
 		energyRatio,
 		isProduction: isProductionBuilding,
 		overflow: resourceOverflow,
@@ -1101,11 +1110,19 @@ export function ResourceBuildingCard(props: {
 							render={
 								<UpgradeButton
 									actionDurationText={formatUpgradeTime(building.nextUpgradeDurationSeconds)}
-									disabled={!building.canUpgrade || isBusy}
+									disabled={!canStartUpgrade}
 									icon="arrow"
-									label={isBusy ? "Queueing..." : buildingQueueIsFull ? "Queue Full" : "Upgrade"}
+									label={
+										isBusy
+											? "Queueing..."
+											: buildingQueueIsFull
+												? "Queue Full"
+												: hasRequiredResources
+													? "Upgrade"
+													: "Need Resources"
+									}
 									onClick={() => {
-										if (!building.canUpgrade || isBusy) {
+										if (!canStartUpgrade) {
 											return;
 										}
 										onUpgrade();

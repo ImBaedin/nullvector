@@ -1,4 +1,4 @@
-import type { FacilityKey, ResourceBucket } from "@nullvector/game-logic";
+import type { FacilityKey } from "@nullvector/game-logic";
 
 import {
 	DEFAULT_FACILITY_REGISTRY,
@@ -29,7 +29,6 @@ import {
 	queueItemStatusValidator,
 	resourceMapToScaledBucket,
 	resourceMapToWholeUnitBucket,
-	scaledUnits,
 	settleColonyAndPersist,
 	settleShipyardQueue,
 	cloneResourceBucket,
@@ -56,8 +55,6 @@ export const getFacilitiesCards = query({
 		const openBuildingQueueRows = queueRows.filter(
 			(row) => row.lane === "building" && OPEN_QUEUE_STATUSES.includes(row.status),
 		);
-		const affordable = (cost: ResourceBucket) =>
-			RESOURCE_KEYS.every((key) => colony.resources[key] >= scaledUnits(cost[key]));
 
 		const orderedKeys: FacilityKey[] = ["robotics_hub", SHIPYARD_FACILITY_KEY];
 		const facilities = orderedKeys.map((facilityKey) => {
@@ -97,13 +94,6 @@ export const getFacilitiesCards = query({
 				nextUpgradeCost = resourceMapToWholeUnitBucket(getUpgradeCost(facility, projectedLevel));
 				nextUpgradeDurationSeconds = getUpgradeDurationSeconds(facility, projectedLevel);
 			}
-
-			const laneCapacity = getBuildingLaneCapacity(colony);
-			const canUpgrade =
-				isUnlocked &&
-				!isMaxLevel &&
-				openBuildingQueueRows.length < laneCapacity &&
-				affordable(nextUpgradeCost);
 			const status: "Online" | "Queued" | "Constructing" | "Locked" | "Maxed" = !isUnlocked
 				? "Locked"
 				: isUpgrading
@@ -123,7 +113,6 @@ export const getFacilitiesCards = query({
 				isUnlocked,
 				isUpgrading,
 				isQueued,
-				canUpgrade,
 				status,
 				nextUpgradeDurationSeconds,
 				nextUpgradeCost,

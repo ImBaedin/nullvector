@@ -4,7 +4,6 @@ import type { Id } from "../../convex/_generated/dataModel";
 
 import { mutation, query } from "../../convex/_generated/server";
 import {
-	buildHudResources,
 	colonyCoordinatesValidator,
 	colonyStatusValidator,
 	getOwnedColony,
@@ -12,7 +11,6 @@ import {
 	listPlayerColonies,
 	listPlayerColonyPlanets,
 	queueEventsNextAt,
-	resourceHudDatumValidator,
 	sessionColonyValidator,
 	toAddressLabel,
 } from "./shared";
@@ -80,27 +78,6 @@ export const getColonyNav = query({
 					addressLabel: colonyPlanet ? toAddressLabel(colonyPlanet) : "Unknown",
 				};
 			}),
-		};
-	},
-});
-
-export const getColonyResourceStrip = query({
-	args: {
-		colonyId: v.id("colonies"),
-	},
-	returns: v.object({
-		lastAccruedAt: v.number(),
-		resources: v.array(resourceHudDatumValidator),
-	}),
-	handler: async (ctx, args) => {
-		const { colony, planet } = await getOwnedColony({
-			ctx,
-			colonyId: args.colonyId,
-		});
-
-		return {
-			lastAccruedAt: colony.lastAccruedAt,
-			resources: buildHudResources({ colony, planet }),
 		};
 	},
 });

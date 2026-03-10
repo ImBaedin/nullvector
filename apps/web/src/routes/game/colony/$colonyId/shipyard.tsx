@@ -7,6 +7,7 @@ import { Anchor, Clock3, Layers3, Minus, Package, Plus, Ship, X, Zap } from "luc
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { ShipyardRouteSkeleton } from "./loading-skeletons";
@@ -79,6 +80,7 @@ function ShipyardRoute() {
 		api.devConsole.getDevConsoleState,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
+	const colonyResources = useColonyResources(isAuthenticated ? colonyIdAsId : null);
 	const enqueueShipBuild = useMutation(api.shipyard.enqueueShipBuild);
 	const cancelShipBuildQueueItem = useMutation(api.shipyard.cancelShipBuildQueueItem);
 	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
@@ -104,7 +106,6 @@ function ShipyardRoute() {
 				owned: state?.owned ?? 0,
 				queued: state?.queued ?? 0,
 				perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
-				canBuild: state?.canBuild ?? false,
 			};
 		});
 		return {
@@ -219,7 +220,10 @@ function ShipyardRoute() {
 		}
 	};
 
-	if (isAuthLoading || (isAuthenticated && !view)) {
+	if (
+		isAuthLoading ||
+		(isAuthenticated && (!view || colonyResources.isLoading || !colonyResources.projected))
+	) {
 		return <ShipyardRouteSkeleton />;
 	}
 
@@ -233,6 +237,7 @@ function ShipyardRoute() {
 
 	const fleetTotal = view.ships.reduce((sum, ship) => sum + ship.owned, 0);
 	const totalQueued = view.ships.reduce((sum, ship) => sum + ship.queued, 0);
+	const availableResources = colonyResources.projected!.stored;
 
 	return (
 		<div className="mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white">
@@ -387,6 +392,8 @@ function ShipyardRoute() {
 									const qty = quantities[ship.key] ?? 1;
 									const qtyInput = quantityInputs[ship.key] ?? String(qty);
 									const lockedByLevel = view.shipyardLevel < ship.requiredShipyardLevel;
+									const queueBlocked = view.lane.isFull;
+									const isStructurallyAvailable = !lockedByLevel && !queueBlocked;
 									const warning = lockedByLevel
 										? `Requires Shipyard Level ${ship.requiredShipyardLevel} (current: ${view.shipyardLevel}).`
 										: undefined;
@@ -394,17 +401,35 @@ function ShipyardRoute() {
 									const image = SHIP_PRESENTATION[ship.key].image;
 									const description = SHIP_PRESENTATION[ship.key].description;
 									const canAffordSelectedQuantity =
-										view.availableResources.alloy >= ship.cost.alloy * qty &&
-										view.availableResources.crystal >= ship.cost.crystal * qty &&
-										view.availableResources.fuel >= ship.cost.fuel * qty;
+										availableResources.alloy >= ship.cost.alloy * qty &&
+										availableResources.crystal >= ship.cost.crystal * qty &&
+										availableResources.fuel >= ship.cost.fuel * qty;
+									const availabilityLabel = lockedByLevel
+										? "Locked"
+										: queueBlocked
+											? "Queue Full"
+											: !canAffordSelectedQuantity
+												? "Need Resources"
+												: ship.queued > 0
+													? `${ship.queued.toLocaleString()} Queued`
+													: "Available";
+									const availabilityClasses = lockedByLevel
+										? "border-amber-300/35 bg-amber-400/10 text-amber-200/80"
+										: queueBlocked
+											? "border-rose-300/35 bg-rose-400/10 text-rose-200/80"
+											: !canAffordSelectedQuantity
+												? "border-white/15 bg-white/6 text-white/70"
+												: ship.queued > 0
+													? "border-cyan-300/30 bg-cyan-400/8 text-cyan-200/80"
+													: "border-emerald-300/30 bg-emerald-400/8 text-emerald-200/80";
 
 									return (
 										<article
 											className={`
              group relative overflow-hidden rounded-xl border
-             ${ship.canBuild ? "border-white/10" : `
+             ${lockedByLevel ? `
                border-white/8 opacity-60 grayscale
-             `}
+             ` : "border-white/10"}
              bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
              text-[13px]
            `}
@@ -469,14 +494,8 @@ function ShipyardRoute() {
 												<p className={`
               mt-2 inline-flex items-center gap-1 rounded-md border px-1.5
               py-0.5 text-[9px] font-semibold whitespace-nowrap uppercase
-              ${!ship.canBuild ? `
-                 border-amber-300/35 bg-amber-400/10 text-amber-200/80
-               ` : ship.queued > 0 ? `
-                 border-cyan-300/30 bg-cyan-400/8 text-cyan-200/80
-               ` : `
-                 border-emerald-300/30 bg-emerald-400/8 text-emerald-200/80
-               `}
-            `}>{!ship.canBuild ? "Locked" : ship.queued > 0 ? `${ship.queued.toLocaleString()} Queued` : "Available"}</p>
+              ${availabilityClasses}
+            `}>{availabilityLabel}</p>
 
 												{/* Ship render */}
 												<div className="mt-3 flex items-center justify-center">
@@ -578,7 +597,7 @@ function ShipyardRoute() {
                   flex size-7 items-center justify-center text-white/60
                   disabled:opacity-25
                 "
-																disabled={!ship.canBuild || qty <= 1}
+																disabled={!isStructurallyAvailable || qty <= 1}
 																onClick={() => {
 																	const nextValue = Math.max(1, qty - 1);
 																	setQuantities((current) => ({
@@ -649,7 +668,7 @@ function ShipyardRoute() {
                   flex size-7 items-center justify-center text-white/60
                   disabled:opacity-25
                 "
-																disabled={!ship.canBuild}
+																disabled={!isStructurallyAvailable}
 																onClick={() => {
 																	const nextValue = Math.min(10_000, qty + 1);
 																	setQuantities((current) => ({
@@ -679,7 +698,9 @@ function ShipyardRoute() {
                 disabled:translate-y-0 disabled:border-white/10
                 disabled:bg-white/5 disabled:text-white/30 disabled:shadow-none
               "
-														disabled={!ship.canBuild || !canAffordSelectedQuantity || isQueueing}
+														disabled={
+															!isStructurallyAvailable || !canAffordSelectedQuantity || isQueueing
+														}
 														onClick={() => {
 															setQueueingShipKey(ship.key);
 															enqueueShipBuild({
@@ -707,7 +728,15 @@ function ShipyardRoute() {
 														}}
 													>
 														<Zap className="size-3.5" />
-														{isQueueing ? "Queueing..." : `Queue ${qty}`}
+														{isQueueing
+															? "Queueing..."
+															: lockedByLevel
+																? "Locked"
+																: queueBlocked
+																	? "Queue Full"
+																	: canAffordSelectedQuantity
+																		? `Queue ${qty}`
+																		: "Need Resources"}
 													</button>
 
 													<div className="mt-2 flex flex-wrap justify-center gap-1.5">
