@@ -169,6 +169,14 @@ const fleetEventTypeValidator = v.union(
 	v.literal("failed"),
 );
 
+const devConsoleActionTypeValidator = v.union(
+	v.literal("setColonyResources"),
+	v.literal("setBuildingLevels"),
+	v.literal("setFacilityLevels"),
+	v.literal("completeActiveQueueItem"),
+	v.literal("completeActiveMission"),
+);
+
 export default defineSchema({
 	universes: defineTable({
 		slug: v.string(),
@@ -309,11 +317,23 @@ export default defineSchema({
 	players: defineTable({
 		authUserId: v.string(),
 		displayName: v.string(),
+		devConsoleEnabled: v.optional(v.boolean()),
+		devConsoleUiEnabled: v.optional(v.boolean()),
 		createdAt: v.number(),
 		lastSeenAt: v.number(),
 	})
 		.index("by_auth_user_id", ["authUserId"])
 		.index("by_created_at", ["createdAt"]),
+
+	devConsoleActions: defineTable({
+		actorPlayerId: v.id("players"),
+		actionType: devConsoleActionTypeValidator,
+		targetColonyId: v.optional(v.id("colonies")),
+		targetOperationId: v.optional(v.id("fleetOperations")),
+		payloadJson: v.string(),
+		resultJson: v.optional(v.string()),
+		createdAt: v.number(),
+	}).index("by_actor_created", ["actorPlayerId", "createdAt"]),
 
 	colonies: defineTable({
 		universeId: v.id("universes"),

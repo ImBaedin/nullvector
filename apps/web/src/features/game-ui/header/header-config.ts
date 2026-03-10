@@ -123,7 +123,7 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
 
 	const encodedColonyId = encodeURIComponent(colonyId);
 	const resourcesPath = `/game/colony/${encodedColonyId}/resources`;
-	const facilitiesPath = `/game/colony/${encodedColonyId}/facilties`;
+	const facilitiesPath = `/game/colony/${encodedColonyId}/facilities`;
 	const fleetPath = `/game/colony/${encodedColonyId}/fleet`;
 	const shipyardPath = `/game/colony/${encodedColonyId}/shipyard`;
 	const isResourcesRoute = pathname === resourcesPath;

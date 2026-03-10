@@ -65,7 +65,6 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 		isNewPlayer = true;
 	} else {
 		await ctx.db.patch(player._id, {
-			displayName,
 			lastSeenAt: now,
 		});
 	}

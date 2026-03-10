@@ -125,10 +125,15 @@ function FleetRoute() {
 		api.colonyNav.getColonyNav,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
+	const devConsoleState = useQuery(
+		api.devConsole.getDevConsoleState,
+		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+	);
 
 	const syncColony = useMutation(api.colonyQueue.syncColony);
 	const createOperation = useMutation(api.fleetV2.createOperation);
 	const cancelOperation = useMutation(api.fleetV2.cancelOperation);
+	const completeActiveMission = useMutation(api.devConsole.completeActiveMission);
 
 	const [expandedOp, setExpandedOp] = useState<string | null>(null);
 	const [missionType, setMissionType] = useState<FleetMissionKind>("transport");
@@ -141,6 +146,9 @@ function FleetRoute() {
 	const [nowMs, setNowMs] = useState(() => Date.now());
 	const [isLaunching, setIsLaunching] = useState(false);
 	const [cancelingOperationId, setCancelingOperationId] = useState<Id<"fleetOperations"> | null>(
+		null,
+	);
+	const [completingOperationId, setCompletingOperationId] = useState<Id<"fleetOperations"> | null>(
 		null,
 	);
 
@@ -216,6 +224,7 @@ function FleetRoute() {
 		!isAuthLoading &&
 		isAuthenticated &&
 		Boolean(shipCatalog && garrison && operations && resourceSnapshot && colonyNav);
+	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
 
 	const parsedCoords = useMemo(() => {
 		if (
@@ -424,6 +433,22 @@ function FleetRoute() {
 		}
 	};
 
+	const handleComplete = async (operationId: Id<"fleetOperations">) => {
+		setCompletingOperationId(operationId);
+		try {
+			await completeActiveMission({
+				colonyId: colonyIdAsId,
+				operationId,
+			});
+			toast.success("Operation completed");
+			await sync();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to complete operation");
+		} finally {
+			setCompletingOperationId(null);
+		}
+	};
+
 	return (
 		<div className="mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white">
 			<div className="
@@ -433,9 +458,13 @@ function FleetRoute() {
 				<div className="space-y-5">
 					<ActiveOperationsPanel
 						cancelingOperationId={cancelingOperationId}
+						canShowDevUi={canShowDevUi}
+						canUseDevConsole={devConsoleState?.canUseDevConsole === true}
+						completingOperationId={completingOperationId}
 						expandedOp={expandedOp}
 						nowMs={nowMs}
 						onCancel={handleCancel}
+						onComplete={handleComplete}
 						onToggle={(operationId) =>
 							setExpandedOp((current) => (current === operationId ? null : operationId))
 						}
@@ -523,9 +552,13 @@ function FleetRoute() {
 
 function ActiveOperationsPanel(props: {
 	cancelingOperationId: Id<"fleetOperations"> | null;
+	canShowDevUi: boolean;
+	canUseDevConsole: boolean;
+	completingOperationId: Id<"fleetOperations"> | null;
 	expandedOp: string | null;
 	nowMs: number;
 	onCancel: (operationId: Id<"fleetOperations">) => void;
+	onComplete: (operationId: Id<"fleetOperations">) => void;
 	onToggle: (operationId: string) => void;
 	operations: FleetOperationRow[];
 	shipsByKey: Map<
@@ -881,7 +914,7 @@ function ActiveOperationsPanel(props: {
 												{operation.status}
 											</span>
 
-											{operation.canCancel ? (
+										{operation.canCancel ? (
 												<button
 													className="
                ml-auto inline-flex items-center gap-1 rounded-md border
@@ -898,6 +931,30 @@ function ActiveOperationsPanel(props: {
 												>
 													<X className="size-3" />
 													Cancel
+												</button>
+											) : null}
+											{props.canShowDevUi ? (
+												<button
+													className="
+               inline-flex items-center gap-1 rounded-md border border-cyan-300/20
+               bg-cyan-400/8 px-2.5 py-1 text-[10px] font-medium text-cyan-100
+               transition-colors
+               hover:border-cyan-200/35 hover:bg-cyan-400/12
+               disabled:cursor-not-allowed disabled:opacity-50
+             "
+													disabled={
+														props.completingOperationId === operation.id ||
+														!props.canUseDevConsole
+													}
+													onClick={(event) => {
+														event.stopPropagation();
+														props.onComplete(operation.id);
+													}}
+													type="button"
+												>
+													{props.completingOperationId === operation.id
+														? "Completing..."
+														: "Complete"}
 												</button>
 											) : null}
 										</div>

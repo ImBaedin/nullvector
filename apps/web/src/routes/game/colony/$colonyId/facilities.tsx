@@ -1,5 +1,5 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import type { FacilityKey } from "@nullvector/game-logic";
+import type { BuildingKey, FacilityKey } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { createFileRoute } from "@tanstack/react-router";
@@ -19,7 +19,7 @@ import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { CostPill, formatDuration } from "./shipyard-mock-shared";
 
-export const Route = createFileRoute("/game/colony/$colonyId/facilties")({
+export const Route = createFileRoute("/game/colony/$colonyId/facilities")({
   component: FacilitiesRoute,
 });
 
@@ -72,6 +72,60 @@ function isFacilityQueueItemPayload(item: {
     "facilityKey" in item.payload
   );
 }
+
+function isBuildingQueueItemPayload(item: {
+  kind: string;
+  payload: unknown;
+}): item is {
+  kind: "buildingUpgrade";
+  payload: {
+    buildingKey: BuildingKey;
+    fromLevel: number;
+    toLevel: number;
+  };
+} {
+  return (
+    item.kind === "buildingUpgrade" &&
+    typeof item.payload === "object" &&
+    item.payload !== null &&
+    "buildingKey" in item.payload
+  );
+}
+
+type BuildingLaneQueueItem =
+  | {
+      kind: "buildingUpgrade";
+      payload: {
+        buildingKey: BuildingKey;
+        fromLevel: number;
+        toLevel: number;
+      };
+      startsAt: number;
+      completesAt: number;
+    }
+  | FacilityQueueItem;
+
+function isBuildingLaneQueueItem(item: {
+  kind: string;
+  payload: unknown;
+}): item is BuildingLaneQueueItem {
+  return isBuildingQueueItemPayload(item) || isFacilityQueueItemPayload(item);
+}
+
+const BUILDING_KEY_LABELS: Record<BuildingKey, string> = {
+  alloyMineLevel: "Alloy Mine",
+  crystalMineLevel: "Crystal Mine",
+  fuelRefineryLevel: "Fuel Refinery",
+  powerPlantLevel: "Power Plant",
+  alloyStorageLevel: "Alloy Storage",
+  crystalStorageLevel: "Crystal Storage",
+  fuelStorageLevel: "Fuel Storage",
+};
+
+const FACILITY_KEY_LABELS: Record<FacilityKey, string> = {
+  robotics_hub: "Robotics Hub",
+  shipyard: "Shipyard",
+};
 
 function formatDurationMs(ms: number): string {
   return formatDuration(Math.max(0, Math.ceil(ms / 1_000)));
@@ -138,14 +192,30 @@ function FacilitiesRoute(): ReactElement {
     api.colonyQueue.getColonyQueueLanes,
     isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
   );
+  const devConsoleState = useQuery(
+    api.devConsole.getDevConsoleState,
+    isAuthenticated ? { colonyId: colonyIdAsId } : "skip"
+  );
   const syncColony = useMutation(api.colonyQueue.syncColony);
   const enqueueFacilityUpgrade = useMutation(
     api.facilities.enqueueFacilityUpgrade
   );
+  const setFacilityLevels = useMutation(api.devConsole.setFacilityLevels);
+  const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
 
   const [upgradingKey, setUpgradingKey] = useState<FacilityKey | null>(null);
+  const [editingFacilityKey, setEditingFacilityKey] = useState<FacilityKey | null>(
+    null
+  );
+  const [facilityDraftValue, setFacilityDraftValue] = useState("");
+  const [savingFacilityKey, setSavingFacilityKey] = useState<FacilityKey | null>(
+    null
+  );
+  const [isCompletingQueueItem, setIsCompletingQueueItem] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const isSyncingRef = useRef(false);
+  const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
+  const canUseDevConsole = devConsoleState?.canUseDevConsole === true;
 
   const view = useMemo(() => {
     if (!facilitiesCards || !queueLanes) {
@@ -223,29 +293,101 @@ function FacilitiesRoute(): ReactElement {
     isFacilityQueueItemPayload
   ) as FacilityQueueItem[];
 
+  const activeLaneItem: BuildingLaneQueueItem | null =
+    allActiveItem && isBuildingLaneQueueItem(allActiveItem)
+      ? (allActiveItem as BuildingLaneQueueItem)
+      : null;
+  const pendingLaneItems: BuildingLaneQueueItem[] = allPendingItems.filter(
+    isBuildingLaneQueueItem
+  ) as BuildingLaneQueueItem[];
+
   const activeItemStartsAt = (
-    activeFacilityItem as Record<string, unknown> | null
+    activeLaneItem as Record<string, unknown> | null
   )?.startsAt as number | undefined;
   const activeItemDurationMs =
-    activeFacilityItem && activeItemStartsAt
-      ? activeFacilityItem.completesAt - activeItemStartsAt
+    activeLaneItem && activeItemStartsAt
+      ? activeLaneItem.completesAt - activeItemStartsAt
       : 0;
   const activeUpgradeProgress =
-    activeFacilityItem && activeItemDurationMs > 0
+    activeLaneItem && activeItemDurationMs > 0
       ? Math.min(
           100,
           Math.max(
             0,
-            ((nowMs - (activeFacilityItem.completesAt - activeItemDurationMs)) /
+            ((nowMs - (activeLaneItem.completesAt - activeItemDurationMs)) /
               activeItemDurationMs) *
               100
           )
         )
       : 0;
 
-  const remainingTimeLabel = activeFacilityItem
-    ? formatDurationMs(Math.max(0, activeFacilityItem.completesAt - nowMs))
+  const remainingTimeLabel = activeLaneItem
+    ? formatDurationMs(Math.max(0, activeLaneItem.completesAt - nowMs))
     : null;
+
+  const commitFacilityLevel = useCallback(
+    async (facilityKey: FacilityKey) => {
+      if (!canShowDevUi || !canUseDevConsole) {
+        return;
+      }
+      const parsed = Math.max(0, Math.floor(Number(facilityDraftValue) || 0));
+      setSavingFacilityKey(facilityKey);
+      try {
+        const patch: Partial<Record<FacilityKey, number>> = {
+          [facilityKey]: parsed,
+        };
+        await setFacilityLevels({
+          colonyId: colonyIdAsId,
+          facilityLevels: patch,
+        });
+        toast.success("Facility level updated");
+        setEditingFacilityKey(null);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to update facility level"
+        );
+      } finally {
+        setSavingFacilityKey(null);
+      }
+    },
+    [
+      canShowDevUi,
+      canUseDevConsole,
+      colonyIdAsId,
+      facilityDraftValue,
+      setFacilityLevels,
+    ]
+  );
+
+  const completeActiveQueue = useCallback(async () => {
+    if (!canShowDevUi || !canUseDevConsole || isCompletingQueueItem) {
+      return;
+    }
+    setIsCompletingQueueItem(true);
+    try {
+      await completeActiveQueueItem({
+        colonyId: colonyIdAsId,
+        lane: "building",
+      });
+      toast.success("Active queue item completed");
+      await sync();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to complete queue item"
+      );
+    } finally {
+      setIsCompletingQueueItem(false);
+    }
+  }, [
+    canShowDevUi,
+    canUseDevConsole,
+    colonyIdAsId,
+    completeActiveQueueItem,
+    isCompletingQueueItem,
+    sync,
+  ]);
 
   if (isAuthLoading || (isAuthenticated && !view)) {
     return (
@@ -272,10 +414,26 @@ function FacilitiesRoute(): ReactElement {
         <div className="space-y-5">
           <FacilityCatalogSection
             buildingLaneIsFull={buildingLane?.isFull ?? false}
+            canShowDevUi={canShowDevUi}
+            canUseDevConsole={canUseDevConsole}
             facilities={view.facilities}
             activeFacilityItem={activeFacilityItem}
+            editingFacilityKey={editingFacilityKey}
+            facilityDraftValue={facilityDraftValue}
             pendingFacilityItems={pendingFacilityItems}
+            savingFacilityKey={savingFacilityKey}
             upgradingKey={upgradingKey}
+            onEditFacility={(facilityKey, currentLevel) => {
+              setEditingFacilityKey(facilityKey);
+              setFacilityDraftValue(String(currentLevel));
+            }}
+            onFacilityDraftChange={setFacilityDraftValue}
+            onFacilityDraftCancel={() => {
+              setEditingFacilityKey(null);
+            }}
+            onFacilityDraftCommit={(facilityKey) => {
+              void commitFacilityLevel(facilityKey);
+            }}
             onUpgrade={(facilityKey, facilityName) => {
               setUpgradingKey(facilityKey);
               enqueueFacilityUpgrade({
@@ -304,11 +462,17 @@ function FacilitiesRoute(): ReactElement {
         </div>
 
         <FacilityQueuePanel
-          activeFacilityItem={activeFacilityItem}
+          activeLaneItem={activeLaneItem}
           activeUpgradeProgress={activeUpgradeProgress}
+          canShowDevUi={canShowDevUi}
+          canUseDevConsole={canUseDevConsole}
           facilities={view.facilities}
+          isCompletingQueueItem={isCompletingQueueItem}
           nowMs={nowMs}
-          pendingFacilityItems={pendingFacilityItems}
+          onCompleteActiveQueue={() => {
+            void completeActiveQueue();
+          }}
+          pendingLaneItems={pendingLaneItems}
           remainingTimeLabel={remainingTimeLabel}
         />
       </div>
@@ -329,9 +493,18 @@ type FacilityCardData = {
 type FacilityCatalogSectionProps = {
   activeFacilityItem: FacilityQueueItem | null;
   buildingLaneIsFull: boolean;
+  canShowDevUi: boolean;
+  canUseDevConsole: boolean;
+  editingFacilityKey: FacilityKey | null;
+  facilityDraftValue: string;
   facilities: FacilityCardData[];
   pendingFacilityItems: FacilityQueueItem[];
+  savingFacilityKey: FacilityKey | null;
   upgradingKey: FacilityKey | null;
+  onEditFacility: (facilityKey: FacilityKey, currentLevel: number) => void;
+  onFacilityDraftCancel: () => void;
+  onFacilityDraftChange: (value: string) => void;
+  onFacilityDraftCommit: (facilityKey: FacilityKey) => void;
   onUpgrade: (facilityKey: FacilityKey, facilityName: string) => void;
 };
 
@@ -378,7 +551,6 @@ function FacilityCatalogSection(
           </span>
         </div>
       </div>
-
       <div className="
         border-t border-white/6 p-3 
         sm:p-4 
@@ -450,7 +622,6 @@ function FacilityCatalogSection(
                   "
                   style={{ background: "rgba(167,139,250,0.08)" }}
                 />
-
                 <div className="relative z-10 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
@@ -469,17 +640,75 @@ function FacilityCatalogSection(
                       </h3>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span
-                        className="
+                      {props.canShowDevUi &&
+                      props.editingFacilityKey === facility.key ? (
+                        <input
+                          autoFocus
+                          className="
+                          inline-flex h-6 w-14 items-center justify-center
+                          rounded-md border border-violet-300/35 bg-black/45
+                          px-1 text-center font-(family-name:--nv-font-mono)
+                          text-[10px] font-bold text-violet-100 outline-none
+                          focus:border-violet-200/60
+                        "
+                          inputMode="numeric"
+                          onBlur={props.onFacilityDraftCancel}
+                          onChange={(event) => {
+                            props.onFacilityDraftChange(
+                              event.target.value.replace(/[^\d]/g, "")
+                            );
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                              props.onFacilityDraftCancel();
+                              return;
+                            }
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              props.onFacilityDraftCommit(facility.key);
+                            }
+                          }}
+                          value={props.facilityDraftValue}
+                        />
+                      ) : props.canShowDevUi ? (
+                        <button
+                          className="
+                          inline-flex size-6 items-center justify-center
+                          rounded-md border border-violet-300/20 bg-violet-400/8
+                          font-(family-name:--nv-font-mono) text-[10px]
+                          font-bold text-violet-100 transition
+                          hover:border-violet-200/45 hover:bg-violet-400/14
+                          disabled:cursor-not-allowed disabled:opacity-50
+                        "
+                          disabled={
+                            !props.canShowDevUi ||
+                            !props.canUseDevConsole ||
+                            props.savingFacilityKey === facility.key
+                          }
+                          onClick={() =>
+                            props.onEditFacility(
+                              facility.key,
+                              facility.currentLevel
+                            )
+                          }
+                          type="button"
+                        title={`Level ${facility.currentLevel}`}
+                        >
+                          {facility.currentLevel}
+                        </button>
+                      ) : (
+                        <span
+                          className="
                           inline-flex size-6 items-center justify-center
                           rounded-md border border-white/15 bg-black/25
                           font-(family-name:--nv-font-mono) text-[10px]
                           font-bold text-white/80
                         "
-                        title={`Level ${facility.currentLevel}`}
-                      >
-                        {facility.currentLevel}
-                      </span>
+                          title={`Level ${facility.currentLevel}`}
+                        >
+                          {facility.currentLevel}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -595,27 +824,37 @@ function FacilityCatalogSection(
                   </div>
                 </div>
               </article>
-            );
+            )
           })}
         </div>
       </div>
     </section>
-  );
+  )
 }
 
 type FacilityQueuePanelProps = {
-  activeFacilityItem: FacilityQueueItem | null;
+  activeLaneItem: BuildingLaneQueueItem | null;
   activeUpgradeProgress: number;
+  canShowDevUi: boolean;
+  canUseDevConsole: boolean;
   facilities: FacilityCardData[];
+  isCompletingQueueItem: boolean;
   nowMs: number;
-  pendingFacilityItems: FacilityQueueItem[];
+  onCompleteActiveQueue: () => void;
+  pendingLaneItems: BuildingLaneQueueItem[];
   remainingTimeLabel: string | null;
 };
 
+function laneItemLabel(item: BuildingLaneQueueItem): string {
+  if (item.kind === "buildingUpgrade") {
+    return BUILDING_KEY_LABELS[item.payload.buildingKey] ?? item.payload.buildingKey;
+  }
+  return FACILITY_KEY_LABELS[item.payload.facilityKey] ?? item.payload.facilityKey;
+}
+
 function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
   const totalQueueItems =
-    (props.activeFacilityItem ? 1 : 0) + props.pendingFacilityItems.length;
-  const facilityByKey = new Map(props.facilities.map((f) => [f.key, f]));
+    (props.activeLaneItem ? 1 : 0) + props.pendingLaneItems.length;
 
   return (
     <div className="lg:sticky lg:top-4 lg:self-start">
@@ -628,12 +867,12 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
         ">
           <Clock3 className="size-5 text-violet-300" />
           <h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
-            Facility Queue
+            Building Queue
           </h2>
           {totalQueueItems > 0 ? (
             <span className="
-              font-(family-name:--nv-font-mono)-[9px]
-              ml-auto text-white/30
+              ml-auto font-(family-name:--nv-font-mono) text-[9px]
+              text-white/30
             ">
               {totalQueueItems} item{totalQueueItems !== 1 ? "s" : ""}
             </span>
@@ -641,7 +880,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
         </div>
 
         <div className="p-5">
-          {props.activeFacilityItem ? (
+          {props.activeLaneItem ? (
             <div className="space-y-3">
               <p className="
                 text-[10px] font-semibold tracking-[0.14em] text-white/45
@@ -652,38 +891,18 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
               <div className="
                 rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3
               ">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <img
-                      alt={
-                        facilityByKey.get(
-                          props.activeFacilityItem.payload.facilityKey
-                        )?.name ?? props.activeFacilityItem.payload.facilityKey
-                      }
-                      className="
-                        size-10 rounded-lg border border-white/8 bg-black/30
-                        object-contain p-1
-                      "
-                      src={
-                        FACILITY_VISUALS[
-                          props.activeFacilityItem.payload.facilityKey
-                        ].image
-                      }
-                    />
-                    <div>
-                      <p className="text-xs font-semibold">
-                        {facilityByKey.get(
-                          props.activeFacilityItem.payload.facilityKey
-                        )?.name ?? props.activeFacilityItem.payload.facilityKey}
-                      </p>
-                      <p className="
-                        mt-0.5 font-(family-name:--nv-font-mono) text-[10px]
-                        text-white/40
-                      ">
-                        Lv {props.activeFacilityItem.payload.fromLevel} →{" "}
-                        {props.activeFacilityItem.payload.toLevel}
-                      </p>
-                    </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold">
+                      {laneItemLabel(props.activeLaneItem)}
+                    </p>
+                    <p className="
+                      mt-0.5 font-(family-name:--nv-font-mono) text-[10px]
+                      text-white/40
+                    ">
+                      Lv {props.activeLaneItem.payload.fromLevel} →{" "}
+                      {props.activeLaneItem.payload.toLevel}
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="
@@ -736,23 +955,44 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
                     In progress
                   </span>
                 </div>
+                {props.canShowDevUi ? (
+                  <button
+                    className="
+                      mt-2 inline-flex items-center gap-1 rounded-md border
+                      border-cyan-300/30 bg-cyan-400/10 px-2 py-1 text-[10px]
+                      font-medium text-cyan-100 transition
+                      hover:border-cyan-200/55 hover:bg-cyan-400/16
+                      disabled:cursor-not-allowed disabled:opacity-50
+                    "
+                    disabled={
+                      props.isCompletingQueueItem || !props.canUseDevConsole
+                    }
+                    onClick={props.onCompleteActiveQueue}
+                    type="button"
+                  >
+                    {props.isCompletingQueueItem ? "Completing..." : "Complete"}
+                  </button>
+                ) : null}
               </div>
             </div>
           ) : null}
 
-          {props.pendingFacilityItems.length > 0 ? (
-            <div className={props.activeFacilityItem ? "mt-4" : ""}>
+          {props.pendingLaneItems.length > 0 ? (
+            <div className={props.activeLaneItem ? "mt-4" : ""}>
               <p className="
                 text-[10px] font-semibold tracking-[0.14em] text-white/45
                 uppercase
               ">
-                Pending ({props.pendingFacilityItems.length})
+                Pending ({props.pendingLaneItems.length})
               </p>
               <div className="mt-2 space-y-1">
-                {props.pendingFacilityItems.map((item, i) => {
-                  const facility = facilityByKey.get(item.payload.facilityKey);
+                {props.pendingLaneItems.map((item, i) => {
+                  const itemStartsAt = (item as Record<string, unknown>)
+                    .startsAt as number | undefined;
                   const itemDurationMs =
-                    item.startsAt > 0 ? item.completesAt - item.startsAt : 0;
+                    itemStartsAt && itemStartsAt > 0
+                      ? item.completesAt - itemStartsAt
+                      : 0;
 
                   return (
                     <div
@@ -760,7 +1000,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
                         flex items-center justify-between rounded-lg border
                         border-white/6 bg-white/2 px-3 py-2
                       "
-                      key={`pending-${item.payload.facilityKey}-${item.completesAt}`}
+                      key={`pending-${item.kind}-${item.completesAt}-${item.payload.toLevel}`}
                     >
                       <div className="flex items-center gap-2">
                         <span className="
@@ -770,17 +1010,9 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
                         ">
                           {i + 1}
                         </span>
-                        <img
-                          alt={facility?.name ?? item.payload.facilityKey}
-                          className="
-                            size-6 rounded-sm border border-white/8 bg-black/20
-                            object-contain p-0.5
-                          "
-                          src={FACILITY_VISUALS[item.payload.facilityKey].image}
-                        />
                         <div>
                           <p className="text-[11px] font-semibold text-white/80">
-                            {facility?.name ?? item.payload.facilityKey}
+                            {laneItemLabel(item)}
                           </p>
                           <p className="
                             font-(family-name:--nv-font-mono) text-[9px]
@@ -804,6 +1036,23 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
                   );
                 })}
               </div>
+            </div>
+          ) : null}
+
+          {!props.activeLaneItem && props.pendingLaneItems.length === 0 ? (
+            <div className="flex flex-col items-center py-8 text-center">
+              <div className="
+                flex size-12 items-center justify-center rounded-full border
+                border-white/8 bg-white/3
+              ">
+                <Clock3 className="size-5 text-white/20" />
+              </div>
+              <p className="mt-3 text-xs font-medium text-white/30">
+                No upgrades in progress
+              </p>
+              <p className="mt-1 text-[10px] text-white/18">
+                Select a facility to begin upgrading
+              </p>
             </div>
           ) : null}
         </div>

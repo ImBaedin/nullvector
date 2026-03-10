@@ -67,6 +67,8 @@ const EMPTY_BUILDING_LEVELS: Record<BuildingKey, number> = {
 };
 
 type GeneratorGroupId = keyof typeof GROUP_VISUALS;
+type ResourceKey = "alloy" | "crystal" | "fuel";
+const DEV_RESOURCE_KEYS = ["alloy", "crystal", "fuel"] as const satisfies ResourceKey[];
 
 function formatDuration(ms: number) {
 	const totalSeconds = Math.max(0, Math.floor(ms / 1_000));
@@ -216,6 +218,10 @@ function ResourcesRoute() {
 		api.colonyQueue.getColonyQueueLanes,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
+	const devConsoleState = useQuery(
+		api.devConsole.getDevConsoleState,
+		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+	);
 	const view = useMemo(() => {
 		if (!resourceSnapshot || !buildingCards || !queueLanes) {
 			return undefined;
@@ -228,11 +234,20 @@ function ResourcesRoute() {
 	}, [buildingCards, queueLanes, resourceSnapshot]);
 	const syncColony = useMutation(api.colonyQueue.syncColony);
 	const enqueueBuildingUpgrade = useMutation(api.resources.enqueueBuildingUpgrade);
+	const setColonyResources = useMutation(api.devConsole.setColonyResources);
+	const setBuildingLevels = useMutation(api.devConsole.setBuildingLevels);
+	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
 
 	const [activeTableBuildingKey, setActiveTableBuildingKey] = useState<BuildingKey | null>(null);
 	const [upgradingKey, setUpgradingKey] = useState<BuildingKey | null>(null);
+	const [editingResourceKey, setEditingResourceKey] = useState<ResourceKey | null>(null);
+	const [resourceDraftValue, setResourceDraftValue] = useState("");
+	const [savingResourceKey, setSavingResourceKey] = useState<ResourceKey | null>(null);
+	const [savingBuildingLevelKey, setSavingBuildingLevelKey] = useState<BuildingKey | null>(null);
+	const [isCompletingQueueItem, setIsCompletingQueueItem] = useState(false);
 	const [nowMs, setNowMs] = useState(() => Date.now());
 	const isSyncingRef = useRef(false);
+	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
 
 	const sync = useCallback(async () => {
 		if (!isAuthenticated || isSyncingRef.current) {
@@ -400,6 +415,85 @@ function ResourcesRoute() {
 		return nextStored;
 	}, [nowMs, view]);
 
+	const commitResourceEdit = useCallback(async () => {
+		if (!canShowDevUi || !editingResourceKey || !devConsoleState?.canUseDevConsole) {
+			return;
+		}
+
+		const parsed = Math.max(0, Math.floor(Number(resourceDraftValue) || 0));
+		setSavingResourceKey(editingResourceKey);
+		try {
+			const resourcePatch: Partial<Record<ResourceKey, number>> = {
+				[editingResourceKey]: parsed,
+			};
+			await setColonyResources({
+				colonyId: colonyIdAsId,
+				resources: resourcePatch,
+			});
+			setEditingResourceKey(null);
+			toast.success("Resource updated");
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to update resource");
+		} finally {
+			setSavingResourceKey(null);
+		}
+	}, [
+		canShowDevUi,
+		colonyIdAsId,
+		devConsoleState?.canUseDevConsole,
+		editingResourceKey,
+		resourceDraftValue,
+		setColonyResources,
+	]);
+
+	const commitBuildingLevel = useCallback(
+		async (buildingKey: BuildingKey, nextLevel: number) => {
+			if (!canShowDevUi || !devConsoleState?.canUseDevConsole) {
+				return;
+			}
+			setSavingBuildingLevelKey(buildingKey);
+			try {
+				const patch: Partial<Record<BuildingKey, number>> = {
+					[buildingKey]: nextLevel,
+				};
+				await setBuildingLevels({
+					colonyId: colonyIdAsId,
+					buildingLevels: patch,
+				});
+				toast.success("Building level updated");
+			} catch (error) {
+				toast.error(error instanceof Error ? error.message : "Failed to update building level");
+			} finally {
+				setSavingBuildingLevelKey(null);
+			}
+		},
+		[canShowDevUi, colonyIdAsId, devConsoleState?.canUseDevConsole, setBuildingLevels],
+	);
+
+	const completeActiveQueue = useCallback(async () => {
+		if (!canShowDevUi || !devConsoleState?.canUseDevConsole || isCompletingQueueItem) {
+			return;
+		}
+		setIsCompletingQueueItem(true);
+		try {
+			await completeActiveQueueItem({
+				colonyId: colonyIdAsId,
+				lane: "building",
+			});
+			toast.success("Active queue item completed");
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to complete queue item");
+		} finally {
+			setIsCompletingQueueItem(false);
+		}
+	}, [
+		canShowDevUi,
+		colonyIdAsId,
+		completeActiveQueueItem,
+		devConsoleState?.canUseDevConsole,
+		isCompletingQueueItem,
+	]);
+
 	if (isAuthLoading || (isAuthenticated && !view)) {
 		return (
 			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
@@ -455,13 +549,17 @@ function ResourcesRoute() {
 						</div>
 
 						<div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-							{(
-								[
-									{ key: "alloy" as const, label: "Alloy", icon: "/game-icons/alloy.png" },
-									{ key: "crystal" as const, label: "Crystal", icon: "/game-icons/crystal.png" },
-									{ key: "fuel" as const, label: "Fuel", icon: "/game-icons/deuterium.png" },
-								] as const
-							).map((res) => {
+							{DEV_RESOURCE_KEYS.map((resourceKey) => {
+								const res = {
+									key: resourceKey,
+									label: resourceKey === "fuel" ? "Fuel" : resourceKey === "alloy" ? "Alloy" : "Crystal",
+									icon:
+										resourceKey === "fuel"
+											? "/game-icons/deuterium.png"
+											: resourceKey === "alloy"
+												? "/game-icons/alloy.png"
+												: "/game-icons/crystal.png",
+								} as const;
 								const stored = simulatedStored?.[res.key] ?? view.resources.stored[res.key];
 								const cap = view.resources.storageCaps[res.key];
 								const pct = cap > 0 ? Math.min(100, (stored / cap) * 100) : 0;
@@ -485,12 +583,54 @@ function ResourcesRoute() {
 										<div className="min-w-0 flex-1">
 											<p className="text-xs font-semibold">{res.label}</p>
 											<div className="mt-0.5 flex items-baseline gap-1.5">
-												<span className="
+												{canShowDevUi && editingResourceKey === res.key ? (
+													<input
+														autoFocus
+														className="
+              h-6 w-24 rounded-md border border-cyan-300/35 bg-black/40 px-1.5
+              text-right font-(family-name:--nv-font-mono) text-[11px]
+              font-semibold text-cyan-100 outline-none
+              focus:border-cyan-200/60
+            "
+														inputMode="numeric"
+														onBlur={() => {
+															setEditingResourceKey(null);
+														}}
+														onChange={(event) => {
+															setResourceDraftValue(event.target.value.replace(/[^\d]/g, ""));
+														}}
+														onKeyDown={(event) => {
+															if (event.key === "Escape") {
+																setEditingResourceKey(null);
+																return;
+															}
+															if (event.key === "Enter") {
+																event.preventDefault();
+																void commitResourceEdit();
+															}
+														}}
+														value={resourceDraftValue}
+													/>
+												) : (
+													<button
+														className="
               font-(family-name:--nv-font-mono) text-[11px] font-semibold
-              text-cyan-100
-            ">
-													{stored.toLocaleString()}
-												</span>
+              text-cyan-100 transition hover:text-cyan-50
+              disabled:cursor-default disabled:hover:text-cyan-100
+            "
+														disabled={!canShowDevUi || savingResourceKey === res.key}
+														onClick={() => {
+															if (!canShowDevUi) {
+																return;
+															}
+															setEditingResourceKey(res.key);
+															setResourceDraftValue(String(Math.floor(stored)));
+														}}
+														type="button"
+													>
+														{stored.toLocaleString()}
+													</button>
+												)}
 												<span className="
               font-(family-name:--nv-font-mono) text-[9px] text-white/25
             ">
@@ -650,6 +790,12 @@ function ResourcesRoute() {
 															planetMultipliers={view.planetMultipliers}
 															queuedForBuilding={targetQueued ?? null}
 															remainingTimeLabel={remainingTimeLabel}
+															devInlineLevelEditor={{
+																enabled: canShowDevUi,
+																isSaving: savingBuildingLevelKey === targetBuilding.key,
+																onCommit: async (nextLevel) =>
+																	commitBuildingLevel(targetBuilding.key, nextLevel),
+															}}
 															onTableOpenChange={(open) =>
 																setActiveTableBuildingKey(open ? targetBuilding.key : null)
 															}
@@ -808,6 +954,23 @@ function ResourcesRoute() {
 												In progress
 											</span>
 										</div>
+										{canShowDevUi ? (
+											<button
+												className="
+             mt-2 inline-flex items-center gap-1 rounded-md border border-cyan-300/30
+             bg-cyan-400/10 px-2 py-1 text-[10px] font-medium text-cyan-100
+             transition hover:border-cyan-200/55 hover:bg-cyan-400/16
+             disabled:cursor-not-allowed disabled:opacity-50
+           "
+												disabled={isCompletingQueueItem || !devConsoleState?.canUseDevConsole}
+												onClick={() => {
+													void completeActiveQueue();
+												}}
+												type="button"
+											>
+												{isCompletingQueueItem ? "Completing..." : "Complete"}
+											</button>
+										) : null}
 									</div>
 								</div>
 							) : null}
