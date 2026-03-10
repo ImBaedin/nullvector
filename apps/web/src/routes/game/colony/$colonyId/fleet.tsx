@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { formatDuration } from "./shipyard-mock-shared";
+import { FleetRouteSkeleton } from "./loading-skeletons";
 import { useColonyStarMapPicker, type FleetMissionKind } from "./star-map-picker-context";
 
 export const Route = createFileRoute("/game/colony/$colonyId/fleet")({
@@ -247,11 +248,7 @@ function FleetRoute() {
 	);
 
 	if (isAuthLoading || (isAuthenticated && !ready)) {
-		return (
-			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
-				Loading fleet data...
-			</div>
-		);
+		return <FleetRouteSkeleton />;
 	}
 
 	if (!ready || !shipCatalog || !garrison || !operations || !resourceSnapshot || !colonyNav) {

@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
+import { ShipyardRouteSkeleton } from "./loading-skeletons";
 import {
 	CostPill,
 	formatDuration,
@@ -234,11 +235,7 @@ function ShipyardRoute() {
 	};
 
 	if (isAuthLoading || (isAuthenticated && !view)) {
-		return (
-			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
-				Loading shipyard...
-			</div>
-		);
+		return <ShipyardRouteSkeleton />;
 	}
 
 	if (!view) {

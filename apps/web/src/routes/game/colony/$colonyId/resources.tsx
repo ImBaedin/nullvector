@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
+import { ResourcesRouteSkeleton } from "./loading-skeletons";
 import { isStorageBuildingKey, ResourceBuildingCard } from "./resource-building-card";
 
 export const Route = createFileRoute("/game/colony/$colonyId/resources")({
@@ -401,11 +402,7 @@ function ResourcesRoute() {
 	}, [nowMs, view]);
 
 	if (isAuthLoading || (isAuthenticated && !view)) {
-		return (
-			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
-				Loading colony resources...
-			</div>
-		);
+		return <ResourcesRouteSkeleton />;
 	}
 
 	if (!view) {

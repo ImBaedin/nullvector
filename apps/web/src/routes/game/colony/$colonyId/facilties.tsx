@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
+import { FacilitiesRouteSkeleton } from "./loading-skeletons";
 import { CostPill, formatDuration } from "./shipyard-mock-shared";
 
 export const Route = createFileRoute("/game/colony/$colonyId/facilties")({
@@ -248,11 +249,7 @@ function FacilitiesRoute(): ReactElement {
     : null;
 
   if (isAuthLoading || (isAuthenticated && !view)) {
-    return (
-      <div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
-        Loading facilities...
-      </div>
-    );
+    return <FacilitiesRouteSkeleton />;
   }
 
   if (!view) {
