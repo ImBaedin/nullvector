@@ -310,10 +310,12 @@ function UniverseExplorerScene() {
 				onQualityPresetChange={setQualityPreset}
 			/>
 
-			<div className="
-     rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs
-     text-slate-200
-   ">
+			<div
+				className="
+      rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs
+      text-slate-200
+    "
+			>
 				<p>
 					<span className="text-slate-400">Universe:</span>{" "}
 					{data.overview?.universe.name ?? "Loading..."}

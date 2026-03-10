@@ -6,10 +6,10 @@ import { ConvexError, v } from "convex/values";
 
 import type { DataModel } from "./_generated/dataModel";
 
+import { resolveCurrentPlayer } from "../runtime/gameplay/shared";
 import { components } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import authConfig from "./auth.config";
-import { resolveCurrentPlayer } from "../runtime/gameplay/shared";
 
 const siteUrl = process.env.SITE_URL!;
 const nativeAppUrl = process.env.NATIVE_APP_URL || "mybettertapp://";
@@ -92,9 +92,7 @@ export const updateCurrentPlayerDisplayName = mutation({
 			throw new ConvexError("Display name must be at least 3 characters");
 		}
 		if (displayName.length > MAX_DISPLAY_NAME_LENGTH) {
-			throw new ConvexError(
-				`Display name must be ${MAX_DISPLAY_NAME_LENGTH} characters or fewer`,
-			);
+			throw new ConvexError(`Display name must be ${MAX_DISPLAY_NAME_LENGTH} characters or fewer`);
 		}
 
 		await ctx.db.patch(playerResult.player._id, {

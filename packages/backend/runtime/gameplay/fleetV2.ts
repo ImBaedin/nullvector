@@ -19,6 +19,7 @@ import {
 	type QueryCtx,
 } from "../../convex/_generated/server";
 import { RESOURCE_SCALE } from "../../convex/schema";
+import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	cloneResourceBucket,
 	emptyResourceBucket,
@@ -813,6 +814,7 @@ export async function settleDueFleetOperations(args: {
 	now: number;
 	ownerPlayerId: Id<"players">;
 }) {
+	const affectedOperationIds = new Set<Id<"fleetOperations">>();
 	const [dueInTransit, dueReturning] = await Promise.all([
 		args.ctx.db
 			.query("fleetOperations")
@@ -850,6 +852,7 @@ export async function settleDueFleetOperations(args: {
 		) {
 			continue;
 		}
+		affectedOperationIds.add(latest._id);
 
 		if (latest.status === "returning") {
 			await settleOperationReturn({
@@ -932,7 +935,10 @@ export async function settleDueFleetOperations(args: {
 		});
 	}
 
-	return due.length;
+	return {
+		affectedOperationIds: [...affectedOperationIds],
+		resolvedCount: due.length,
+	};
 }
 
 const operationSummaryValidator = v.object({
@@ -1606,14 +1612,20 @@ export const syncFleetState = mutation({
 			ctx,
 		});
 
-		const resolvedCount = await settleDueFleetOperations({
+		const settled = await settleDueFleetOperations({
 			ctx,
 			now,
 			ownerPlayerId: player._id,
 		});
+		for (const operationId of settled.affectedOperationIds) {
+			await reconcileFleetOperationSchedule({
+				ctx,
+				operationId,
+			});
+		}
 
 		return {
-			resolvedCount,
+			resolvedCount: settled.resolvedCount,
 			syncedAt: now,
 		};
 	},
@@ -1653,11 +1665,17 @@ export const createOperation = mutation({
 			ctx,
 		});
 
-		await settleDueFleetOperations({
+		const settled = await settleDueFleetOperations({
 			ctx,
 			now,
 			ownerPlayerId: origin.player._id,
 		});
+		for (const operationId of settled.affectedOperationIds) {
+			await reconcileFleetOperationSchedule({
+				ctx,
+				operationId,
+			});
+		}
 
 		await settleShipyardQueue({
 			colony: origin.colony,
@@ -1898,6 +1916,10 @@ export const createOperation = mutation({
 			ownerPlayerId: latestOrigin.playerId,
 			universeId: latestOrigin.universeId,
 		});
+		await reconcileFleetOperationSchedule({
+			ctx,
+			operationId,
+		});
 
 		return {
 			operationId,
@@ -2016,6 +2038,10 @@ export const cancelOperation = mutation({
 			ownerPlayerId: operation.ownerPlayerId,
 			universeId: operation.universeId,
 		});
+		await reconcileFleetOperationSchedule({
+			ctx,
+			operationId: operation._id,
+		});
 
 		return {
 			operationId: operation._id,
@@ -2053,11 +2079,18 @@ export const processDueOperationsCron = internalMutation({
 
 		let resolvedCount = 0;
 		for (const ownerPlayerId of ownerIds) {
-			resolvedCount += await settleDueFleetOperations({
+			const settled = await settleDueFleetOperations({
 				ctx,
 				now,
 				ownerPlayerId,
 			});
+			resolvedCount += settled.resolvedCount;
+			for (const operationId of settled.affectedOperationIds) {
+				await reconcileFleetOperationSchedule({
+					ctx,
+					operationId,
+				});
+			}
 		}
 
 		return {

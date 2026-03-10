@@ -23,10 +23,12 @@ export function HoverPanel({ hover }: { hover: HoverPanelState | null }) {
 				transform: "translateY(-100%)",
 			}}
 		>
-			<div className="
-     h-1.5 w-full
-     bg-[linear-gradient(90deg,rgba(34,211,238,0.75),rgba(125,211,252,0.22),transparent)]
-   " />
+			<div
+				className="
+      h-1.5 w-full
+      bg-[linear-gradient(90deg,rgba(34,211,238,0.75),rgba(125,211,252,0.22),transparent)]
+    "
+			/>
 
 			<div className="space-y-3 p-3">
 				<div className="flex items-start justify-between gap-2">
@@ -36,31 +38,38 @@ export function HoverPanel({ hover }: { hover: HoverPanelState | null }) {
 						</p>
 						<p className="mt-1 text-sm font-semibold text-white">{hover.name}</p>
 					</div>
-					<span className="
-       relative mt-0.5 inline-flex size-4 items-center justify-center
-     ">
-						<span className="
-        absolute inline-flex size-4 animate-ping rounded-full bg-cyan-300/45
-      " />
-						<span className="
-        absolute inline-flex size-4 rounded-full border border-cyan-200/65
-        bg-cyan-300/15
-      " />
+					<span
+						className="relative mt-0.5 inline-flex size-4 items-center justify-center"
+					>
+						<span
+							className="
+         absolute inline-flex size-4 animate-ping rounded-full bg-cyan-300/45
+       "
+						/>
+						<span
+							className="
+         absolute inline-flex size-4 rounded-full border border-cyan-200/65
+         bg-cyan-300/15
+       "
+						/>
 						<span className="relative inline-flex size-1.5 rounded-full bg-cyan-100" />
 					</span>
 				</div>
 
-				<div className="
-      rounded-lg border border-white/10 bg-white/3 px-2.5 py-2
-    ">
+				<div
+					className="rounded-lg border border-white/10 bg-white/3 px-2.5 py-2"
+				>
 					<p className="text-[9px] tracking-[0.18em] text-slate-400 uppercase">Coordinates</p>
 					<p className="mt-1 font-mono text-[11px] text-slate-200">{hover.addressLabel}</p>
 				</div>
 
 				{hover.colonyName && hover.colonyPlayerName ? (
-					<div className="
-       rounded-lg border border-emerald-300/20 bg-emerald-400/[0.07] px-2.5 py-2
-     ">
+					<div
+						className="
+        rounded-lg border border-emerald-300/20 bg-emerald-400/[0.07] px-2.5
+        py-2
+      "
+					>
 						<p className="text-[9px] tracking-[0.18em] text-emerald-200/95 uppercase">
 							Colony Signal
 						</p>

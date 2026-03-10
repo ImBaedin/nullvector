@@ -13,14 +13,18 @@ export type GameShellProps = {
 
 export function GameShell({ alerts, children, rightRail }: GameShellProps) {
 	return (
-		<div className="
-    grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-2 p-2 pt-0
-    lg:gap-3 lg:p-3 lg:pt-0
-  ">
-			<div className="
-     relative z-0 grid min-h-0 grid-cols-1 gap-3
-     xl:grid-cols-[270px_minmax(0,1fr)_320px]
-   ">
+		<div
+			className="
+     grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-2 p-2 pt-0
+     lg:gap-3 lg:p-3 lg:pt-0
+   "
+		>
+			<div
+				className="
+      relative z-0 grid min-h-0 grid-cols-1 gap-3
+      xl:grid-cols-[270px_minmax(0,1fr)_320px]
+    "
+			>
 				<ShellRail title="Alert Queue">
 					<div className="space-y-2">
 						{alerts.map((alert) => (

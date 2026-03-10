@@ -23,8 +23,7 @@ export function AppHeaderMobileDrawer({
 		<>
 			<button
 				className="
-      fixed inset-0 z-(--nv-z-overlay) bg-[rgba(2,6,14,0.66)]
-      backdrop-blur-sm
+      fixed inset-0 z-(--nv-z-overlay) bg-[rgba(2,6,14,0.66)] backdrop-blur-sm
     "
 				onClick={onClose}
 				type="button"

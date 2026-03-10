@@ -340,6 +340,8 @@ export default defineSchema({
 		playerId: v.id("players"),
 		planetId: v.id("planets"),
 		name: v.string(),
+		queueResolutionScheduledAt: v.optional(v.number()),
+		queueResolutionJobId: v.optional(v.id("_scheduled_functions")),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	})
@@ -420,6 +422,8 @@ export default defineSchema({
 		departAt: v.number(),
 		arriveAt: v.number(),
 		nextEventAt: v.number(),
+		resolutionScheduledAt: v.optional(v.number()),
+		resolutionJobId: v.optional(v.id("_scheduled_functions")),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	})

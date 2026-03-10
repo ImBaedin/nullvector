@@ -115,10 +115,12 @@ export function ColonySwitcher({ activeColonyId, colonies, onColonyChange }: Col
 		>
 			<div className="border-b border-white/8 p-2">
 				<div className="relative">
-					<Search className="
-       pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2
-       text-white/30
-     " />
+					<Search
+						className="
+        pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2
+        text-white/30
+      "
+					/>
 					<input
 						autoFocus
 						className="
@@ -162,25 +164,15 @@ export function ColonySwitcher({ activeColonyId, colonies, onColonyChange }: Col
 
 	return (
 		<div className="relative z-(--nv-z-popover) min-w-[220px]" ref={rootRef}>
-			<button
-				className={cn(
-					`
-       flex h-9 w-full items-center justify-between rounded-lg border px-2.5
-       text-left transition-all
-       focus-visible:ring-2 focus-visible:ring-cyan-400/30
-       focus-visible:outline-none
-     `,
-					isOpen
-						? "border-cyan-300/30 bg-white/6"
-						: `
-        border-white/10 bg-white/2.5
-        hover:border-white/18 hover:bg-white/4
-      `,
-				)}
-				ref={triggerRef}
-				onClick={() => setIsOpen((open) => !open)}
-				type="button"
-			>
+			<button className={cn(`
+     flex h-9 w-full items-center justify-between rounded-lg border px-2.5
+     text-left transition-all
+     focus-visible:ring-2 focus-visible:ring-cyan-400/30
+     focus-visible:outline-none
+   `, isOpen ? "border-cyan-300/30 bg-white/6" : `
+       border-white/10 bg-white/2.5
+       hover:border-white/18 hover:bg-white/4
+     `)} ref={triggerRef} onClick={() => setIsOpen((open) => !open)} type="button">
 				{activeColony ? (
 					<ColonyRow colony={activeColony} compact />
 				) : (
@@ -214,29 +206,22 @@ function ColonyRow({ colony, compact = false }: { colony: ColonyOption; compact?
 					src={colony.imageUrl}
 				/>
 			) : (
-				<div
-					className={cn(
-						`
-        flex shrink-0 items-center justify-center rounded-md border
-        border-white/10
-        bg-[linear-gradient(150deg,rgba(61,217,255,0.15),rgba(255,145,79,0.15))]
-        text-[9px] font-bold text-white/70
-      `,
-						compact ? "size-6" : "size-7",
-					)}
-				>
-					{colony.name.slice(0, 2).toUpperCase()}
-				</div>
+				<div className={cn(`
+      flex shrink-0 items-center justify-center rounded-md border
+      border-white/10
+      bg-[linear-gradient(150deg,rgba(61,217,255,0.15),rgba(255,145,79,0.15))]
+      text-[9px] font-bold text-white/70
+    `, compact ? "size-6" : "size-7")}>{colony.name.slice(0, 2).toUpperCase()}</div>
 			)}
 			<div className="min-w-0">
 				<p className={cn("truncate font-semibold text-white", compact ? "text-xs" : `
       text-[13px]
-    `)}>
-					{colony.name}
-				</p>
-				<p className="
-      truncate font-(family-name:--nv-font-mono) text-[10px] text-white/25
-    ">
+    `)}>{colony.name}</p>
+				<p
+					className="
+       truncate font-(family-name:--nv-font-mono) text-[10px] text-white/25
+     "
+				>
 					{colony.addressLabel}
 					{!compact && colony.status ? ` · ${colony.status}` : ""}
 				</p>

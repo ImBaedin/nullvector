@@ -4,7 +4,7 @@ import { Tooltip } from "@base-ui/react/tooltip";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Bell, ChevronDown, Earth, Menu, Settings } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import type { ResourceDatum } from "@/features/game-ui/contracts/navigation";
@@ -13,10 +13,10 @@ import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdat
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { ResourceStrip } from "@/features/game-ui/shell/resource-strip";
+import { SettingsModal } from "@/features/game-ui/shell/settings-modal";
+import { useSimulatedHudResources } from "@/hooks/use-simulated-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
-
-import { SettingsModal } from "@/features/game-ui/shell/settings-modal";
 
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";
 import { getHeaderConfig, parseColonyId } from "./header-config";
@@ -56,85 +56,6 @@ const QUALITY_OPTIONS: Array<{
 	{ label: "Medium", value: "medium" },
 	{ label: "High", value: "high" },
 ];
-
-function formatResourceValue(units: number) {
-	if (units >= 1_000_000) {
-		return `${(units / 1_000_000).toFixed(1)}M`;
-	}
-	if (units >= 1_000) {
-		return `${(units / 1_000).toFixed(1)}k`;
-	}
-	return units.toString();
-}
-
-function useSimulatedHudResources(resources: ResourceDatum[] | undefined) {
-	const [nowMs, setNowMs] = useState(() => Date.now());
-	const baselineRef = useRef<{
-		atMs: number;
-		resources: ResourceDatum[];
-	} | null>(null);
-
-	const signature = useMemo(() => JSON.stringify(resources ?? []), [resources]);
-
-	useEffect(() => {
-		if (!resources) {
-			baselineRef.current = null;
-			return;
-		}
-
-		baselineRef.current = {
-			atMs: Date.now(),
-			resources,
-		};
-		setNowMs(Date.now());
-	}, [signature]);
-
-	useEffect(() => {
-		const tick = window.setInterval(() => {
-			setNowMs(Date.now());
-		}, 1_000);
-
-		return () => {
-			window.clearInterval(tick);
-		};
-	}, []);
-
-	const baseline = baselineRef.current;
-	if (!baseline) {
-		return resources;
-	}
-
-	const elapsedMinutes = Math.max(0, (nowMs - baseline.atMs) / 60_000);
-
-	return baseline.resources.map((resource) => {
-		if (resource.key === "energy") {
-			return resource;
-		}
-
-		const current = resource.storageCurrentAmount;
-		const cap = resource.storageCapAmount;
-		const delta = resource.deltaPerMinuteAmount;
-		if (current === undefined || cap === undefined || delta === undefined) {
-			return resource;
-		}
-
-		const nextAmount = Math.min(cap, Math.max(0, Math.floor(current + delta * elapsedMinutes)));
-		const nextPercent = cap <= 0 ? 0 : Math.min(100, (nextAmount / cap) * 100);
-
-		return {
-			...resource,
-			value: formatResourceValue(nextAmount),
-			valueAmount: nextAmount,
-			storageCurrentAmount: nextAmount,
-			storageCurrentLabel: formatResourceValue(nextAmount),
-			storageCapLabel: formatResourceValue(cap),
-			storagePercent: nextPercent,
-			deltaPerMinute: resource.pausedByOverflow
-				? "Paused by overflow"
-				: `+${Math.max(0, Math.floor(delta)).toLocaleString()}/m`,
-		};
-	});
-}
 
 function useCompactHeaderMode() {
 	const [isCompact, setIsCompact] = useState(false);
@@ -205,9 +126,10 @@ export function AppHeader({
 			resources: colonyResourceStrip.resources as ResourceDatum[],
 		};
 	}, [allColonyQueueStatuses?.statuses, colonyNav, colonyResourceStrip]);
-	const simulatedResources = useSimulatedHudResources(
-		hud?.resources ?? colonyResourceStrip?.resources,
-	);
+	const simulatedResources = useSimulatedHudResources({
+		lastAccruedAt: colonyResourceStrip?.lastAccruedAt,
+		resources: hud?.resources ?? colonyResourceStrip?.resources,
+	});
 	const [isRenamingColony, setIsRenamingColony] = useState(false);
 	const [isSavingColonyName, setIsSavingColonyName] = useState(false);
 	const [draftColonyName, setDraftColonyName] = useState("");
@@ -314,65 +236,40 @@ export function AppHeader({
 
 	return (
 		<>
-			<header
-				className={cn(
-					`
-       sticky top-0 z-(--nv-z-popover) px-2 pt-2 transition-all duration-200
-       lg:px-3
-     `,
-					isCompact ? "pb-0.5" : "pb-2",
-				)}
-			>
-				<div
-					className={cn(
-						`
-        rounded-xl border border-white/8
-        bg-[linear-gradient(170deg,rgba(10,16,28,0.94),rgba(6,10,18,0.98))]
-        shadow-[0_4px_20px_rgba(0,0,0,0.4)]
-      `,
-						isStarMapOpen && starMapNavigation ? "overflow-visible" : `
+			<header className={cn(`
+     sticky top-0 z-(--nv-z-popover) px-2 pt-2 transition-all duration-200
+     lg:px-3
+   `, isCompact ? "pb-0.5" : "pb-2")}>
+				<div className={cn(`
+      rounded-xl border border-white/8
+      bg-[linear-gradient(170deg,rgba(10,16,28,0.94),rgba(6,10,18,0.98))]
+      shadow-[0_4px_20px_rgba(0,0,0,0.4)]
+    `, isStarMapOpen && starMapNavigation ? "overflow-visible" : `
         overflow-hidden
-      `,
-					)}
-				>
+      `)}>
 					{/* ═══ Command Bar ═══ */}
-					<div
-						className={cn(
-							`
-         grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 transition-all
-         duration-200
-       `,
-							isCompact ? "py-2" : "py-2.5",
-						)}
-					>
+					<div className={cn(`
+       grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 transition-all
+       duration-200
+     `, isCompact ? "py-2" : "py-2.5")}>
 						{/* Left: logo + colony name */}
 						<div className="flex items-center gap-2.5 justify-self-start">
-							<img
-								alt="Nullvector"
-								className={cn(
-									`
-           shrink-0 rounded-md border border-white/10 bg-black/30 object-contain
-           p-0.5 transition-all
-         `,
-									isCompact ? "size-7" : "size-8",
-								)}
-								src="/game-icons/logo.png"
-							/>
+							<img alt="Nullvector" className={cn(`
+         shrink-0 rounded-md border border-white/10 bg-black/30 object-contain
+         p-0.5 transition-all
+       `, isCompact ? "size-7" : "size-8")} src="/game-icons/logo.png" />
 							<div className="min-w-0">
-								<p className="
-          text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
-        ">
+								<p
+									className="
+           text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
+         "
+								>
 									NullVector
 								</p>
-								<h1
-									className={cn(
-										`
-            font-(family-name:--nv-font-display) font-bold text-white
-            transition-all
-          `,
-										isCompact ? "text-sm" : "text-[15px]",
-									)}
-								>
+								<h1 className={cn(`
+          font-(family-name:--nv-font-display) font-bold text-white
+          transition-all
+        `, isCompact ? "text-sm" : "text-[15px]")}>
 									{isRenamingColony && activeColony ? (
 										<input
 											autoFocus
@@ -451,29 +348,35 @@ export function AppHeader({
 												side="bottom"
 												sideOffset={6}
 											>
-												<Tooltip.Popup className="
-              rounded-md border border-white/12 bg-[rgba(7,14,28,0.96)] px-2
-              py-1 text-[10px] font-medium text-white/80
-              shadow-[0_8px_20px_rgba(0,0,0,0.4)]
-            ">
+												<Tooltip.Popup
+													className="
+               rounded-md border border-white/12 bg-[rgba(7,14,28,0.96)] px-2
+               py-1 text-[10px] font-medium text-white/80
+               shadow-[0_8px_20px_rgba(0,0,0,0.4)]
+             "
+												>
 													Return to colony
 												</Tooltip.Popup>
 											</Tooltip.Positioner>
 										</Tooltip.Portal>
 									</Tooltip.Root>
 
-									<span className="
-           hidden text-[9px] font-semibold tracking-[0.14em] text-cyan-200/50
-           uppercase
-           lg:inline
-         ">
+									<span
+										className="
+            hidden text-[9px] font-semibold tracking-[0.14em] text-cyan-200/50
+            uppercase
+            lg:inline
+          "
+									>
 										{starMapNavigation.levelLabel}
 									</span>
 
-									<div className="
-           flex min-w-0 items-center gap-0.5 overflow-x-auto text-[11px]
-           whitespace-nowrap text-white/70
-         ">
+									<div
+										className="
+            flex min-w-0 items-center gap-0.5 overflow-x-auto text-[11px]
+            whitespace-nowrap text-white/70
+          "
+									>
 										{starMapNavigation.pathItems.map((item, index) => (
 											<span className="inline-flex items-center gap-0.5" key={item.id}>
 												{index > 0 ? <span className="text-white/20">/</span> : null}
@@ -494,18 +397,15 @@ export function AppHeader({
 									{/* Entities dropdown */}
 									<div className="relative shrink-0">
 										<button
-											className={cn(
-												`
-              inline-flex h-7 items-center gap-1 rounded-md border px-2
-              text-[10px] font-semibold transition-all
-            `,
-												starMapEntitiesOpen
-													? "border-cyan-300/30 bg-cyan-400/10 text-cyan-100"
-													: `
-               border-white/12 bg-white/4 text-white/60
-               hover:bg-white/8
-             `,
-											)}
+											className={cn(`
+             inline-flex h-7 items-center gap-1 rounded-md border px-2
+             text-[10px] font-semibold transition-all
+           `, starMapEntitiesOpen ? `
+              border-cyan-300/30 bg-cyan-400/10 text-cyan-100
+            ` : `
+              border-white/12 bg-white/4 text-white/60
+              hover:bg-white/8
+            `)}
 											onClick={() => {
 												setStarMapQualityOpen(false);
 												setStarMapEntitiesOpen((current) => !current);
@@ -522,11 +422,13 @@ export function AppHeader({
 										</button>
 
 										{starMapEntitiesOpen ? (
-											<div className="
-             absolute top-[calc(100%+6px)] right-0 z-20 w-[min(86vw,400px)]
-             rounded-xl border border-white/12 bg-[rgba(8,14,26,0.97)] p-1
-             shadow-[0_10px_28px_rgba(0,0,0,0.5)]
-           ">
+											<div
+												className="
+              absolute top-[calc(100%+6px)] right-0 z-20 w-[min(86vw,400px)]
+              rounded-xl border border-white/12 bg-[rgba(8,14,26,0.97)] p-1
+              shadow-[0_10px_28px_rgba(0,0,0,0.5)]
+            "
+											>
 												<div className="max-h-56 space-y-0.5 overflow-y-auto">
 													{starMapNavigation.entityItems.map((item) => (
 														<button
@@ -543,10 +445,12 @@ export function AppHeader({
 															type="button"
 														>
 															<span className="truncate font-semibold">{item.label}</span>
-															<span className="
-                 ml-2 font-(family-name:--nv-font-mono) text-[10px]
-                 text-white/25
-               ">
+															<span
+																className="
+                  ml-2 font-(family-name:--nv-font-mono) text-[10px]
+                  text-white/25
+                "
+															>
 																{item.subtitle}
 															</span>
 														</button>
@@ -559,18 +463,15 @@ export function AppHeader({
 									{/* Quality dropdown */}
 									<div className="relative shrink-0">
 										<button
-											className={cn(
-												`
-              inline-flex h-7 items-center gap-1 rounded-md border px-2
-              text-[10px] font-semibold transition-all
-            `,
-												starMapQualityOpen
-													? "border-cyan-300/30 bg-cyan-400/10 text-cyan-100"
-													: `
-               border-white/12 bg-white/4 text-white/60
-               hover:bg-white/8
-             `,
-											)}
+											className={cn(`
+             inline-flex h-7 items-center gap-1 rounded-md border px-2
+             text-[10px] font-semibold transition-all
+           `, starMapQualityOpen ? `
+              border-cyan-300/30 bg-cyan-400/10 text-cyan-100
+            ` : `
+              border-white/12 bg-white/4 text-white/60
+              hover:bg-white/8
+            `)}
 											onClick={() => {
 												setStarMapEntitiesOpen(false);
 												setStarMapQualityOpen((current) => !current);
@@ -592,26 +493,25 @@ export function AppHeader({
 										</button>
 
 										{starMapQualityOpen ? (
-											<div className="
-             absolute top-[calc(100%+6px)] right-0 z-20 w-36 rounded-xl border
-             border-white/12 bg-[rgba(8,14,26,0.97)] p-1
-             shadow-[0_10px_28px_rgba(0,0,0,0.5)]
-           ">
+											<div
+												className="
+              absolute top-[calc(100%+6px)] right-0 z-20 w-36 rounded-xl border
+              border-white/12 bg-[rgba(8,14,26,0.97)] p-1
+              shadow-[0_10px_28px_rgba(0,0,0,0.5)]
+            "
+											>
 												<div className="space-y-0.5">
 													{QUALITY_OPTIONS.map((entry) => (
 														<button
-															className={cn(
-																`
-                  flex w-full items-center rounded-lg px-2.5 py-1.5 text-left
-                  text-[11px] font-medium transition-colors
-                `,
-																entry.value === starMapNavigation.qualityPreset
-																	? "bg-cyan-400/10 text-cyan-100"
-																	: `
-                   text-white/50
-                   hover:bg-white/4 hover:text-white/80
-                 `,
-															)}
+															className={cn(`
+                 flex w-full items-center rounded-lg px-2.5 py-1.5 text-left
+                 text-[11px] font-medium transition-colors
+               `, entry.value === starMapNavigation.qualityPreset ? `
+                  bg-cyan-400/10 text-cyan-100
+                ` : `
+                  text-white/50
+                  hover:bg-white/4 hover:text-white/80
+                `)}
 															key={entry.value}
 															onClick={() => {
 																starMapNavigation.onQualityPresetChange(entry.value);
@@ -628,27 +528,17 @@ export function AppHeader({
 									</div>
 								</div>
 							) : (
-								<button
-									className={cn(
-										`
-            nv-starmap-hero relative flex items-center justify-center gap-2
-            rounded-lg border px-4 font-(family-name:--nv-font-display) text-xs
-            font-semibold transition-all
-          `,
-										isStarMapOpen
-											? `
-             border-cyan-300/40 bg-cyan-400/12 text-cyan-50
-             shadow-[0_0_16px_rgba(61,217,255,0.12)]
-           `
-											: `
+								<button className={cn(`
+          nv-starmap-hero relative flex items-center justify-center gap-2
+          rounded-lg border px-4 font-(family-name:--nv-font-display) text-xs
+          font-semibold transition-all
+        `, isStarMapOpen ? `
+            border-cyan-300/40 bg-cyan-400/12 text-cyan-50
+            shadow-[0_0_16px_rgba(61,217,255,0.12)]
+          ` : `
              border-white/12 bg-white/4 text-white/60
              hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100
-           `,
-										isCompact ? "h-8" : "h-9",
-									)}
-									onClick={handleStarMapToggle}
-									type="button"
-								>
+           `, isCompact ? "h-8" : "h-9")} onClick={handleStarMapToggle} type="button">
 									<span className="nv-starmap-stars" />
 									<span className="nv-starmap-stars is-slower" />
 									<img
@@ -665,10 +555,12 @@ export function AppHeader({
 						</div>
 
 						{/* Right: colony switcher + utilities (desktop) */}
-						<div className="
-        hidden items-center gap-1.5 justify-self-end
-        lg:flex
-      ">
+						<div
+							className="
+         hidden items-center gap-1.5 justify-self-end
+         lg:flex
+       "
+						>
 							{config.colonies &&
 							config.activeColonyId &&
 							(config.onColonyChange || handleColonyChange) ? (
@@ -690,11 +582,13 @@ export function AppHeader({
 							>
 								<Bell className="size-3.5" />
 								{config.notificationsCount && config.notificationsCount > 0 ? (
-									<span className="
-           absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center
-           justify-center rounded-full bg-cyan-400/20 px-1 text-[8px] font-bold
-           text-cyan-200
-         ">
+									<span
+										className="
+            absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center
+            justify-center rounded-full bg-cyan-400/20 px-1 text-[8px] font-bold
+            text-cyan-200
+          "
+									>
 										{config.notificationsCount}
 									</span>
 								) : null}
@@ -714,10 +608,12 @@ export function AppHeader({
 						</div>
 
 						{/* Mobile hamburger */}
-						<div className="
-        flex justify-self-end
-        lg:hidden
-      ">
+						<div
+							className="
+         flex justify-self-end
+         lg:hidden
+       "
+						>
 							<button
 								aria-label="Open Menu"
 								className="
@@ -735,17 +631,12 @@ export function AppHeader({
 
 					{/* ═══ Resources ═══ */}
 					{config.resources?.length ? (
-						<div
-							className={cn(
-								`
-          grid overflow-hidden transition-[grid-template-rows,opacity]
-          duration-300 ease-out
-        `,
-								collapseResources
-									? "pointer-events-none grid-rows-[0fr] opacity-0"
-									: "grid-rows-[1fr] opacity-100",
-							)}
-						>
+						<div className={cn(`
+        grid overflow-hidden transition-[grid-template-rows,opacity]
+        duration-300 ease-out
+      `, collapseResources ? "pointer-events-none grid-rows-[0fr] opacity-0" : `
+          grid-rows-[1fr] opacity-100
+        `)}>
 							<div className="min-h-0">
 								<div className={cn("border-t border-white/6 px-4", isCompact ? "py-1.5" : `
           py-2
@@ -758,17 +649,12 @@ export function AppHeader({
 
 					{/* ═══ Context Navigation ═══ */}
 					{config.contextTabs?.length && config.activeTabId ? (
-						<div
-							className={cn(
-								`
-          grid overflow-hidden transition-[grid-template-rows,opacity]
-          duration-300 ease-out
-        `,
-								collapseContextNav
-									? "pointer-events-none grid-rows-[0fr] opacity-0"
-									: "grid-rows-[1fr] opacity-100",
-							)}
-						>
+						<div className={cn(`
+        grid overflow-hidden transition-[grid-template-rows,opacity]
+        duration-300 ease-out
+      `, collapseContextNav ? "pointer-events-none grid-rows-[0fr] opacity-0" : `
+          grid-rows-[1fr] opacity-100
+        `)}>
 							<div className="min-h-0">
 								<div className={cn("border-t border-white/6 px-4", isCompact ? "py-0" : `
           py-0.5

@@ -17,15 +17,10 @@ export function NvProgress({ className, value, tone = "neutral" }: NvProgressPro
 	const bounded = Math.max(0, Math.min(100, value));
 
 	return (
-		<div
-			className={cn(
-				`
-      relative h-2.5 w-full overflow-hidden rounded-full
-      bg-[rgba(255,255,255,0.08)]
-    `,
-				className,
-			)}
-		>
+		<div className={cn(`
+    relative h-2.5 w-full overflow-hidden rounded-full
+    bg-[rgba(255,255,255,0.08)]
+  `, className)}>
 			<div
 				className={cn(
 					"nv-transition relative h-full overflow-hidden rounded-full",
@@ -33,9 +28,11 @@ export function NvProgress({ className, value, tone = "neutral" }: NvProgressPro
 				)}
 				style={{ width: `${bounded}%` }}
 			>
-				<div className="
-      nv-progress-stripes absolute inset-0 rounded-[inherit] opacity-65
-    " />
+				<div
+					className="
+       nv-progress-stripes absolute inset-0 rounded-[inherit] opacity-65
+     "
+				/>
 				<div className="nv-progress-scan absolute inset-y-0 w-1/3 rounded-[inherit]" />
 			</div>
 		</div>

@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 
 import { mutation, query } from "../../convex/_generated/server";
-import { settleDueFleetOperations } from "./fleetV2";
+import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	buildLaneQueueView,
 	emptyLaneQueueView,
@@ -59,7 +59,7 @@ export const syncColony = mutation({
 	}),
 	handler: async (ctx, args) => {
 		const now = Date.now();
-		const { colony, planet, player } = await getOwnedColony({
+		const { colony, planet } = await getOwnedColony({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -75,10 +75,9 @@ export const syncColony = mutation({
 			ctx,
 			now,
 		});
-		await settleDueFleetOperations({
+		await rescheduleColonyQueueResolution({
+			colonyId: colony._id,
 			ctx,
-			now,
-			ownerPlayerId: player._id,
 		});
 
 		return {

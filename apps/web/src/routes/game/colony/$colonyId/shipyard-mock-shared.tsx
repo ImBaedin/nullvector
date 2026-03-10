@@ -103,10 +103,12 @@ export function CostPill(props: {
 }) {
 	const { amount, kind, label } = props;
 	return (
-		<span className="
-    inline-flex items-center gap-1 rounded-md border border-white/20 bg-black/35
-    px-2 py-1 text-[11px] font-semibold text-slate-100
-  ">
+		<span
+			className="
+     inline-flex items-center gap-1 rounded-md border border-white/20
+     bg-black/35 px-2 py-1 text-[11px] font-semibold text-slate-100
+   "
+		>
 			<img alt={`${label} icon`} className="size-3.5 object-contain" src={resourceIcon(kind)} />
 			{amount.toLocaleString()}
 		</span>
@@ -121,10 +123,12 @@ export function LockWarningPopover({ message }: { message: string }) {
 				delay={60}
 				openOnHover
 				render={
-					<button className="
-       rounded-full border border-amber-100/35 bg-amber-300/20 p-1
-       text-amber-100
-     ">
+					<button
+						className="
+        rounded-full border border-amber-100/35 bg-amber-300/20 p-1
+        text-amber-100
+      "
+					>
 						<AlertTriangle className="size-3.5" />
 					</button>
 				}
@@ -216,9 +220,9 @@ export function QueuePanel(props: {
     ${className ?? ""}
   `}>
 			<div className="flex items-center justify-between gap-2">
-				<h3 className="
-      text-xs font-semibold tracking-[0.14em] text-white/70 uppercase
-    ">
+				<h3
+					className="text-xs font-semibold tracking-[0.14em] text-white/70 uppercase"
+				>
 					{title ?? "Production Queue"}
 				</h3>
 				<span className="text-[11px] text-white/60">
@@ -227,19 +231,23 @@ export function QueuePanel(props: {
 			</div>
 
 			{!active ? (
-				<p className="
-      mt-2 rounded-lg border border-white/10 bg-black/20 p-2 text-xs
-      text-white/70
-    ">
+				<p
+					className="
+       mt-2 rounded-lg border border-white/10 bg-black/20 p-2 text-xs
+       text-white/70
+     "
+				>
 					No active build.
 				</p>
 			) : null}
 
 			<div className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
 				{railItems.length === 0 ? (
-					<p className="
-       rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-white/65
-     ">
+					<p
+						className="
+        rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-white/65
+      "
+					>
 						No queued builds.
 					</p>
 				) : null}
@@ -251,27 +259,22 @@ export function QueuePanel(props: {
 							? Math.max(0, Math.min(100, Math.round((completed / item.total) * 100)))
 							: 0;
 					return (
-						<article
-							className={`
-         relative min-w-[320px] snap-start rounded-2xl border p-4 text-xs
-         ${
-								item.isActive
-									? `
+						<article className={`
+        relative min-w-[320px] snap-start rounded-2xl border p-4 text-xs
+        ${item.isActive ? `
            border-cyan-200/45
            bg-[linear-gradient(155deg,rgba(68,200,255,0.2),rgba(6,14,24,0.94))]
-         `
-									: `
+         ` : `
            border-white/12
            bg-[linear-gradient(155deg,rgba(18,24,36,0.88),rgba(6,10,16,0.92))]
-         `
-							}
-       `}
-							key={item.id}
-						>
-							<div className="
-         pointer-events-none absolute inset-0
-         bg-[radial-gradient(circle_at_8%_10%,rgba(255,255,255,0.09),transparent_35%)]
-       " />
+         `}
+      `} key={item.id}>
+							<div
+								className="
+          pointer-events-none absolute inset-0
+          bg-[radial-gradient(circle_at_8%_10%,rgba(255,255,255,0.09),transparent_35%)]
+        "
+							/>
 							<div className="flex items-start justify-between gap-2">
 								<div>
 									<p className="font-semibold text-white/92">
@@ -291,9 +294,9 @@ export function QueuePanel(props: {
 								</button>
 							</div>
 
-							<div className="
-         mt-3 grid grid-cols-[64px_minmax(0,1fr)] items-center gap-3
-       ">
+							<div
+								className="mt-3 grid grid-cols-[64px_minmax(0,1fr)] items-center gap-3"
+							>
 								{ship ? (
 									<img
 										alt={`${ship.name} queue icon`}
@@ -357,9 +360,11 @@ export function QueuePanel(props: {
 											style={{ width: `${progress}%` }}
 										/>
 									</div>
-									<p className="
-           mt-1 inline-flex items-center gap-1 text-[11px] text-cyan-100/85
-         ">
+									<p
+										className="
+            mt-1 inline-flex items-center gap-1 text-[11px] text-cyan-100/85
+          "
+									>
 										<Gauge className="size-3" />
 										{progress}% of batch completed
 									</p>
@@ -382,27 +387,17 @@ function MetricInline(props: {
 	const { icon, label, tone = "default", value } = props;
 	return (
 		<div className="min-w-0">
-			<p
-				className={`
-      inline-flex items-center gap-1 text-[10px] tracking-widest uppercase
-      ${
-					tone === "cyan" ? "text-cyan-100/80" : "text-white/55"
-				}
-    `}
-			>
+			<p className={`
+     inline-flex items-center gap-1 text-[10px] tracking-widest uppercase
+     ${tone === "cyan" ? "text-cyan-100/80" : "text-white/55"}
+   `}>
 				{icon}
 				{label}
 			</p>
-			<p
-				className={`
-      mt-0.5 truncate text-[13px] leading-tight font-semibold
-      ${
-					tone === "cyan" ? "text-cyan-50" : "text-white/92"
-				}
-    `}
-			>
-				{value}
-			</p>
+			<p className={`
+     mt-0.5 truncate text-[13px] leading-tight font-semibold
+     ${tone === "cyan" ? "text-cyan-50" : "text-white/92"}
+   `}>{value}</p>
 		</div>
 	);
 }

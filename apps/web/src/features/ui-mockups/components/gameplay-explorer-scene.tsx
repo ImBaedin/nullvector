@@ -339,11 +339,13 @@ function MiniSystemReadout({
 	universeName: string;
 }) {
 	return (
-		<div className="
-    pointer-events-none absolute bottom-3 left-3 z-20 rounded-md border
-    border-white/20 bg-black/40 px-3 py-2 text-[11px] text-slate-200
-    backdrop-blur-sm
-  ">
+		<div
+			className="
+     pointer-events-none absolute bottom-3 left-3 z-20 rounded-md border
+     border-white/20 bg-black/40 px-3 py-2 text-[11px] text-slate-200
+     backdrop-blur-sm
+   "
+		>
 			<p className="tracking-[0.2em] text-cyan-100/85 uppercase">{currentLevel}</p>
 			<p className="mt-1 max-w-[360px] truncate text-slate-100/95">{selectedPathLabel}</p>
 			<p className="text-slate-300/85">{universeName}</p>

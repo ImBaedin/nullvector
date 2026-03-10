@@ -11,17 +11,8 @@ const ACCENTS = {
 } as const;
 
 export function NvChip({ className, accent = "neutral", ...props }: NvChipProps) {
-	return (
-		<div
-			className={cn(
-				`
-      inline-flex items-center gap-2 rounded-(--nv-r-sm) border px-2.5 py-1
-      text-xs text-(--nv-text-secondary)
-    `,
-				ACCENTS[accent],
-				className,
-			)}
-			{...props}
-		/>
-	);
+	return <div className={cn(`
+   inline-flex items-center gap-2 rounded-(--nv-r-sm) border px-2.5 py-1 text-xs
+   text-(--nv-text-secondary)
+ `, ACCENTS[accent], className)} {...props} />;
 }

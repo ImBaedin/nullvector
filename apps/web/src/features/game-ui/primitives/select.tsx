@@ -20,8 +20,8 @@ export function NvSelect({ className, value, options, onValueChange }: NvSelectP
 			<select
 				className="
       nv-transition h-9 w-full appearance-none rounded-(--nv-r-sm) border
-      border-(--nv-glass-stroke) bg-[rgba(5,11,21,0.75)] px-3 pr-8
-      text-sm text-(--nv-text-primary)
+      border-(--nv-glass-stroke) bg-[rgba(5,11,21,0.75)] px-3 pr-8 text-sm
+      text-(--nv-text-primary)
       focus-visible:ring-2 focus-visible:ring-(--nv-focus-ring)
       focus-visible:outline-none
     "
@@ -34,10 +34,12 @@ export function NvSelect({ className, value, options, onValueChange }: NvSelectP
 					</option>
 				))}
 			</select>
-			<ChevronDown className="
-     pointer-events-none absolute top-2.5 right-2.5 size-4
-     text-(--nv-text-muted)
-   " />
+			<ChevronDown
+				className="
+      pointer-events-none absolute top-2.5 right-2.5 size-4
+      text-(--nv-text-muted)
+    "
+			/>
 		</div>
 	);
 }

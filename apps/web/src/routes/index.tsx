@@ -25,14 +25,18 @@ function IndexRoute() {
 	}, [isAuthenticated, isAuthLoading, navigate]);
 
 	return (
-		<div className="
-    mx-auto flex size-full min-h-0 max-w-6xl items-center justify-center px-4
-    py-8
-  ">
-			<div className="
-     w-full max-w-md rounded-xl border border-white/10 bg-black/30 p-2
-     backdrop-blur-sm
-   ">
+		<div
+			className="
+     mx-auto flex size-full min-h-0 max-w-6xl items-center justify-center px-4
+     py-8
+   "
+		>
+			<div
+				className="
+      w-full max-w-md rounded-xl border border-white/10 bg-black/30 p-2
+      backdrop-blur-sm
+    "
+			>
 				{mode === "signIn" ? (
 					<SignInForm onSwitchToSignUp={() => setMode("signUp")} />
 				) : (

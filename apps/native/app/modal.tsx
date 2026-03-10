@@ -17,9 +17,9 @@ function Modal() {
 			<View className="flex-1 items-center justify-center p-4">
 				<Surface variant="secondary" className="w-full max-w-sm rounded-lg p-5">
 					<View className="items-center">
-						<View className="
-        mb-3 size-12  items-center justify-center rounded-lg bg-accent
-      ">
+						<View
+							className="mb-3 size-12 items-center justify-center rounded-lg bg-accent"
+						>
 							<Ionicons name="checkmark" size={24} color={accentForegroundColor} />
 						</View>
 						<Text className="mb-1 text-lg font-medium text-foreground">Modal Screen</Text>

@@ -89,6 +89,7 @@ export const getColonyResourceStrip = query({
 		colonyId: v.id("colonies"),
 	},
 	returns: v.object({
+		lastAccruedAt: v.number(),
 		resources: v.array(resourceHudDatumValidator),
 	}),
 	handler: async (ctx, args) => {
@@ -98,6 +99,7 @@ export const getColonyResourceStrip = query({
 		});
 
 		return {
+			lastAccruedAt: colony.lastAccruedAt,
 			resources: buildHudResources({ colony, planet }),
 		};
 	},

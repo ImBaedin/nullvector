@@ -7,6 +7,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 
 import { mutation, query } from "../../convex/_generated/server";
 import { RESOURCE_SCALE } from "../../convex/schema";
+import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	LANE_QUEUE_CAPACITY,
 	OPEN_QUEUE_STATUSES,
@@ -362,6 +363,10 @@ export const enqueueShipBuild = mutation({
 				now,
 			});
 		}
+		await rescheduleColonyQueueResolution({
+			colonyId: settledColony._id,
+			ctx,
+		});
 
 		return {
 			colonyId: settledColony._id,
@@ -495,6 +500,10 @@ export const cancelShipBuildQueueItem = mutation({
 				});
 			}
 		}
+		await rescheduleColonyQueueResolution({
+			colonyId: settledColony._id,
+			ctx,
+		});
 
 		return {
 			colonyId: settledColony._id,

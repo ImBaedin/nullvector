@@ -16,3 +16,5 @@
 - Fleet transport targeting policy (2026-03-08): transport missions may target other players' colonies when inbound policy allows; own-colony-only is not required.
 - Fleet destination UX decision (2026-03-08): fleet planner destination selection should include Star Map picking (not coordinates-only fallback).
 - Fleet sync/UI direction (2026-03-08): colony layout timed sync should use colony-relevant fleet events (outgoing + incoming) rather than player-wide-only timestamps; fleet route active expeditions should include incoming operations for the viewed colony.
+- Repo tooling note (2026-03-10): for formatting/linting in this monorepo, use the root commands `bun run format` and `bun run lint:fix` rather than invoking package-local format/lint scripts directly.
+- Server-owned timing architecture (2026-03-10): queue and fleet due-event resolution is now scheduled in Convex via internal `scheduler` functions; client `useGameTimedSync`/visibility sync was removed, schedule metadata lives on `colonies` and `fleetOperations`, and `syncColony` is no longer the normal completion path.

@@ -1,13 +1,11 @@
-import {
-	DEFAULT_FACILITY_REGISTRY,
-	type FacilityKey,
-} from "@nullvector/game-logic";
+import { DEFAULT_FACILITY_REGISTRY, type FacilityKey } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
 import type { Id } from "../../convex/_generated/dataModel";
 
 import { mutation, query, type MutationCtx } from "../../convex/_generated/server";
 import { settleDueFleetOperations } from "./fleetV2";
+import { reconcileFleetOperationSchedule, rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	BUILDING_CONFIG,
 	compareQueueOrder,
@@ -80,15 +78,11 @@ function sanitizeNonNegativeInteger(value: number | undefined) {
 }
 
 function isTerminalOperationStatus(status: string) {
-	return DEV_TERMINAL_OP_STATUSES.includes(
-		status as (typeof DEV_TERMINAL_OP_STATUSES)[number],
-	);
+	return DEV_TERMINAL_OP_STATUSES.includes(status as (typeof DEV_TERMINAL_OP_STATUSES)[number]);
 }
 
 function isResolvableOperationStatus(status: string) {
-	return DEV_RESOLVABLE_OP_STATUSES.includes(
-		status as (typeof DEV_RESOLVABLE_OP_STATUSES)[number],
-	);
+	return DEV_RESOLVABLE_OP_STATUSES.includes(status as (typeof DEV_RESOLVABLE_OP_STATUSES)[number]);
 }
 
 function maxLevelForBuilding(buildingKey: DevEditableBuildingKey) {
@@ -120,10 +114,7 @@ async function logDevAction(args: {
 	});
 }
 
-async function getDevAuthorizedOwnedColony(args: {
-	colonyId: Id<"colonies">;
-	ctx: MutationCtx;
-}) {
+async function getDevAuthorizedOwnedColony(args: { colonyId: Id<"colonies">; ctx: MutationCtx }) {
 	const owned = await getOwnedColony({
 		ctx: args.ctx,
 		colonyId: args.colonyId,
@@ -140,11 +131,13 @@ async function shiftOpenLaneScheduleToNow(args: {
 	lane: "building" | "shipyard";
 	now: number;
 }) {
-	const openRows = (await listOpenLaneQueueItems({
-		colonyId: args.colonyId,
-		ctx: args.ctx,
-		lane: args.lane,
-	}))
+	const openRows = (
+		await listOpenLaneQueueItems({
+			colonyId: args.colonyId,
+			ctx: args.ctx,
+			lane: args.lane,
+		})
+	)
 		.filter((row) => row.status === "active" || row.status === "queued")
 		.sort(compareQueueOrder);
 
@@ -192,7 +185,7 @@ export const getDevConsoleState = query({
 				colonyId: args.colonyId,
 			});
 			const canUseDevConsole = owned.player.devConsoleEnabled === true;
-			const showDevConsoleUi = owned.player.devConsoleUiEnabled === true;
+			const showDevConsoleUi = canUseDevConsole && owned.player.devConsoleUiEnabled === true;
 			return {
 				canUseDevConsole,
 				showDevConsoleUi,
@@ -229,6 +222,9 @@ export const setDevConsoleUiEnabled = mutation({
 		const playerResult = await resolveCurrentPlayer(ctx);
 		if (!playerResult?.player) {
 			throw new ConvexError("Authentication required");
+		}
+		if (playerResult.player.devConsoleEnabled !== true) {
+			throw new ConvexError("Dev console access denied");
 		}
 
 		await ctx.db.patch(playerResult.player._id, {
@@ -292,6 +288,10 @@ export const setColonyResources = mutation({
 			},
 			ctx,
 			now,
+		});
+		await rescheduleColonyQueueResolution({
+			colonyId: settledColony._id,
+			ctx,
 		});
 
 		const result = {
@@ -385,6 +385,10 @@ export const setBuildingLevels = mutation({
 			ctx,
 			now,
 		});
+		await rescheduleColonyQueueResolution({
+			colonyId: settledColony._id,
+			ctx,
+		});
 
 		const result = {
 			colonyId: settledColony._id,
@@ -477,6 +481,10 @@ export const setFacilityLevels = mutation({
 			},
 			ctx,
 			now,
+		});
+		await rescheduleColonyQueueResolution({
+			colonyId: settledColony._id,
+			ctx,
 		});
 
 		const result = {
@@ -618,6 +626,10 @@ export const completeActiveQueueItem = mutation({
 			lane: args.lane,
 			now,
 		});
+		await rescheduleColonyQueueResolution({
+			colonyId: settledColony._id,
+			ctx,
+		});
 
 		await logDevAction({
 			actionType: "completeActiveQueueItem",
@@ -691,12 +703,23 @@ export const completeActiveMission = mutation({
 				nextEventAt: now,
 				updatedAt: now,
 			});
-			await settleDueFleetOperations({
+			const settled = await settleDueFleetOperations({
 				ctx,
 				now,
 				ownerPlayerId: owned.player._id,
 			});
+			for (const affectedOperationId of settled.affectedOperationIds) {
+				await reconcileFleetOperationSchedule({
+					ctx,
+					operationId: affectedOperationId,
+				});
+			}
 		}
+
+		await reconcileFleetOperationSchedule({
+			ctx,
+			operationId: args.operationId,
+		});
 
 		const resolved = await ctx.db.get(args.operationId);
 		if (!resolved) {

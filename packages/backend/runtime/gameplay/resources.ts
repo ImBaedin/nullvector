@@ -6,6 +6,7 @@ import { ConvexError, v } from "convex/values";
 import type { ProductionBuildingKey, StorageBuildingKey } from "./shared";
 
 import { mutation, query } from "../../convex/_generated/server";
+import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	BUILDING_CONFIG,
 	OPEN_QUEUE_STATUSES,
@@ -392,6 +393,10 @@ export const enqueueBuildingUpgrade = mutation({
 				now,
 			});
 		}
+		await rescheduleColonyQueueResolution({
+			colonyId: settledColony._id,
+			ctx,
+		});
 
 		return {
 			colonyId: settledColony._id,

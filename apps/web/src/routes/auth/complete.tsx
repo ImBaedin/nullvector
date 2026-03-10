@@ -152,14 +152,18 @@ function AuthCompleteRoute() {
 	]);
 
 	return (
-		<div className="
-    mx-auto flex size-full min-h-0  max-w-6xl items-center justify-center
-    px-4 py-8 text-white/80
-  ">
+		<div
+			className="
+     mx-auto flex size-full min-h-0 max-w-6xl items-center justify-center px-4
+     py-8 text-white/80
+   "
+		>
 			{errorMessage ? (
-				<div className="
-      rounded-lg border border-red-400/40 bg-red-950/30 p-4 text-center
-    ">
+				<div
+					className="
+       rounded-lg border border-red-400/40 bg-red-950/30 p-4 text-center
+     "
+				>
 					<p className="mb-3 text-sm text-red-100">{errorMessage}</p>
 					<div className="flex items-center justify-center gap-2">
 						<button

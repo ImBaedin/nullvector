@@ -27,13 +27,13 @@ import {
 	Sparkles,
 	X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
-import { formatDuration } from "./shipyard-mock-shared";
 import { FleetRouteSkeleton } from "./loading-skeletons";
+import { formatDuration } from "./shipyard-mock-shared";
 import { useColonyStarMapPicker, type FleetMissionKind } from "./star-map-picker-context";
 
 export const Route = createFileRoute("/game/colony/$colonyId/fleet")({
@@ -131,7 +131,6 @@ function FleetRoute() {
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
 
-	const syncColony = useMutation(api.colonyQueue.syncColony);
 	const createOperation = useMutation(api.fleetV2.createOperation);
 	const cancelOperation = useMutation(api.fleetV2.cancelOperation);
 	const completeActiveMission = useMutation(api.devConsole.completeActiveMission);
@@ -153,46 +152,19 @@ function FleetRoute() {
 		null,
 	);
 
-	const isSyncingRef = useRef(false);
-
-	const sync = useCallback(async () => {
-		if (!isAuthenticated || isSyncingRef.current) {
-			return;
-		}
-		isSyncingRef.current = true;
-		try {
-			await syncColony({ colonyId: colonyIdAsId });
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Failed to sync colony");
-		} finally {
-			isSyncingRef.current = false;
-		}
-	}, [colonyIdAsId, isAuthenticated, syncColony]);
-
 	useEffect(() => {
 		if (!isAuthenticated) {
 			return;
 		}
 
-		void sync();
-
 		const tick = window.setInterval(() => {
 			setNowMs(Date.now());
 		}, 1_000);
 
-		const onVisibilityChange = () => {
-			if (document.visibilityState === "visible") {
-				void sync();
-			}
-		};
-
-		document.addEventListener("visibilitychange", onVisibilityChange);
-
 		return () => {
 			window.clearInterval(tick);
-			document.removeEventListener("visibilitychange", onVisibilityChange);
 		};
-	}, [isAuthenticated, sync]);
+	}, [isAuthenticated]);
 
 	useEffect(() => {
 		if (!selectedTarget) {
@@ -409,7 +381,6 @@ function FleetRoute() {
 			if (missionType === "transport") {
 				setRoundTrip(true);
 			}
-			await sync();
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to launch expedition");
 		} finally {
@@ -422,7 +393,6 @@ function FleetRoute() {
 		try {
 			await cancelOperation({ operationId });
 			toast.success("Operation cancelled; fleet is returning");
-			await sync();
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to cancel operation");
 		} finally {
@@ -438,7 +408,6 @@ function FleetRoute() {
 				operationId,
 			});
 			toast.success("Operation completed");
-			await sync();
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to complete operation");
 		} finally {
@@ -448,10 +417,12 @@ function FleetRoute() {
 
 	return (
 		<div className="mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white">
-			<div className="
-     grid gap-5
-     lg:grid-cols-[minmax(0,1fr)_450px]
-   ">
+			<div
+				className="
+      grid gap-5
+      lg:grid-cols-[minmax(0,1fr)_450px]
+    "
+			>
 				<div className="space-y-5">
 					<ActiveOperationsPanel
 						cancelingOperationId={cancelingOperationId}
@@ -568,17 +539,21 @@ function ActiveOperationsPanel(props: {
 	if (props.operations.length === 0) {
 		return (
 			<div>
-				<h2 className="
-      flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
-      font-bold
-    ">
+				<h2
+					className="
+       flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
+       font-bold
+     "
+				>
 					<Layers3 className="size-4 text-cyan-300/60" />
 					Active Expeditions
 				</h2>
-				<div className="
-      mt-3 rounded-xl border border-white/10 bg-white/2 px-4 py-6
-      text-center text-xs text-white/45
-    ">
+				<div
+					className="
+       mt-3 rounded-xl border border-white/10 bg-white/2 px-4 py-6 text-center
+       text-xs text-white/45
+     "
+				>
 					No active expeditions.
 				</div>
 			</div>
@@ -587,10 +562,12 @@ function ActiveOperationsPanel(props: {
 
 	return (
 		<div>
-			<h2 className="
-     flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
-     font-bold
-   ">
+			<h2
+				className="
+      flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
+      font-bold
+    "
+			>
 				<Layers3 className="size-4 text-cyan-300/60" />
 				Active Expeditions
 			</h2>
@@ -624,84 +601,66 @@ function ActiveOperationsPanel(props: {
 								onClick={() => props.onToggle(operation.id)}
 								type="button"
 							>
-								<span
-									className={`
-           inline-block size-2 shrink-0 rounded-full
-           ${
-										isReturning ? "bg-amber-400" : "bg-cyan-400"
-									}
-         `}
-								/>
+								<span className={`
+          inline-block size-2 shrink-0 rounded-full
+          ${isReturning ? "bg-amber-400" : "bg-cyan-400"}
+        `} />
 								<span className="min-w-0 shrink-0 text-xs font-semibold">
 									{operation.targetPreview.label}
 								</span>
-								<span
-									className={`
-           shrink-0 rounded-sm px-1.5 py-0.5 text-[9px] font-semibold uppercase
-           ${
-										isReturning
-											? "bg-amber-400/12 text-amber-200/80"
-											: "bg-cyan-400/12 text-cyan-200/80"
-									}
-         `}
-								>
-									{isReturning ? "Returning" : operation.kind}
-								</span>
-								<span
-									className={`
-           shrink-0 rounded-sm px-1.5 py-0.5 text-[9px] font-semibold uppercase
-           ${
-										operation.relation === "incoming"
-											? "border border-amber-300/20 bg-amber-300/10 text-amber-100/80"
-											: "border border-cyan-300/20 bg-cyan-300/10 text-cyan-100/80"
-									}
-         `}
-								>
-									{operation.relation}
-								</span>
+								<span className={`
+          shrink-0 rounded-sm px-1.5 py-0.5 text-[9px] font-semibold uppercase
+          ${isReturning ? "bg-amber-400/12 text-amber-200/80" : `
+             bg-cyan-400/12 text-cyan-200/80
+           `}
+        `}>{isReturning ? "Returning" : operation.kind}</span>
+								<span className={`
+          shrink-0 rounded-sm px-1.5 py-0.5 text-[9px] font-semibold uppercase
+          ${operation.relation === "incoming" ? `
+             border border-amber-300/20 bg-amber-300/10 text-amber-100/80
+           ` : `
+             border border-cyan-300/20 bg-cyan-300/10 text-cyan-100/80
+           `}
+        `}>{operation.relation}</span>
 
-								<div className="
-          mx-1 hidden h-1 min-w-[60px] flex-1 overflow-hidden rounded-full
-          bg-white/8
-          sm:block
-        ">
-									<div
-										className={`
-            h-full rounded-full
-            ${
-											isReturning ? "bg-amber-400/50" : "bg-cyan-400/50"
-										}
-          `}
-										style={{ width: `${progress}%` }}
-									/>
+								<div
+									className="
+           mx-1 hidden h-1 min-w-[60px] flex-1 overflow-hidden rounded-full
+           bg-white/8
+           sm:block
+         "
+								>
+									<div className={`
+           h-full rounded-full
+           ${isReturning ? "bg-amber-400/50" : "bg-cyan-400/50"}
+         `} style={{ width: `${progress}%` }} />
 								</div>
 
-								<span className="
-          shrink-0 font-(family-name:--nv-font-mono) text-[10px]
-          text-white/35
-        ">
+								<span
+									className="
+           shrink-0 font-(family-name:--nv-font-mono) text-[10px] text-white/35
+         "
+								>
 									{Math.round(progress)}%
 								</span>
 
-								<div className="
-          flex shrink-0 items-center gap-1 text-[10px] text-white/45
-        ">
+								<div
+									className="flex shrink-0 items-center gap-1 text-[10px] text-white/45"
+								>
 									<Clock3 className="size-3" />
-									<span className="
-           font-(family-name:--nv-font-mono) font-semibold text-cyan-100
-         ">
+									<span
+										className="
+            font-(family-name:--nv-font-mono) font-semibold text-cyan-100
+          "
+									>
 										{formatDuration(etaSeconds)}
 									</span>
 								</div>
 
-								<ChevronDown
-									className={`
-           ml-auto size-3.5 shrink-0 text-white/25 transition-transform
-           ${
-										isExpanded ? "rotate-180" : ""
-									}
-         `}
-								/>
+								<ChevronDown className={`
+          ml-auto size-3.5 shrink-0 text-white/25 transition-transform
+          ${isExpanded ? "rotate-180" : ""}
+        `} />
 							</button>
 
 							<div
@@ -726,19 +685,23 @@ function ActiveOperationsPanel(props: {
 														: { opacity: 0 }
 												}
 											>
-												<div className="
-              mx-auto flex size-10 items-center justify-center rounded-full
-              border border-cyan-300/25 bg-cyan-400/10
-            ">
+												<div
+													className="
+               mx-auto flex size-10 items-center justify-center rounded-full
+               border border-cyan-300/25 bg-cyan-400/10
+             "
+												>
 													<MapPin className="size-4 text-cyan-300" />
 												</div>
 												<p className="mt-1.5 truncate text-[11px] font-semibold">
 													{operation.originName}
 												</p>
-												<p className="
-              truncate font-(family-name:--nv-font-mono) text-[9px]
-              text-white/30
-            ">
+												<p
+													className="
+               truncate font-(family-name:--nv-font-mono) text-[9px]
+               text-white/30
+             "
+												>
 													{operation.originAddressLabel}
 												</p>
 											</div>
@@ -749,10 +712,10 @@ function ActiveOperationsPanel(props: {
 													className={`
                absolute top-0 h-px
                ${
-														isReturning
-															? "bg-linear-to-r from-amber-400/60 to-amber-400/20"
-															: "bg-linear-to-r from-cyan-400/60 to-cyan-400/20"
-													}
+									isReturning
+										? "bg-linear-to-r from-amber-400/60 to-amber-400/20"
+										: "bg-linear-to-r from-cyan-400/60 to-cyan-400/20"
+								}
              `}
 													style={
 														isExpanded
@@ -781,30 +744,26 @@ function ActiveOperationsPanel(props: {
 																}
 													}
 												>
-													<div
-														className={`
-                flex size-6 items-center justify-center rounded-full border-2
-                shadow-lg
-                ${
-															isReturning
-																? "border-amber-300 bg-amber-400/20 shadow-amber-400/30"
-																: "border-cyan-300 bg-cyan-400/20 shadow-cyan-400/30"
-														}
-              `}
-													>
-														<Ship
-															className={`
-                 size-3
-                 ${
-																isReturning ? "rotate-180 text-amber-300" : "text-cyan-300"
-															}
-               `}
-														/>
+													<div className={`
+               flex size-6 items-center justify-center rounded-full border-2
+               shadow-lg
+               ${isReturning ? `
+                  border-amber-300 bg-amber-400/20 shadow-amber-400/30
+                ` : `
+                  border-cyan-300 bg-cyan-400/20 shadow-cyan-400/30
+                `}
+             `}>
+														<Ship className={`
+                size-3
+                ${isReturning ? "rotate-180 text-amber-300" : "text-cyan-300"}
+              `} />
 													</div>
-													<span className="
-               mt-0.5 font-(family-name:--nv-font-mono) text-[8px]
-               text-white/30
-             ">
+													<span
+														className="
+                mt-0.5 font-(family-name:--nv-font-mono) text-[8px]
+                text-white/30
+              "
+													>
 														{Math.round(progress)}%
 													</span>
 												</div>
@@ -822,33 +781,31 @@ function ActiveOperationsPanel(props: {
 														: { opacity: 0 }
 												}
 											>
-												<div
-													className={`
-               mx-auto flex size-10 items-center justify-center rounded-full
-               border
-               ${
-														operation.kind === "colonize"
-															? "border-amber-300/25 bg-amber-400/10"
-															: "border-cyan-300/25 bg-cyan-400/10"
-													}
-             `}
-												>
-													{operation.kind === "colonize" ? (
-														<Globe2 className="size-4 text-amber-300" />
-													) : (
-														<MapPin className="size-4 text-cyan-300" />
-													)}
-												</div>
+												<div className={`
+              mx-auto flex size-10 items-center justify-center rounded-full
+              border
+              ${operation.kind === "colonize" ? `
+                 border-amber-300/25 bg-amber-400/10
+               ` : `
+                 border-cyan-300/25 bg-cyan-400/10
+               `}
+            `}>{operation.kind === "colonize" ? <Globe2 className="
+               size-4 text-amber-300
+             " /> : <MapPin className="
+               size-4 text-cyan-300
+             " />}</div>
 												{(() => {
 													const m = operation.targetPreview.label.match(/^(.+?)\s*\(([^)]+)\)$/);
 													if (m) {
 														return (
 															<>
 																<p className="mt-1.5 truncate text-[11px] font-semibold">{m[1]}</p>
-																<p className="
-                  truncate font-(family-name:--nv-font-mono) text-[9px]
-                  text-white/30
-                ">
+																<p
+																	className="
+                   truncate font-(family-name:--nv-font-mono) text-[9px]
+                   text-white/30
+                 "
+																>
 																	{m[2]}
 																</p>
 															</>
@@ -877,10 +834,12 @@ function ActiveOperationsPanel(props: {
 													: { opacity: 0 }
 											}
 										>
-											<div className="
-             rounded-sm border border-white/10 bg-white/3 px-1.5 py-0.5
-             text-[9px] font-semibold uppercase
-           ">
+											<div
+												className="
+              rounded-sm border border-white/10 bg-white/3 px-1.5 py-0.5
+              text-[9px] font-semibold uppercase
+            "
+											>
 												{operation.relation}
 											</div>
 											<div className="flex items-center gap-1">
@@ -905,13 +864,15 @@ function ActiveOperationsPanel(props: {
 													Round trip
 												</div>
 											) : null}
-											<span className="
-             font-(family-name:--nv-font-mono) text-[10px] text-white/30
-           ">
+											<span
+												className="
+              font-(family-name:--nv-font-mono) text-[10px] text-white/30
+            "
+											>
 												{operation.status}
 											</span>
 
-										{operation.canCancel ? (
+											{operation.canCancel ? (
 												<button
 													className="
                ml-auto inline-flex items-center gap-1 rounded-md border
@@ -933,15 +894,14 @@ function ActiveOperationsPanel(props: {
 											{props.canShowDevUi ? (
 												<button
 													className="
-               inline-flex items-center gap-1 rounded-md border border-cyan-300/20
-               bg-cyan-400/8 px-2.5 py-1 text-[10px] font-medium text-cyan-100
-               transition-colors
+               inline-flex items-center gap-1 rounded-md border
+               border-cyan-300/20 bg-cyan-400/8 px-2.5 py-1 text-[10px]
+               font-medium text-cyan-100 transition-colors
                hover:border-cyan-200/35 hover:bg-cyan-400/12
                disabled:cursor-not-allowed disabled:opacity-50
              "
 													disabled={
-														props.completingOperationId === operation.id ||
-														!props.canUseDevConsole
+														props.completingOperationId === operation.id || !props.canUseDevConsole
 													}
 													onClick={(event) => {
 														event.stopPropagation();
@@ -978,15 +938,19 @@ function FleetSummaryStrip(props: {
 	}>;
 }) {
 	return (
-		<div className="
-    rounded-2xl border border-white/10
-    bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))] p-4
-  ">
+		<div
+			className="
+     rounded-2xl border border-white/10
+     bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))] p-4
+   "
+		>
 			<div className="flex items-center gap-3">
-				<div className="
-      flex size-8 items-center justify-center rounded-lg border
-      border-cyan-300/25 bg-cyan-400/8
-    ">
+				<div
+					className="
+       flex size-8 items-center justify-center rounded-lg border
+       border-cyan-300/25 bg-cyan-400/8
+     "
+				>
 					<Ship className="size-4 text-cyan-300" />
 				</div>
 				<div>
@@ -1094,13 +1058,15 @@ function MissionPlannerPanel(props: {
 }) {
 	return (
 		<div className="lg:sticky lg:top-4 lg:self-start">
-			<div className="
-     rounded-2xl border border-white/12
-     bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
-   ">
-				<div className="
-      flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
-    ">
+			<div
+				className="
+      rounded-2xl border border-white/12
+      bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
+    "
+			>
+				<div
+					className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
+				>
 					<Rocket className="size-5 text-cyan-300" />
 					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 						Plan Expedition
@@ -1112,23 +1078,16 @@ function MissionPlannerPanel(props: {
 						<SectionLabel>Mission Type</SectionLabel>
 						<div className="mt-1.5 flex gap-2">
 							{(["transport", "colonize"] as const).map((type) => (
-								<button
-									className={`
-           flex flex-1 items-center justify-center gap-1.5 rounded-lg border
-           py-2 text-xs font-semibold transition-all
-           ${
-										props.missionType === type
-											? "border-cyan-300/40 bg-cyan-400/12 text-cyan-100"
-											: `
+								<button className={`
+          flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2
+          text-xs font-semibold transition-all
+          ${props.missionType === type ? `
+             border-cyan-300/40 bg-cyan-400/12 text-cyan-100
+           ` : `
              border-white/10 bg-white/3 text-white/40
              hover:text-white/60
-           `
-									}
-         `}
-									key={type}
-									onClick={() => props.onMissionTypeChange(type)}
-									type="button"
-								>
+           `}
+        `} key={type} onClick={() => props.onMissionTypeChange(type)} type="button">
 									{type === "transport" ? (
 										<Package className="size-3.5" />
 									) : (
@@ -1143,22 +1102,20 @@ function MissionPlannerPanel(props: {
 					<div>
 						<SectionLabel>Destination</SectionLabel>
 						{props.targetResolution?.ok && props.targetResolution.targetPreview ? (
-							<p className="
-         mt-1.5 rounded-lg border border-cyan-300/20 bg-cyan-400/6 px-3
-         py-2 text-[11px] text-cyan-100
-       ">
+							<p
+								className="
+          mt-1.5 rounded-lg border border-cyan-300/20 bg-cyan-400/6 px-3 py-2
+          text-[11px] text-cyan-100
+        "
+							>
 								{props.targetResolution.targetPreview.label}
 							</p>
 						) : null}
 
-						<div
-							className={`
-         mt-1.5 grid grid-cols-4 gap-1.5 transition-opacity
-         ${
-								props.selectedColonyId ? "pointer-events-none opacity-35" : ""
-							}
-       `}
-						>
+						<div className={`
+        mt-1.5 grid grid-cols-4 gap-1.5 transition-opacity
+        ${props.selectedColonyId ? "pointer-events-none opacity-35" : ""}
+      `}>
 							{(["g", "s", "ss", "p"] as const).map((field, index) => (
 								<div key={field}>
 									<span className="block text-center text-[7px] text-white/25 uppercase">
@@ -1167,8 +1124,8 @@ function MissionPlannerPanel(props: {
 									<input
 										className="
             w-full rounded-md border border-white/12 bg-black/35 px-1 py-1.5
-            text-center font-(family-name:--nv-font-mono) text-sm
-            text-white outline-none
+            text-center font-(family-name:--nv-font-mono) text-sm text-white
+            outline-none
             focus:border-cyan-300/40
           "
 										maxLength={4}
@@ -1187,72 +1144,61 @@ function MissionPlannerPanel(props: {
 
 						{props.missionType === "transport" ? (
 							<div className="mt-2">
-								<button
-									className={`
-           flex w-full items-center justify-between gap-1.5 rounded-lg border
-           px-3 py-2 text-[10px] transition-all
-           ${
-										props.colonyPickerOpen
-											? "border-cyan-300/30 bg-cyan-400/6 text-cyan-100"
-											: `
+								<button className={`
+          flex w-full items-center justify-between gap-1.5 rounded-lg border
+          px-3 py-2 text-[10px] transition-all
+          ${props.colonyPickerOpen ? `
+             border-cyan-300/30 bg-cyan-400/6 text-cyan-100
+           ` : `
              border-dashed border-white/10 text-white/30
              hover:border-cyan-300/20 hover:text-cyan-200/50
-           `
-									}
-         `}
-									onClick={() => props.onSetColonyPickerOpen(!props.colonyPickerOpen)}
-									type="button"
-								>
+           `}
+        `} onClick={() => props.onSetColonyPickerOpen(!props.colonyPickerOpen)} type="button">
 									<span className="flex items-center gap-1.5">
 										<Globe2 className="size-3" />
 										My Colonies
 									</span>
-									<ChevronDown
-										className={`
-            size-3 transition-transform duration-200
-            ${
-											props.colonyPickerOpen ? "rotate-180" : ""
-										}
-          `}
-									/>
+									<ChevronDown className={`
+           size-3 transition-transform duration-200
+           ${props.colonyPickerOpen ? "rotate-180" : ""}
+         `} />
 								</button>
 
 								{props.colonyPickerOpen ? (
 									<div className="pt-1 pb-0.5">
 										{props.nonCurrentColonies.map((colony) => (
-											<button
-												className={`
-              group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2
-              text-left transition-colors
-              hover:bg-white/[0.035]
-              ${
-													props.selectedColonyId === colony.id ? "bg-cyan-400/6" : ""
-												}
-            `}
-												key={colony.id}
-												onClick={() => props.onSelectColony(colony.id)}
-												type="button"
-											>
-												<div className="
-              flex size-7 shrink-0 items-center justify-center rounded-md border
-              border-white/10
-              bg-[linear-gradient(150deg,rgba(61,217,255,0.08),rgba(255,145,79,0.08))]
-              text-[8px] font-bold text-white/60 transition-colors
-              group-hover:border-cyan-300/20 group-hover:text-white/80
-            ">
+											<button className={`
+             group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2
+             text-left transition-colors
+             hover:bg-white/[0.035]
+             ${props.selectedColonyId === colony.id ? "bg-cyan-400/6" : ""}
+           `} key={colony.id} onClick={() => props.onSelectColony(colony.id)} type="button">
+												<div
+													className="
+               flex size-7 shrink-0 items-center justify-center rounded-md
+               border border-white/10
+               bg-[linear-gradient(150deg,rgba(61,217,255,0.08),rgba(255,145,79,0.08))]
+               text-[8px] font-bold text-white/60 transition-colors
+               group-hover:border-cyan-300/20 group-hover:text-white/80
+             "
+												>
 													{colony.name.slice(0, 2).toUpperCase()}
 												</div>
 												<div className="min-w-0 flex-1">
-													<p className="
-               truncate text-[11px] font-semibold text-white/80
-               transition-colors
-               group-hover:text-white
-             ">
+													<p
+														className="
+                truncate text-[11px] font-semibold text-white/80
+                transition-colors
+                group-hover:text-white
+              "
+													>
 														{colony.name}
 													</p>
-													<p className="
-               font-(family-name:--nv-font-mono) text-[9px] text-white/25
-             ">
+													<p
+														className="
+                font-(family-name:--nv-font-mono) text-[9px] text-white/25
+              "
+													>
 														{colony.addressLabel}
 													</p>
 												</div>
@@ -1284,41 +1230,30 @@ function MissionPlannerPanel(props: {
 						) : null}
 					</div>
 
-					<div className="
-       flex items-center justify-between rounded-lg border border-white/8
-       bg-black/15 p-2.5
-     ">
+					<div
+						className="
+        flex items-center justify-between rounded-lg border border-white/8
+        bg-black/15 p-2.5
+      "
+					>
 						<div className="flex items-center gap-2">
-							<RotateCcw
-								className={`
-          size-3.5
-          ${props.roundTrip ? "text-cyan-300" : `text-white/25`}
-        `}
-							/>
+							<RotateCcw className={`
+         size-3.5
+         ${props.roundTrip ? "text-cyan-300" : `text-white/25`}
+       `} />
 							<span className="text-xs text-white/55">Round Trip</span>
 						</div>
-						<button
-							className={`
-         relative h-6 w-10 rounded-full border transition-all
-         ${
-								props.roundTrip ? "border-cyan-300/40 bg-cyan-400/20" : `
-          border-white/15 bg-white/8
-        `
-							}
-       `}
-							disabled={props.missionType === "colonize"}
-							onClick={() => props.onRoundTripChange(!props.roundTrip)}
-							type="button"
-						>
-							<span
-								className={`
-          absolute top-1/2 left-[3px] size-4 -translate-y-1/2 rounded-full
-          bg-white shadow-sm transition-transform
-          ${
-									props.roundTrip ? "translate-x-4" : "translate-x-0"
-								}
-        `}
-							/>
+						<button className={`
+        relative h-6 w-10 rounded-full border transition-all
+        ${props.roundTrip ? "border-cyan-300/40 bg-cyan-400/20" : `
+           border-white/15 bg-white/8
+         `}
+      `} disabled={props.missionType === "colonize"} onClick={() => props.onRoundTripChange(!props.roundTrip)} type="button">
+							<span className={`
+         absolute top-1/2 left-[3px] size-4 -translate-y-1/2 rounded-full
+         bg-white shadow-sm transition-transform
+         ${props.roundTrip ? "translate-x-4" : "translate-x-0"}
+       `} />
 						</button>
 					</div>
 
@@ -1334,15 +1269,10 @@ function MissionPlannerPanel(props: {
 							{props.ships.map((ship, index) => {
 								const count = props.selectedShips[ship.key] ?? 0;
 								return (
-									<div
-										className={`
-            flex items-center gap-2 py-1.5
-            ${
-											index < props.ships.length - 1 ? "border-b border-white/6" : ""
-										}
-          `}
-										key={ship.key}
-									>
+									<div className={`
+           flex items-center gap-2 py-1.5
+           ${index < props.ships.length - 1 ? "border-b border-white/6" : ""}
+         `} key={ship.key}>
 										<img
 											alt={ship.name}
 											className="size-5 shrink-0 object-contain"
@@ -1354,20 +1284,15 @@ function MissionPlannerPanel(props: {
 														: "colony-ship"
 											}.png`}
 										/>
+										<span className={`
+            min-w-0 flex-1 truncate text-xs
+            ${count > 0 ? "font-semibold text-white" : "text-white/70"}
+          `}>{ship.name}</span>
 										<span
-											className={`
-             min-w-0 flex-1 truncate text-xs
-             ${
-												count > 0 ? "font-semibold text-white" : "text-white/70"
-											}
-           `}
+											className="
+             shrink-0 font-(family-name:--nv-font-mono) text-[9px] text-white/30
+           "
 										>
-											{ship.name}
-										</span>
-										<span className="
-            shrink-0 font-(family-name:--nv-font-mono) text-[9px]
-            text-white/30
-          ">
 											({ship.available})
 										</span>
 										<div className="flex shrink-0 items-center gap-0.5">
@@ -1383,17 +1308,10 @@ function MissionPlannerPanel(props: {
 											>
 												<Minus className="size-2.5" />
 											</button>
-											<span
-												className={`
-              w-6 text-center font-(family-name:--nv-font-mono) text-xs
-              font-bold
-              ${
-													count > 0 ? "text-cyan-100" : "text-white/30"
-												}
-            `}
-											>
-												{count}
-											</span>
+											<span className={`
+             w-6 text-center font-(family-name:--nv-font-mono) text-xs font-bold
+             ${count > 0 ? "text-cyan-100" : "text-white/30"}
+           `}>{count}</span>
 											<button
 												className="
               flex size-5 items-center justify-center rounded-sm border
@@ -1416,9 +1334,9 @@ function MissionPlannerPanel(props: {
 					<div>
 						<div className="flex items-center justify-between">
 							<SectionLabel>Cargo</SectionLabel>
-							<span className="
-         font-(family-name:--nv-font-mono) text-[9px] text-white/25
-       ">
+							<span
+								className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
+							>
 								{props.cargoUsed.toLocaleString()} / {props.cargoCapacity.toLocaleString()}
 							</span>
 						</div>
@@ -1447,9 +1365,8 @@ function MissionPlannerPanel(props: {
 									<input
 										className="
             flex-1 [appearance:textfield] rounded-md border border-white/10
-            bg-black/25 px-2 py-1 text-right
-            font-(family-name:--nv-font-mono) text-xs text-white
-            outline-none
+            bg-black/25 px-2 py-1 text-right font-(family-name:--nv-font-mono)
+            text-xs text-white outline-none
             focus:border-cyan-300/30
             [&::-webkit-inner-spin-button]:appearance-none
             [&::-webkit-outer-spin-button]:appearance-none
@@ -1471,9 +1388,9 @@ function MissionPlannerPanel(props: {
 					</div>
 
 					{props.hasShips ? (
-						<div className="
-        rounded-xl border border-cyan-300/15 bg-cyan-400/4 p-3
-      ">
+						<div
+							className="rounded-xl border border-cyan-300/15 bg-cyan-400/4 p-3"
+						>
 							<div className="grid grid-cols-2 gap-2">
 								<MetricCard
 									label="Distance"
@@ -1492,10 +1409,12 @@ function MissionPlannerPanel(props: {
 						</div>
 					) : null}
 
-					<div className="
-       rounded-lg border border-white/8 bg-black/20 px-3 py-2 text-[10px]
-       text-white/55
-     ">
+					<div
+						className="
+        rounded-lg border border-white/8 bg-black/20 px-3 py-2 text-[10px]
+        text-white/55
+      "
+					>
 						<p>
 							Resources after launch: Alloy {props.availableResources.alloy.toLocaleString()} /
 							Crystal {props.availableResources.crystal.toLocaleString()} / Fuel{" "}
@@ -1535,9 +1454,11 @@ function MissionPlannerPanel(props: {
 
 function SectionLabel(props: { children: React.ReactNode }) {
 	return (
-		<p className="
-    text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
-  ">
+		<p
+			className="
+     text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
+   "
+		>
 			{props.children}
 		</p>
 	);
@@ -1547,10 +1468,11 @@ function MetricCard(props: { label: string; value: string }) {
 	return (
 		<div className="rounded-lg border border-cyan-300/10 bg-cyan-400/3 p-2">
 			<p className="text-[8px] tracking-widest text-cyan-200/45 uppercase">{props.label}</p>
-			<p className="
-     mt-0.5 font-(family-name:--nv-font-mono) text-xs font-bold
-     text-cyan-100
-   ">
+			<p
+				className="
+      mt-0.5 font-(family-name:--nv-font-mono) text-xs font-bold text-cyan-100
+    "
+			>
 				{props.value}
 			</p>
 		</div>

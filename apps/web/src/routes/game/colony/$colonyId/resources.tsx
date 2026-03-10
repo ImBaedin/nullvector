@@ -5,10 +5,11 @@ import type { ReactNode } from "react";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { createFileRoute } from "@tanstack/react-router";
 import { BatteryCharging, Clock3, Factory, Layers3, Pickaxe, Radar } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
+import { useSimulatedColonyResources } from "@/hooks/use-simulated-colony-resources";
+import { formatResourceValue } from "@/lib/colony-resource-simulation";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { ResourcesRouteSkeleton } from "./loading-skeletons";
@@ -233,7 +234,6 @@ function ResourcesRoute() {
 			buildings: buildingCards.buildings,
 		};
 	}, [buildingCards, queueLanes, resourceSnapshot]);
-	const syncColony = useMutation(api.colonyQueue.syncColony);
 	const enqueueBuildingUpgrade = useMutation(api.resources.enqueueBuildingUpgrade);
 	const setColonyResources = useMutation(api.devConsole.setColonyResources);
 	const setBuildingLevels = useMutation(api.devConsole.setBuildingLevels);
@@ -246,60 +246,13 @@ function ResourcesRoute() {
 	const [savingResourceKey, setSavingResourceKey] = useState<ResourceKey | null>(null);
 	const [savingBuildingLevelKey, setSavingBuildingLevelKey] = useState<BuildingKey | null>(null);
 	const [isCompletingQueueItem, setIsCompletingQueueItem] = useState(false);
-	const [nowMs, setNowMs] = useState(() => Date.now());
-	const isSyncingRef = useRef(false);
 	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
-
-	const sync = useCallback(async () => {
-		if (!isAuthenticated || isSyncingRef.current) {
-			return;
-		}
-
-		isSyncingRef.current = true;
-		try {
-			await syncColony({ colonyId: colonyIdAsId });
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Failed to sync colony");
-		} finally {
-			isSyncingRef.current = false;
-		}
-	}, [colonyIdAsId, isAuthenticated, syncColony]);
-
-	useEffect(() => {
-		if (!isAuthenticated) {
-			return;
-		}
-
-		void sync();
-
-		const tick = window.setInterval(() => {
-			setNowMs(Date.now());
-		}, 1_000);
-
-		const onVisibilityChange = () => {
-			if (document.visibilityState === "visible") {
-				void sync();
-			}
-		};
-
-		document.addEventListener("visibilitychange", onVisibilityChange);
-
-		return () => {
-			window.clearInterval(tick);
-			document.removeEventListener("visibilitychange", onVisibilityChange);
-		};
-	}, [isAuthenticated, sync]);
-
-	useGameTimedSync({
-		enabled: isAuthenticated,
-		events: [
-			{
-				id: "colony-next-event",
-				atMs: view?.queues.nextEventAt ?? null,
-			},
-		],
-		onDue: () => sync(),
-		scopeId: `colony:${colonyId}:resources`,
+	const { nowMs, simulated } = useSimulatedColonyResources({
+		lastAccruedAt: view?.colony.lastAccruedAt,
+		overflow: view?.resources.overflow,
+		ratesPerMinute: view?.resources.ratesPerMinute,
+		storageCaps: view?.resources.storageCaps,
+		stored: view?.resources.stored,
 	});
 
 	const buildingQueue = view?.queues.lanes.building;
@@ -396,26 +349,6 @@ function ResourcesRoute() {
 					),
 				)
 			: 0;
-	const simulatedStored = useMemo(() => {
-		if (!view) {
-			return null;
-		}
-
-		const elapsedMinutes = Math.max(0, (nowMs - view.colony.lastAccruedAt) / 60_000);
-		const nextStored = { ...view.resources.stored };
-
-		for (const resourceKey of ["alloy", "crystal", "fuel"] as const) {
-			const gained = view.resources.ratesPerMinute[resourceKey] * elapsedMinutes;
-			const cappedValue = Math.min(
-				view.resources.storageCaps[resourceKey],
-				view.resources.stored[resourceKey] + gained,
-			);
-			nextStored[resourceKey] = Math.floor(cappedValue);
-		}
-
-		return nextStored;
-	}, [nowMs, view]);
-
 	const commitResourceEdit = useCallback(async () => {
 		if (!canShowDevUi || !editingResourceKey || !devConsoleState?.canUseDevConsole) {
 			return;
@@ -511,28 +444,34 @@ function ResourcesRoute() {
 
 	return (
 		<div className="mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white">
-			<div className="
-     grid gap-5
-     lg:grid-cols-[minmax(0,1fr)_450px]
-   ">
+			<div
+				className="
+      grid gap-5
+      lg:grid-cols-[minmax(0,1fr)_450px]
+    "
+			>
 				{/* ══ Left Column: Summary + Building Groups ══ */}
 				<div className="space-y-5">
 					{/* Production Summary Strip */}
-					<div className="
-       rounded-2xl border border-white/10
-       bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))] p-4
-     ">
+					<div
+						className="
+        rounded-2xl border border-white/10
+        bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))] p-4
+      "
+					>
 						<div className="flex items-center gap-3">
-							<div className="
-         flex size-8 items-center justify-center rounded-lg border
-         border-cyan-300/25 bg-cyan-400/8
-       ">
+							<div
+								className="
+          flex size-8 items-center justify-center rounded-lg border
+          border-cyan-300/25 bg-cyan-400/8
+        "
+							>
 								<Factory className="size-4 text-cyan-300" />
 							</div>
 							<div>
-								<h1 className="
-          font-(family-name:--nv-font-display) text-lg font-bold
-        ">
+								<h1
+									className="font-(family-name:--nv-font-display) text-lg font-bold"
+								>
 									Infrastructure
 								</h1>
 								<p className="text-[10px] text-white/40">
@@ -549,7 +488,8 @@ function ResourcesRoute() {
 							{DEV_RESOURCE_KEYS.map((resourceKey) => {
 								const res = {
 									key: resourceKey,
-									label: resourceKey === "fuel" ? "Fuel" : resourceKey === "alloy" ? "Alloy" : "Crystal",
+									label:
+										resourceKey === "fuel" ? "Fuel" : resourceKey === "alloy" ? "Alloy" : "Crystal",
 									icon:
 										resourceKey === "fuel"
 											? "/game-icons/deuterium.png"
@@ -557,7 +497,8 @@ function ResourcesRoute() {
 												? "/game-icons/alloy.png"
 												: "/game-icons/crystal.png",
 								} as const;
-								const stored = simulatedStored?.[res.key] ?? view.resources.stored[res.key];
+								const stored = simulated?.stored[res.key] ?? view.resources.stored[res.key];
+								const overflow = simulated?.overflow[res.key] ?? view.resources.overflow[res.key];
 								const cap = view.resources.storageCaps[res.key];
 								const pct = cap > 0 ? Math.min(100, (stored / cap) * 100) : 0;
 
@@ -584,11 +525,11 @@ function ResourcesRoute() {
 													<input
 														autoFocus
 														className="
-              h-6 w-24 rounded-md border border-cyan-300/35 bg-black/40 px-1.5
-              text-right font-(family-name:--nv-font-mono) text-[11px]
-              font-semibold text-cyan-100 outline-none
-              focus:border-cyan-200/60
-            "
+                h-6 w-24 rounded-md border border-cyan-300/35 bg-black/40 px-1.5
+                text-right font-(family-name:--nv-font-mono) text-[11px]
+                font-semibold text-cyan-100 outline-none
+                focus:border-cyan-200/60
+              "
 														inputMode="numeric"
 														onBlur={() => {
 															setEditingResourceKey(null);
@@ -611,10 +552,12 @@ function ResourcesRoute() {
 												) : (
 													<button
 														className="
-              font-(family-name:--nv-font-mono) text-[11px] font-semibold
-              text-cyan-100 transition hover:text-cyan-50
-              disabled:cursor-default disabled:hover:text-cyan-100
-            "
+                font-(family-name:--nv-font-mono) text-[11px] font-semibold
+                text-cyan-100 transition
+                hover:text-cyan-50
+                disabled:cursor-default
+                disabled:hover:text-cyan-100
+              "
 														disabled={!canShowDevUi || savingResourceKey === res.key}
 														onClick={() => {
 															if (!canShowDevUi) {
@@ -628,15 +571,35 @@ function ResourcesRoute() {
 														{stored.toLocaleString()}
 													</button>
 												)}
-												<span className="
-              font-(family-name:--nv-font-mono) text-[9px] text-white/25
-            ">
+												<span
+													className="
+               font-(family-name:--nv-font-mono) text-[9px] text-white/25
+             "
+												>
 													/ {cap.toLocaleString()}
 												</span>
 											</div>
-											<div className="
-             mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/8
-           ">
+											<p
+												className={
+													overflow > 0
+														? `
+                mt-1 font-(family-name:--nv-font-mono) text-[9px]
+                text-amber-200/75
+              `
+														: `
+                mt-1 font-(family-name:--nv-font-mono) text-[9px] text-white/28
+              `
+												}
+											>
+												{overflow > 0
+													? `+${formatResourceValue(overflow)} overflow`
+													: "No overflow"}
+											</p>
+											<div
+												className="
+              mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/8
+            "
+											>
 												<div
 													className="h-full rounded-full bg-cyan-400/40 transition-all"
 													style={{ width: `${pct}%` }}
@@ -700,42 +663,50 @@ function ResourcesRoute() {
 								}}
 							>
 								{/* Group Header */}
-								<div className="
-          flex flex-wrap items-center justify-between gap-2 px-4 py-3
-          sm:px-5
-        ">
+								<div
+									className="
+           flex flex-wrap items-center justify-between gap-2 px-4 py-3
+           sm:px-5
+         "
+								>
 									<div className="flex items-center gap-2.5">
 										<span className="text-white/50">{groupVisual.icon}</span>
 										<div>
-											<h2 className="
-             font-(family-name:--nv-font-display) text-sm font-bold
-           ">
+											<h2
+												className="font-(family-name:--nv-font-display) text-sm font-bold"
+											>
 												{groupVisual.label}
 											</h2>
 											<p className="mt-0.5 text-[10px] text-white/35">{groupVisual.description}</p>
 										</div>
 									</div>
 									<div className="flex items-center gap-1.5">
-										<span className="
-            rounded-md border border-white/10 bg-white/3 px-2 py-0.5
-            font-(family-name:--nv-font-mono) text-[9px] font-semibold
-            text-white/50
-          ">
+										<span
+											className="
+             rounded-md border border-white/10 bg-white/3 px-2 py-0.5
+             font-(family-name:--nv-font-mono) text-[9px] font-semibold
+             text-white/50
+           "
+										>
 											{visibleStructureCount} structures
 										</span>
 										{activeUpgradeInGroup ? (
-											<span className="
-             rounded-md border border-emerald-300/30 bg-emerald-400/8 px-2
-             py-0.5 text-[9px] font-semibold text-emerald-200/80 uppercase
-           ">
+											<span
+												className="
+              rounded-md border border-emerald-300/30 bg-emerald-400/8 px-2
+              py-0.5 text-[9px] font-semibold text-emerald-200/80 uppercase
+            "
+											>
 												Upgrading
 											</span>
 										) : null}
 										{queueCount > 0 ? (
-											<span className="
-             rounded-md border border-cyan-300/30 bg-cyan-400/8 px-2 py-0.5
-             text-[9px] font-semibold text-cyan-200/80 uppercase
-           ">
+											<span
+												className="
+              rounded-md border border-cyan-300/30 bg-cyan-400/8 px-2 py-0.5
+              text-[9px] font-semibold text-cyan-200/80 uppercase
+            "
+											>
 												{queueCount} queued
 											</span>
 										) : null}
@@ -743,15 +714,19 @@ function ResourcesRoute() {
 								</div>
 
 								{/* Building Cards Grid */}
-								<div className="
-          border-t border-white/6 p-3 
-          sm:p-4 
-        ">
-									<div className="
-           grid gap-4
-           md:grid-cols-2
-           lg:grid-cols-3
-         ">
+								<div
+									className="
+           border-t border-white/6 p-3
+           sm:p-4
+         "
+								>
+									<div
+										className="
+            grid gap-4
+            md:grid-cols-2
+            lg:grid-cols-3
+          "
+									>
 										{baseGroupBuildings.map((building) => {
 											const storageKey = storageKeyForProduction(building.key);
 											const storageBuilding = storageKey
@@ -781,8 +756,8 @@ function ResourcesRoute() {
 															energyRatio={view.resources.energyRatio}
 															isBusy={targetBusy}
 															isTableOpen={targetTableOpen}
-															overflow={view.resources.overflow}
-															resourcesStored={simulatedStored ?? view.resources.stored}
+															overflow={simulated?.overflow ?? view.resources.overflow}
+															resourcesStored={simulated?.stored ?? view.resources.stored}
 															storageCaps={view.resources.storageCaps}
 															planetMultipliers={view.planetMultipliers}
 															queuedForBuilding={targetQueued ?? null}
@@ -857,25 +832,28 @@ function ResourcesRoute() {
 
 				{/* ══ Right Column: Building Queue Panel ══ */}
 				<div className="lg:sticky lg:top-4 lg:self-start">
-					<div className="
-       rounded-2xl border border-white/12
-       bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
-     ">
+					<div
+						className="
+        rounded-2xl border border-white/12
+        bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
+      "
+					>
 						{/* Queue header */}
-						<div className="
-        flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
-      ">
+						<div
+							className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
+						>
 							<Clock3 className="size-5 text-cyan-300" />
-							<h2 className="
-         font-(family-name:--nv-font-display) text-sm font-bold
-       ">
+							<h2
+								className="font-(family-name:--nv-font-display) text-sm font-bold"
+							>
 								Building Queue
 							</h2>
 							{activeLaneQueueItem || pendingLaneQueueItems.length > 0 ? (
-								<span className="
-          ml-auto font-(family-name:--nv-font-mono) text-[9px]
-          text-white/30
-        ">
+								<span
+									className="
+           ml-auto font-(family-name:--nv-font-mono) text-[9px] text-white/30
+         "
+								>
 									{(activeLaneQueueItem ? 1 : 0) + pendingLaneQueueItems.length} item
 									{(activeLaneQueueItem ? 1 : 0) + pendingLaneQueueItems.length !== 1 ? "s" : ""}
 								</span>
@@ -886,14 +864,18 @@ function ResourcesRoute() {
 							{/* Active Upgrade */}
 							{activeLaneQueueItem ? (
 								<div className="space-y-3">
-									<p className="
-           text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
-         ">
+									<p
+										className="
+            text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
+          "
+									>
 										Active
 									</p>
-									<div className="
-           rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3
-         ">
+									<div
+										className="
+            rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3
+          "
+									>
 										<div className="flex items-center justify-between">
 											<div>
 												<p className="text-xs font-semibold">
@@ -903,25 +885,31 @@ function ResourcesRoute() {
 														: (FACILITY_KEY_LABELS[activeLaneQueueItem.payload.facilityKey] ??
 															activeLaneQueueItem.payload.facilityKey)}
 												</p>
-												<p className="
-              mt-0.5 font-(family-name:--nv-font-mono) text-[10px]
-              text-white/40
-            ">
+												<p
+													className="
+               mt-0.5 font-(family-name:--nv-font-mono) text-[10px]
+               text-white/40
+             "
+												>
 													Lv {activeLaneQueueItem.payload.fromLevel} →{" "}
 													{activeLaneQueueItem.payload.toLevel}
 												</p>
 											</div>
 											<div className="text-right">
-												<p className="
-              font-(family-name:--nv-font-mono) text-xs font-bold
-              text-emerald-200
-            ">
+												<p
+													className="
+               font-(family-name:--nv-font-mono) text-xs font-bold
+               text-emerald-200
+             "
+												>
 													{remainingTimeLabel ?? "—"}
 												</p>
-												<p className="
-              font-(family-name:--nv-font-mono) text-[8px] tracking-widest
-              text-emerald-200/45 uppercase
-            ">
+												<p
+													className="
+               font-(family-name:--nv-font-mono) text-[8px] tracking-widest
+               text-emerald-200/45 uppercase
+             "
+												>
 													remaining
 												</p>
 											</div>
@@ -936,14 +924,18 @@ function ResourcesRoute() {
 											/>
 										</div>
 										<div className="mt-1 flex items-center justify-between">
-											<span className="
-             font-(family-name:--nv-font-mono) text-[9px] text-white/25
-           ">
+											<span
+												className="
+              font-(family-name:--nv-font-mono) text-[9px] text-white/25
+            "
+											>
 												{Math.round(activeUpgradeProgress)}%
 											</span>
-											<span className="
-             inline-flex items-center gap-1 text-[9px] text-emerald-300/60
-           ">
+											<span
+												className="
+              inline-flex items-center gap-1 text-[9px] text-emerald-300/60
+            "
+											>
 												<span
 													className="inline-block size-1.5 rounded-full bg-emerald-400"
 													style={{ animation: "nv-queue-pulse 2s ease-in-out infinite" }}
@@ -954,11 +946,12 @@ function ResourcesRoute() {
 										{canShowDevUi ? (
 											<button
 												className="
-             mt-2 inline-flex items-center gap-1 rounded-md border border-cyan-300/30
-             bg-cyan-400/10 px-2 py-1 text-[10px] font-medium text-cyan-100
-             transition hover:border-cyan-200/55 hover:bg-cyan-400/16
-             disabled:cursor-not-allowed disabled:opacity-50
-           "
+              mt-2 inline-flex items-center gap-1 rounded-md border
+              border-cyan-300/30 bg-cyan-400/10 px-2 py-1 text-[10px]
+              font-medium text-cyan-100 transition
+              hover:border-cyan-200/55 hover:bg-cyan-400/16
+              disabled:cursor-not-allowed disabled:opacity-50
+            "
 												disabled={isCompletingQueueItem || !devConsoleState?.canUseDevConsole}
 												onClick={() => {
 													void completeActiveQueue();
@@ -975,9 +968,11 @@ function ResourcesRoute() {
 							{/* Pending Queue Items */}
 							{pendingLaneQueueItems.length > 0 ? (
 								<div className={activeLaneQueueItem ? "mt-4" : ""}>
-									<p className="
-           text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
-         ">
+									<p
+										className="
+            text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
+          "
+									>
 										Pending ({pendingLaneQueueItems.length})
 									</p>
 									<div className="mt-2 space-y-1">
@@ -990,11 +985,13 @@ function ResourcesRoute() {
 												key={`pending-${item.kind}-${item.completesAt}-${item.payload.toLevel}`}
 											>
 												<div className="flex items-center gap-2">
-													<span className="
-               flex size-5 items-center justify-center rounded-sm
-               font-(family-name:--nv-font-mono) text-[9px] font-bold
-               text-white/25
-             ">
+													<span
+														className="
+                flex size-5 items-center justify-center rounded-sm
+                font-(family-name:--nv-font-mono) text-[9px] font-bold
+                text-white/25
+              "
+													>
 														{i + 1}
 													</span>
 													<div>
@@ -1005,17 +1002,21 @@ function ResourcesRoute() {
 																: (FACILITY_KEY_LABELS[item.payload.facilityKey] ??
 																	item.payload.facilityKey)}
 														</p>
-														<p className="
-                font-(family-name:--nv-font-mono) text-[9px] text-white/30
-              ">
+														<p
+															className="
+                 font-(family-name:--nv-font-mono) text-[9px] text-white/30
+               "
+														>
 															Lv {item.payload.fromLevel} → {item.payload.toLevel}
 														</p>
 													</div>
 												</div>
 												<div className="text-right">
-													<p className="
-               font-(family-name:--nv-font-mono) text-[10px] text-white/35
-             ">
+													<p
+														className="
+                font-(family-name:--nv-font-mono) text-[10px] text-white/35
+              "
+													>
 														{formatDuration(
 															item.completesAt -
 																(((item as Record<string, unknown>).startsAt as number) ??
@@ -1032,10 +1033,12 @@ function ResourcesRoute() {
 							{/* Empty state */}
 							{!activeLaneQueueItem && pendingLaneQueueItems.length === 0 ? (
 								<div className="flex flex-col items-center py-8 text-center">
-									<div className="
-           flex size-12 items-center justify-center rounded-full border
-           border-white/8 bg-white/3
-         ">
+									<div
+										className="
+            flex size-12 items-center justify-center rounded-full border
+            border-white/8 bg-white/3
+          "
+									>
 										<Clock3 className="size-5 text-white/20" />
 									</div>
 									<p className="mt-3 text-xs font-medium text-white/30">No upgrades in progress</p>

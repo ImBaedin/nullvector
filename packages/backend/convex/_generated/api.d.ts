@@ -25,6 +25,7 @@ import type * as lib_worldgen_prng from "../lib/worldgen/prng.js";
 import type * as migrations from "../migrations.js";
 import type * as privateData from "../privateData.js";
 import type * as resources from "../resources.js";
+import type * as scheduler from "../scheduler.js";
 import type * as session from "../session.js";
 import type * as shipyard from "../shipyard.js";
 import type * as universeExplorer from "../universeExplorer.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   privateData: typeof privateData;
   resources: typeof resources;
+  scheduler: typeof scheduler;
   session: typeof session;
   shipyard: typeof shipyard;
   universeExplorer: typeof universeExplorer;

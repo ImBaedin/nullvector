@@ -91,9 +91,7 @@ export const UpgradeButton = forwardRef<HTMLButtonElement, UpgradeButtonProps>(
       aria-disabled:bg-[linear-gradient(180deg,rgba(255,138,138,0.28),rgba(176,50,50,0.2))]
       aria-disabled:text-rose-100
       aria-disabled:shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_6px_18px_rgba(109,25,25,0.32)]
-      ${
-					className ?? ""
-				}
+      ${className ?? ""}
     `}
 				aria-disabled={disabled}
 				onBlur={(event) => {
@@ -123,9 +121,9 @@ export const UpgradeButton = forwardRef<HTMLButtonElement, UpgradeButtonProps>(
 				ref={ref}
 				type={type}
 			>
-				<span className="
-      pointer-events-none absolute inset-0 overflow-hidden rounded-md
-    ">
+				<span
+					className="pointer-events-none absolute inset-0 overflow-hidden rounded-md"
+				>
 					<span className="absolute inset-x-0 bottom-0 h-5" />
 					{showArrowParticles
 						? arrows.map((arrow) => (
@@ -163,10 +161,12 @@ export const UpgradeButton = forwardRef<HTMLButtonElement, UpgradeButtonProps>(
 							))
 						: null}
 				</span>
-				<span className="
-      relative z-10 grid grid-cols-[auto_1fr_auto] items-center gap-x-2
-      text-center
-    ">
+				<span
+					className="
+       relative z-10 grid grid-cols-[auto_1fr_auto] items-center gap-x-2
+       text-center
+     "
+				>
 					<span className="self-center">
 						{icon === "hammer" ? (
 							<Hammer className="size-4" strokeWidth={2.5} />
@@ -176,10 +176,12 @@ export const UpgradeButton = forwardRef<HTMLButtonElement, UpgradeButtonProps>(
 					</span>
 					<span className="text-xs tracking-[0.15em] uppercase">{label}</span>
 					{actionDurationText ? (
-						<span className="
-        justify-self-end text-right text-[10px] font-semibold tracking-[0.08em]
-        text-amber-100/90
-      ">
+						<span
+							className="
+         justify-self-end text-right text-[10px] font-semibold tracking-[0.08em]
+         text-amber-100/90
+       "
+						>
 							{actionDurationText}
 						</span>
 					) : null}

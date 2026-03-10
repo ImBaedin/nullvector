@@ -9,6 +9,7 @@ import {
 import { ConvexError, v } from "convex/values";
 
 import { mutation, query } from "../../convex/_generated/server";
+import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	EMPTY_RESEARCH_LEVELS,
 	OPEN_QUEUE_STATUSES,
@@ -303,6 +304,10 @@ export const enqueueFacilityUpgrade = mutation({
 				now,
 			});
 		}
+		await rescheduleColonyQueueResolution({
+			colonyId: settledColony._id,
+			ctx,
+		});
 
 		return {
 			colonyId: settledColony._id,

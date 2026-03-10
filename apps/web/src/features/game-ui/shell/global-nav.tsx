@@ -17,24 +17,26 @@ type GlobalNavProps = {
 
 export function GlobalNav({ activeColonyId, colonies, onColonyChange, title }: GlobalNavProps) {
 	return (
-		<div className="
-    relative isolate z-(--nv-z-popover) grid grid-cols-[1fr_auto_1fr]
-    items-center gap-3 px-4 py-3
-  ">
+		<div
+			className="
+     relative isolate z-(--nv-z-popover) grid grid-cols-[1fr_auto_1fr]
+     items-center gap-3 px-4 py-3
+   "
+		>
 			<div className="flex items-center gap-3 justify-self-start">
 				<img
 					alt="Nullvector logo"
 					className="
-       size-11  rounded-md border border-(--nv-glass-highlight)
+       size-11 rounded-md border border-(--nv-glass-highlight)
        bg-[rgba(255,255,255,0.05)] object-contain p-1
      "
 					src="/game-icons/logo.png"
 				/>
 				<div>
 					<p className="nv-caps text-[10px] text-(--nv-text-muted)">NullVector</p>
-					<h1 className="
-       nv-display text-xl font-semibold text-(--nv-text-primary)
-     ">
+					<h1
+						className="nv-display text-xl font-semibold text-(--nv-text-primary)"
+					>
 						{title}
 					</h1>
 				</div>
@@ -58,7 +60,7 @@ export function GlobalNav({ activeColonyId, colonies, onColonyChange, title }: G
 					<img
 						alt="Star map icon"
 						className="
-        relative z-10 size-6  object-contain
+        relative z-10 size-6 object-contain
         drop-shadow-[0_0_8px_rgba(61,217,255,0.55)]
       "
 						src="/game-icons/nav/starmap.png"

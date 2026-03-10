@@ -26,8 +26,7 @@ import {
 import { useExplorerData } from "@/features/universe-explorer-realdata/hooks/use-explorer-data";
 import { useExplorerQuality } from "@/features/universe-explorer-realdata/hooks/use-explorer-quality";
 import { computeOrbitWorldPosition } from "@/features/universe-explorer-realdata/lib/orbits";
-import { useGameTimedSync } from "@/hooks/use-game-timed-sync";
-import { useConvex, useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
+import { useConvex, useConvexAuth, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
 
 import {
@@ -112,26 +111,6 @@ function ColonyLayoutContent() {
 		);
 	}, []);
 	const { pickerRequest } = useColonyStarMapPicker();
-	const fleetActiveOperations = useQuery(
-		api.fleetV2.getFleetOperationsForColony,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
-	const syncColony = useMutation(api.colonyQueue.syncColony);
-	const isSyncingRef = useRef(false);
-	const sync = useCallback(async () => {
-		if (!isAuthenticated || isSyncingRef.current) {
-			return;
-		}
-
-		isSyncingRef.current = true;
-		try {
-			await syncColony({ colonyId: colonyIdAsId });
-		} catch {
-			// Route-level timed sync should be silent; leaf pages already surface sync errors.
-		} finally {
-			isSyncingRef.current = false;
-		}
-	}, [colonyIdAsId, isAuthenticated, syncColony]);
 	const [contentPhase, setContentPhase] = useState<OverlayContentPhase>("visible");
 	const revealRafRef = useRef<number | null>(null);
 	const handleCloseStarMap = useCallback(() => {
@@ -189,18 +168,6 @@ function ColonyLayoutContent() {
 		setIsStarMapOpen(true);
 	}, [pickerRequest]);
 
-	useGameTimedSync({
-		enabled: isAuthenticated,
-		events: [
-			{
-				id: "fleet-next-event-player",
-				atMs: fleetActiveOperations?.nextEventAt ?? null,
-			},
-		],
-		onDue: () => sync(),
-		scopeId: `colony:${colonyId}:layout:fleet`,
-	});
-
 	useEffect(() => {
 		if (!isAuthenticated) {
 			return;
@@ -252,10 +219,12 @@ function ColonyLayoutContent() {
 					"linear-gradient(180deg, #15263f 0%, #101c31 18%, #0b1524 40%, #070f1c 60%, #060c15 100%)",
 			}}
 		>
-			<div className="
-     pointer-events-none absolute inset-0
-     bg-[radial-gradient(circle_at_16%_18%,rgba(72,180,255,0.18),transparent_36%),radial-gradient(circle_at_84%_22%,rgba(74,233,255,0.14),transparent_38%)]
-   " />
+			<div
+				className="
+      pointer-events-none absolute inset-0
+      bg-[radial-gradient(circle_at_16%_18%,rgba(72,180,255,0.18),transparent_36%),radial-gradient(circle_at_84%_22%,rgba(74,233,255,0.14),transparent_38%)]
+    "
+			/>
 
 			<ExplorerProvider>
 				<ColonyStarMapLayer
@@ -281,15 +250,12 @@ function ColonyLayoutContent() {
 				)}
 			>
 				<div
-					className={cn(
-						`
-        relative min-h-full transition-[clip-path,opacity,transform]
-        duration-500 ease-out
-      `,
-						shouldCollapseContent
-							? "pointer-events-none -translate-y-3 opacity-0"
-							: "translate-y-0 opacity-100",
-					)}
+					className={cn(`
+       relative min-h-full transition-[clip-path,opacity,transform] duration-500
+       ease-out
+     `, shouldCollapseContent ? "pointer-events-none -translate-y-3 opacity-0" : `
+        translate-y-0 opacity-100
+      `)}
 					style={{
 						clipPath: shouldCollapseContent
 							? "inset(0 0 100% 0 round 0.5rem)"

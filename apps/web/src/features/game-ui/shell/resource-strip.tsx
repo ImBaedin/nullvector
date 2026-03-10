@@ -81,10 +81,14 @@ export function ResourceStrip({ className, resources }: ResourceStripProps) {
 
 				return (
 					<Fragment key={resource.key}>
-						{i > 0 && <div className="
-        hidden h-5 w-px shrink-0 bg-white/6
-        sm:block
-      " />}
+						{i > 0 && (
+							<div
+								className="
+          hidden h-5 w-px shrink-0 bg-white/6
+          sm:block
+        "
+							/>
+						)}
 						<div className="flex items-center gap-2">
 							<img
 								alt={`${resource.key} icon`}
@@ -96,27 +100,24 @@ export function ResourceStrip({ className, resources }: ResourceStripProps) {
 							/>
 							<div className="min-w-0">
 								<div className="flex items-baseline gap-1.5">
-									<span className="
-           text-[9px] font-semibold tracking-widest text-white/30 uppercase
-         ">
+									<span
+										className="
+            text-[9px] font-semibold tracking-widest text-white/30 uppercase
+          "
+									>
 										{resource.key}
 									</span>
-									<span
-										className={cn(
-											`
-             font-(family-name:--nv-font-mono) text-[13px] leading-none
-             font-bold
-           `,
-											hasOverflow ? "text-rose-200" : "text-white",
-										)}
-										title={valueTitle}
-									>
+									<span className={cn(`
+           font-(family-name:--nv-font-mono) text-[13px] leading-none font-bold
+         `, hasOverflow ? "text-rose-200" : "text-white")} title={valueTitle}>
 										{displayValue}
 									</span>
 									{!isEnergy && capAmount !== undefined && (
-										<span className="
-            font-(family-name:--nv-font-mono) text-[10px] text-white/20
-          ">
+										<span
+											className="
+             font-(family-name:--nv-font-mono) text-[10px] text-white/20
+           "
+										>
 											/ {formatResourceValue(capAmount)}
 										</span>
 									)}
@@ -144,10 +145,12 @@ export function ResourceStrip({ className, resources }: ResourceStripProps) {
 									</span>
 								</div>
 								{!isEnergy && (
-									<div className="
-           mt-0.5 h-[2px] w-full min-w-[72px] overflow-hidden rounded-full
-           bg-white/8
-         ">
+									<div
+										className="
+            mt-0.5 h-[2px] w-full min-w-[72px] overflow-hidden rounded-full
+            bg-white/8
+          "
+									>
 										<div
 											className={cn(
 												"h-full rounded-full transition-all",

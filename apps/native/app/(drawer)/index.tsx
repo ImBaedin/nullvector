@@ -49,12 +49,10 @@ export default function Home() {
 			<Surface variant="secondary" className="rounded-xl p-4">
 				<Text className="mb-2 font-medium text-foreground">API Status</Text>
 				<View className="flex-row items-center gap-2">
-					<View
-						className={`
-        size-2  rounded-full
-        ${healthCheck === "OK" ? "bg-success" : `bg-danger`}
-      `}
-					/>
+					<View className={`
+       size-2 rounded-full
+       ${healthCheck === "OK" ? "bg-success" : `bg-danger`}
+     `} />
 					<Text className="text-xs text-muted">
 						{healthCheck === undefined
 							? "Checking..."

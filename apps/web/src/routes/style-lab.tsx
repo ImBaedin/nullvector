@@ -40,14 +40,14 @@ function StyleLabRoute() {
 				]}
 			>
 				<div className="space-y-3 p-1">
-					<section className="
-       grid gap-3
-       lg:grid-cols-2
-     ">
+					<section
+						className="
+        grid gap-3
+        lg:grid-cols-2
+      "
+					>
 						<NvPanel>
-							<p className="nv-caps text-[10px] text-(--nv-text-muted)">
-								Buttons + Badges
-							</p>
+							<p className="nv-caps text-[10px] text-(--nv-text-muted)">Buttons + Badges</p>
 							<div className="mt-3 flex flex-wrap gap-2">
 								<NvButton variant="solid">Primary Action</NvButton>
 								<NvButton variant="ghost">Secondary</NvButton>
@@ -63,9 +63,7 @@ function StyleLabRoute() {
 						</NvPanel>
 
 						<NvPanel>
-							<p className="nv-caps text-[10px] text-(--nv-text-muted)">
-								Chips + Progress
-							</p>
+							<p className="nv-caps text-[10px] text-(--nv-text-muted)">Chips + Progress</p>
 							<div className="mt-3 flex flex-wrap gap-2">
 								<NvChip accent="cyan">Crystal +259/m</NvChip>
 								<NvChip accent="orange">Fuel +148/m</NvChip>
@@ -114,31 +112,29 @@ function StyleLabRoute() {
 					</NvPanel>
 
 					<NvPanel>
-						<p className="nv-caps text-[10px] text-(--nv-text-muted)">
-							Media Slot Contracts
-						</p>
+						<p className="nv-caps text-[10px] text-(--nv-text-muted)">Media Slot Contracts</p>
 						<NvDivider className="my-3" />
-						<div className="
-        grid gap-3
-        sm:grid-cols-2
-        xl:grid-cols-3
-      ">
+						<div
+							className="
+         grid gap-3
+         sm:grid-cols-2
+         xl:grid-cols-3
+       "
+						>
 							{Object.values(MEDIA_SLOT_SPECS).map((spec) => (
 								<NvPanel className="bg-[rgba(255,255,255,0.03)]" density="compact" key={spec.slot}>
 									<p className="text-sm font-semibold">{spec.slot}</p>
-									<p className="mt-1 text-xs text-(--nv-text-muted)">
-										Ratio {spec.ratio}
-									</p>
+									<p className="mt-1 text-xs text-(--nv-text-muted)">Ratio {spec.ratio}</p>
 									<p className="text-xs text-(--nv-text-muted)">
 										Min {spec.minWidth}x{spec.minHeight}
 									</p>
-									<p className="text-xs text-(--nv-text-muted)">
-										Fallback: {spec.fallback}
-									</p>
-									<div className="
-           nv-loading-sweep mt-2 h-16 rounded-(--nv-r-sm) border
-           border-(--nv-glass-stroke)
-         " />
+									<p className="text-xs text-(--nv-text-muted)">Fallback: {spec.fallback}</p>
+									<div
+										className="
+            nv-loading-sweep mt-2 h-16 rounded-(--nv-r-sm) border
+            border-(--nv-glass-stroke)
+          "
+									/>
 								</NvPanel>
 							))}
 						</div>
