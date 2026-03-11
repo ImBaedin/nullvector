@@ -503,8 +503,6 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 							props.availableResources.fuel >= facility.nextUpgradeCost.fuel;
 						const isActionDisabled =
 							isLocked ||
-							facility.isUpgrading ||
-							facility.isQueued ||
 							isMaxLevel ||
 							props.buildingLaneIsFull ||
 							isBusy ||
