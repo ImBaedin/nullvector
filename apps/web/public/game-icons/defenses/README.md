@@ -7,7 +7,7 @@ This folder contains generated defense art for the web UI.
 - Isometric sci-fi defense portrait
 - Readable at small sizes
 - Clean digital painting with crisp edges
-- Centered single defense structure on a dark vignette background
+- Centered single defense structure on a transparent background
 - No text, no logos, no watermark
 
 ## Consistency rules
