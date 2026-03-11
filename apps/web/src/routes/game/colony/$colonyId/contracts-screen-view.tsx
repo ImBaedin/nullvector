@@ -302,7 +302,7 @@ function BrowseBreadcrumb(props: { level: BrowseLevel; onBack: () => void }): Re
 		crumbs.push(props.level.sector.displayName);
 	}
 	if (props.level.level === "planets" || props.level.level === "contracts") {
-		crumbs.push(`System ${props.level.system.systemIndex + 1}`);
+		crumbs.push(props.level.system.displayName);
 	}
 	if (props.level.level === "contracts") {
 		crumbs.push(props.level.planet.displayName);
@@ -502,7 +502,7 @@ function SystemGrid(props: {
 						</div>
 						<div className="min-w-0 flex-1">
 							<div className="flex items-center gap-2">
-								<span className="text-xs font-semibold">System {system.systemIndex + 1}</span>
+								<span className="text-xs font-semibold">{system.displayName}</span>
 								{allCleared ? (
 									<span
 										className="

@@ -48,6 +48,7 @@ export type HostilePlanetView = {
 	planetId: Id<"planets">;
 	addressLabel: string;
 	displayName: string;
+	systemDisplayName: string;
 	hostileFactionKey: HostileFactionKey;
 	controlCurrent: number;
 	controlMax: number;
@@ -72,6 +73,7 @@ export type HostileSectorView = {
 
 export type SystemGroup = {
 	systemIndex: number;
+	displayName: string;
 	systemX: number;
 	systemY: number;
 	planets: HostilePlanetView[];
@@ -375,6 +377,7 @@ export function groupPlanetsBySystems(planets: HostilePlanetView[]): SystemGroup
 
 		grouped.set(planet.systemIndex, {
 			systemIndex: planet.systemIndex,
+			displayName: planet.systemDisplayName,
 			systemX: planet.systemX,
 			systemY: planet.systemY,
 			planets: [planet],

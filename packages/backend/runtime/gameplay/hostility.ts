@@ -295,6 +295,7 @@ const hostileSectorViewValidator = v.object({
 			planetId: v.id("planets"),
 			addressLabel: v.string(),
 			displayName: v.string(),
+			systemDisplayName: v.string(),
 			hostileFactionKey: v.union(v.literal("spacePirates"), v.literal("rogueAi")),
 			controlCurrent: v.number(),
 			controlMax: v.number(),
@@ -428,6 +429,10 @@ export const getHostileSectorsForUniverse = query({
 						displayName: displayNameFromStoredOrGenerated(
 							planetAddressLabel(planet),
 							planet.name,
+						),
+						systemDisplayName: displayNameFromStoredOrGenerated(
+							`G${planet.galaxyIndex}:S${planet.sectorIndex}:SYS${planet.systemIndex}`,
+							systemForPlanet.name,
 						),
 						hostileFactionKey: planetHostility.hostileFactionKey,
 						controlCurrent: planetHostility.controlCurrent,
