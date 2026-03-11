@@ -5,6 +5,7 @@ export {
 	makeExponentialUpgradeFormula,
 	roundResourceMap,
 } from "./curves";
+export { generateSciFiName } from "./object-names";
 
 export {
 	createGeneratorRegistry,
@@ -42,6 +43,23 @@ export {
 	getShipBuildDurationSeconds,
 	normalizeShipCounts,
 } from "./ships";
+export {
+	DEFAULT_DEFENSE_DEFINITIONS,
+	DEFENSE_KEYS,
+	EMPTY_DEFENSE_COUNTS,
+	normalizeDefenseCounts,
+} from "./defenses";
+export {
+	COMBAT_MISSION_TYPE_KEYS,
+	CONTRACT_EXPIRY_MS,
+	MISSION_TEMPLATES,
+	getConcurrentContractLimit,
+	generateContractSnapshot,
+	getDifficultyTierForRank,
+	getVisibleContractSlotCount,
+} from "./contracts";
+export { HOSTILE_FACTIONS, HOSTILE_FACTION_KEYS } from "./hostility";
+export { simulateCombat } from "./combat";
 
 export type {
 	ColonyBuff,
@@ -78,3 +96,12 @@ export type {
 	ShipKey,
 } from "./gameplay";
 export type { ShipCounts, ShipDefinition } from "./ships";
+export type { DefenseCounts, DefenseDefinition, DefenseKey } from "./defenses";
+export type {
+	CombatMissionTypeKey,
+	CombatPriorityProfile,
+	ContractSnapshot,
+	MissionTemplate,
+} from "./contracts";
+export type { HostileFactionKey } from "./hostility";
+export type { CombatResult, CombatRoundSummary, CombatSide } from "./combat";

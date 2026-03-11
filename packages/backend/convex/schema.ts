@@ -21,12 +21,77 @@ const shipKeyValidator = v.union(
 	v.literal("smallCargo"),
 	v.literal("largeCargo"),
 	v.literal("colonyShip"),
+	v.literal("interceptor"),
+	v.literal("frigate"),
+	v.literal("cruiser"),
+	v.literal("bomber"),
 );
 
 const shipCountsValidator = v.object({
 	smallCargo: v.number(),
 	largeCargo: v.number(),
 	colonyShip: v.number(),
+	interceptor: v.optional(v.number()),
+	frigate: v.optional(v.number()),
+	cruiser: v.optional(v.number()),
+	bomber: v.optional(v.number()),
+});
+
+const defenseKeyValidator = v.union(
+	v.literal("missileBattery"),
+	v.literal("laserTurret"),
+	v.literal("gaussCannon"),
+	v.literal("shieldDome"),
+);
+
+const defenseCountsValidator = v.object({
+	missileBattery: v.number(),
+	laserTurret: v.number(),
+	gaussCannon: v.number(),
+	shieldDome: v.number(),
+});
+
+const hostileFactionKeyValidator = v.union(v.literal("spacePirates"), v.literal("rogueAi"));
+const hostilityStatusValidator = v.union(v.literal("hostile"), v.literal("cleared"));
+const contractStatusValidator = v.union(
+	v.literal("available"),
+	v.literal("inProgress"),
+	v.literal("completed"),
+	v.literal("failed"),
+	v.literal("expired"),
+	v.literal("replaced"),
+);
+const combatMissionTypeKeyValidator = v.union(
+	v.literal("salvageSweep"),
+	v.literal("supplyCacheRaid"),
+	v.literal("cruiserTakedown"),
+	v.literal("bombingRun"),
+	v.literal("glassProductionFacilities"),
+	v.literal("supplyInterception"),
+	v.literal("defenseGridSabotage"),
+	v.literal("commandBunkerStrike"),
+	v.literal("occupationConvoyRaid"),
+	v.literal("reconInForce"),
+);
+
+const combatPriorityProfileValidator = v.object({
+	attackerTargetPriority: v.array(v.union(shipKeyValidator, defenseKeyValidator)),
+	defenderTargetPriority: v.array(shipKeyValidator),
+});
+
+const contractSnapshotValidator = v.object({
+	controlReduction: v.number(),
+	difficultyTier: v.number(),
+	enemyDefenses: defenseCountsValidator,
+	enemyFleet: shipCountsValidator,
+	hostileFactionKey: hostileFactionKeyValidator,
+	missionTypeKey: combatMissionTypeKeyValidator,
+	priorityProfile: combatPriorityProfileValidator,
+	requiredRank: v.number(),
+	rewardCredits: v.number(),
+	rewardRankXpFailure: v.number(),
+	rewardRankXpSuccess: v.number(),
+	rewardResources: resourceBucketValidator,
 });
 
 const buildingLevelsValidator = v.object({
@@ -147,7 +212,7 @@ const fleetOperationTargetValidator = v.object({
 	colonyId: v.optional(v.id("colonies")),
 	planetId: v.optional(v.id("planets")),
 	fleetId: v.optional(v.id("fleets")),
-	contractNodeKey: v.optional(v.string()),
+	contractId: v.optional(v.id("contracts")),
 });
 
 const fleetOperationResultCodeValidator = v.union(
@@ -183,6 +248,8 @@ export default defineSchema({
 		name: v.string(),
 		isActive: v.boolean(),
 		orbitEpochMs: v.number(),
+		hostilitySeededAt: v.optional(v.number()),
+		hostilitySeedingClaimedAt: v.optional(v.number()),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	})
@@ -223,7 +290,7 @@ export default defineSchema({
 	galaxies: defineTable({
 		universeId: v.id("universes"),
 		galaxyIndex: v.number(),
-		name: v.string(),
+		name: v.optional(v.string()),
 		gx: v.number(),
 		gy: v.number(),
 		seed: v.string(),
@@ -237,6 +304,7 @@ export default defineSchema({
 		galaxyId: v.id("galaxies"),
 		galaxyIndex: v.number(),
 		sectorIndex: v.number(),
+		name: v.optional(v.string()),
 		sectorType: sectorTypeValidator,
 		seed: v.string(),
 		minX: v.number(),
@@ -260,6 +328,7 @@ export default defineSchema({
 		galaxyIndex: v.number(),
 		sectorIndex: v.number(),
 		systemIndex: v.number(),
+		name: v.optional(v.string()),
 		x: v.number(),
 		y: v.number(),
 		starKind: v.string(),
@@ -282,6 +351,7 @@ export default defineSchema({
 		sectorIndex: v.number(),
 		systemIndex: v.number(),
 		planetIndex: v.number(),
+		name: v.optional(v.string()),
 		orbitRadius: v.number(),
 		orbitPhaseRad: v.number(),
 		orbitAngularVelocityRadPerSec: v.number(),
@@ -314,6 +384,36 @@ export default defineSchema({
 		.index("by_planet_id", ["planetId"])
 		.index("by_uni_colon", ["universeId", "isColonizable"]),
 
+	sectorHostility: defineTable({
+		universeId: v.id("universes"),
+		sectorId: v.id("sectors"),
+		hostileFactionKey: hostileFactionKeyValidator,
+		status: hostilityStatusValidator,
+		hostilePlanetCount: v.number(),
+		clearedPlanetCount: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_sector_id", ["sectorId"])
+		.index("by_universe_status", ["universeId", "status"])
+		.index("by_universe_faction", ["universeId", "hostileFactionKey"]),
+
+	planetHostility: defineTable({
+		universeId: v.id("universes"),
+		sectorId: v.id("sectors"),
+		planetId: v.id("planets"),
+		hostileFactionKey: hostileFactionKeyValidator,
+		controlMax: v.number(),
+		controlCurrent: v.number(),
+		status: hostilityStatusValidator,
+		clearedAt: v.optional(v.number()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_planet_id", ["planetId"])
+		.index("by_sector_status", ["sectorId", "status"])
+		.index("by_universe_status", ["universeId", "status"]),
+
 	players: defineTable({
 		authUserId: v.string(),
 		displayName: v.string(),
@@ -324,6 +424,15 @@ export default defineSchema({
 	})
 		.index("by_auth_user_id", ["authUserId"])
 		.index("by_created_at", ["createdAt"]),
+
+	playerProgression: defineTable({
+		playerId: v.id("players"),
+		credits: v.number(),
+		rank: v.number(),
+		rankXp: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_player_id", ["playerId"]),
 
 	devConsoleActions: defineTable({
 		actorPlayerId: v.id("players"),
@@ -465,6 +574,55 @@ export default defineSchema({
 		.index("by_owner_time", ["ownerPlayerId", "occurredAt"])
 		.index("by_operation_time", ["operationId", "occurredAt"])
 		.index("by_fleet_time", ["fleetId", "occurredAt"]),
+
+	contracts: defineTable({
+		universeId: v.id("universes"),
+		playerId: v.id("players"),
+		sectorId: v.id("sectors"),
+		planetId: v.id("planets"),
+		hostileFactionKey: hostileFactionKeyValidator,
+		slot: v.number(),
+		status: contractStatusValidator,
+		missionTypeKey: combatMissionTypeKeyValidator,
+		difficultyTier: v.number(),
+		requiredRank: v.number(),
+		expiresAt: v.optional(v.number()),
+		acceptedAt: v.optional(v.number()),
+		resolvedAt: v.optional(v.number()),
+		originColonyId: v.optional(v.id("colonies")),
+		operationId: v.optional(v.id("fleetOperations")),
+		snapshot: contractSnapshotValidator,
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_player_planet_status", ["playerId", "planetId", "status"])
+		.index("by_player_status", ["playerId", "status"])
+		.index("by_operation_id", ["operationId"])
+		.index("by_player_planet_slot", ["playerId", "planetId", "slot"]),
+
+	contractResults: defineTable({
+		contractId: v.id("contracts"),
+		operationId: v.id("fleetOperations"),
+		playerId: v.id("players"),
+		planetId: v.id("planets"),
+		success: v.boolean(),
+		roundsFought: v.number(),
+		attackerSurvivors: shipCountsValidator,
+		defenderSurvivors: v.object({
+			fleet: shipCountsValidator,
+			defenses: defenseCountsValidator,
+		}),
+		rewardCreditsGranted: v.number(),
+		rewardRankXpGranted: v.number(),
+		rewardCargoLoaded: resourceBucketValidator,
+		rewardCargoLostByCapacity: resourceBucketValidator,
+		controlReductionApplied: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_contract_id", ["contractId"])
+		.index("by_operation_id", ["operationId"])
+		.index("by_player_id", ["playerId"]),
 
 	colonyQueueItems: defineTable({
 		universeId: v.id("universes"),

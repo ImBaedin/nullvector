@@ -40,10 +40,32 @@ function SectorBoundingBox({
 	const scale = isHovered ? 1.02 : 1;
 	const halfWidth = width / 2;
 	const halfHeight = height / 2;
-	const preset = useMemo(
+	const basePreset = useMemo(
 		() => getEntityVisualPreset("sector", hashStringToUnit(entity.sourceId)),
 		[entity.sourceId],
 	);
+	const isHostile = entity.hostility?.status === "hostile";
+	const isCleared = entity.hostility?.status === "cleared";
+	const preset = useMemo(() => {
+		if (isHostile) {
+			const isRogueAi = entity.hostility?.hostileFactionKey === "rogueAi";
+			return {
+				...basePreset,
+				coreColor: isRogueAi ? "hsl(270, 40%, 45%)" : "hsl(0, 50%, 45%)",
+				emissiveColor: isRogueAi ? "hsl(280, 50%, 50%)" : "hsl(10, 60%, 50%)",
+				haloColor: isRogueAi ? "hsl(270, 60%, 55%)" : "hsl(0, 70%, 55%)",
+			};
+		}
+		if (isCleared) {
+			return {
+				...basePreset,
+				coreColor: "hsl(140, 30%, 40%)",
+				emissiveColor: "hsl(140, 40%, 45%)",
+				haloColor: "hsl(140, 50%, 50%)",
+			};
+		}
+		return basePreset;
+	}, [basePreset, isHostile, isCleared, entity.hostility?.hostileFactionKey]);
 	const outlinePoints = useMemo(
 		() =>
 			[

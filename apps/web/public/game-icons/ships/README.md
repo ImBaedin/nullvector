@@ -63,3 +63,7 @@ python3 /Users/baedin/.codex/skills/imagegen/scripts/image_gen.py generate \
 - `small-cargo.png`
 - `large-cargo.png`
 - `colony-ship.png`
+- `interceptor.png`
+- `frigate.png`
+- `cruiser.png`
+- `bomber.png`

@@ -7,17 +7,15 @@ const panelVariants = cva("nv-transition rounded-(--nv-r-lg) border p-4", {
 		tone: {
 			neutral: `nv-panel-glass border-(--nv-glass-stroke) text-(--nv-text-primary)`,
 			info: `
-     nv-panel-glass border-[rgba(126,201,255,0.55)]
-     text-(--nv-text-primary)
+     nv-panel-glass border-[rgba(126,201,255,0.55)] text-(--nv-text-primary)
    `,
 			warning: `
-      nv-panel-glass border-[rgba(255,209,102,0.5)]
-      text-(--nv-text-primary)
-    `,
+     nv-panel-glass border-[rgba(255,209,102,0.5)] text-(--nv-text-primary)
+   `,
 			danger: `
-      border-[rgba(255,111,136,0.62)] bg-[rgba(42,11,22,0.72)]
-      text-(--nv-text-primary) shadow-(--nv-glow-orange)
-    `,
+     border-[rgba(255,111,136,0.62)] bg-[rgba(42,11,22,0.72)]
+     text-(--nv-text-primary) shadow-(--nv-glow-orange)
+   `,
 		},
 		density: {
 			compact: "p-3",

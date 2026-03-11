@@ -34,7 +34,15 @@ export type FacilityUpgradeQueuePayload = {
 	toLevel: number;
 };
 
-export const SHIP_KEYS = ["smallCargo", "largeCargo", "colonyShip"] as const;
+export const SHIP_KEYS = [
+	"smallCargo",
+	"largeCargo",
+	"colonyShip",
+	"interceptor",
+	"frigate",
+	"cruiser",
+	"bomber",
+] as const;
 export type ShipKey = (typeof SHIP_KEYS)[number];
 
 export type ShipBuildQueuePayload = {

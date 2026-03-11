@@ -34,11 +34,7 @@ export function GlobalNav({ activeColonyId, colonies, onColonyChange, title }: G
 				/>
 				<div>
 					<p className="nv-caps text-[10px] text-(--nv-text-muted)">NullVector</p>
-					<h1
-						className="nv-display text-xl font-semibold text-(--nv-text-primary)"
-					>
-						{title}
-					</h1>
+					<h1 className="nv-display text-xl font-semibold text-(--nv-text-primary)">{title}</h1>
 				</div>
 			</div>
 

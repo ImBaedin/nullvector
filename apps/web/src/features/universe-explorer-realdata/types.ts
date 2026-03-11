@@ -13,6 +13,13 @@ export type ExplorerPathState = {
 	planetId?: Id<"planets">;
 };
 
+export type SectorHostilityInfo = {
+	hostileFactionKey: "spacePirates" | "rogueAi";
+	status: "hostile" | "cleared";
+	hostilePlanetCount: number;
+	clearedPlanetCount: number;
+};
+
 export type RenderableEntity = {
 	id: string;
 	sourceId: string;
@@ -20,6 +27,7 @@ export type RenderableEntity = {
 	name: string;
 	addressLabel: string;
 	visualSeed?: string;
+	hostility?: SectorHostilityInfo;
 	colony?: {
 		name: string;
 		playerName: string;
@@ -49,6 +57,7 @@ export type HoverCardData = {
 	addressLabel: string;
 	colonyName?: string;
 	colonyPlayerName?: string;
+	hostility?: SectorHostilityInfo;
 };
 
 export type HoverPanelState = HoverCardData & {

@@ -18,13 +18,12 @@ import {
 	Globe2,
 	Layers3,
 	MapPin,
-	Minus,
 	Package,
-	Plus,
 	Rocket,
 	RotateCcw,
 	Ship,
 	Sparkles,
+	Swords,
 	X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -34,7 +33,8 @@ import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { FleetRouteSkeleton } from "./loading-skeletons";
-import { formatDuration } from "./shipyard-mock-shared";
+import { ShipAssignmentList } from "./ship-assignment-list";
+import { formatDuration, getShipImagePath, SHIP_GROUPS } from "./shipyard-mock-shared";
 import { useColonyStarMapPicker, type FleetMissionKind } from "./star-map-picker-context";
 
 export const Route = createFileRoute("/game/colony/$colonyId/fleet")({
@@ -82,6 +82,10 @@ const EMPTY_CARGO: ResourceBucket = {
 
 const EMPTY_SHIP_COUNTS: Record<ShipKey, number> = {
 	colonyShip: 0,
+	cruiser: 0,
+	bomber: 0,
+	interceptor: 0,
+	frigate: 0,
 	largeCargo: 0,
 	smallCargo: 0,
 };
@@ -102,6 +106,80 @@ function parseAddressLabel(addressLabel: string): PlannerCoords | null {
 
 function isIntegerText(value: string) {
 	return /^\d+$/.test(value);
+}
+
+function getOperationAccent(args: {
+	kind: FleetOperationRow["kind"];
+	status: FleetOperationRow["status"];
+}): {
+	badge: string;
+	dot: string;
+	iconBorder: string;
+	iconFill: string;
+	iconText: string;
+	kindLabel: string;
+	line: string;
+	progress: string;
+	targetBorder: string;
+	targetFill: string;
+} {
+	const isReturning = args.status === "returning";
+	const isContract = args.kind === "contract" || args.kind === "combat";
+
+	if (isReturning) {
+		return {
+			badge: "bg-amber-400/12 text-amber-200/80",
+			dot: "bg-amber-400",
+			iconBorder: "border-amber-300",
+			iconFill: "bg-amber-400/20 shadow-amber-400/30",
+			iconText: "text-amber-300",
+			kindLabel: "Returning",
+			line: "bg-linear-to-r from-amber-400/60 to-amber-400/20",
+			progress: "bg-amber-400/50",
+			targetBorder: "border-cyan-300/25",
+			targetFill: "bg-cyan-400/10",
+		};
+	}
+
+	if (isContract) {
+		return {
+			badge: "bg-rose-400/12 text-rose-200/80",
+			dot: "bg-rose-400",
+			iconBorder: "border-rose-300",
+			iconFill: "bg-rose-400/20 shadow-rose-400/30",
+			iconText: "text-rose-300",
+			kindLabel: "Contract",
+			line: "bg-linear-to-r from-rose-400/60 to-rose-400/20",
+			progress: "bg-rose-400/50",
+			targetBorder: "border-rose-300/25",
+			targetFill: "bg-rose-400/10",
+		};
+	}
+
+	return {
+		badge: "bg-cyan-400/12 text-cyan-200/80",
+		dot: "bg-cyan-400",
+		iconBorder: "border-cyan-300",
+		iconFill: "bg-cyan-400/20 shadow-cyan-400/30",
+		iconText: "text-cyan-300",
+		kindLabel: args.kind,
+		line: "bg-linear-to-r from-cyan-400/60 to-cyan-400/20",
+		progress: "bg-cyan-400/50",
+		targetBorder: args.kind === "colonize" ? "border-amber-300/25" : "border-cyan-300/25",
+		targetFill: args.kind === "colonize" ? "bg-amber-400/10" : "bg-cyan-400/10",
+	};
+}
+
+function splitTargetPreviewLabel(label: string): { address: string; name: string } | null {
+	const match = label.match(/^(.+?)\s*\(([^)]+)\)$/);
+	if (!match) {
+		return null;
+	}
+
+	return {
+		name: match[1] ?? label,
+		address: match[2] ?? "",
+	};
 }
 
 function FleetRoute() {
@@ -230,7 +308,14 @@ function FleetRoute() {
 		return <FleetRouteSkeleton />;
 	}
 
-	if (!ready || !shipCatalog || !garrison || !operations || !colonyNav || !colonyResources.projected) {
+	if (
+		!ready ||
+		!shipCatalog ||
+		!garrison ||
+		!operations ||
+		!colonyNav ||
+		!colonyResources.projected
+	) {
 		return (
 			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
 				Unable to load fleet. Please sign in again.
@@ -240,6 +325,10 @@ function FleetRoute() {
 
 	const deployedByShip: Record<ShipKey, number> = {
 		colonyShip: 0,
+		cruiser: 0,
+		bomber: 0,
+		interceptor: 0,
+		frigate: 0,
 		largeCargo: 0,
 		smallCargo: 0,
 	};
@@ -582,6 +671,12 @@ function ActiveOperationsPanel(props: {
 						operation.cargoRequested.fuel;
 					const isExpanded = props.expandedOp === operation.id;
 					const isReturning = operation.status === "returning";
+					const isContract = operation.kind === "contract" || operation.kind === "combat";
+					const accent = getOperationAccent({
+						kind: operation.kind,
+						status: operation.status,
+					});
+					const targetPreview = splitTargetPreviewLabel(operation.targetPreview.label);
 
 					return (
 						<div
@@ -601,24 +696,20 @@ function ActiveOperationsPanel(props: {
 							>
 								<span className={`
           inline-block size-2 shrink-0 rounded-full
-          ${isReturning ? "bg-amber-400" : "bg-cyan-400"}
+          ${accent.dot}
         `} />
 								<span className="min-w-0 shrink-0 text-xs font-semibold">
 									{operation.targetPreview.label}
 								</span>
 								<span className={`
           shrink-0 rounded-sm px-1.5 py-0.5 text-[9px] font-semibold uppercase
-          ${isReturning ? "bg-amber-400/12 text-amber-200/80" : `
-             bg-cyan-400/12 text-cyan-200/80
-           `}
-        `}>{isReturning ? "Returning" : operation.kind}</span>
+          ${accent.badge}
+        `}>{accent.kindLabel}</span>
 								<span className={`
           shrink-0 rounded-sm px-1.5 py-0.5 text-[9px] font-semibold uppercase
           ${operation.relation === "incoming" ? `
-             border border-amber-300/20 bg-amber-300/10 text-amber-100/80
-           ` : `
-             border border-cyan-300/20 bg-cyan-300/10 text-cyan-100/80
-           `}
+            border border-amber-300/20 bg-amber-300/10 text-amber-100/80
+          ` : `border border-cyan-300/20 bg-cyan-300/10 text-cyan-100/80`}
         `}>{operation.relation}</span>
 
 								<div
@@ -630,7 +721,7 @@ function ActiveOperationsPanel(props: {
 								>
 									<div className={`
            h-full rounded-full
-           ${isReturning ? "bg-amber-400/50" : "bg-cyan-400/50"}
+           ${accent.progress}
          `} style={{ width: `${progress}%` }} />
 								</div>
 
@@ -642,9 +733,7 @@ function ActiveOperationsPanel(props: {
 									{Math.round(progress)}%
 								</span>
 
-								<div
-									className="flex shrink-0 items-center gap-1 text-[10px] text-white/45"
-								>
+								<div className="flex shrink-0 items-center gap-1 text-[10px] text-white/45">
 									<Clock3 className="size-3" />
 									<span
 										className="
@@ -709,11 +798,7 @@ function ActiveOperationsPanel(props: {
 												<div
 													className={`
                absolute top-0 h-px
-               ${
-									isReturning
-										? "bg-linear-to-r from-amber-400/60 to-amber-400/20"
-										: "bg-linear-to-r from-cyan-400/60 to-cyan-400/20"
-								}
+               ${accent.line}
              `}
 													style={
 														isExpanded
@@ -745,17 +830,16 @@ function ActiveOperationsPanel(props: {
 													<div className={`
                flex size-6 items-center justify-center rounded-full border-2
                shadow-lg
-               ${isReturning ? `
-                  border-amber-300 bg-amber-400/20 shadow-amber-400/30
-                ` : `
-                  border-cyan-300 bg-cyan-400/20 shadow-cyan-400/30
-                `}
-             `}>
-														<Ship className={`
-                size-3
-                ${isReturning ? "rotate-180 text-amber-300" : "text-cyan-300"}
-              `} />
-													</div>
+               ${accent.iconBorder}
+               ${accent.iconFill}
+             `}>{isContract ? <Swords className={`
+               size-3
+               ${accent.iconText}
+             `} /> : <Ship className={`
+               size-3
+               ${isReturning ? "rotate-180" : ""}
+               ${accent.iconText}
+             `} />}</div>
 													<span
 														className="
                 mt-0.5 font-(family-name:--nv-font-mono) text-[8px]
@@ -783,38 +867,31 @@ function ActiveOperationsPanel(props: {
               mx-auto flex size-10 items-center justify-center rounded-full
               border
               ${operation.kind === "colonize" ? `
-                 border-amber-300/25 bg-amber-400/10
-               ` : `
-                 border-cyan-300/25 bg-cyan-400/10
-               `}
-            `}>{operation.kind === "colonize" ? <Globe2 className="
-               size-4 text-amber-300
-             " /> : <MapPin className="
-               size-4 text-cyan-300
-             " />}</div>
-												{(() => {
-													const m = operation.targetPreview.label.match(/^(.+?)\s*\(([^)]+)\)$/);
-													if (m) {
-														return (
-															<>
-																<p className="mt-1.5 truncate text-[11px] font-semibold">{m[1]}</p>
-																<p
-																	className="
-                   truncate font-(family-name:--nv-font-mono) text-[9px]
-                   text-white/30
-                 "
-																>
-																	{m[2]}
-																</p>
-															</>
-														);
-													}
-													return (
+                border-amber-300/25 bg-amber-400/10
+              ` : `
+                ${accent.targetBorder}
+                ${accent.targetFill}
+              `}
+            `}>{isContract ? <Swords className="size-4 text-rose-300" /> : operation.kind === "colonize" ? <Globe2 className="size-4 text-amber-300" /> : <MapPin className="size-4 text-cyan-300" />}</div>
+												{targetPreview ? (
+													<>
 														<p className="mt-1.5 truncate text-[11px] font-semibold">
-															{operation.targetPreview.label}
+															{targetPreview.name}
 														</p>
-													);
-												})()}
+														<p
+															className="
+                 truncate font-(family-name:--nv-font-mono) text-[9px]
+                 text-white/30
+               "
+														>
+															{targetPreview.address}
+														</p>
+													</>
+												) : (
+													<p className="mt-1.5 truncate text-[11px] font-semibold">
+														{operation.targetPreview.label}
+													</p>
+												)}
 											</div>
 										</div>
 
@@ -960,46 +1037,57 @@ function FleetSummaryStrip(props: {
 				</div>
 			</div>
 
-			<div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-				{props.ships.map((ship) => (
-					<div
-						className="
-        flex min-w-[180px] flex-1 items-center gap-3 rounded-xl border
-        border-white/8 bg-white/2.5 p-3
-      "
-						key={ship.key}
-					>
-						<img
-							alt={ship.name}
-							className="
-         size-12 rounded-lg border border-white/8 bg-black/30 object-contain p-1
-       "
-							src={`/game-icons/ships/${
-								ship.key === "smallCargo"
-									? "small-cargo"
-									: ship.key === "largeCargo"
-										? "large-cargo"
-										: "colony-ship"
-							}.png`}
-						/>
-						<div className="min-w-0">
-							<p className="text-sm font-semibold">{ship.name}</p>
-							<div className="mt-0.5 flex gap-2 text-[10px]">
-								<span className="text-emerald-300/70">{ship.available} avail</span>
-								<span className="text-white/30">|</span>
-								<span className="text-cyan-200/50">{ship.deployed} out</span>
-							</div>
-							<div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8">
-								<div
-									className="h-full rounded-full bg-cyan-400/40"
-									style={{
-										width: `${ship.owned > 0 ? (ship.deployed / ship.owned) * 100 : 0}%`,
-									}}
-								/>
+			<div className="mt-4 space-y-3">
+				{SHIP_GROUPS.map((group) => {
+					const groupShips = group.keys
+						.map((key) => props.ships.find((s) => s.key === key))
+						.filter((s): s is NonNullable<typeof s> => s != null);
+					if (groupShips.length === 0) return null;
+					return (
+						<div key={group.label}>
+							<p className="mb-1.5 text-[9px] font-semibold tracking-[0.12em] text-white/30 uppercase">
+								{group.label}
+							</p>
+							<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+								{groupShips.map((ship) => {
+									const hasAny = ship.owned > 0;
+									return (
+										<div className={`
+               relative overflow-hidden rounded-xl border p-2.5 transition-colors
+               ${hasAny ? "border-white/10 bg-white/[0.035]" : "border-white/6 bg-white/[0.015] opacity-50"}
+             `} key={ship.key}>
+											<div className="flex items-center gap-2">
+												<img
+													alt={ship.name}
+													className="size-8 shrink-0 rounded-md border border-white/8 bg-black/30 object-contain p-0.5"
+													src={getShipImagePath(ship.key)}
+												/>
+												<div className="min-w-0">
+													<p className="truncate text-xs font-semibold">{ship.name}</p>
+													<p className="font-(family-name:--nv-font-mono) text-[10px] text-white/50">
+														{ship.owned}
+													</p>
+												</div>
+											</div>
+											<div className="mt-2 flex justify-between text-[9px]">
+												<span className="text-emerald-300/70">{ship.available} avail</span>
+												<span className="text-cyan-200/50">{ship.deployed} out</span>
+											</div>
+											<div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8">
+												<div
+													className="h-full rounded-full bg-cyan-400/40"
+													style={{
+														width: `${ship.owned > 0 ? (ship.deployed / ship.owned) * 100 : 0}%`,
+													}}
+												/>
+											</div>
+										</div>
+									);
+								})}
 							</div>
 						</div>
-					</div>
-				))}
+					);
+				})}
 			</div>
 		</div>
 	);
@@ -1062,9 +1150,7 @@ function MissionPlannerPanel(props: {
       bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
     "
 			>
-				<div
-					className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
-				>
+				<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
 					<Rocket className="size-5 text-cyan-300" />
 					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 						Plan Expedition
@@ -1080,11 +1166,11 @@ function MissionPlannerPanel(props: {
           flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2
           text-xs font-semibold transition-all
           ${props.missionType === type ? `
-             border-cyan-300/40 bg-cyan-400/12 text-cyan-100
-           ` : `
-             border-white/10 bg-white/3 text-white/40
-             hover:text-white/60
-           `}
+            border-cyan-300/40 bg-cyan-400/12 text-cyan-100
+          ` : `
+            border-white/10 bg-white/3 text-white/40
+            hover:text-white/60
+          `}
         `} key={type} onClick={() => props.onMissionTypeChange(type)} type="button">
 									{type === "transport" ? (
 										<Package className="size-3.5" />
@@ -1146,11 +1232,11 @@ function MissionPlannerPanel(props: {
           flex w-full items-center justify-between gap-1.5 rounded-lg border
           px-3 py-2 text-[10px] transition-all
           ${props.colonyPickerOpen ? `
-             border-cyan-300/30 bg-cyan-400/6 text-cyan-100
-           ` : `
-             border-dashed border-white/10 text-white/30
-             hover:border-cyan-300/20 hover:text-cyan-200/50
-           `}
+            border-cyan-300/30 bg-cyan-400/6 text-cyan-100
+          ` : `
+            border-dashed border-white/10 text-white/30
+            hover:border-cyan-300/20 hover:text-cyan-200/50
+          `}
         `} onClick={() => props.onSetColonyPickerOpen(!props.colonyPickerOpen)} type="button">
 									<span className="flex items-center gap-1.5">
 										<Globe2 className="size-3" />
@@ -1244,8 +1330,8 @@ function MissionPlannerPanel(props: {
 						<button className={`
         relative h-6 w-10 rounded-full border transition-all
         ${props.roundTrip ? "border-cyan-300/40 bg-cyan-400/20" : `
-           border-white/15 bg-white/8
-         `}
+          border-white/15 bg-white/8
+        `}
       `} disabled={props.missionType === "colonize"} onClick={() => props.onRoundTripChange(!props.roundTrip)} type="button">
 							<span className={`
          absolute top-1/2 left-[3px] size-4 -translate-y-1/2 rounded-full
@@ -1261,80 +1347,17 @@ function MissionPlannerPanel(props: {
 						</p>
 					) : null}
 
-					<div>
-						<SectionLabel>Fleet</SectionLabel>
-						<div className="mt-1.5">
-							{props.ships.map((ship, index) => {
-								const count = props.selectedShips[ship.key] ?? 0;
-								return (
-									<div className={`
-           flex items-center gap-2 py-1.5
-           ${index < props.ships.length - 1 ? "border-b border-white/6" : ""}
-         `} key={ship.key}>
-										<img
-											alt={ship.name}
-											className="size-5 shrink-0 object-contain"
-											src={`/game-icons/ships/${
-												ship.key === "smallCargo"
-													? "small-cargo"
-													: ship.key === "largeCargo"
-														? "large-cargo"
-														: "colony-ship"
-											}.png`}
-										/>
-										<span className={`
-            min-w-0 flex-1 truncate text-xs
-            ${count > 0 ? "font-semibold text-white" : "text-white/70"}
-          `}>{ship.name}</span>
-										<span
-											className="
-             shrink-0 font-(family-name:--nv-font-mono) text-[9px] text-white/30
-           "
-										>
-											({ship.available})
-										</span>
-										<div className="flex shrink-0 items-center gap-0.5">
-											<button
-												className="
-              flex size-5 items-center justify-center rounded-sm border
-              border-white/10 bg-black/25 text-white/60
-              disabled:opacity-25
-            "
-												disabled={count <= 0}
-												onClick={() => props.onShipCountChange(ship.key, count - 1)}
-												type="button"
-											>
-												<Minus className="size-2.5" />
-											</button>
-											<span className={`
-             w-6 text-center font-(family-name:--nv-font-mono) text-xs font-bold
-             ${count > 0 ? "text-cyan-100" : "text-white/30"}
-           `}>{count}</span>
-											<button
-												className="
-              flex size-5 items-center justify-center rounded-sm border
-              border-white/10 bg-black/25 text-white/60
-              disabled:opacity-25
-            "
-												disabled={count >= ship.available}
-												onClick={() => props.onShipCountChange(ship.key, count + 1)}
-												type="button"
-											>
-												<Plus className="size-2.5" />
-											</button>
-										</div>
-									</div>
-								);
-							})}
-						</div>
-					</div>
+					<ShipAssignmentList
+						label="Fleet"
+						onShipCountChange={props.onShipCountChange}
+						selectedShips={props.selectedShips}
+						ships={props.ships}
+					/>
 
 					<div>
 						<div className="flex items-center justify-between">
 							<SectionLabel>Cargo</SectionLabel>
-							<span
-								className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
-							>
+							<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/25">
 								{props.cargoUsed.toLocaleString()} / {props.cargoCapacity.toLocaleString()}
 							</span>
 						</div>
@@ -1386,9 +1409,7 @@ function MissionPlannerPanel(props: {
 					</div>
 
 					{props.hasShips ? (
-						<div
-							className="rounded-xl border border-cyan-300/15 bg-cyan-400/4 p-3"
-						>
+						<div className="rounded-xl border border-cyan-300/15 bg-cyan-400/4 p-3">
 							<div className="grid grid-cols-2 gap-2">
 								<MetricCard
 									label="Distance"

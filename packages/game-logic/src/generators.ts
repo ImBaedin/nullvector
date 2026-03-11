@@ -112,6 +112,13 @@ export const DEFAULT_GENERATORS: GeneratorDefinition[] = [
 				formula: makeExponentialOperationalFormula(1.1),
 			},
 		},
+		consumes: {
+			resource: "energy",
+			rateCurve: {
+				basePerMinute: 6,
+				formula: makeExponentialOperationalFormula(1.12),
+			},
+		},
 	},
 	{
 		id: "crystal_mine",
@@ -134,6 +141,13 @@ export const DEFAULT_GENERATORS: GeneratorDefinition[] = [
 				formula: makeExponentialOperationalFormula(1.1),
 			},
 		},
+		consumes: {
+			resource: "energy",
+			rateCurve: {
+				basePerMinute: 6,
+				formula: makeExponentialOperationalFormula(1.12),
+			},
+		},
 	},
 	{
 		id: "deuterium_extractor",
@@ -154,6 +168,13 @@ export const DEFAULT_GENERATORS: GeneratorDefinition[] = [
 			rateCurve: {
 				basePerMinute: 10,
 				formula: makeExponentialOperationalFormula(1.1),
+			},
+		},
+		consumes: {
+			resource: "energy",
+			rateCurve: {
+				basePerMinute: 8,
+				formula: makeExponentialOperationalFormula(1.12),
 			},
 		},
 	},

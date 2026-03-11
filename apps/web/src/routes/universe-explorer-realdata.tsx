@@ -73,6 +73,7 @@ function UniverseExplorerScene() {
 			addressLabel: entity.addressLabel,
 			colonyName: entity.colony?.name,
 			colonyPlayerName: entity.colony?.playerName,
+			hostility: entity.hostility,
 			screenX,
 			screenY,
 		};

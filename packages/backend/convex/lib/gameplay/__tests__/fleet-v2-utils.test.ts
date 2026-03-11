@@ -39,6 +39,10 @@ describe("fleet V2 utility helpers", () => {
 				smallCargo: 1,
 				largeCargo: 0,
 				colonyShip: 0,
+				interceptor: 0,
+				frigate: 0,
+				cruiser: 0,
+				bomber: 0,
 			},
 		});
 

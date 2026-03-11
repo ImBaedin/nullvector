@@ -17,6 +17,10 @@ test("normalizeShipCounts clamps invalid values", () => {
 
 	expect(normalized).toEqual({
 		colonyShip: 0,
+		cruiser: 0,
+		bomber: 0,
+		interceptor: 0,
+		frigate: 0,
 		largeCargo: 0,
 		smallCargo: 2,
 	});
@@ -38,6 +42,10 @@ test("shipyard level speeds up per-ship build duration", () => {
 test("fleet cargo capacity aggregates from all ship types", () => {
 	const capacity = getFleetCargoCapacity({
 		colonyShip: 1,
+		cruiser: 0,
+		bomber: 0,
+		interceptor: 0,
+		frigate: 0,
 		largeCargo: 2,
 		smallCargo: 3,
 	});
@@ -48,13 +56,23 @@ test("fleet cargo capacity aggregates from all ship types", () => {
 test("fleet speed is bounded by slowest ship in fleet", () => {
 	expect(
 		getFleetSlowestSpeed({
+			colonyShip: 0,
+			cruiser: 0,
+			bomber: 0,
+			interceptor: 0,
+			frigate: 0,
 			smallCargo: 4,
+			largeCargo: 0,
 		}),
 	).toBe(10_000);
 
 	expect(
 		getFleetSlowestSpeed({
 			colonyShip: 1,
+			cruiser: 0,
+			bomber: 0,
+			interceptor: 0,
+			frigate: 0,
 			largeCargo: 2,
 			smallCargo: 10,
 		}),
@@ -66,6 +84,10 @@ test("fuel cost scales with distance and ship composition", () => {
 		distance: 100,
 		shipCounts: {
 			colonyShip: 1,
+			cruiser: 0,
+			bomber: 0,
+			interceptor: 0,
+			frigate: 0,
 			largeCargo: 2,
 			smallCargo: 4,
 		},

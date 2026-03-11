@@ -11,6 +11,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { Popover } from "@base-ui/react/popover";
 import {
 	DEFAULT_GENERATOR_REGISTRY,
+	getGeneratorConsumptionPerMinute,
 	getGeneratorProductionPerMinute,
 	getUpgradeCost,
 	getUpgradeDurationSeconds,
@@ -371,17 +372,6 @@ function toWholeUnitBucket(resourceMap: Partial<Record<string, number>>): Resour
 	};
 }
 
-function energyConsumptionForLevel(
-	buildingKey: "alloyMineLevel" | "crystalMineLevel" | "fuelRefineryLevel",
-	level: number,
-) {
-	if (level <= 0) {
-		return 0;
-	}
-	const base = buildingKey === "alloyMineLevel" ? 10 : buildingKey === "crystalMineLevel" ? 10 : 20;
-	return Math.round(base * Math.pow(1.12, level - 1));
-}
-
 function storageCapForLevel(level: number) {
 	if (level <= 0) {
 		return 0;
@@ -442,9 +432,9 @@ function productionRatesPerMinute(args: {
 		args.buildingLevels.powerPlantLevel,
 	);
 	const energyConsumed =
-		energyConsumptionForLevel("alloyMineLevel", args.buildingLevels.alloyMineLevel) +
-		energyConsumptionForLevel("crystalMineLevel", args.buildingLevels.crystalMineLevel) +
-		energyConsumptionForLevel("fuelRefineryLevel", args.buildingLevels.fuelRefineryLevel);
+		getGeneratorConsumptionPerMinute(alloyGenerator, args.buildingLevels.alloyMineLevel) +
+		getGeneratorConsumptionPerMinute(crystalGenerator, args.buildingLevels.crystalMineLevel) +
+		getGeneratorConsumptionPerMinute(fuelGenerator, args.buildingLevels.fuelRefineryLevel);
 	const energyRatio =
 		energyConsumed <= 0 ? 1 : Math.max(0, Math.min(1, energyProduced / energyConsumed));
 
@@ -518,10 +508,7 @@ function buildLevelTable(args: {
 			? 0
 			: building.key === "powerPlantLevel"
 				? 0
-				: energyConsumptionForLevel(
-						building.key as "alloyMineLevel" | "crystalMineLevel" | "fuelRefineryLevel",
-						level,
-					);
+				: getGeneratorConsumptionPerMinute(getGeneratorOrThrow(building.key), level);
 
 		let cost = { alloy: 0, crystal: 0, fuel: 0 };
 		let durationSeconds = 0;
@@ -737,9 +724,7 @@ export function ResourceBuildingCard(props: {
        "
 							src={visual.imageUrl}
 						/>
-						<h3
-							className="font-(family-name:--nv-font-display) text-sm font-bold"
-						>
+						<h3 className="font-(family-name:--nv-font-display) text-sm font-bold">
 							{building.name}
 						</h3>
 					</div>
@@ -1235,10 +1220,8 @@ function DeltaPill(props: {
     inline-flex items-center gap-1 rounded-md border px-2 py-1
     font-(family-name:--nv-font-mono) text-[10px] font-semibold
     ${props.tone === "positive" ? `
-       border-emerald-300/20 bg-emerald-400/8 text-emerald-200/80
-     ` : `
-       border-rose-300/20 bg-rose-400/8 text-rose-200/80
-     `}
+      border-emerald-300/20 bg-emerald-400/8 text-emerald-200/80
+    ` : `border-rose-300/20 bg-rose-400/8 text-rose-200/80`}
   `}>
 			<img
 				alt={`${props.label} resource`}

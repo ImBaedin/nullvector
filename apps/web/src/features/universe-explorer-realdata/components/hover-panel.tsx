@@ -38,9 +38,7 @@ export function HoverPanel({ hover }: { hover: HoverPanelState | null }) {
 						</p>
 						<p className="mt-1 text-sm font-semibold text-white">{hover.name}</p>
 					</div>
-					<span
-						className="relative mt-0.5 inline-flex size-4 items-center justify-center"
-					>
+					<span className="relative mt-0.5 inline-flex size-4 items-center justify-center">
 						<span
 							className="
          absolute inline-flex size-4 animate-ping rounded-full bg-cyan-300/45
@@ -56,12 +54,36 @@ export function HoverPanel({ hover }: { hover: HoverPanelState | null }) {
 					</span>
 				</div>
 
-				<div
-					className="rounded-lg border border-white/10 bg-white/3 px-2.5 py-2"
-				>
+				<div className="rounded-lg border border-white/10 bg-white/3 px-2.5 py-2">
 					<p className="text-[9px] tracking-[0.18em] text-slate-400 uppercase">Coordinates</p>
 					<p className="mt-1 font-mono text-[11px] text-slate-200">{hover.addressLabel}</p>
 				</div>
+
+				{hover.hostility ? (
+					<div className={`
+       rounded-lg border px-2.5 py-2
+       ${hover.hostility.status === "hostile" ? `
+         border-rose-300/20 bg-rose-400/[0.07]
+       ` : `border-emerald-300/20 bg-emerald-400/[0.07]`}
+     `}>
+						<p className={`
+        text-[9px] tracking-[0.18em] uppercase
+        ${hover.hostility.status === "hostile" ? "text-rose-200/95" : `
+          text-emerald-200/95
+        `}
+      `}>{hover.hostility.status === "hostile" ? "Hostile Territory" : "Cleared Sector"}</p>
+						<p className={`
+        mt-1 text-[12px] font-medium
+        ${hover.hostility.status === "hostile" ? "text-rose-100" : `
+          text-emerald-100
+        `}
+      `}>{hover.hostility.hostileFactionKey === "rogueAi" ? "Rogue AI" : "Space Pirates"}</p>
+						<p className="mt-0.5 text-[11px] text-white/50">
+							{hover.hostility.clearedPlanetCount}/{hover.hostility.hostilePlanetCount} planets
+							cleared
+						</p>
+					</div>
+				) : null}
 
 				{hover.colonyName && hover.colonyPlayerName ? (
 					<div

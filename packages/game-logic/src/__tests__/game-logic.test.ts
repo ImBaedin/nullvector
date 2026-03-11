@@ -70,8 +70,11 @@ test("generator production and optional consumption scale with level", () => {
 		getGeneratorProductionPerMinute(crystalMine, 1),
 	);
 
-	expect(getGeneratorConsumptionPerMinute(crystalMine, 6)).toBe(0);
-	expect(getGeneratorConsumptionPerMinute(deuteriumExtractor, 6)).toBe(0);
+	expect(getGeneratorConsumptionPerMinute(crystalMine, 1)).toBe(2);
+	expect(getGeneratorConsumptionPerMinute(crystalMine, 6)).toBeGreaterThan(
+		getGeneratorConsumptionPerMinute(crystalMine, 1),
+	);
+	expect(getGeneratorConsumptionPerMinute(deuteriumExtractor, 1)).toBe(2);
 });
 
 test("generator rate formulas receive level and base amount", () => {

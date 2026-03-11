@@ -254,8 +254,8 @@ function ColonyLayoutContent() {
        relative min-h-full transition-[clip-path,opacity,transform] duration-500
        ease-out
      `, shouldCollapseContent ? "pointer-events-none -translate-y-3 opacity-0" : `
-        translate-y-0 opacity-100
-      `)}
+       translate-y-0 opacity-100
+     `)}
 					style={{
 						clipPath: shouldCollapseContent
 							? "inset(0 0 100% 0 round 0.5rem)"
@@ -351,6 +351,7 @@ function ColonyStarMapLayer({
 			addressLabel: entity.addressLabel,
 			colonyName: entity.colony?.name,
 			colonyPlayerName: entity.colony?.playerName,
+			hostility: entity.hostility,
 			screenX,
 			screenY,
 		};

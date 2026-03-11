@@ -3,7 +3,7 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import { Tooltip } from "@base-ui/react/tooltip";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Bell, ChevronDown, Earth, Menu, Settings } from "lucide-react";
+import { Bell, ChevronDown, Earth, Menu, Settings, Trophy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -104,6 +104,10 @@ export function AppHeader({
 		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const colonyResources = useColonyResources(colonyIdAsId && isAuthenticated ? colonyIdAsId : null);
+	const playerProfile = useQuery(
+		api.playerProgression.getPlayerProfile,
+		isAuthenticated ? {} : "skip",
+	);
 	const hud = useMemo<HeaderHudData | undefined>(() => {
 		if (!colonyNav || !colonyResources.hudResources) {
 			return undefined;
@@ -238,8 +242,8 @@ export function AppHeader({
       bg-[linear-gradient(170deg,rgba(10,16,28,0.94),rgba(6,10,18,0.98))]
       shadow-[0_4px_20px_rgba(0,0,0,0.4)]
     `, isStarMapOpen && starMapNavigation ? "overflow-visible" : `
-        overflow-hidden
-      `)}>
+      overflow-hidden
+    `)}>
 					{/* ═══ Command Bar ═══ */}
 					<div className={cn(`
        grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 transition-all
@@ -394,11 +398,11 @@ export function AppHeader({
              inline-flex h-7 items-center gap-1 rounded-md border px-2
              text-[10px] font-semibold transition-all
            `, starMapEntitiesOpen ? `
-              border-cyan-300/30 bg-cyan-400/10 text-cyan-100
-            ` : `
-              border-white/12 bg-white/4 text-white/60
-              hover:bg-white/8
-            `)}
+             border-cyan-300/30 bg-cyan-400/10 text-cyan-100
+           ` : `
+             border-white/12 bg-white/4 text-white/60
+             hover:bg-white/8
+           `)}
 											onClick={() => {
 												setStarMapQualityOpen(false);
 												setStarMapEntitiesOpen((current) => !current);
@@ -460,11 +464,11 @@ export function AppHeader({
              inline-flex h-7 items-center gap-1 rounded-md border px-2
              text-[10px] font-semibold transition-all
            `, starMapQualityOpen ? `
-              border-cyan-300/30 bg-cyan-400/10 text-cyan-100
-            ` : `
-              border-white/12 bg-white/4 text-white/60
-              hover:bg-white/8
-            `)}
+             border-cyan-300/30 bg-cyan-400/10 text-cyan-100
+           ` : `
+             border-white/12 bg-white/4 text-white/60
+             hover:bg-white/8
+           `)}
 											onClick={() => {
 												setStarMapEntitiesOpen(false);
 												setStarMapQualityOpen((current) => !current);
@@ -500,11 +504,11 @@ export function AppHeader({
                  flex w-full items-center rounded-lg px-2.5 py-1.5 text-left
                  text-[11px] font-medium transition-colors
                `, entry.value === starMapNavigation.qualityPreset ? `
-                  bg-cyan-400/10 text-cyan-100
-                ` : `
-                  text-white/50
-                  hover:bg-white/4 hover:text-white/80
-                `)}
+                 bg-cyan-400/10 text-cyan-100
+               ` : `
+                 text-white/50
+                 hover:bg-white/4 hover:text-white/80
+               `)}
 															key={entry.value}
 															onClick={() => {
 																starMapNavigation.onQualityPresetChange(entry.value);
@@ -526,12 +530,12 @@ export function AppHeader({
           rounded-lg border px-4 font-(family-name:--nv-font-display) text-xs
           font-semibold transition-all
         `, isStarMapOpen ? `
-            border-cyan-300/40 bg-cyan-400/12 text-cyan-50
-            shadow-[0_0_16px_rgba(61,217,255,0.12)]
-          ` : `
-             border-white/12 bg-white/4 text-white/60
-             hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100
-           `, isCompact ? "h-8" : "h-9")} onClick={handleStarMapToggle} type="button">
+          border-cyan-300/40 bg-cyan-400/12 text-cyan-50
+          shadow-[0_0_16px_rgba(61,217,255,0.12)]
+        ` : `
+          border-white/12 bg-white/4 text-white/60
+          hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100
+        `, isCompact ? "h-8" : "h-9")} onClick={handleStarMapToggle} type="button">
 									<span className="nv-starmap-stars" />
 									<span className="nv-starmap-stars is-slower" />
 									<img
@@ -554,6 +558,48 @@ export function AppHeader({
          lg:flex
        "
 						>
+							{playerProfile ? (
+								<div className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3">
+									<div className="flex items-center gap-2">
+										<div
+											className="
+             flex size-6 shrink-0 items-center justify-center rounded-md border
+             border-amber-300/20 bg-amber-400/8
+           "
+										>
+											<Trophy className="size-3 text-amber-300/70" />
+										</div>
+										<div className="leading-tight">
+											<p className="text-[11px] font-semibold text-white/80">
+												{playerProfile.displayName}
+											</p>
+											<p
+												className="
+              font-(family-name:--nv-font-mono) text-[9px] text-amber-200/50
+            "
+											>
+												Rank {playerProfile.rank}
+											</p>
+										</div>
+									</div>
+									<div
+										className="
+            flex items-center gap-1 rounded-md border border-white/8 bg-white/3
+            px-2 py-1
+          "
+									>
+										<span
+											className="
+             font-(family-name:--nv-font-mono) text-[10px] font-bold
+             text-amber-200/80
+           "
+										>
+											{playerProfile.credits.toLocaleString()}
+										</span>
+										<span className="text-[8px] text-white/25 uppercase">CR</span>
+									</div>
+								</div>
+							) : null}
 							{config.colonies &&
 							config.activeColonyId &&
 							(config.onColonyChange || handleColonyChange) ? (
@@ -628,8 +674,8 @@ export function AppHeader({
         grid overflow-hidden transition-[grid-template-rows,opacity]
         duration-300 ease-out
       `, collapseResources ? "pointer-events-none grid-rows-[0fr] opacity-0" : `
-          grid-rows-[1fr] opacity-100
-        `)}>
+        grid-rows-[1fr] opacity-100
+      `)}>
 							<div className="min-h-0">
 								<div className={cn("border-t border-white/6 px-4", isCompact ? "py-1.5" : `
           py-2
@@ -646,8 +692,8 @@ export function AppHeader({
         grid overflow-hidden transition-[grid-template-rows,opacity]
         duration-300 ease-out
       `, collapseContextNav ? "pointer-events-none grid-rows-[0fr] opacity-0" : `
-          grid-rows-[1fr] opacity-100
-        `)}>
+        grid-rows-[1fr] opacity-100
+      `)}>
 							<div className="min-h-0">
 								<div className={cn("border-t border-white/6 px-4", isCompact ? "py-0" : `
           py-0.5

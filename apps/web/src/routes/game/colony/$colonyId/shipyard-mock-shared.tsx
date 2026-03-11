@@ -1,7 +1,33 @@
+import type { ShipKey } from "@nullvector/game-logic";
 import type { ReactNode } from "react";
 
 import { Popover } from "@base-ui/react/popover";
 import { AlertTriangle, Clock3, Gauge, Layers3, X } from "lucide-react";
+
+const SHIP_KEY_TO_SLUG: Record<ShipKey, string> = {
+	smallCargo: "small-cargo",
+	largeCargo: "large-cargo",
+	colonyShip: "colony-ship",
+	interceptor: "interceptor",
+	frigate: "frigate",
+	cruiser: "cruiser",
+	bomber: "bomber",
+};
+
+export function getShipImagePath(shipKey: ShipKey): string {
+	return `/game-icons/ships/${SHIP_KEY_TO_SLUG[shipKey]}.png`;
+}
+
+export type ShipGroup = {
+	label: string;
+	keys: ShipKey[];
+};
+
+export const SHIP_GROUPS: ShipGroup[] = [
+	{ label: "Cargo", keys: ["smallCargo", "largeCargo"] },
+	{ label: "Combat", keys: ["interceptor", "frigate", "cruiser", "bomber"] },
+	{ label: "Utility", keys: ["colonyShip"] },
+];
 
 export type ShipDefinition = {
 	buildSeconds: number;
@@ -220,9 +246,7 @@ export function QueuePanel(props: {
     ${className ?? ""}
   `}>
 			<div className="flex items-center justify-between gap-2">
-				<h3
-					className="text-xs font-semibold tracking-[0.14em] text-white/70 uppercase"
-				>
+				<h3 className="text-xs font-semibold tracking-[0.14em] text-white/70 uppercase">
 					{title ?? "Production Queue"}
 				</h3>
 				<span className="text-[11px] text-white/60">
@@ -262,12 +286,12 @@ export function QueuePanel(props: {
 						<article className={`
         relative min-w-[320px] snap-start rounded-2xl border p-4 text-xs
         ${item.isActive ? `
-           border-cyan-200/45
-           bg-[linear-gradient(155deg,rgba(68,200,255,0.2),rgba(6,14,24,0.94))]
-         ` : `
-           border-white/12
-           bg-[linear-gradient(155deg,rgba(18,24,36,0.88),rgba(6,10,16,0.92))]
-         `}
+          border-cyan-200/45
+          bg-[linear-gradient(155deg,rgba(68,200,255,0.2),rgba(6,14,24,0.94))]
+        ` : `
+          border-white/12
+          bg-[linear-gradient(155deg,rgba(18,24,36,0.88),rgba(6,10,16,0.92))]
+        `}
       `} key={item.id}>
 							<div
 								className="
@@ -294,9 +318,7 @@ export function QueuePanel(props: {
 								</button>
 							</div>
 
-							<div
-								className="mt-3 grid grid-cols-[64px_minmax(0,1fr)] items-center gap-3"
-							>
+							<div className="mt-3 grid grid-cols-[64px_minmax(0,1fr)] items-center gap-3">
 								{ship ? (
 									<img
 										alt={`${ship.name} queue icon`}

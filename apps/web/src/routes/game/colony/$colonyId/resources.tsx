@@ -461,9 +461,7 @@ function ResourcesRoute() {
 								<Factory className="size-4 text-cyan-300" />
 							</div>
 							<div>
-								<h1
-									className="font-(family-name:--nv-font-display) text-lg font-bold"
-								>
+								<h1 className="font-(family-name:--nv-font-display) text-lg font-bold">
 									Infrastructure
 								</h1>
 								<p className="text-[10px] text-white/40">
@@ -574,22 +572,9 @@ function ResourcesRoute() {
 													/ {cap.toLocaleString()}
 												</span>
 											</div>
-											<p
-												className={
-													overflow > 0
-														? `
-                mt-1 font-(family-name:--nv-font-mono) text-[9px]
-                text-amber-200/75
-              `
-														: `
-                mt-1 font-(family-name:--nv-font-mono) text-[9px] text-white/28
-              `
-												}
-											>
-												{overflow > 0
-													? `+${formatResourceValue(overflow)} overflow`
-													: "No overflow"}
-											</p>
+											<p className={overflow > 0 ? `
+             mt-1 font-(family-name:--nv-font-mono) text-[9px] text-amber-200/75
+           ` : `mt-1 font-(family-name:--nv-font-mono) text-[9px] text-white/28`}>{overflow > 0 ? `+${formatResourceValue(overflow)} overflow` : "No overflow"}</p>
 											<div
 												className="
               mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/8
@@ -667,9 +652,7 @@ function ResourcesRoute() {
 									<div className="flex items-center gap-2.5">
 										<span className="text-white/50">{groupVisual.icon}</span>
 										<div>
-											<h2
-												className="font-(family-name:--nv-font-display) text-sm font-bold"
-											>
+											<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 												{groupVisual.label}
 											</h2>
 											<p className="mt-0.5 text-[10px] text-white/35">{groupVisual.description}</p>
@@ -754,9 +737,7 @@ function ResourcesRoute() {
 															isBusy={targetBusy}
 															isTableOpen={targetTableOpen}
 															overflow={projectedResources?.overflow ?? view.resources.overflow}
-															resourcesStored={
-																projectedResources?.stored ?? view.resources.stored
-															}
+															resourcesStored={projectedResources?.stored ?? view.resources.stored}
 															storageCaps={
 																projectedResources?.storageCaps ?? view.resources.storageCaps
 															}
@@ -842,13 +823,9 @@ function ResourcesRoute() {
       "
 					>
 						{/* Queue header */}
-						<div
-							className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
-						>
+						<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
 							<Clock3 className="size-5 text-cyan-300" />
-							<h2
-								className="font-(family-name:--nv-font-display) text-sm font-bold"
-							>
+							<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 								Building Queue
 							</h2>
 							{activeLaneQueueItem || pendingLaneQueueItems.length > 0 ? (

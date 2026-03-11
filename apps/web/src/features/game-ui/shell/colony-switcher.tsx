@@ -170,9 +170,9 @@ export function ColonySwitcher({ activeColonyId, colonies, onColonyChange }: Col
      focus-visible:ring-2 focus-visible:ring-cyan-400/30
      focus-visible:outline-none
    `, isOpen ? "border-cyan-300/30 bg-white/6" : `
-       border-white/10 bg-white/2.5
-       hover:border-white/18 hover:bg-white/4
-     `)} ref={triggerRef} onClick={() => setIsOpen((open) => !open)} type="button">
+     border-white/10 bg-white/2.5
+     hover:border-white/18 hover:bg-white/4
+   `)} ref={triggerRef} onClick={() => setIsOpen((open) => !open)} type="button">
 				{activeColony ? (
 					<ColonyRow colony={activeColony} compact />
 				) : (

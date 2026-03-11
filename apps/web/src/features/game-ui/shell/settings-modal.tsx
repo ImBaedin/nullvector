@@ -59,14 +59,14 @@ function NvSwitch({
     focus-visible:outline-none
     disabled:cursor-not-allowed disabled:opacity-40
   `, checked ? "border-cyan-400/40 bg-cyan-400/24" : `
-     border-white/16 bg-white/8
-   `)} disabled={disabled} onCheckedChange={onCheckedChange}>
+    border-white/16 bg-white/8
+  `)} disabled={disabled} onCheckedChange={onCheckedChange}>
 			<Switch.Thumb className={cn(`
      pointer-events-none block size-3.5 rounded-full shadow-sm
      transition-transform
    `, checked ? "translate-x-[18px] bg-cyan-300" : `
-      translate-x-[3px] bg-white/50
-    `)} />
+     translate-x-[3px] bg-white/50
+   `)} />
 		</Switch.Root>
 	);
 }
@@ -95,14 +95,18 @@ function SettingsRow({
 
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
 	return (
-		<div className="
-    mb-6
-    last:mb-0
-  ">
-			<h3 className="
-     mb-1 text-[10px] font-semibold tracking-[0.14em] text-(--nv-text-muted)
-     uppercase
-   ">
+		<div
+			className="
+     mb-6
+     last:mb-0
+   "
+		>
+			<h3
+				className="
+      mb-1 text-[10px] font-semibold tracking-[0.14em] text-(--nv-text-muted)
+      uppercase
+    "
+			>
 				{title}
 			</h3>
 			<NvDivider className="mb-1" />
@@ -211,10 +215,12 @@ function ProfilePanel() {
 			</SettingsSection>
 			<SettingsSection title="Avatar">
 				<div className="flex items-center gap-4 py-3">
-					<div className="
-       flex size-16 items-center justify-center rounded-xl border
-       border-white/12 bg-white/4
-     ">
+					<div
+						className="
+        flex size-16 items-center justify-center rounded-xl border
+        border-white/12 bg-white/4
+      "
+					>
 						<User className="size-7 text-(--nv-text-muted)" />
 					</div>
 					<div>
@@ -419,10 +425,12 @@ function AudioPanel() {
 							type="range"
 							value={masterVolume}
 						/>
-						<span className="
-        w-8 text-right font-(family-name:--nv-font-mono) text-xs
-        text-(--nv-text-muted)
-      ">
+						<span
+							className="
+         w-8 text-right font-(family-name:--nv-font-mono) text-xs
+         text-(--nv-text-muted)
+       "
+						>
 							{masterVolume}
 						</span>
 					</div>
@@ -444,10 +452,12 @@ function AudioPanel() {
 							type="range"
 							value={sfxVolume}
 						/>
-						<span className="
-        w-8 text-right font-(family-name:--nv-font-mono) text-xs
-        text-(--nv-text-muted)
-      ">
+						<span
+							className="
+         w-8 text-right font-(family-name:--nv-font-mono) text-xs
+         text-(--nv-text-muted)
+       "
+						>
 							{sfxVolume}
 						</span>
 					</div>
@@ -469,10 +479,12 @@ function AudioPanel() {
 							type="range"
 							value={musicVolume}
 						/>
-						<span className="
-        w-8 text-right font-(family-name:--nv-font-mono) text-xs
-        text-(--nv-text-muted)
-      ">
+						<span
+							className="
+         w-8 text-right font-(family-name:--nv-font-mono) text-xs
+         text-(--nv-text-muted)
+       "
+						>
 							{musicVolume}
 						</span>
 					</div>
@@ -875,12 +887,12 @@ export function SettingsModal({
             flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left
             text-[13px] font-medium transition-all
           `, category.id === activeCategoryId ? `
-             bg-cyan-400/10 text-cyan-50
-             shadow-[inset_0_0_0_1px_rgba(61,217,255,0.18)]
-           ` : `
-              text-(--nv-text-muted)
-              hover:bg-white/4 hover:text-(--nv-text-secondary)
-            `)} onClick={() => setActiveCategoryId(category.id)} type="button">
+            bg-cyan-400/10 text-cyan-50
+            shadow-[inset_0_0_0_1px_rgba(61,217,255,0.18)]
+          ` : `
+            text-(--nv-text-muted)
+            hover:bg-white/4 hover:text-(--nv-text-secondary)
+          `)} onClick={() => setActiveCategoryId(category.id)} type="button">
 											<span
 												className={cn(
 													"shrink-0 transition-colors",
@@ -905,15 +917,19 @@ export function SettingsModal({
 
 					{/* Content */}
 					<div className="flex min-w-0 flex-1 flex-col">
-						<div className="
-        flex items-center justify-between border-b border-white/8 px-6 py-4
-      ">
+						<div
+							className="
+         flex items-center justify-between border-b border-white/8 px-6 py-4
+       "
+						>
 							<div className="flex items-center gap-2.5">
 								<span className="text-cyan-400/70">{activeCategory.icon}</span>
-								<h2 className="
-          font-(family-name:--nv-font-display) text-base font-bold
-          text-(--nv-text-primary)
-        ">
+								<h2
+									className="
+           font-(family-name:--nv-font-display) text-base font-bold
+           text-(--nv-text-primary)
+         "
+								>
 									{activeCategory.label}
 								</h2>
 							</div>

@@ -33,6 +33,7 @@ Navigation icons should read instantly at small sizes and feel bespoke to the Ne
 - `/game-icons/nav/shipyard.png`
 - `/game-icons/nav/defenses.png`
 - `/game-icons/nav/fleet.png`
+- `/game-icons/nav/contracts.png`
 - `/game-icons/nav/starmap.png`
 
 ## Prompt Pattern For New Icons

@@ -1,8 +1,10 @@
 import {
+	generateSciFiName,
 	getFleetCargoCapacity,
 	getFleetFuelCostForDistance,
 	getFleetSlowestSpeed,
 	normalizeShipCounts,
+	simulateCombat,
 	type ResourceBucket,
 	type ShipCounts,
 	type ShipKey,
@@ -19,6 +21,9 @@ import {
 	type QueryCtx,
 } from "../../convex/_generated/server";
 import { RESOURCE_SCALE } from "../../convex/schema";
+import { reconcilePlanetContracts } from "./contracts";
+import { applyPlanetControlReduction, isPlanetCurrentlyColonizable } from "./hostility";
+import { grantPlayerCredits, grantPlayerRankXp } from "./progression";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	cloneResourceBucket,
@@ -47,6 +52,10 @@ const shipCountsValidator = v.object({
 	smallCargo: v.number(),
 	largeCargo: v.number(),
 	colonyShip: v.number(),
+	interceptor: v.optional(v.number()),
+	frigate: v.optional(v.number()),
+	cruiser: v.optional(v.number()),
+	bomber: v.optional(v.number()),
 });
 
 const transportPostDeliveryActionValidator = v.union(
@@ -81,11 +90,22 @@ const fleetTargetValidator = v.object({
 	colonyId: v.optional(v.id("colonies")),
 	planetId: v.optional(v.id("planets")),
 	fleetId: v.optional(v.id("fleets")),
-	contractNodeKey: v.optional(v.string()),
+	contractId: v.optional(v.id("contracts")),
 });
 
 function scaledUnits(unscaledUnits: number) {
 	return Math.round(Math.max(0, unscaledUnits) * RESOURCE_SCALE);
+}
+
+function planetDisplayNameFromStoredOrGenerated(
+	planet: Pick<Doc<"planets">, "galaxyIndex" | "sectorIndex" | "systemIndex" | "planetIndex" | "name">,
+) {
+	const addressLabel = `G${planet.galaxyIndex}:S${planet.sectorIndex}:SYS${planet.systemIndex}:P${planet.planetIndex}`;
+	const trimmed = planet.name?.trim();
+	if (trimmed && trimmed.length > 0) {
+		return trimmed;
+	}
+	return generateSciFiName(addressLabel);
 }
 
 function wholeUnits(storedAmount: number) {
@@ -146,7 +166,7 @@ async function readColonyShipCounts(args: {
 	return counts;
 }
 
-async function decrementShipsOrThrow(args: {
+export async function decrementShipsOrThrow(args: {
 	colony: Doc<"colonies">;
 	ctx: MutationCtx;
 	now: number;
@@ -177,7 +197,10 @@ async function decrementShipsOrThrow(args: {
 	}
 }
 
-async function colonySystemCoords(args: { colonyId: Id<"colonies">; ctx: QueryCtx | MutationCtx }) {
+export async function colonySystemCoords(args: {
+	colonyId: Id<"colonies">;
+	ctx: QueryCtx | MutationCtx;
+}) {
 	const colony = await args.ctx.db.get(args.colonyId);
 	if (!colony) {
 		throw new ConvexError("Colony not found");
@@ -438,12 +461,13 @@ async function settleTransportAtTarget(args: {
 		if (destination.playerId !== args.operation.ownerPlayerId) {
 			throw new ConvexError("Cross-player stationing is not allowed");
 		}
-		for (const key of Object.keys(args.operation.shipCounts) as ShipKey[]) {
-			if (args.operation.shipCounts[key] <= 0) {
+		const stationingShips = normalizeShipCounts(args.operation.shipCounts);
+		for (const key of Object.keys(stationingShips) as ShipKey[]) {
+			if (stationingShips[key] <= 0) {
 				continue;
 			}
 			await incrementColonyShipCount({
-				amount: args.operation.shipCounts[key],
+				amount: stationingShips[key],
 				colony: destination,
 				ctx: args.ctx,
 				now: args.now,
@@ -581,7 +605,12 @@ async function settleColonizeAtTarget(args: {
 		ctx: args.ctx,
 	});
 
-	if (!targetPlanet.isColonizable) {
+	if (
+		!(await isPlanetCurrentlyColonizable({
+			ctx: args.ctx,
+			planetId: targetPlanetId,
+		}))
+	) {
 		await args.ctx.db.patch(args.operation._id, {
 			status: "failed",
 			updatedAt: args.now,
@@ -727,6 +756,170 @@ async function settleColonizeAtTarget(args: {
 	});
 }
 
+async function settleContractAtTarget(args: {
+	ctx: MutationCtx;
+	now: number;
+	operation: Doc<"fleetOperations">;
+}) {
+	const contractId = args.operation.target.contractId;
+	if (!contractId) {
+		await args.ctx.db.patch(args.operation._id, {
+			status: "failed",
+			updatedAt: args.now,
+		});
+		return;
+	}
+
+	const contract = await args.ctx.db.get(contractId);
+	if (!contract) {
+		await args.ctx.db.patch(args.operation._id, {
+			status: "failed",
+			updatedAt: args.now,
+		});
+		return;
+	}
+
+	const combat = simulateCombat({
+		attacker: {
+			ships: args.operation.shipCounts,
+			targetPriority: contract.snapshot.priorityProfile.attackerTargetPriority,
+		},
+		defender: {
+			ships: contract.snapshot.enemyFleet,
+			defenses: contract.snapshot.enemyDefenses,
+			targetPriority: contract.snapshot.priorityProfile.defenderTargetPriority,
+		},
+		maxRounds: 6,
+	});
+
+	const rewardCargoWhole = combat.success
+		? contract.snapshot.rewardResources
+		: emptyResourceBucket();
+	const rewardCapacity = combat.cargoCapacityRemaining;
+	let remainingCapacity = rewardCapacity;
+	const rewardCargoLoadedWhole = {
+		alloy: 0,
+		crystal: 0,
+		fuel: 0,
+	};
+	const rewardCargoLostWhole = {
+		...rewardCargoWhole,
+	};
+	for (const key of RESOURCE_KEYS) {
+		const loadable = Math.max(0, Math.min(rewardCargoWhole[key], remainingCapacity));
+		rewardCargoLoadedWhole[key] = loadable;
+		rewardCargoLostWhole[key] = Math.max(0, rewardCargoWhole[key] - loadable);
+		remainingCapacity -= loadable;
+	}
+
+	const rewardCargoScaled = resourceMapToScaledBucket(rewardCargoLoadedWhole);
+	const rewardCargoLostScaled = resourceMapToScaledBucket(rewardCargoLostWhole);
+	const returnDuration = Math.max(30_000, args.operation.arriveAt - args.operation.departAt);
+	const controlReductionApplied = combat.success
+		? (
+				await applyPlanetControlReduction({
+					controlReduction: contract.snapshot.controlReduction,
+					ctx: args.ctx,
+					now: args.now,
+					planetId: contract.planetId,
+				})
+			).applied
+		: 0;
+	const rankXpGranted = combat.success
+		? contract.snapshot.rewardRankXpSuccess
+		: contract.snapshot.rewardRankXpFailure;
+
+	if (combat.success) {
+		await grantPlayerCredits({
+			amount: contract.snapshot.rewardCredits,
+			ctx: args.ctx,
+			playerId: contract.playerId,
+		});
+	}
+	await grantPlayerRankXp({
+		amount: rankXpGranted,
+		ctx: args.ctx,
+		playerId: contract.playerId,
+	});
+
+	await args.ctx.db.patch(contract._id, {
+		status: combat.success ? "completed" : "failed",
+		resolvedAt: args.now,
+		updatedAt: args.now,
+	});
+
+	await args.ctx.db.insert("contractResults", {
+		contractId: contract._id,
+		operationId: args.operation._id,
+		playerId: contract.playerId,
+		planetId: contract.planetId,
+		success: combat.success,
+		roundsFought: combat.roundsFought,
+		attackerSurvivors: combat.attackerRemaining,
+		defenderSurvivors: {
+			fleet: combat.defenderFleetRemaining,
+			defenses: combat.defenderDefenseRemaining,
+		},
+		rewardCreditsGranted: combat.success ? contract.snapshot.rewardCredits : 0,
+		rewardRankXpGranted: rankXpGranted,
+		rewardCargoLoaded: rewardCargoScaled,
+		rewardCargoLostByCapacity: rewardCargoLostScaled,
+		controlReductionApplied,
+		createdAt: args.now,
+		updatedAt: args.now,
+	});
+
+	await args.ctx.db.patch(args.operation.fleetId, {
+		state: "returning",
+		locationKind: "route",
+		routeOperationId: args.operation._id,
+		shipCounts: combat.attackerRemaining,
+		cargo: rewardCargoScaled,
+		updatedAt: args.now,
+	});
+	await args.ctx.db.patch(args.operation._id, {
+		status: "returning",
+		shipCounts: combat.attackerRemaining,
+		departAt: args.now,
+		arriveAt: args.now + returnDuration,
+		nextEventAt: args.now + returnDuration,
+		updatedAt: args.now,
+	});
+	await upsertOperationResult({
+		ctx: args.ctx,
+		operation: args.operation,
+		now: args.now,
+		patch: {
+			resultCode: combat.success ? "delivered" : "failed",
+		},
+	});
+
+	await appendFleetEvent({
+		ctx: args.ctx,
+		data: {
+			contractId: contract._id,
+			success: combat.success,
+			roundsFought: combat.roundsFought,
+			controlReductionApplied,
+			returnAt: args.now + returnDuration,
+		},
+		eventType: combat.success ? "arrived" : "failed",
+		fleetId: args.operation.fleetId,
+		now: args.now,
+		operationId: args.operation._id,
+		ownerPlayerId: args.operation.ownerPlayerId,
+		universeId: args.operation.universeId,
+	});
+
+	await reconcilePlanetContracts({
+		ctx: args.ctx,
+		now: args.now,
+		planetId: contract.planetId,
+		playerId: contract.playerId,
+		universeId: contract.universeId,
+	});
+}
+
 async function settleOperationReturn(args: {
 	ctx: MutationCtx;
 	now: number;
@@ -751,12 +944,30 @@ async function settleOperationReturn(args: {
 		return;
 	}
 
-	for (const key of Object.keys(args.operation.shipCounts) as ShipKey[]) {
-		if (args.operation.shipCounts[key] <= 0) {
+	const origin = await loadColonyState({
+		colony: originBase,
+		ctx: args.ctx,
+	});
+	const fleet = await args.ctx.db.get(args.operation.fleetId);
+	if (!fleet) {
+		throw new ConvexError("Fleet not found for return");
+	}
+	if (fleet.cargo.alloy > 0 || fleet.cargo.crystal > 0 || fleet.cargo.fuel > 0) {
+		await applyCargoToColony({
+			cargoScaled: fleet.cargo,
+			colony: origin,
+			ctx: args.ctx,
+			now: args.now,
+		});
+	}
+
+	const returningShips = normalizeShipCounts(args.operation.shipCounts);
+	for (const key of Object.keys(returningShips) as ShipKey[]) {
+		if (returningShips[key] <= 0) {
 			continue;
 		}
 		await incrementColonyShipCount({
-			amount: args.operation.shipCounts[key],
+			amount: returningShips[key],
 			colony: originBase,
 			ctx: args.ctx,
 			now: args.now,
@@ -768,6 +979,7 @@ async function settleOperationReturn(args: {
 		state: "stationed",
 		locationKind: "colony",
 		locationColonyId: originBase._id,
+		cargo: emptyResourceBucket(),
 		routeOperationId: undefined,
 		updatedAt: args.now,
 	});
@@ -881,14 +1093,24 @@ export async function settleDueFleetOperations(args: {
 			continue;
 		}
 
+		if (latest.kind === "contract") {
+			await settleContractAtTarget({
+				ctx: args.ctx,
+				now: args.now,
+				operation: latest,
+			});
+			continue;
+		}
+
 		const origin = await args.ctx.db.get(latest.originColonyId);
 		if (origin) {
-			for (const key of Object.keys(latest.shipCounts) as ShipKey[]) {
-				if (latest.shipCounts[key] <= 0) {
+			const fallbackShips = normalizeShipCounts(latest.shipCounts);
+			for (const key of Object.keys(fallbackShips) as ShipKey[]) {
+				if (fallbackShips[key] <= 0) {
 					continue;
 				}
 				await incrementColonyShipCount({
-					amount: latest.shipCounts[key],
+					amount: fallbackShips[key],
 					colony: origin,
 					ctx: args.ctx,
 					now: args.now,
@@ -1014,6 +1236,153 @@ const resolveFleetTargetResultValidator = v.object({
 	targetPreview: v.optional(fleetOperationTargetPreviewValidator),
 });
 
+type FleetOperationTargetPreview = {
+	isOwnedByPlayer?: boolean;
+	kind: "colony" | "planet";
+	label: string;
+};
+
+type FleetOperationDisplayEndpoint = {
+	addressLabel: string;
+	colonyId?: Id<"colonies">;
+	name: string;
+};
+
+async function resolveOperationTargetPreview(args: {
+	ctx: QueryCtx;
+	getColonySummary: (colonyId: Id<"colonies">) => Promise<{ addressLabel: string; name: string }>;
+	ownerPlayerId: Id<"players">;
+	target: Doc<"fleetOperations">["target"];
+}): Promise<FleetOperationTargetPreview> {
+	const { ctx, getColonySummary, ownerPlayerId, target } = args;
+
+	if (target.kind === "colony" && target.colonyId) {
+		const targetSummary = await getColonySummary(target.colonyId);
+		const targetColony = await ctx.db.get(target.colonyId);
+		return {
+			kind: "colony",
+			label: `${targetSummary.name} (${targetSummary.addressLabel})`,
+			isOwnedByPlayer: targetColony?.playerId === ownerPlayerId,
+		};
+	}
+
+	if (target.kind === "planet" && target.planetId) {
+		const targetPlanet = await ctx.db.get(target.planetId);
+		if (targetPlanet) {
+			return {
+				kind: "planet",
+				label: `${planetDisplayNameFromStoredOrGenerated(targetPlanet)} (${toAddressLabel(targetPlanet)})`,
+			};
+		}
+	}
+
+	if (target.kind === "contractNode" && target.contractId) {
+		const contract = await ctx.db.get(target.contractId);
+		if (contract) {
+			const targetPlanet = await ctx.db.get(contract.planetId);
+			if (targetPlanet) {
+				return {
+					kind: "planet",
+					label: `${planetDisplayNameFromStoredOrGenerated(targetPlanet)} (${toAddressLabel(targetPlanet)})`,
+				};
+			}
+		}
+	}
+
+	return {
+		kind: "planet",
+		label: "Unknown target",
+	};
+}
+
+async function resolveReturningOriginEndpoint(args: {
+	ctx: QueryCtx;
+	getColonySummary: (colonyId: Id<"colonies">) => Promise<{ addressLabel: string; name: string }>;
+	target: Doc<"fleetOperations">["target"];
+}): Promise<FleetOperationDisplayEndpoint> {
+	const { ctx, getColonySummary, target } = args;
+
+	if (target.kind === "colony" && target.colonyId) {
+		const summary = await getColonySummary(target.colonyId);
+		return {
+			colonyId: target.colonyId,
+			name: summary.name,
+			addressLabel: summary.addressLabel,
+		};
+	}
+
+	if (target.kind === "planet" && target.planetId) {
+		const targetPlanet = await ctx.db.get(target.planetId);
+		if (targetPlanet) {
+			return {
+				name: planetDisplayNameFromStoredOrGenerated(targetPlanet),
+				addressLabel: toAddressLabel(targetPlanet),
+			};
+		}
+	}
+
+	if (target.kind === "contractNode" && target.contractId) {
+		const contract = await ctx.db.get(target.contractId);
+		if (contract) {
+			const targetPlanet = await ctx.db.get(contract.planetId);
+			if (targetPlanet) {
+				return {
+					name: planetDisplayNameFromStoredOrGenerated(targetPlanet),
+					addressLabel: toAddressLabel(targetPlanet),
+				};
+			}
+		}
+	}
+
+	return {
+		name: "Unknown origin",
+		addressLabel: "Unknown",
+	};
+}
+
+async function resolveOperationDisplay(args: {
+	ctx: QueryCtx;
+	getColonySummary: (colonyId: Id<"colonies">) => Promise<{ addressLabel: string; name: string }>;
+	ownerPlayerId: Id<"players">;
+	operation: Doc<"fleetOperations">;
+}) {
+	const { ctx, getColonySummary, ownerPlayerId, operation } = args;
+	const homeSummary = await getColonySummary(operation.originColonyId);
+
+	if (operation.status === "returning") {
+		const returningOrigin = await resolveReturningOriginEndpoint({
+			ctx,
+			getColonySummary,
+			target: operation.target,
+		});
+		return {
+			displayOrigin: returningOrigin,
+			displayTarget: {
+				kind: "colony" as const,
+				label: `${homeSummary.name} (${homeSummary.addressLabel})`,
+				isOwnedByPlayer: true,
+			},
+			displayTargetColonyId: operation.originColonyId,
+		};
+	}
+
+	return {
+		displayOrigin: {
+			colonyId: operation.originColonyId,
+			name: homeSummary.name,
+			addressLabel: homeSummary.addressLabel,
+		},
+		displayTarget: await resolveOperationTargetPreview({
+			ctx,
+			getColonySummary,
+			ownerPlayerId,
+			target: operation.target,
+		}),
+		displayTargetColonyId:
+			operation.target.kind === "colony" ? operation.target.colonyId : undefined,
+	};
+}
+
 export const getFleetGarrison = query({
 	args: {
 		colonyId: v.id("colonies"),
@@ -1084,7 +1453,7 @@ export const getFleetActiveOperations = query({
 				status: operation.status,
 				originColonyId: operation.originColonyId,
 				target: operation.target,
-				shipCounts: operation.shipCounts,
+				shipCounts: normalizeShipCounts(operation.shipCounts),
 				cargoRequested: {
 					alloy: wholeUnits(operation.cargoRequested.alloy),
 					crystal: wholeUnits(operation.cargoRequested.crystal),
@@ -1134,39 +1503,38 @@ export const getFleetOperationsForOriginColony = query({
 			.filter((operation) => operation.ownerPlayerId === player._id)
 			.sort((left, right) => left.nextEventAt - right.nextEventAt);
 
-		const originPlanet = await ctx.db.get(colony.planetId);
-		const originAddressLabel = originPlanet ? toAddressLabel(originPlanet) : "Unknown";
+		const colonySummaryCache = new Map<Id<"colonies">, { addressLabel: string; name: string }>();
+		const getColonySummary = async (colonyId: Id<"colonies">) => {
+			const cached = colonySummaryCache.get(colonyId);
+			if (cached) {
+				return cached;
+			}
+			const colonyRow = await ctx.db.get(colonyId);
+			if (!colonyRow) {
+				const fallback = {
+					name: "Unknown colony",
+					addressLabel: "Unknown",
+				};
+				colonySummaryCache.set(colonyId, fallback);
+				return fallback;
+			}
+			const planetRow = await ctx.db.get(colonyRow.planetId);
+			const summary = {
+				name: colonyRow.name,
+				addressLabel: planetRow ? toAddressLabel(planetRow) : "Unknown",
+			};
+			colonySummaryCache.set(colonyId, summary);
+			return summary;
+		};
 
 		const rows = await Promise.all(
 			activeOps.map(async (operation) => {
-				let targetPreview: {
-					isOwnedByPlayer?: boolean;
-					kind: "colony" | "planet";
-					label: string;
-				} = {
-					kind: "planet",
-					label: "Unknown target",
-				};
-
-				if (operation.target.kind === "colony" && operation.target.colonyId) {
-					const targetColony = await ctx.db.get(operation.target.colonyId);
-					if (targetColony) {
-						const targetPlanet = await ctx.db.get(targetColony.planetId);
-						targetPreview = {
-							kind: "colony",
-							label: `${targetColony.name}${targetPlanet ? ` (${toAddressLabel(targetPlanet)})` : ""}`,
-							isOwnedByPlayer: targetColony.playerId === player._id,
-						};
-					}
-				} else if (operation.target.kind === "planet" && operation.target.planetId) {
-					const targetPlanet = await ctx.db.get(operation.target.planetId);
-					if (targetPlanet) {
-						targetPreview = {
-							kind: "planet",
-							label: toAddressLabel(targetPlanet),
-						};
-					}
-				}
+				const display = await resolveOperationDisplay({
+					ctx,
+					getColonySummary,
+					ownerPlayerId: player._id,
+					operation,
+				});
 
 				return {
 					id: operation._id,
@@ -1174,11 +1542,11 @@ export const getFleetOperationsForOriginColony = query({
 					kind: operation.kind,
 					status: operation.status,
 					originColonyId: operation.originColonyId,
-					originName: colony.name,
-					originAddressLabel,
+					originName: display.displayOrigin.name,
+					originAddressLabel: display.displayOrigin.addressLabel,
 					target: operation.target,
-					targetPreview,
-					shipCounts: operation.shipCounts,
+					targetPreview: display.displayTarget,
+					shipCounts: normalizeShipCounts(operation.shipCounts),
 					cargoRequested: {
 						alloy: wholeUnits(operation.cargoRequested.alloy),
 						crystal: wholeUnits(operation.cargoRequested.crystal),
@@ -1230,14 +1598,9 @@ export const getFleetOperationsForColony = query({
 				.collect(),
 		]);
 
-		const relevantOps = [...inTransit, ...returning]
-			.filter((operation) => {
-				if (operation.originColonyId === colony._id) {
-					return true;
-				}
-				return operation.target.kind === "colony" && operation.target.colonyId === colony._id;
-			})
-			.sort((left, right) => left.nextEventAt - right.nextEventAt);
+		const activeOps = [...inTransit, ...returning].sort(
+			(left, right) => left.nextEventAt - right.nextEventAt,
+		);
 
 		const colonySummaryCache = new Map<Id<"colonies">, { addressLabel: string; name: string }>();
 		const getColonySummary = async (colonyId: Id<"colonies">) => {
@@ -1264,37 +1627,21 @@ export const getFleetOperationsForColony = query({
 		};
 
 		const rows = await Promise.all(
-			relevantOps.map(async (operation) => {
-				const relation: "incoming" | "outgoing" =
-					operation.originColonyId === colony._id ? "outgoing" : "incoming";
-				const originSummary = await getColonySummary(operation.originColonyId);
-
-				let targetPreview: {
-					isOwnedByPlayer?: boolean;
-					kind: "colony" | "planet";
-					label: string;
-				} = {
-					kind: "planet",
-					label: "Unknown target",
-				};
-
-				if (operation.target.kind === "colony" && operation.target.colonyId) {
-					const targetSummary = await getColonySummary(operation.target.colonyId);
-					const targetColony = await ctx.db.get(operation.target.colonyId);
-					targetPreview = {
-						kind: "colony",
-						label: `${targetSummary.name} (${targetSummary.addressLabel})`,
-						isOwnedByPlayer: targetColony?.playerId === player._id,
-					};
-				} else if (operation.target.kind === "planet" && operation.target.planetId) {
-					const targetPlanet = await ctx.db.get(operation.target.planetId);
-					if (targetPlanet) {
-						targetPreview = {
-							kind: "planet",
-							label: toAddressLabel(targetPlanet),
-						};
-					}
+			activeOps.map(async (operation) => {
+				const display = await resolveOperationDisplay({
+					ctx,
+					getColonySummary,
+					ownerPlayerId: player._id,
+					operation,
+				});
+				const isRelevant =
+					display.displayOrigin.colonyId === colony._id ||
+					display.displayTargetColonyId === colony._id;
+				if (!isRelevant) {
+					return null;
 				}
+				const relation: "incoming" | "outgoing" =
+					display.displayOrigin.colonyId === colony._id ? "outgoing" : "incoming";
 
 				return {
 					id: operation._id,
@@ -1303,11 +1650,11 @@ export const getFleetOperationsForColony = query({
 					status: operation.status,
 					relation,
 					originColonyId: operation.originColonyId,
-					originName: originSummary.name,
-					originAddressLabel: originSummary.addressLabel,
+					originName: display.displayOrigin.name,
+					originAddressLabel: display.displayOrigin.addressLabel,
 					target: operation.target,
-					targetPreview,
-					shipCounts: operation.shipCounts,
+					targetPreview: display.displayTarget,
+					shipCounts: normalizeShipCounts(operation.shipCounts),
 					cargoRequested: {
 						alloy: wholeUnits(operation.cargoRequested.alloy),
 						crystal: wholeUnits(operation.cargoRequested.crystal),
@@ -1324,8 +1671,8 @@ export const getFleetOperationsForColony = query({
 		);
 
 		return {
-			active: rows,
-			nextEventAt: rows[0]?.nextEventAt,
+			active: rows.filter((row) => row !== null),
+			nextEventAt: rows.find((row) => row !== null)?.nextEventAt,
 		};
 	},
 });
@@ -1429,11 +1776,16 @@ export const resolveFleetTarget = query({
 			};
 		}
 
-		const planetState = await loadPlanetState({
+		await loadPlanetState({
 			planet,
 			ctx,
 		});
-		if (!planetState.isColonizable) {
+		if (
+			!(await isPlanetCurrentlyColonizable({
+				ctx,
+				planetId: planet._id,
+			}))
+		) {
 			return {
 				ok: false,
 				reason: "Target planet is not colonizable",
@@ -1529,7 +1881,7 @@ export const getFleetOperation = query({
 				status: operation.status,
 				originColonyId: operation.originColonyId,
 				target: operation.target,
-				shipCounts: operation.shipCounts,
+				shipCounts: normalizeShipCounts(operation.shipCounts),
 				cargoRequested: {
 					alloy: wholeUnits(operation.cargoRequested.alloy),
 					crystal: wholeUnits(operation.cargoRequested.crystal),
@@ -1753,7 +2105,12 @@ export const createOperation = mutation({
 				planet: targetPlanetBase,
 				ctx,
 			});
-			if (!targetPlanet.isColonizable) {
+			if (
+				!(await isPlanetCurrentlyColonizable({
+					ctx,
+					planetId: targetPlanet._id,
+				}))
+			) {
 				throw new ConvexError("Target planet is not colonizable");
 			}
 			if (targetPlanet.universeId !== origin.colony.universeId) {

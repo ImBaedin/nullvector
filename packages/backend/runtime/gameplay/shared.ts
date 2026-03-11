@@ -3,6 +3,7 @@ import type { BuildingKey, FacilityKey, ResourceBucket, ShipKey } from "@nullvec
 import {
 	BUILDING_KEYS,
 	DEFAULT_GENERATOR_REGISTRY,
+	getGeneratorConsumptionPerMinute,
 	getGeneratorProductionPerMinute,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
@@ -105,12 +106,6 @@ const LANE_QUEUE_CAPACITY: Record<QueueLane, number> = {
 	research: 2,
 };
 
-const ENERGY_BASE_CONSUMPTION: Record<ProductionBuildingKey, number> = {
-	alloyMineLevel: 10,
-	crystalMineLevel: 10,
-	fuelRefineryLevel: 20,
-};
-
 const resourceBucketValidator = v.object({
 	alloy: v.number(),
 	crystal: v.number(),
@@ -146,6 +141,10 @@ const shipKeyValidator = v.union(
 	v.literal("smallCargo"),
 	v.literal("largeCargo"),
 	v.literal("colonyShip"),
+	v.literal("interceptor"),
+	v.literal("frigate"),
+	v.literal("cruiser"),
+	v.literal("bomber"),
 );
 
 const queueItemKindValidator = v.union(
@@ -630,15 +629,6 @@ function resolveDisplayName(authUser: { name?: string | null; email?: string | n
 	return authUser.name ?? authUser.email ?? "Pilot";
 }
 
-function energyConsumptionForLevel(buildingKey: ProductionBuildingKey, level: number) {
-	if (level <= 0) {
-		return 0;
-	}
-
-	const base = ENERGY_BASE_CONSUMPTION[buildingKey];
-	return Math.round(base * Math.pow(1.12, level - 1));
-}
-
 function productionRatesPerMinute(args: {
 	buildings: ColonyState["buildings"];
 	overflow: ResourceBucket;
@@ -671,9 +661,9 @@ function productionRatesPerMinute(args: {
 
 	const energyProduced = getGeneratorProductionPerMinute(powerGenerator, buildings.powerPlantLevel);
 	const energyConsumed =
-		energyConsumptionForLevel("alloyMineLevel", buildings.alloyMineLevel) +
-		energyConsumptionForLevel("crystalMineLevel", buildings.crystalMineLevel) +
-		energyConsumptionForLevel("fuelRefineryLevel", buildings.fuelRefineryLevel);
+		getGeneratorConsumptionPerMinute(alloyGenerator, buildings.alloyMineLevel) +
+		getGeneratorConsumptionPerMinute(crystalGenerator, buildings.crystalMineLevel) +
+		getGeneratorConsumptionPerMinute(fuelGenerator, buildings.fuelRefineryLevel);
 
 	const energyRatio =
 		energyConsumed <= 0 ? 1 : Math.max(0, Math.min(1, energyProduced / energyConsumed));
@@ -1634,7 +1624,6 @@ export {
 	BUILDING_LANE_BASE_CAPACITY,
 	BUILDING_CONFIG,
 	EMPTY_RESEARCH_LEVELS,
-	ENERGY_BASE_CONSUMPTION,
 	LANE_QUEUE_CAPACITY,
 	OPEN_QUEUE_STATUSES,
 	RESOURCE_KEYS,
@@ -1651,7 +1640,6 @@ export {
 	colonyStatusValidator,
 	emptyLaneQueueView,
 	emptyResourceBucket,
-	energyConsumptionForLevel,
 	facilityCardValidator,
 	facilityKeyValidator,
 	facilityLevelFromColony,

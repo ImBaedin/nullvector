@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { generateSciFiName } from "@nullvector/game-logic";
 
 import type { Id } from "./_generated/dataModel";
 
@@ -42,6 +43,14 @@ const sectorSummaryValidator = v.object({
 	worldCenterY: v.number(),
 	addressLabel: v.string(),
 	displayName: v.string(),
+	hostility: v.optional(
+		v.object({
+			hostileFactionKey: v.union(v.literal("spacePirates"), v.literal("rogueAi")),
+			status: v.union(v.literal("hostile"), v.literal("cleared")),
+			hostilePlanetCount: v.number(),
+			clearedPlanetCount: v.number(),
+		}),
+	),
 });
 
 const systemSummaryValidator = v.object({
@@ -167,24 +176,12 @@ const planetActiveOperationValidator = v.object({
 	),
 });
 
-function formatGalaxyName(galaxyIndex: number, storedName: string) {
-	const trimmed = storedName.trim();
-	if (trimmed.length > 0) {
+function displayNameFromStoredOrGenerated(addressLabel: string, storedName?: string) {
+	const trimmed = storedName?.trim();
+	if (trimmed && trimmed.length > 0) {
 		return trimmed;
 	}
-	return `Galaxy ${galaxyIndex + 1}`;
-}
-
-function formatSectorName(sectorIndex: number) {
-	return `Sector ${sectorIndex + 1}`;
-}
-
-function formatSystemName(systemIndex: number) {
-	return `System ${systemIndex + 1}`;
-}
-
-function formatPlanetName(planetIndex: number) {
-	return `Planet ${planetIndex + 1}`;
+	return generateSciFiName(addressLabel);
 }
 
 function galaxyAddress(galaxyIndex: number) {
@@ -326,15 +323,21 @@ export const getUniverseExplorerOverview = query({
 			.slice()
 			.sort((a, b) => a.galaxyIndex - b.galaxyIndex)
 			.map((galaxy) => ({
+				addressLabel: galaxyAddress(galaxy.galaxyIndex),
 				id: galaxy._id,
 				galaxyIndex: galaxy.galaxyIndex,
-				name: galaxy.name,
+				name: displayNameFromStoredOrGenerated(
+					galaxyAddress(galaxy.galaxyIndex),
+					galaxy.name,
+				),
 				gx: galaxy.gx,
 				gy: galaxy.gy,
 				worldX: galaxy.gx,
 				worldY: galaxy.gy,
-				addressLabel: galaxyAddress(galaxy.galaxyIndex),
-				displayName: formatGalaxyName(galaxy.galaxyIndex, galaxy.name),
+				displayName: displayNameFromStoredOrGenerated(
+					galaxyAddress(galaxy.galaxyIndex),
+					galaxy.name,
+				),
 			}));
 
 		return {
@@ -369,13 +372,19 @@ export const getGalaxyHeader = query({
 			galaxy: {
 				id: galaxy._id,
 				galaxyIndex: galaxy.galaxyIndex,
-				name: galaxy.name,
+				name: displayNameFromStoredOrGenerated(
+					galaxyAddress(galaxy.galaxyIndex),
+					galaxy.name,
+				),
 				gx: galaxy.gx,
 				gy: galaxy.gy,
 				worldX: galaxy.gx,
 				worldY: galaxy.gy,
 				addressLabel: galaxyAddress(galaxy.galaxyIndex),
-				displayName: formatGalaxyName(galaxy.galaxyIndex, galaxy.name),
+				displayName: displayNameFromStoredOrGenerated(
+					galaxyAddress(galaxy.galaxyIndex),
+					galaxy.name,
+				),
 			},
 		};
 	},
@@ -398,14 +407,37 @@ export const getGalaxySectorList = query({
 			)
 			.collect();
 
-		const orderedSectors = sectors
-			.filter((sector) => sector.galaxyId === galaxy._id)
+		const filteredSectors = sectors.filter((sector) => sector.galaxyId === galaxy._id);
+		const sectorHostilityRows = await Promise.all(
+			filteredSectors.map((sector) =>
+				ctx.db
+					.query("sectorHostility")
+					.withIndex("by_sector_id", (q) => q.eq("sectorId", sector._id))
+					.unique(),
+			),
+		);
+		const hostilityBySecId = new Map(
+			sectorHostilityRows
+				.filter((row): row is NonNullable<typeof row> => row !== null)
+				.map((row) => [
+					row.sectorId,
+					{
+						hostileFactionKey: row.hostileFactionKey as "spacePirates" | "rogueAi",
+						status: row.status as "hostile" | "cleared",
+						hostilePlanetCount: row.hostilePlanetCount,
+						clearedPlanetCount: row.clearedPlanetCount,
+					},
+				]),
+		);
+
+		const orderedSectors = filteredSectors
 			.sort((a, b) => a.sectorIndex - b.sectorIndex)
 			.map((sector) => {
 				const centerX = (sector.minX + sector.maxX) / 2;
 				const centerY = (sector.minY + sector.maxY) / 2;
 
 				return {
+					addressLabel: sectorAddress(galaxy.galaxyIndex, sector.sectorIndex),
 					id: sector._id,
 					sectorIndex: sector.sectorIndex,
 					sectorType: sector.sectorType,
@@ -421,8 +453,11 @@ export const getGalaxySectorList = query({
 					worldMaxY: sector.maxY,
 					worldCenterX: centerX,
 					worldCenterY: centerY,
-					addressLabel: sectorAddress(galaxy.galaxyIndex, sector.sectorIndex),
-					displayName: formatSectorName(sector.sectorIndex),
+					displayName: displayNameFromStoredOrGenerated(
+						sectorAddress(galaxy.galaxyIndex, sector.sectorIndex),
+						sector.name,
+					),
+					hostility: hostilityBySecId.get(sector._id),
 				};
 			});
 
@@ -453,13 +488,19 @@ export const getSectorHeader = query({
 			galaxy: {
 				id: galaxy._id,
 				galaxyIndex: galaxy.galaxyIndex,
-				name: galaxy.name,
+				name: displayNameFromStoredOrGenerated(
+					galaxyAddress(galaxy.galaxyIndex),
+					galaxy.name,
+				),
 				gx: galaxy.gx,
 				gy: galaxy.gy,
 				worldX: galaxy.gx,
 				worldY: galaxy.gy,
 				addressLabel: galaxyAddress(galaxy.galaxyIndex),
-				displayName: formatGalaxyName(galaxy.galaxyIndex, galaxy.name),
+				displayName: displayNameFromStoredOrGenerated(
+					galaxyAddress(galaxy.galaxyIndex),
+					galaxy.name,
+				),
 			},
 			sector: {
 				id: sector._id,
@@ -470,7 +511,10 @@ export const getSectorHeader = query({
 				worldCenterX: (sector.minX + sector.maxX) / 2,
 				worldCenterY: (sector.minY + sector.maxY) / 2,
 				addressLabel: sectorAddress(galaxy.galaxyIndex, sector.sectorIndex),
-				displayName: formatSectorName(sector.sectorIndex),
+				displayName: displayNameFromStoredOrGenerated(
+					sectorAddress(galaxy.galaxyIndex, sector.sectorIndex),
+					sector.name,
+				),
 			},
 		};
 	},
@@ -495,14 +539,17 @@ export const getSectorSystemList = query({
 			.slice()
 			.sort((a, b) => a.systemIndex - b.systemIndex)
 			.map((system) => ({
+				addressLabel: systemAddress(galaxy.galaxyIndex, sector.sectorIndex, system.systemIndex),
 				id: system._id,
 				systemIndex: system.systemIndex,
 				x: system.x,
 				y: system.y,
 				worldX: system.x,
 				worldY: system.y,
-				addressLabel: systemAddress(galaxy.galaxyIndex, sector.sectorIndex, system.systemIndex),
-				displayName: formatSystemName(system.systemIndex),
+				displayName: displayNameFromStoredOrGenerated(
+					systemAddress(galaxy.galaxyIndex, sector.sectorIndex, system.systemIndex),
+					system.name,
+				),
 			}));
 
 		return {
@@ -542,6 +589,12 @@ export const getSystemPlanetsStatic = query({
 			.slice()
 			.sort((a, b) => a.planetIndex - b.planetIndex)
 			.map((planet) => ({
+				addressLabel: planetAddress(
+					galaxy.galaxyIndex,
+					sector.sectorIndex,
+					system.systemIndex,
+					planet.planetIndex,
+				),
 				id: planet._id,
 				planetIndex: planet.planetIndex,
 				seed: planet.seed,
@@ -551,13 +604,15 @@ export const getSystemPlanetsStatic = query({
 				orbitX: Math.cos(planet.orbitPhaseRad) * planet.orbitRadius,
 				orbitY: Math.sin(planet.orbitPhaseRad) * planet.orbitRadius,
 				isColonizable: planetEconomyById.get(planet._id)?.isColonizable ?? false,
-				addressLabel: planetAddress(
-					galaxy.galaxyIndex,
-					sector.sectorIndex,
-					system.systemIndex,
-					planet.planetIndex,
+				displayName: displayNameFromStoredOrGenerated(
+					planetAddress(
+						galaxy.galaxyIndex,
+						sector.sectorIndex,
+						system.systemIndex,
+						planet.planetIndex,
+					),
+					planet.name,
 				),
-				displayName: formatPlanetName(planet.planetIndex),
 			}));
 
 		return {
@@ -571,20 +626,29 @@ export const getSystemPlanetsStatic = query({
 				galaxy: {
 					id: galaxy._id,
 					galaxyIndex: galaxy.galaxyIndex,
-					name: galaxy.name,
+					name: displayNameFromStoredOrGenerated(
+						galaxyAddress(galaxy.galaxyIndex),
+						galaxy.name,
+					),
 					gx: galaxy.gx,
 					gy: galaxy.gy,
 					worldX: galaxy.gx,
 					worldY: galaxy.gy,
 					addressLabel: galaxyAddress(galaxy.galaxyIndex),
-					displayName: formatGalaxyName(galaxy.galaxyIndex, galaxy.name),
+					displayName: displayNameFromStoredOrGenerated(
+						galaxyAddress(galaxy.galaxyIndex),
+						galaxy.name,
+					),
 				},
 				sector: {
 					id: sector._id,
 					sectorIndex: sector.sectorIndex,
 					sectorType: sector.sectorType,
 					addressLabel: sectorAddress(galaxy.galaxyIndex, sector.sectorIndex),
-					displayName: formatSectorName(sector.sectorIndex),
+					displayName: displayNameFromStoredOrGenerated(
+						sectorAddress(galaxy.galaxyIndex, sector.sectorIndex),
+						sector.name,
+					),
 				},
 				system: {
 					id: system._id,
@@ -594,7 +658,10 @@ export const getSystemPlanetsStatic = query({
 					worldX: system.x,
 					worldY: system.y,
 					addressLabel: systemAddress(galaxy.galaxyIndex, sector.sectorIndex, system.systemIndex),
-					displayName: formatSystemName(system.systemIndex),
+					displayName: displayNameFromStoredOrGenerated(
+						systemAddress(galaxy.galaxyIndex, sector.sectorIndex, system.systemIndex),
+						system.name,
+					),
 				},
 			},
 			planets: orderedPlanets,

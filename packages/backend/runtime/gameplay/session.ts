@@ -6,6 +6,8 @@ import { mutation, query, type MutationCtx } from "../../convex/_generated/serve
 import { authComponent } from "../../convex/auth";
 import { DEFAULT_UNIVERSE_SLUG } from "../../convex/lib/worldgen/config";
 import { ensureCoreCapacityPipeline } from "../../convex/lib/worldgen/pipeline";
+import { ensureUniverseHostilitySeeded, isPlanetCurrentlyColonizable } from "./hostility";
+import { ensurePlayerProgression } from "./progression";
 import {
 	emptyResourceBucket,
 	hashString,
@@ -72,6 +74,10 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	if (!player) {
 		throw new ConvexError("Failed to resolve player profile");
 	}
+	await ensurePlayerProgression({
+		ctx,
+		playerId: player._id,
+	});
 
 	const existingColonies = await listPlayerColonies({
 		ctx,
@@ -101,6 +107,10 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	if (!universe) {
 		throw new ConvexError("No active universe available for colony assignment");
 	}
+	await ensureUniverseHostilitySeeded({
+		ctx,
+		universeId: universe._id,
+	});
 
 	const planets = await ctx.db
 		.query("planets")
@@ -125,6 +135,18 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	let unclaimedColonizablePlanets = planets
 		.filter((planet) => colonizablePlanetIds.has(planet._id))
 		.filter((planet) => !claimedPlanetIds.has(planet._id));
+	unclaimedColonizablePlanets = (
+		await Promise.all(
+			unclaimedColonizablePlanets.map(async (planet) =>
+				(await isPlanetCurrentlyColonizable({
+					ctx,
+					planetId: planet._id,
+				}))
+					? planet
+					: null,
+			),
+		)
+	).filter((planet): planet is (typeof unclaimedColonizablePlanets)[number] => planet !== null);
 
 	if (unclaimedColonizablePlanets.length === 0) {
 		await ensureCoreCapacityPipeline(ctx, {
@@ -159,6 +181,18 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 		unclaimedColonizablePlanets = refreshedPlanets
 			.filter((planet) => refreshedColonizablePlanetIds.has(planet._id))
 			.filter((planet) => !refreshedClaimedPlanetIds.has(planet._id));
+		unclaimedColonizablePlanets = (
+			await Promise.all(
+				unclaimedColonizablePlanets.map(async (planet) =>
+					(await isPlanetCurrentlyColonizable({
+						ctx,
+						planetId: planet._id,
+					}))
+						? planet
+						: null,
+				),
+			)
+		).filter((planet): planet is (typeof unclaimedColonizablePlanets)[number] => planet !== null);
 	}
 
 	if (unclaimedColonizablePlanets.length === 0) {

@@ -15,18 +15,26 @@ function Sweep({ className }: SweepProps) {
 }
 
 function ColonyPageSkeletonFrame({ children }: { children: ReactNode }) {
-	return <div className="
+	return (
+		<div
+			className="
    mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white
- ">{children}</div>;
+ "
+		>
+			{children}
+		</div>
+	);
 }
 
 function ColonyTwoColumnSkeleton(args: { left: ReactNode; right: ReactNode }) {
 	return (
 		<ColonyPageSkeletonFrame>
-			<div className="
-     grid gap-5
-     lg:grid-cols-[minmax(0,1fr)_450px]
-   ">
+			<div
+				className="
+      grid gap-5
+      lg:grid-cols-[minmax(0,1fr)_450px]
+    "
+			>
 				<div className="space-y-5">{args.left}</div>
 				<div className="space-y-5">{args.right}</div>
 			</div>

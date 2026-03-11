@@ -35,6 +35,7 @@ const PLACEHOLDER_TAB_IDS: Array<ContextNavItem["id"]> = [
 	"shipyard",
 	"defenses",
 	"fleet",
+	"contracts",
 ];
 
 const PLACEHOLDER_TAB_ICON_SRC: Record<ContextNavItem["id"], string> = {
@@ -44,27 +45,27 @@ const PLACEHOLDER_TAB_ICON_SRC: Record<ContextNavItem["id"], string> = {
 	shipyard: "/game-icons/nav/shipyard.png",
 	defenses: "/game-icons/nav/defenses.png",
 	fleet: "/game-icons/nav/fleet.png",
+	contracts: "/game-icons/nav/contracts.png",
 };
 
 function buildPlaceholderTabs(basePaths: {
+	contracts: string;
 	facilities: string;
 	fleet: string;
 	resources: string;
 	shipyard: string;
 }): ContextNavItem[] {
+	const routeMap: Record<string, string> = {
+		resources: basePaths.resources,
+		facilities: basePaths.facilities,
+		fleet: basePaths.fleet,
+		shipyard: basePaths.shipyard,
+		contracts: basePaths.contracts,
+	};
 	return PLACEHOLDER_TAB_IDS.map((id) => ({
 		id,
 		label: id[0].toUpperCase() + id.slice(1),
-		to:
-			id === "resources"
-				? basePaths.resources
-				: id === "facilities"
-					? basePaths.facilities
-					: id === "fleet"
-						? basePaths.fleet
-						: id === "shipyard"
-							? basePaths.shipyard
-							: `/style-lab`,
+		to: routeMap[id] ?? `/style-lab`,
 		icon: createElement("img", {
 			alt: `${id} nav icon`,
 			className: "size-5 shrink-0 object-contain",
@@ -126,30 +127,39 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
 	const facilitiesPath = `/game/colony/${encodedColonyId}/facilities`;
 	const fleetPath = `/game/colony/${encodedColonyId}/fleet`;
 	const shipyardPath = `/game/colony/${encodedColonyId}/shipyard`;
+	const contractsPath = `/game/colony/${encodedColonyId}/contracts`;
 	const isResourcesRoute = pathname === resourcesPath;
 	const isFacilitiesRoute = pathname === facilitiesPath;
 	const isFleetRoute = pathname === fleetPath;
 	const isShipyardRoute = pathname === shipyardPath;
+	const isContractsRoute = pathname === contractsPath;
+
+	const activeTabId = isResourcesRoute
+		? "resources"
+		: isFacilitiesRoute
+			? "facilities"
+			: isFleetRoute
+				? "fleet"
+				: isShipyardRoute
+					? "shipyard"
+					: isContractsRoute
+						? "contracts"
+						: "overview";
+
+	const tabPaths = {
+		contracts: contractsPath,
+		facilities: facilitiesPath,
+		fleet: fleetPath,
+		resources: resourcesPath,
+		shipyard: shipyardPath,
+	};
 
 	if (!hud) {
 		return {
 			mode: "game",
 			title: isResourcesRoute ? `Colony ${colonyId} Resources` : `Colony ${colonyId}`,
-			activeTabId: isResourcesRoute
-				? "resources"
-				: isFacilitiesRoute
-					? "facilities"
-					: isFleetRoute
-						? "fleet"
-						: isShipyardRoute
-							? "shipyard"
-							: "overview",
-			contextTabs: buildPlaceholderTabs({
-				facilities: facilitiesPath,
-				fleet: fleetPath,
-				resources: resourcesPath,
-				shipyard: shipyardPath,
-			}),
+			activeTabId,
+			contextTabs: buildPlaceholderTabs(tabPaths),
 			notificationsCount: 0,
 		};
 	}
@@ -158,27 +168,14 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
 		mode: "game",
 		title: hud.title,
 		activeColonyId: hud.activeColonyId,
-		activeTabId: isResourcesRoute
-			? "resources"
-			: isFacilitiesRoute
-				? "facilities"
-				: isFleetRoute
-					? "fleet"
-					: isShipyardRoute
-						? "shipyard"
-						: "overview",
+		activeTabId,
 		colonies: hud.colonies.map((colony) => ({
 			id: colony.id,
 			name: colony.name,
 			addressLabel: colony.addressLabel,
 			status: colony.status,
 		})),
-		contextTabs: buildPlaceholderTabs({
-			facilities: facilitiesPath,
-			fleet: fleetPath,
-			resources: resourcesPath,
-			shipyard: shipyardPath,
-		}),
+		contextTabs: buildPlaceholderTabs(tabPaths),
 		notificationsCount: 0,
 		resources: hud.resources,
 	};

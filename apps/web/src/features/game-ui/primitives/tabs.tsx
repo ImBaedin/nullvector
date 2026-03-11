@@ -20,17 +20,17 @@ export function NvTabs({ className, activeId, items }: NvTabsProps) {
       group inline-flex items-center gap-1.5 border-b-2 px-3 pt-1.5 pb-2
       text-[11px] font-semibold transition-all
     `, item.isDisabled ? `
-        pointer-events-none border-transparent text-white/20
-        [&_img]:opacity-30
-      ` : item.id === activeId ? `
-         border-cyan-400/80 text-cyan-50
-         [&_img]:opacity-90
-       ` : `
-          border-transparent text-white/35
-          hover:border-white/15 hover:text-white/60
-          [&_img]:opacity-40
-          [&_img]:hover:opacity-60
-        `)} key={item.id} to={item.to}>
+      pointer-events-none border-transparent text-white/20
+      [&_img]:opacity-30
+    ` : item.id === activeId ? `
+      border-cyan-400/80 text-cyan-50
+      [&_img]:opacity-90
+    ` : `
+      border-transparent text-white/35
+      hover:border-white/15 hover:text-white/60
+      [&_img]:opacity-40
+      [&_img]:hover:opacity-60
+    `)} key={item.id} to={item.to}>
 					{item.icon}
 					<span>{item.label}</span>
 					{item.badgeCount ? (

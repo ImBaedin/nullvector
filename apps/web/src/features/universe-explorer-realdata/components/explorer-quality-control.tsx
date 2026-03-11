@@ -30,10 +30,10 @@ export function ExplorerQualityControl({
         rounded-sm border border-cyan-300/70 bg-cyan-400/20 px-2 py-1
         text-[11px] text-cyan-100
       ` : `
-           rounded-sm border border-white/15 bg-white/5 px-2 py-1 text-[11px]
-           text-slate-300
-           hover:bg-white/10
-         `} onClick={() => onQualityPresetChange(entry.value)} type="button">
+        rounded-sm border border-white/15 bg-white/5 px-2 py-1 text-[11px]
+        text-slate-300
+        hover:bg-white/10
+      `} onClick={() => onQualityPresetChange(entry.value)} type="button">
 							{entry.label}
 						</button>
 					);

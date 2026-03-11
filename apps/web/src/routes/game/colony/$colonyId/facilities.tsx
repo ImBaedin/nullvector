@@ -453,11 +453,7 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 						<Wrench className="size-4" strokeWidth={2.2} />
 					</span>
 					<div>
-						<h2
-							className="font-(family-name:--nv-font-display) text-sm font-bold"
-						>
-							Facility Bay
-						</h2>
+						<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Facility Bay</h2>
 						<p className="mt-0.5 text-[10px] text-white/35">
 							Core infrastructure modules powering colony operations.
 						</p>
@@ -502,9 +498,9 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 						const isMaxLevel = facility.nextUpgradeDurationSeconds === undefined;
 						const hasRequiredResources =
 							props.availableResources !== null &&
-							(props.availableResources.alloy >= facility.nextUpgradeCost.alloy &&
-								props.availableResources.crystal >= facility.nextUpgradeCost.crystal &&
-								props.availableResources.fuel >= facility.nextUpgradeCost.fuel);
+							props.availableResources.alloy >= facility.nextUpgradeCost.alloy &&
+							props.availableResources.crystal >= facility.nextUpgradeCost.crystal &&
+							props.availableResources.fuel >= facility.nextUpgradeCost.fuel;
 						const isActionDisabled =
 							isLocked ||
 							facility.isUpgrading ||
@@ -533,9 +529,7 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 							<article
 								className={`
           group relative overflow-hidden rounded-xl border
-          ${isLocked ? "border-white/8 opacity-60 grayscale" : `
-                    border-white/10
-                  `}
+          ${isLocked ? "border-white/8 opacity-60 grayscale" : `border-white/10`}
           bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
           text-[13px]
         `}
@@ -570,9 +564,7 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
             "
 												src={visual.image}
 											/>
-											<h3
-												className="font-(family-name:--nv-font-display) text-sm font-bold"
-											>
+											<h3 className="font-(family-name:--nv-font-display) text-sm font-bold">
 												{facility.name}
 											</h3>
 										</div>
@@ -671,11 +663,7 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
              text-center
            "
 										>
-											<p
-												className="text-[7px] tracking-widest text-white/30 uppercase"
-											>
-												Level
-											</p>
+											<p className="text-[7px] tracking-widest text-white/30 uppercase">Level</p>
 											<p
 												className="
               mt-0.5 font-(family-name:--nv-font-mono) text-[10px] font-bold
@@ -691,9 +679,7 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
              text-center
            "
 										>
-											<p
-												className="text-[7px] tracking-widest text-white/30 uppercase"
-											>
+											<p className="text-[7px] tracking-widest text-white/30 uppercase">
 												Build Time
 											</p>
 											<p
@@ -714,11 +700,11 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
              border-violet-200/50 bg-linear-to-b from-violet-400/25
              to-violet-400/10 px-4 py-2.5 font-(family-name:--nv-font-display)
              text-xs font-bold tracking-[0.08em] text-violet-50 uppercase
-           shadow-[0_0_20px_rgba(167,139,250,0.12)] transition-all
-           hover:-translate-y-0.5 hover:border-violet-100/70
-           hover:shadow-[0_0_30px_rgba(167,139,250,0.25)]
-           disabled:translate-y-0 disabled:border-white/10 disabled:bg-white/5
-           disabled:text-white/30 disabled:shadow-none
+             shadow-[0_0_20px_rgba(167,139,250,0.12)] transition-all
+             hover:-translate-y-0.5 hover:border-violet-100/70
+             hover:shadow-[0_0_30px_rgba(167,139,250,0.25)]
+             disabled:translate-y-0 disabled:border-white/10 disabled:bg-white/5
+             disabled:text-white/30 disabled:shadow-none
            "
 											disabled={isActionDisabled}
 											onClick={() => props.onUpgrade(facility.key, facility.name)}
@@ -783,9 +769,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
       bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
     "
 			>
-				<div
-					className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
-				>
+				<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
 					<Clock3 className="size-5 text-violet-300" />
 					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Building Queue</h2>
 					{totalQueueItems > 0 ? (
@@ -809,9 +793,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 							>
 								Active
 							</p>
-							<div
-								className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3"
-							>
+							<div className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3">
 								<div className="flex items-center justify-between">
 									<div>
 										<p className="text-xs font-semibold">{laneItemLabel(props.activeLaneItem)}</p>
@@ -844,9 +826,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 									</div>
 								</div>
 
-								<div
-									className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/8"
-								>
+								<div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/8">
 									<div
 										className="
             h-full rounded-full bg-linear-to-r from-emerald-400/60
@@ -858,9 +838,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 									/>
 								</div>
 								<div className="mt-1 flex items-center justify-between">
-									<span
-										className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
-									>
+									<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/25">
 										{Math.round(props.activeUpgradeProgress)}%
 									</span>
 									<span

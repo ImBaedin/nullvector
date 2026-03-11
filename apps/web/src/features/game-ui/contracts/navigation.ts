@@ -1,4 +1,5 @@
 export type ContextNavId =
+	| "contracts"
 	| "defenses"
 	| "facilities"
 	| "fleet"

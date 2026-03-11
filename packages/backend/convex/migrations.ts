@@ -1,3 +1,13 @@
-import { backfillRoboticsHubLevel } from "../runtime/gameplay/migrations";
+import { backfillUniverseHostility } from "../runtime/gameplay/hostility";
+import {
+	backfillRoboticsHubLevel,
+	backfillUniverseObjectNames,
+} from "../runtime/gameplay/migrations";
+import { backfillPlayerProgression } from "../runtime/gameplay/progression";
 
-export { backfillRoboticsHubLevel };
+export {
+	backfillRoboticsHubLevel,
+	backfillPlayerProgression,
+	backfillUniverseHostility,
+	backfillUniverseObjectNames,
+};

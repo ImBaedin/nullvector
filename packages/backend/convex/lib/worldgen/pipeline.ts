@@ -1,4 +1,5 @@
 import { ConvexError } from "convex/values";
+import { generateSciFiName } from "@nullvector/game-logic";
 
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
@@ -57,6 +58,27 @@ type GalaxyRef = {
 	galaxyIndex: number;
 	galaxyId: Id<"galaxies"> | null;
 };
+
+function galaxyAddress(galaxyIndex: number) {
+	return `G${galaxyIndex}`;
+}
+
+function sectorAddress(galaxyIndex: number, sectorIndex: number) {
+	return `G${galaxyIndex}:S${sectorIndex}`;
+}
+
+function systemAddress(galaxyIndex: number, sectorIndex: number, systemIndex: number) {
+	return `G${galaxyIndex}:S${sectorIndex}:SYS${systemIndex}`;
+}
+
+function planetAddress(
+	galaxyIndex: number,
+	sectorIndex: number,
+	systemIndex: number,
+	planetIndex: number,
+) {
+	return `G${galaxyIndex}:S${sectorIndex}:SYS${systemIndex}:P${planetIndex}`;
+}
 
 function assertNonNegativeInteger(name: string, value: number) {
 	if (!Number.isFinite(value) || !Number.isInteger(value) || value < 0) {
@@ -328,7 +350,7 @@ async function ensureGalaxies(args: {
 		const galaxyId = await ctx.db.insert("galaxies", {
 			universeId: universe._id,
 			galaxyIndex,
-			name: `Galaxy ${galaxyIndex + 1}`,
+			name: generateSciFiName(galaxyAddress(galaxyIndex)),
 			gx: offset.gx,
 			gy: offset.gy,
 			seed: `${universeSeed}:galaxy:${galaxyIndex}`,
@@ -433,6 +455,7 @@ async function generateOneCoreSector(args: {
 		galaxyId: galaxyRef.galaxyId,
 		galaxyIndex: galaxyRef.galaxyIndex,
 		sectorIndex,
+		name: generateSciFiName(sectorAddress(galaxyRef.galaxyIndex, sectorIndex)),
 		sectorType: "core",
 		seed: sectorSeed,
 		minX: bounds.minX,
@@ -451,6 +474,9 @@ async function generateOneCoreSector(args: {
 			galaxyIndex: galaxyRef.galaxyIndex,
 			sectorIndex,
 			systemIndex: position.systemIndex,
+			name: generateSciFiName(
+				systemAddress(galaxyRef.galaxyIndex, sectorIndex, position.systemIndex),
+			),
 			x: position.x,
 			y: position.y,
 			starKind,
@@ -474,6 +500,14 @@ async function generateOneCoreSector(args: {
 				sectorIndex,
 				systemIndex: position.systemIndex,
 				planetIndex: planet.planetIndex,
+				name: generateSciFiName(
+					planetAddress(
+						galaxyRef.galaxyIndex,
+						sectorIndex,
+						position.systemIndex,
+						planet.planetIndex,
+					),
+				),
 				orbitRadius: planet.orbitRadius,
 				orbitPhaseRad: planet.orbitPhaseRad,
 				orbitAngularVelocityRadPerSec: planet.orbitAngularVelocityRadPerSec,

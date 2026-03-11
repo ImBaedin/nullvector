@@ -1,9 +1,13 @@
 import type { ResourceBucket, ResourceBuildingCardData } from "@nullvector/game-logic";
 
-import { getUpgradeCost, getUpgradeDurationSeconds } from "@nullvector/game-logic";
+import {
+	getGeneratorConsumptionPerMinute,
+	getUpgradeCost,
+	getUpgradeDurationSeconds,
+} from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
-import type { ProductionBuildingKey, StorageBuildingKey } from "./shared";
+import type { StorageBuildingKey } from "./shared";
 
 import { mutation, query } from "../../convex/_generated/server";
 import { rescheduleColonyQueueResolution } from "./scheduling";
@@ -18,7 +22,6 @@ import {
 	buildingKeyValidator,
 	cloneResourceBucket,
 	emptyResourceBucket,
-	energyConsumptionForLevel,
 	getGeneratorOrThrow,
 	getBuildingLaneCapacity,
 	getOwnedColony,
@@ -190,9 +193,7 @@ export const getColonyBuildingCards = query({
 							);
 				outputLabel = config.group === "Power" ? "MW" : `${config.resource} / min`;
 				energyUsePerMinute =
-					key === "powerPlantLevel"
-						? 0
-						: energyConsumptionForLevel(key as ProductionBuildingKey, currentLevel);
+					key === "powerPlantLevel" ? 0 : getGeneratorConsumptionPerMinute(generator, currentLevel);
 			} else {
 				maxLevel = config.maxLevel;
 				outputPerMinute = storedToWholeUnits(colony.storageCaps[config.resource]);

@@ -128,9 +128,10 @@ export function useExplorerData() {
 		return galaxyData.sectors.map((sector) => ({
 			id: `sector:${sector.id}`,
 			sourceId: sector.id,
-			entityType: "sector",
+			entityType: "sector" as const,
 			name: sector.displayName,
 			addressLabel: sector.addressLabel,
+			hostility: sector.hostility ?? undefined,
 			x: sector.worldCenterX,
 			y: sector.worldCenterY,
 			sphereRadius: SECTOR_RADIUS,
