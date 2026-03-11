@@ -73,7 +73,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		baseControlReduction: 45,
 		baseCredits: 50,
 		baseRankXp: 90,
-		baseResourceReward: { alloy: 550, crystal: 250, fuel: 150 },
+		baseResourceReward: { alloy: 720, crystal: 325, fuel: 195 },
 		priorityProfile: {
 			attackerTargetPriority: [
 				"shieldDome",
@@ -109,7 +109,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		baseControlReduction: 120,
 		baseCredits: 360,
 		baseRankXp: 175,
-		baseResourceReward: { alloy: 350, crystal: 450, fuel: 220 },
+		baseResourceReward: { alloy: 455, crystal: 585, fuel: 285 },
 		priorityProfile: {
 			attackerTargetPriority: [
 				"shieldDome",
@@ -145,7 +145,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		baseControlReduction: 52,
 		baseCredits: 70,
 		baseRankXp: 100,
-		baseResourceReward: { alloy: 320, crystal: 320, fuel: 220 },
+		baseResourceReward: { alloy: 415, crystal: 415, fuel: 285 },
 		priorityProfile: {
 			attackerTargetPriority: [
 				"cruiser",
@@ -181,7 +181,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		baseControlReduction: 110,
 		baseCredits: 320,
 		baseRankXp: 160,
-		baseResourceReward: { alloy: 700, crystal: 500, fuel: 180 },
+		baseResourceReward: { alloy: 910, crystal: 650, fuel: 235 },
 		priorityProfile: {
 			attackerTargetPriority: [
 				"gaussCannon",
@@ -217,7 +217,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		baseControlReduction: 100,
 		baseCredits: 290,
 		baseRankXp: 140,
-		baseResourceReward: { alloy: 850, crystal: 650, fuel: 120 },
+		baseResourceReward: { alloy: 1_105, crystal: 845, fuel: 155 },
 		priorityProfile: {
 			attackerTargetPriority: [
 				"laserTurret",
@@ -253,7 +253,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		baseControlReduction: 85,
 		baseCredits: 310,
 		baseRankXp: 150,
-		baseResourceReward: { alloy: 500, crystal: 400, fuel: 450 },
+		baseResourceReward: { alloy: 650, crystal: 520, fuel: 585 },
 		priorityProfile: {
 			attackerTargetPriority: [
 				"largeCargo",
@@ -289,7 +289,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		baseControlReduction: 16,
 		baseCredits: 10,
 		baseRankXp: 45,
-		baseResourceReward: { alloy: 320, crystal: 180, fuel: 180 },
+		baseResourceReward: { alloy: 415, crystal: 235, fuel: 235 },
 		priorityProfile: {
 			attackerTargetPriority: [
 				"interceptor",
@@ -325,7 +325,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		baseControlReduction: 18,
 		baseCredits: 0,
 		baseRankXp: 55,
-		baseResourceReward: { alloy: 950, crystal: 260, fuel: 110 },
+		baseResourceReward: { alloy: 1_235, crystal: 340, fuel: 145 },
 		priorityProfile: {
 			attackerTargetPriority: [
 				"missileBattery",
@@ -361,7 +361,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		baseControlReduction: 24,
 		baseCredits: 20,
 		baseRankXp: 60,
-		baseResourceReward: { alloy: 480, crystal: 240, fuel: 620 },
+		baseResourceReward: { alloy: 625, crystal: 310, fuel: 805 },
 		priorityProfile: {
 			attackerTargetPriority: [
 				"largeCargo",
@@ -397,7 +397,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		baseControlReduction: 32,
 		baseCredits: 35,
 		baseRankXp: 75,
-		baseResourceReward: { alloy: 450, crystal: 250, fuel: 450 },
+		baseResourceReward: { alloy: 585, crystal: 325, fuel: 585 },
 		priorityProfile: {
 			attackerTargetPriority: [
 				"largeCargo",

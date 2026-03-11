@@ -62,6 +62,60 @@ test("starter mission templates are resource-first with light control pressure",
 	}
 });
 
+test("contract generation uses stronger base resource rewards", () => {
+	const starterContracts = Array.from({ length: 12 }, (_, slot) =>
+		generateContractSnapshot({
+			difficultyTier: 1,
+			planetControlMax: 1_800,
+			playerRank: 1,
+			seed: "starter-planet",
+			slot,
+		}),
+	);
+	const starterRewardTotals = starterContracts.map(
+		(snapshot) =>
+			snapshot.rewardResources.alloy +
+			snapshot.rewardResources.crystal +
+			snapshot.rewardResources.fuel,
+	);
+
+	expect(Math.min(...starterRewardTotals)).toBeGreaterThanOrEqual(880);
+	expect(Math.max(...starterRewardTotals)).toBeGreaterThanOrEqual(1_700);
+
+	const advancedContract = Array.from({ length: 40 }, (_, slot) =>
+		generateContractSnapshot({
+			difficultyTier: 1,
+			planetControlMax: 1_800,
+			playerRank: 10,
+			seed: "advanced-planet",
+			slot,
+		}),
+	).find((snapshot) => snapshot.requiredRank >= 10);
+
+	expect(advancedContract).toBeDefined();
+
+	const advancedRewardTotal =
+		(advancedContract?.rewardResources.alloy ?? 0) +
+		(advancedContract?.rewardResources.crystal ?? 0) +
+		(advancedContract?.rewardResources.fuel ?? 0);
+
+	expect(advancedRewardTotal).toBeGreaterThanOrEqual(1_320);
+
+	const scaledStarterContract = generateContractSnapshot({
+		difficultyTier: 2,
+		planetControlMax: 1_800,
+		playerRank: 1,
+		seed: "starter-planet",
+		slot: 0,
+	});
+	const scaledStarterRewardTotal =
+		scaledStarterContract.rewardResources.alloy +
+		scaledStarterContract.rewardResources.crystal +
+		scaledStarterContract.rewardResources.fuel;
+
+	expect(scaledStarterRewardTotal).toBeGreaterThan(starterRewardTotals[0] ?? 0);
+});
+
 test("rank 1 contract generation avoids capital-ship spikes and big credit payouts", () => {
 	for (let slot = 0; slot < 12; slot += 1) {
 		const snapshot = generateContractSnapshot({
