@@ -638,8 +638,6 @@ export function ResourceBuildingCard(props: {
 		hasRequiredResources &&
 		!buildingQueueIsFull &&
 		!isBusy &&
-		!isActiveUpgradeTarget &&
-		!queuedForBuilding &&
 		building.nextUpgradeDurationSeconds !== undefined;
 	const cardStatus = statusFromBuilding({
 		energyRatio,
