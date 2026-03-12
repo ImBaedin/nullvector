@@ -34,6 +34,7 @@ import {
 	getOwnedColony,
 	loadColonyState,
 	resolveCurrentPlayer,
+	settleDefenseQueue,
 	settleShipyardQueue,
 	upsertColonyCompanionRows,
 } from "./shared";
@@ -533,6 +534,11 @@ export const launchContract = mutation({
 
 		const now = Date.now();
 		await settleShipyardQueue({
+			colony,
+			ctx,
+			now,
+		});
+		await settleDefenseQueue({
 			colony,
 			ctx,
 			now,

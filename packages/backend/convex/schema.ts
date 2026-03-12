@@ -104,6 +104,7 @@ const buildingLevelsValidator = v.object({
 	fuelStorageLevel: v.number(),
 	roboticsHubLevel: v.optional(v.number()),
 	shipyardLevel: v.number(),
+	defenseGridLevel: v.optional(v.number()),
 });
 
 const upgradeBuildingKeyValidator = v.union(
@@ -119,6 +120,7 @@ const upgradeBuildingKeyValidator = v.union(
 const queueLaneValidator = v.union(
 	v.literal("building"),
 	v.literal("shipyard"),
+	v.literal("defense"),
 	v.literal("research"),
 );
 
@@ -134,9 +136,14 @@ const queueItemKindValidator = v.union(
 	v.literal("buildingUpgrade"),
 	v.literal("facilityUpgrade"),
 	v.literal("shipBuild"),
+	v.literal("defenseBuild"),
 );
 
-const facilityKeyValidator = v.union(v.literal("robotics_hub"), v.literal("shipyard"));
+const facilityKeyValidator = v.union(
+	v.literal("robotics_hub"),
+	v.literal("shipyard"),
+	v.literal("defense_grid"),
+);
 
 const queuePayloadValidator = v.union(
 	v.object({
@@ -151,6 +158,12 @@ const queuePayloadValidator = v.union(
 	}),
 	v.object({
 		shipKey: shipKeyValidator,
+		quantity: v.number(),
+		completedQuantity: v.number(),
+		perUnitDurationSeconds: v.number(),
+	}),
+	v.object({
+		defenseKey: defenseKeyValidator,
 		quantity: v.number(),
 		completedQuantity: v.number(),
 		perUnitDurationSeconds: v.number(),
@@ -238,6 +251,10 @@ const devConsoleActionTypeValidator = v.union(
 	v.literal("setColonyResources"),
 	v.literal("setBuildingLevels"),
 	v.literal("setFacilityLevels"),
+	v.literal("setShipCounts"),
+	v.literal("setDefenseCounts"),
+	v.literal("triggerNpcRaid"),
+	v.literal("completeActiveRaid"),
 	v.literal("completeActiveQueueItem"),
 	v.literal("completeActiveMission"),
 );
@@ -451,6 +468,8 @@ export default defineSchema({
 		name: v.string(),
 		queueResolutionScheduledAt: v.optional(v.number()),
 		queueResolutionJobId: v.optional(v.id("_scheduled_functions")),
+		nextNpcRaidAt: v.optional(v.number()),
+		npcRaidSchedulingJobId: v.optional(v.id("_scheduled_functions")),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	})
@@ -493,6 +512,18 @@ export default defineSchema({
 		updatedAt: v.number(),
 	})
 		.index("by_colony_and_ship_key", ["colonyId", "shipKey"])
+		.index("by_colony", ["colonyId"])
+		.index("by_player", ["playerId"]),
+
+	colonyDefenses: defineTable({
+		universeId: v.id("universes"),
+		playerId: v.id("players"),
+		colonyId: v.id("colonies"),
+		defenseKey: defenseKeyValidator,
+		count: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_colony_and_defense_key", ["colonyId", "defenseKey"])
 		.index("by_colony", ["colonyId"])
 		.index("by_player", ["playerId"]),
 
@@ -574,6 +605,57 @@ export default defineSchema({
 		.index("by_owner_time", ["ownerPlayerId", "occurredAt"])
 		.index("by_operation_time", ["operationId", "occurredAt"])
 		.index("by_fleet_time", ["fleetId", "occurredAt"]),
+
+	npcRaidOperations: defineTable({
+		universeId: v.id("universes"),
+		targetColonyId: v.id("colonies"),
+		targetPlayerId: v.id("players"),
+		sourcePlanetId: v.optional(v.id("planets")),
+		hostileFactionKey: hostileFactionKeyValidator,
+		status: v.union(
+			v.literal("scheduled"),
+			v.literal("inTransit"),
+			v.literal("resolved"),
+			v.literal("cancelled"),
+		),
+		difficultyTier: v.number(),
+		attackerFleet: shipCountsValidator,
+		attackerTargetPriority: v.array(v.union(shipKeyValidator, defenseKeyValidator)),
+		defenderTargetPriority: v.array(shipKeyValidator),
+		departAt: v.number(),
+		arriveAt: v.number(),
+		nextEventAt: v.number(),
+		resolutionScheduledAt: v.optional(v.number()),
+		resolutionJobId: v.optional(v.id("_scheduled_functions")),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_target_status_event", ["targetColonyId", "status", "nextEventAt"])
+		.index("by_status_event", ["status", "nextEventAt"])
+		.index("by_target_player_status_event", ["targetPlayerId", "status", "nextEventAt"]),
+
+	npcRaidResults: defineTable({
+		raidOperationId: v.id("npcRaidOperations"),
+		universeId: v.id("universes"),
+		targetColonyId: v.id("colonies"),
+		targetPlayerId: v.id("players"),
+		hostileFactionKey: hostileFactionKeyValidator,
+		success: v.boolean(),
+		roundsFought: v.number(),
+		attackerSurvivors: shipCountsValidator,
+		defenderSurvivors: v.object({
+			fleet: shipCountsValidator,
+			defenses: defenseCountsValidator,
+		}),
+		resourcesLooted: resourceBucketValidator,
+		salvageGranted: resourceBucketValidator,
+		rankXpDelta: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_raid_operation_id", ["raidOperationId"])
+		.index("by_target_colony_id", ["targetColonyId"])
+		.index("by_target_player_id", ["targetPlayerId"]),
 
 	contracts: defineTable({
 		universeId: v.id("universes"),

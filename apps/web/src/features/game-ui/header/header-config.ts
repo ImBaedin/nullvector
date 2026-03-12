@@ -50,6 +50,7 @@ const PLACEHOLDER_TAB_ICON_SRC: Record<ContextNavItem["id"], string> = {
 
 function buildPlaceholderTabs(basePaths: {
 	contracts: string;
+	defenses: string;
 	facilities: string;
 	fleet: string;
 	resources: string;
@@ -58,6 +59,7 @@ function buildPlaceholderTabs(basePaths: {
 	const routeMap: Record<string, string> = {
 		resources: basePaths.resources,
 		facilities: basePaths.facilities,
+		defenses: basePaths.defenses,
 		fleet: basePaths.fleet,
 		shipyard: basePaths.shipyard,
 		contracts: basePaths.contracts,
@@ -71,8 +73,7 @@ function buildPlaceholderTabs(basePaths: {
 			className: "size-5 shrink-0 object-contain",
 			src: PLACEHOLDER_TAB_ICON_SRC[id],
 		}),
-		badgeCount: id === "defenses" ? 1 : undefined,
-		isDisabled: id === "overview" || id === "defenses",
+		isDisabled: id === "overview",
 	}));
 }
 
@@ -125,11 +126,13 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
 	const encodedColonyId = encodeURIComponent(colonyId);
 	const resourcesPath = `/game/colony/${encodedColonyId}/resources`;
 	const facilitiesPath = `/game/colony/${encodedColonyId}/facilities`;
+	const defensesPath = `/game/colony/${encodedColonyId}/defenses`;
 	const fleetPath = `/game/colony/${encodedColonyId}/fleet`;
 	const shipyardPath = `/game/colony/${encodedColonyId}/shipyard`;
 	const contractsPath = `/game/colony/${encodedColonyId}/contracts`;
 	const isResourcesRoute = pathname === resourcesPath;
 	const isFacilitiesRoute = pathname === facilitiesPath;
+	const isDefensesRoute = pathname === defensesPath;
 	const isFleetRoute = pathname === fleetPath;
 	const isShipyardRoute = pathname === shipyardPath;
 	const isContractsRoute = pathname === contractsPath;
@@ -138,16 +141,19 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
 		? "resources"
 		: isFacilitiesRoute
 			? "facilities"
-			: isFleetRoute
-				? "fleet"
-				: isShipyardRoute
-					? "shipyard"
-					: isContractsRoute
-						? "contracts"
-						: "overview";
+			: isDefensesRoute
+				? "defenses"
+				: isFleetRoute
+					? "fleet"
+					: isShipyardRoute
+						? "shipyard"
+						: isContractsRoute
+							? "contracts"
+							: "overview";
 
 	const tabPaths = {
 		contracts: contractsPath,
+		defenses: defensesPath,
 		facilities: facilitiesPath,
 		fleet: fleetPath,
 		resources: resourcesPath,

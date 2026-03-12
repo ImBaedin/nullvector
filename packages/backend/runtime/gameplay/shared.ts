@@ -1,10 +1,20 @@
-import type { BuildingKey, FacilityKey, ResourceBucket, ShipKey } from "@nullvector/game-logic";
+import type {
+	BuildingKey,
+	DefenseCounts,
+	DefenseKey,
+	FacilityKey,
+	ResourceBucket,
+	ShipCounts,
+	ShipKey,
+} from "@nullvector/game-logic";
 
 import {
 	BUILDING_KEYS,
 	DEFAULT_GENERATOR_REGISTRY,
 	getGeneratorConsumptionPerMinute,
 	getGeneratorProductionPerMinute,
+	normalizeDefenseCounts,
+	normalizeShipCounts,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
@@ -19,7 +29,7 @@ export type ProductionBuildingKey = "alloyMineLevel" | "crystalMineLevel" | "fue
 export type StorageBuildingKey = "alloyStorageLevel" | "crystalStorageLevel" | "fuelStorageLevel";
 type GeneratorBuildingKey = ProductionBuildingKey | "powerPlantLevel";
 
-type QueueLane = "building" | "shipyard" | "research";
+type QueueLane = "building" | "shipyard" | "defense" | "research";
 type QueueItemStatus = "queued" | "active" | "completed" | "cancelled" | "failed";
 
 type ColonyState = {
@@ -33,6 +43,7 @@ type ColonyState = {
 		fuelStorageLevel: number;
 		roboticsHubLevel: number;
 		shipyardLevel: number;
+		defenseGridLevel: number;
 	};
 	inboundMissionPolicy?: "allowAll" | "denyAll" | "alliesOnly";
 	lastAccruedAt: number;
@@ -70,7 +81,18 @@ type ShipBuildQueuePayload = {
 	perUnitDurationSeconds: number;
 };
 
-type QueuePayload = BuildingQueuePayload | FacilityQueuePayload | ShipBuildQueuePayload;
+type DefenseBuildQueuePayload = {
+	defenseKey: DefenseKey;
+	quantity: number;
+	completedQuantity: number;
+	perUnitDurationSeconds: number;
+};
+
+type QueuePayload =
+	| BuildingQueuePayload
+	| FacilityQueuePayload
+	| ShipBuildQueuePayload
+	| DefenseBuildQueuePayload;
 
 type QueuePayloadState = {
 	cost: ResourceBucket;
@@ -94,6 +116,7 @@ const ALL_BUILDING_KEYS = [
 	"fuelStorageLevel",
 	"roboticsHubLevel",
 	"shipyardLevel",
+	"defenseGridLevel",
 ] as const;
 
 const UPGRADE_BUILDING_KEYS = BUILDING_KEYS satisfies readonly BuildingKey[];
@@ -103,6 +126,7 @@ const BUILDING_LANE_BASE_CAPACITY = 2;
 const LANE_QUEUE_CAPACITY: Record<QueueLane, number> = {
 	building: BUILDING_LANE_BASE_CAPACITY,
 	shipyard: 5,
+	defense: 5,
 	research: 2,
 };
 
@@ -121,11 +145,16 @@ const buildingKeyValidator = v.union(
 	v.literal("crystalStorageLevel"),
 	v.literal("fuelStorageLevel"),
 );
-const facilityKeyValidator = v.union(v.literal("robotics_hub"), v.literal("shipyard"));
+const facilityKeyValidator = v.union(
+	v.literal("robotics_hub"),
+	v.literal("shipyard"),
+	v.literal("defense_grid"),
+);
 
 const queueLaneValidator = v.union(
 	v.literal("building"),
 	v.literal("shipyard"),
+	v.literal("defense"),
 	v.literal("research"),
 );
 
@@ -151,6 +180,7 @@ const queueItemKindValidator = v.union(
 	v.literal("buildingUpgrade"),
 	v.literal("facilityUpgrade"),
 	v.literal("shipBuild"),
+	v.literal("defenseBuild"),
 );
 
 const buildingQueuePayloadValidator = v.object({
@@ -170,11 +200,24 @@ const shipBuildQueuePayloadValidator = v.object({
 	completedQuantity: v.number(),
 	perUnitDurationSeconds: v.number(),
 });
+const defenseKeyValidator = v.union(
+	v.literal("missileBattery"),
+	v.literal("laserTurret"),
+	v.literal("gaussCannon"),
+	v.literal("shieldDome"),
+);
+const defenseBuildQueuePayloadValidator = v.object({
+	defenseKey: defenseKeyValidator,
+	quantity: v.number(),
+	completedQuantity: v.number(),
+	perUnitDurationSeconds: v.number(),
+});
 
 const queuePayloadValidator = v.union(
 	buildingQueuePayloadValidator,
 	facilityQueuePayloadValidator,
 	shipBuildQueuePayloadValidator,
+	defenseBuildQueuePayloadValidator,
 );
 
 function emptyResourceBucket(): ResourceBucket {
@@ -318,6 +361,7 @@ async function loadColonyState(args: { colony: Doc<"colonies">; ctx: QueryCtx | 
 	const buildings = {
 		...infrastructure.buildings,
 		roboticsHubLevel: infrastructure.buildings.roboticsHubLevel ?? 0,
+		defenseGridLevel: infrastructure.buildings.defenseGridLevel ?? 0,
 	};
 	return {
 		...args.colony,
@@ -509,6 +553,7 @@ const BUILDING_CONFIG: Record<BuildingKey, BuildingConfig> = {
 
 const SHIPYARD_FACILITY_KEY: FacilityKey = "shipyard";
 const ROBOTICS_HUB_FACILITY_KEY: FacilityKey = "robotics_hub";
+const DEFENSE_GRID_FACILITY_KEY: FacilityKey = "defense_grid";
 const EMPTY_RESEARCH_LEVELS: Record<string, number> = {};
 
 function getBuildingLaneCapacity(colony: Pick<ColonyState, "buildings">) {
@@ -524,6 +569,9 @@ function facilityLevelFromColony(colony: Pick<ColonyState, "buildings">, facilit
 	if (facilityKey === "shipyard") {
 		return colony.buildings.shipyardLevel;
 	}
+	if (facilityKey === DEFENSE_GRID_FACILITY_KEY) {
+		return colony.buildings.defenseGridLevel;
+	}
 	return 0;
 }
 
@@ -531,6 +579,7 @@ function facilityLevelsFromColony(colony: Pick<ColonyState, "buildings">) {
 	return {
 		robotics_hub: colony.buildings.roboticsHubLevel,
 		shipyard: colony.buildings.shipyardLevel,
+		defense_grid: colony.buildings.defenseGridLevel,
 	} satisfies Partial<Record<string, number>>;
 }
 
@@ -545,6 +594,10 @@ function setFacilityLevelOnBuildings(args: {
 	}
 	if (args.facilityKey === "shipyard") {
 		args.buildings.shipyardLevel = Math.max(args.level, args.buildings.shipyardLevel);
+		return;
+	}
+	if (args.facilityKey === DEFENSE_GRID_FACILITY_KEY) {
+		args.buildings.defenseGridLevel = Math.max(args.level, args.buildings.defenseGridLevel);
 	}
 }
 
@@ -933,6 +986,16 @@ function isShipBuildQueueItem(
 	return item.kind === "shipBuild" && "shipKey" in item.payload;
 }
 
+function isDefenseBuildQueueItem(
+	item: Doc<"colonyQueueItems"> & QueuePayloadState,
+): item is Doc<"colonyQueueItems"> &
+	QueuePayloadState & {
+		kind: "defenseBuild";
+		payload: DefenseBuildQueuePayload;
+	} {
+	return item.kind === "defenseBuild" && "defenseKey" in item.payload;
+}
+
 function queueItemFromToLevel(item: Doc<"colonyQueueItems"> & QueuePayloadState) {
 	if (!isBuildingUpgradeQueueItem(item) && !isFacilityUpgradeQueueItem(item)) {
 		throw new ConvexError("Queue item is not an upgrade");
@@ -1112,6 +1175,90 @@ async function getColonyShipCount(args: {
 	return row?.count ?? 0;
 }
 
+async function loadColonyDefenseCounts(args: {
+	colonyId: Id<"colonies">;
+	ctx: QueryCtx | MutationCtx;
+}) {
+	const rows = await args.ctx.db
+		.query("colonyDefenses")
+		.withIndex("by_colony", (q) => q.eq("colonyId", args.colonyId))
+		.collect();
+	const counts = normalizeDefenseCounts({});
+	for (const row of rows) {
+		counts[row.defenseKey] = row.count;
+	}
+	return counts;
+}
+
+async function readColonyDefenseCounts(args: {
+	colonyId: Id<"colonies">;
+	ctx: QueryCtx | MutationCtx;
+}) {
+	return loadColonyDefenseCounts(args);
+}
+
+async function incrementColonyDefenseCount(args: {
+	amount: number;
+	colony: Doc<"colonies">;
+	ctx: MutationCtx;
+	defenseKey: DefenseKey;
+	now: number;
+}) {
+	const existing = await args.ctx.db
+		.query("colonyDefenses")
+		.withIndex("by_colony_and_defense_key", (q) =>
+			q.eq("colonyId", args.colony._id).eq("defenseKey", args.defenseKey),
+		)
+		.unique();
+	const nextCount = Math.max(0, (existing?.count ?? 0) + args.amount);
+	if (existing) {
+		await args.ctx.db.patch(existing._id, {
+			count: nextCount,
+			updatedAt: args.now,
+		});
+		return;
+	}
+	await args.ctx.db.insert("colonyDefenses", {
+		universeId: args.colony.universeId,
+		playerId: args.colony.playerId,
+		colonyId: args.colony._id,
+		defenseKey: args.defenseKey,
+		count: nextCount,
+		updatedAt: args.now,
+	});
+}
+
+async function replaceColonyDefenseCounts(args: {
+	colony: Doc<"colonies">;
+	counts: DefenseCounts;
+	ctx: MutationCtx;
+	now: number;
+}) {
+	for (const [defenseKey, count] of Object.entries(args.counts) as Array<[DefenseKey, number]>) {
+		const existing = await args.ctx.db
+			.query("colonyDefenses")
+			.withIndex("by_colony_and_defense_key", (q) =>
+				q.eq("colonyId", args.colony._id).eq("defenseKey", defenseKey),
+			)
+			.unique();
+		if (existing) {
+			await args.ctx.db.patch(existing._id, {
+				count,
+				updatedAt: args.now,
+			});
+			continue;
+		}
+		await args.ctx.db.insert("colonyDefenses", {
+			universeId: args.colony.universeId,
+			playerId: args.colony.playerId,
+			colonyId: args.colony._id,
+			defenseKey,
+			count,
+			updatedAt: args.now,
+		});
+	}
+}
+
 async function incrementColonyShipCount(args: {
 	amount: number;
 	colony: Doc<"colonies">;
@@ -1143,6 +1290,36 @@ async function incrementColonyShipCount(args: {
 		count: nextCount,
 		updatedAt: args.now,
 	});
+}
+
+async function replaceColonyShipCounts(args: {
+	colony: Doc<"colonies">;
+	counts: ShipCounts;
+	ctx: MutationCtx;
+	now: number;
+}) {
+	const rows = await args.ctx.db
+		.query("colonyShips")
+		.withIndex("by_colony", (q) => q.eq("colonyId", args.colony._id))
+		.collect();
+	const current = normalizeShipCounts({});
+	for (const row of rows) {
+		current[row.shipKey] = row.count;
+	}
+
+	for (const [shipKey, count] of Object.entries(args.counts) as Array<[ShipKey, number]>) {
+		const diff = count - current[shipKey];
+		if (diff === 0) {
+			continue;
+		}
+		await incrementColonyShipCount({
+			amount: diff,
+			colony: args.colony,
+			ctx: args.ctx,
+			now: args.now,
+			shipKey,
+		});
+	}
 }
 
 async function settleShipyardQueue(args: {
@@ -1196,6 +1373,103 @@ async function settleShipyardQueue(args: {
 				ctx: args.ctx,
 				now: args.now,
 				shipKey: payload.shipKey,
+			});
+			completedQuantity += 1;
+		}
+
+		const activeQueueId = activeQueue._id;
+		const payloadRow = await args.ctx.db
+			.query("colonyQueuePayloads")
+			.withIndex("by_queue_item_id", (q) => q.eq("queueItemId", activeQueueId))
+			.unique();
+		if (payloadRow) {
+			await args.ctx.db.patch(payloadRow._id, {
+				payload: {
+					...payload,
+					completedQuantity,
+				},
+				updatedAt: args.now,
+			});
+		}
+		markPatch(activeQueue._id, { updatedAt: args.now });
+
+		if (completedQuantity < payload.quantity) {
+			break;
+		}
+
+		markPatch(activeQueue._id, {
+			resolvedAt: args.now,
+			status: "completed",
+			updatedAt: args.now,
+		});
+
+		activeQueue = queued.shift() ?? null;
+		if (!activeQueue) {
+			break;
+		}
+
+		markPatch(activeQueue._id, {
+			status: "active",
+			updatedAt: args.now,
+		});
+	}
+
+	for (const [queueId, patch] of queuePatchById.entries()) {
+		await args.ctx.db.patch(queueId, patch);
+	}
+}
+
+async function settleDefenseQueue(args: {
+	colony: Doc<"colonies">;
+	ctx: MutationCtx;
+	now: number;
+}) {
+	const queueRows = await listOpenLaneQueueItems({
+		colonyId: args.colony._id,
+		ctx: args.ctx,
+		lane: "defense",
+	});
+
+	const queuePatchById = new Map<Id<"colonyQueueItems">, Partial<Doc<"colonyQueueItems">>>();
+	let activeQueue =
+		queueRows.find((row) => row.status === "active" && isDefenseBuildQueueItem(row)) ?? null;
+	const queued = queueRows.filter((row) => row.status === "queued" && isDefenseBuildQueueItem(row));
+
+	const markPatch = (queueId: Id<"colonyQueueItems">, patch: Partial<Doc<"colonyQueueItems">>) => {
+		const existing = queuePatchById.get(queueId) ?? {};
+		queuePatchById.set(queueId, { ...existing, ...patch });
+	};
+
+	if (!activeQueue && queued.length > 0) {
+		activeQueue = queued.shift() ?? null;
+		if (activeQueue) {
+			markPatch(activeQueue._id, {
+				status: "active",
+				updatedAt: args.now,
+			});
+		}
+	}
+
+	while (activeQueue) {
+		if (!isDefenseBuildQueueItem(activeQueue)) {
+			throw new ConvexError("Expected defense build queue item");
+		}
+		const payload = activeQueue.payload;
+		let completedQuantity = payload.completedQuantity;
+		const unitDurationMs = payload.perUnitDurationSeconds * 1_000;
+
+		while (completedQuantity < payload.quantity) {
+			const nextUnitAt = activeQueue.startsAt + (completedQuantity + 1) * unitDurationMs;
+			if (nextUnitAt > args.now) {
+				break;
+			}
+
+			await incrementColonyDefenseCount({
+				amount: 1,
+				colony: args.colony,
+				ctx: args.ctx,
+				defenseKey: payload.defenseKey,
+				now: args.now,
 			});
 			completedQuantity += 1;
 		}
@@ -1325,6 +1599,7 @@ const queuesViewValidator = v.object({
 	lanes: v.object({
 		building: laneQueueViewValidator,
 		shipyard: laneQueueViewValidator,
+		defense: laneQueueViewValidator,
 		research: laneQueueViewValidator,
 	}),
 });
@@ -1624,6 +1899,7 @@ export {
 	BUILDING_LANE_BASE_CAPACITY,
 	BUILDING_CONFIG,
 	EMPTY_RESEARCH_LEVELS,
+	DEFENSE_GRID_FACILITY_KEY,
 	LANE_QUEUE_CAPACITY,
 	OPEN_QUEUE_STATUSES,
 	RESOURCE_KEYS,
@@ -1648,14 +1924,17 @@ export {
 	getBuildingLaneCapacity,
 	generatorConfigForBuilding,
 	getBuildingQueueStatusForColony,
+	loadColonyDefenseCounts,
 	getGeneratorOrThrow,
 	getOwnedColony,
 	getColonyShipCount,
 	hashString,
 	isBuildingUpgradeQueueItem,
+	isDefenseBuildQueueItem,
 	isFacilityUpgradeQueueItem,
 	isShipBuildQueueItem,
 	isStorageBuildingKey,
+	incrementColonyDefenseCount,
 	incrementColonyShipCount,
 	laneQueueViewValidator,
 	listOpenColonyQueueItems,
@@ -1680,9 +1959,13 @@ export {
 	resourceHudDatumValidator,
 	resourceMapToScaledBucket,
 	resourceMapToWholeUnitBucket,
+	readColonyDefenseCounts,
+	replaceColonyDefenseCounts,
+	replaceColonyShipCounts,
 	sessionStateValidator,
 	sessionColonyValidator,
 	setFacilityLevelOnBuildings,
+	settleDefenseQueue,
 	settleColonyAndPersist,
 	settleShipyardQueue,
 	shipDefinitionViewValidator,

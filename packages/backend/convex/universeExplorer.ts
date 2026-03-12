@@ -1,5 +1,5 @@
-import { ConvexError, v } from "convex/values";
 import { generateSciFiName } from "@nullvector/game-logic";
+import { ConvexError, v } from "convex/values";
 
 import type { Id } from "./_generated/dataModel";
 
@@ -326,10 +326,7 @@ export const getUniverseExplorerOverview = query({
 				addressLabel: galaxyAddress(galaxy.galaxyIndex),
 				id: galaxy._id,
 				galaxyIndex: galaxy.galaxyIndex,
-				name: displayNameFromStoredOrGenerated(
-					galaxyAddress(galaxy.galaxyIndex),
-					galaxy.name,
-				),
+				name: displayNameFromStoredOrGenerated(galaxyAddress(galaxy.galaxyIndex), galaxy.name),
 				gx: galaxy.gx,
 				gy: galaxy.gy,
 				worldX: galaxy.gx,
@@ -372,10 +369,7 @@ export const getGalaxyHeader = query({
 			galaxy: {
 				id: galaxy._id,
 				galaxyIndex: galaxy.galaxyIndex,
-				name: displayNameFromStoredOrGenerated(
-					galaxyAddress(galaxy.galaxyIndex),
-					galaxy.name,
-				),
+				name: displayNameFromStoredOrGenerated(galaxyAddress(galaxy.galaxyIndex), galaxy.name),
 				gx: galaxy.gx,
 				gy: galaxy.gy,
 				worldX: galaxy.gx,
@@ -488,10 +482,7 @@ export const getSectorHeader = query({
 			galaxy: {
 				id: galaxy._id,
 				galaxyIndex: galaxy.galaxyIndex,
-				name: displayNameFromStoredOrGenerated(
-					galaxyAddress(galaxy.galaxyIndex),
-					galaxy.name,
-				),
+				name: displayNameFromStoredOrGenerated(galaxyAddress(galaxy.galaxyIndex), galaxy.name),
 				gx: galaxy.gx,
 				gy: galaxy.gy,
 				worldX: galaxy.gx,
@@ -626,10 +617,7 @@ export const getSystemPlanetsStatic = query({
 				galaxy: {
 					id: galaxy._id,
 					galaxyIndex: galaxy.galaxyIndex,
-					name: displayNameFromStoredOrGenerated(
-						galaxyAddress(galaxy.galaxyIndex),
-						galaxy.name,
-					),
+					name: displayNameFromStoredOrGenerated(galaxyAddress(galaxy.galaxyIndex), galaxy.name),
 					gx: galaxy.gx,
 					gy: galaxy.gy,
 					worldX: galaxy.gx,

@@ -13,7 +13,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
 	Check,
 	ChevronDown,
-	Clock3,
 	Crosshair,
 	Globe2,
 	Layers3,
@@ -32,6 +31,7 @@ import { toast } from "sonner";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
+import { ActivityTimelinePanel, splitActivityLabel } from "./active-activity-panel";
 import { FleetRouteSkeleton } from "./loading-skeletons";
 import { ShipAssignmentList } from "./ship-assignment-list";
 import { formatDuration, getShipImagePath, SHIP_GROUPS } from "./shipyard-mock-shared";
@@ -167,18 +167,6 @@ function getOperationAccent(args: {
 		progress: "bg-cyan-400/50",
 		targetBorder: args.kind === "colonize" ? "border-amber-300/25" : "border-cyan-300/25",
 		targetFill: args.kind === "colonize" ? "bg-amber-400/10" : "bg-cyan-400/10",
-	};
-}
-
-function splitTargetPreviewLabel(label: string): { address: string; name: string } | null {
-	const match = label.match(/^(.+?)\s*\(([^)]+)\)$/);
-	if (!match) {
-		return null;
-	}
-
-	return {
-		name: match[1] ?? label,
-		address: match[2] ?? "",
 	};
 }
 
@@ -623,381 +611,144 @@ function ActiveOperationsPanel(props: {
 		}
 	>;
 }) {
-	if (props.operations.length === 0) {
-		return (
-			<div>
-				<h2
-					className="
-       flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
-       font-bold
-     "
+	const items = props.operations.map((operation) => {
+		const totalDuration = Math.max(1, operation.arriveAt - operation.departAt);
+		const elapsed = Math.max(0, props.nowMs - operation.departAt);
+		const progress = Math.min(100, (elapsed / totalDuration) * 100);
+		const etaSeconds = Math.max(0, Math.ceil((operation.arriveAt - props.nowMs) / 1_000));
+		const totalCargo =
+			operation.cargoRequested.alloy +
+			operation.cargoRequested.crystal +
+			operation.cargoRequested.fuel;
+		const isReturning = operation.status === "returning";
+		const isContract = operation.kind === "contract" || operation.kind === "combat";
+		const accent = getOperationAccent({
+			kind: operation.kind,
+			status: operation.status,
+		});
+		const targetPreview = splitActivityLabel(operation.targetPreview.label);
+
+		return {
+			actions: [
+				operation.canCancel ? (
+					<button
+						key="cancel"
+						className="ml-auto inline-flex items-center gap-1 rounded-md border border-rose-300/20 bg-rose-400/8 px-2.5 py-1 text-[10px] font-medium text-rose-200/80 transition-colors hover:border-rose-200/35 hover:bg-rose-400/12"
+						disabled={props.cancelingOperationId === operation.id}
+						onClick={(event) => {
+							event.stopPropagation();
+							props.onCancel(operation.id);
+						}}
+						type="button"
+					>
+						<X className="size-3" />
+						Cancel
+					</button>
+				) : null,
+				props.canShowDevUi ? (
+					<button
+						key="complete"
+						className="inline-flex items-center gap-1 rounded-md border border-cyan-300/20 bg-cyan-400/8 px-2.5 py-1 text-[10px] font-medium text-cyan-100 transition-colors hover:border-cyan-200/35 hover:bg-cyan-400/12 disabled:cursor-not-allowed disabled:opacity-50"
+						disabled={props.completingOperationId === operation.id || !props.canUseDevConsole}
+						onClick={(event) => {
+							event.stopPropagation();
+							props.onComplete(operation.id);
+						}}
+						type="button"
+					>
+						{props.completingOperationId === operation.id ? "Completing..." : "Complete"}
+					</button>
+				) : null,
+			].filter(Boolean),
+			detailChips: [
+				<div
+					className="rounded-sm border border-white/10 bg-white/3 px-1.5 py-0.5 text-[9px] font-semibold uppercase"
+					key="relation"
 				>
+					{operation.relation}
+				</div>,
+				<div className="flex items-center gap-1" key="ships">
+					<Ship className="size-3" />
+					{Object.entries(operation.shipCounts)
+						.filter(([, count]) => count > 0)
+						.map(
+							([shipKey, count]) =>
+								`${count}x ${props.shipsByKey.get(shipKey as ShipKey)?.name ?? shipKey}`,
+						)
+						.join(", ")}
+				</div>,
+				totalCargo > 0 ? (
+					<div className="flex items-center gap-1" key="cargo">
+						<Package className="size-3" />
+						{totalCargo.toLocaleString()} cargo
+					</div>
+				) : null,
+				operation.postDeliveryAction === "returnToOrigin" ? (
+					<div className="flex items-center gap-1" key="roundTrip">
+						<RotateCcw className="size-3" />
+						Round trip
+					</div>
+				) : null,
+			].filter(Boolean),
+			dotClassName: accent.dot,
+			etaLabel: formatDuration(etaSeconds),
+			id: operation.id,
+			kindBadgeClassName: accent.badge,
+			kindLabel: accent.kindLabel,
+			origin: {
+				icon: <MapPin className="size-4 text-cyan-300" />,
+				iconContainerClassName: "border-cyan-300/25 bg-cyan-400/10",
+				subtitle: operation.originAddressLabel,
+				title: operation.originName,
+			},
+			progress,
+			progressBarClassName: accent.progress,
+			relationBadgeClassName:
+				operation.relation === "incoming"
+					? "border border-amber-300/20 bg-amber-300/10 text-amber-100/80"
+					: "border border-cyan-300/20 bg-cyan-300/10 text-cyan-100/80",
+			relationLabel: operation.relation,
+			statusLabel: operation.status,
+			summaryLabel: operation.targetPreview.label,
+			target: {
+				icon: isContract ? (
+					<Swords className="size-4 text-rose-300" />
+				) : operation.kind === "colonize" ? (
+					<Globe2 className="size-4 text-amber-300" />
+				) : (
+					<MapPin className="size-4 text-cyan-300" />
+				),
+				iconContainerClassName:
+					operation.kind === "colonize"
+						? "border-amber-300/25 bg-amber-400/10"
+						: `${accent.targetBorder} ${accent.targetFill}`,
+				subtitle: targetPreview?.address,
+				title: targetPreview?.name ?? operation.targetPreview.label,
+			},
+			transitIcon: isContract ? (
+				<Swords className={`size-3 ${accent.iconText}`} />
+			) : (
+				<Ship className={`size-3 ${isReturning ? "rotate-180" : ""} ${accent.iconText}`} />
+			),
+			transitIconBorderClassName: accent.iconBorder,
+			transitIconFillClassName: accent.iconFill,
+			transitLineClassName: accent.line,
+		};
+	});
+
+	return (
+		<ActivityTimelinePanel
+			emptyMessage="No active expeditions."
+			expandedId={props.expandedOp}
+			header={
+				<h2 className="flex items-center gap-2 font-(family-name:--nv-font-display) text-sm font-bold">
 					<Layers3 className="size-4 text-cyan-300/60" />
 					Active Expeditions
 				</h2>
-				<div
-					className="
-       mt-3 rounded-xl border border-white/10 bg-white/2 px-4 py-6 text-center
-       text-xs text-white/45
-     "
-				>
-					No active expeditions.
-				</div>
-			</div>
-		);
-	}
-
-	return (
-		<div>
-			<h2
-				className="
-      flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
-      font-bold
-    "
-			>
-				<Layers3 className="size-4 text-cyan-300/60" />
-				Active Expeditions
-			</h2>
-
-			<div className="mt-3 space-y-2">
-				{props.operations.map((operation) => {
-					const totalDuration = Math.max(1, operation.arriveAt - operation.departAt);
-					const elapsed = Math.max(0, props.nowMs - operation.departAt);
-					const progress = Math.min(100, (elapsed / totalDuration) * 100);
-					const etaSeconds = Math.max(0, Math.ceil((operation.arriveAt - props.nowMs) / 1_000));
-					const totalCargo =
-						operation.cargoRequested.alloy +
-						operation.cargoRequested.crystal +
-						operation.cargoRequested.fuel;
-					const isExpanded = props.expandedOp === operation.id;
-					const isReturning = operation.status === "returning";
-					const isContract = operation.kind === "contract" || operation.kind === "combat";
-					const accent = getOperationAccent({
-						kind: operation.kind,
-						status: operation.status,
-					});
-					const targetPreview = splitTargetPreviewLabel(operation.targetPreview.label);
-
-					return (
-						<div
-							className="
-         overflow-hidden rounded-xl border border-white/10
-         bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
-       "
-							key={operation.id}
-						>
-							<button
-								className="
-          flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors
-          hover:bg-white/2
-        "
-								onClick={() => props.onToggle(operation.id)}
-								type="button"
-							>
-								<span className={`
-          inline-block size-2 shrink-0 rounded-full
-          ${accent.dot}
-        `} />
-								<span className="min-w-0 shrink-0 text-xs font-semibold">
-									{operation.targetPreview.label}
-								</span>
-								<span className={`
-          shrink-0 rounded-sm px-1.5 py-0.5 text-[9px] font-semibold uppercase
-          ${accent.badge}
-        `}>{accent.kindLabel}</span>
-								<span className={`
-          shrink-0 rounded-sm px-1.5 py-0.5 text-[9px] font-semibold uppercase
-          ${operation.relation === "incoming" ? `
-            border border-amber-300/20 bg-amber-300/10 text-amber-100/80
-          ` : `border border-cyan-300/20 bg-cyan-300/10 text-cyan-100/80`}
-        `}>{operation.relation}</span>
-
-								<div
-									className="
-           mx-1 hidden h-1 min-w-[60px] flex-1 overflow-hidden rounded-full
-           bg-white/8
-           sm:block
-         "
-								>
-									<div className={`
-           h-full rounded-full
-           ${accent.progress}
-         `} style={{ width: `${progress}%` }} />
-								</div>
-
-								<span
-									className="
-           shrink-0 font-(family-name:--nv-font-mono) text-[10px] text-white/35
-         "
-								>
-									{Math.round(progress)}%
-								</span>
-
-								<div className="flex shrink-0 items-center gap-1 text-[10px] text-white/45">
-									<Clock3 className="size-3" />
-									<span
-										className="
-            font-(family-name:--nv-font-mono) font-semibold text-cyan-100
-          "
-									>
-										{formatDuration(etaSeconds)}
-									</span>
-								</div>
-
-								<ChevronDown className={`
-          ml-auto size-3.5 shrink-0 text-white/25 transition-transform
-          ${isExpanded ? "rotate-180" : ""}
-        `} />
-							</button>
-
-							<div
-								className="
-          grid transition-[grid-template-rows] duration-300
-          ease-[cubic-bezier(0.25,0.8,0.25,1)]
-        "
-								style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
-							>
-								<div className="overflow-hidden">
-									<div className="border-t border-white/6">
-										<div className="flex items-start px-5 pt-5 pb-8">
-											<div
-												className="z-10 w-[100px] shrink-0 text-center"
-												style={
-													isExpanded
-														? {
-																animation:
-																	"nv-fleet-node-in 360ms cubic-bezier(0.21,1,0.34,1) both",
-																animationDelay: "60ms",
-															}
-														: { opacity: 0 }
-												}
-											>
-												<div
-													className="
-               mx-auto flex size-10 items-center justify-center rounded-full
-               border border-cyan-300/25 bg-cyan-400/10
-             "
-												>
-													<MapPin className="size-4 text-cyan-300" />
-												</div>
-												<p className="mt-1.5 truncate text-[11px] font-semibold">
-													{operation.originName}
-												</p>
-												<p
-													className="
-               truncate font-(family-name:--nv-font-mono) text-[9px]
-               text-white/30
-             "
-												>
-													{operation.originAddressLabel}
-												</p>
-											</div>
-
-											<div className="relative z-0 -mx-2 mt-5 min-w-[40px] flex-1">
-												<div className="h-px bg-white/10" />
-												<div
-													className={`
-               absolute top-0 h-px
-               ${accent.line}
-             `}
-													style={
-														isExpanded
-															? {
-																	width: `${progress}%`,
-																	animation:
-																		"nv-fleet-line-draw 500ms cubic-bezier(0.21,1,0.34,1) both",
-																	animationDelay: "140ms",
-																}
-															: { width: 0, opacity: 0 }
-													}
-												/>
-												<div
-													className="absolute -top-3 flex flex-col items-center"
-													style={
-														isExpanded
-															? {
-																	left: `calc(${progress}% - 12px)`,
-																	animation:
-																		"nv-fleet-ship-in 400ms cubic-bezier(0.21,1,0.34,1) both",
-																	animationDelay: "280ms",
-																}
-															: {
-																	left: `calc(${progress}% - 12px)`,
-																	opacity: 0,
-																}
-													}
-												>
-													<div className={`
-               flex size-6 items-center justify-center rounded-full border-2
-               shadow-lg
-               ${accent.iconBorder}
-               ${accent.iconFill}
-             `}>{isContract ? <Swords className={`
-               size-3
-               ${accent.iconText}
-             `} /> : <Ship className={`
-               size-3
-               ${isReturning ? "rotate-180" : ""}
-               ${accent.iconText}
-             `} />}</div>
-													<span
-														className="
-                mt-0.5 font-(family-name:--nv-font-mono) text-[8px]
-                text-white/30
-              "
-													>
-														{Math.round(progress)}%
-													</span>
-												</div>
-											</div>
-
-											<div
-												className="z-10 w-[100px] shrink-0 text-center"
-												style={
-													isExpanded
-														? {
-																animation:
-																	"nv-fleet-node-in 360ms cubic-bezier(0.21,1,0.34,1) both",
-																animationDelay: "180ms",
-															}
-														: { opacity: 0 }
-												}
-											>
-												<div className={`
-              mx-auto flex size-10 items-center justify-center rounded-full
-              border
-              ${operation.kind === "colonize" ? `
-                border-amber-300/25 bg-amber-400/10
-              ` : `
-                ${accent.targetBorder}
-                ${accent.targetFill}
-              `}
-            `}>{isContract ? <Swords className="size-4 text-rose-300" /> : operation.kind === "colonize" ? <Globe2 className="size-4 text-amber-300" /> : <MapPin className="size-4 text-cyan-300" />}</div>
-												{targetPreview ? (
-													<>
-														<p className="mt-1.5 truncate text-[11px] font-semibold">
-															{targetPreview.name}
-														</p>
-														<p
-															className="
-                 truncate font-(family-name:--nv-font-mono) text-[9px]
-                 text-white/30
-               "
-														>
-															{targetPreview.address}
-														</p>
-													</>
-												) : (
-													<p className="mt-1.5 truncate text-[11px] font-semibold">
-														{operation.targetPreview.label}
-													</p>
-												)}
-											</div>
-										</div>
-
-										<div
-											className="
-             flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/6
-             px-5 py-3 text-[10px] text-white/45
-           "
-											style={
-												isExpanded
-													? {
-															animation: "nv-fleet-chips-in 350ms cubic-bezier(0.21,1,0.34,1) both",
-															animationDelay: "320ms",
-														}
-													: { opacity: 0 }
-											}
-										>
-											<div
-												className="
-              rounded-sm border border-white/10 bg-white/3 px-1.5 py-0.5
-              text-[9px] font-semibold uppercase
-            "
-											>
-												{operation.relation}
-											</div>
-											<div className="flex items-center gap-1">
-												<Ship className="size-3" />
-												{Object.entries(operation.shipCounts)
-													.filter(([, count]) => count > 0)
-													.map(
-														([shipKey, count]) =>
-															`${count}x ${props.shipsByKey.get(shipKey as ShipKey)?.name ?? shipKey}`,
-													)
-													.join(", ")}
-											</div>
-											{totalCargo > 0 ? (
-												<div className="flex items-center gap-1">
-													<Package className="size-3" />
-													{totalCargo.toLocaleString()} cargo
-												</div>
-											) : null}
-											{operation.postDeliveryAction === "returnToOrigin" ? (
-												<div className="flex items-center gap-1">
-													<RotateCcw className="size-3" />
-													Round trip
-												</div>
-											) : null}
-											<span
-												className="
-              font-(family-name:--nv-font-mono) text-[10px] text-white/30
-            "
-											>
-												{operation.status}
-											</span>
-
-											{operation.canCancel ? (
-												<button
-													className="
-               ml-auto inline-flex items-center gap-1 rounded-md border
-               border-rose-300/20 bg-rose-400/8 px-2.5 py-1 text-[10px]
-               font-medium text-rose-200/80 transition-colors
-               hover:border-rose-200/35 hover:bg-rose-400/12
-             "
-													disabled={props.cancelingOperationId === operation.id}
-													onClick={(event) => {
-														event.stopPropagation();
-														props.onCancel(operation.id);
-													}}
-													type="button"
-												>
-													<X className="size-3" />
-													Cancel
-												</button>
-											) : null}
-											{props.canShowDevUi ? (
-												<button
-													className="
-               inline-flex items-center gap-1 rounded-md border
-               border-cyan-300/20 bg-cyan-400/8 px-2.5 py-1 text-[10px]
-               font-medium text-cyan-100 transition-colors
-               hover:border-cyan-200/35 hover:bg-cyan-400/12
-               disabled:cursor-not-allowed disabled:opacity-50
-             "
-													disabled={
-														props.completingOperationId === operation.id || !props.canUseDevConsole
-													}
-													onClick={(event) => {
-														event.stopPropagation();
-														props.onComplete(operation.id);
-													}}
-													type="button"
-												>
-													{props.completingOperationId === operation.id
-														? "Completing..."
-														: "Complete"}
-												</button>
-											) : null}
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-					);
-				})}
-			</div>
-		</div>
+			}
+			items={items}
+			onToggle={props.onToggle}
+		/>
 	);
 }
 

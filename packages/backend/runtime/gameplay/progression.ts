@@ -95,6 +95,37 @@ export async function grantPlayerRankXp(args: {
 	});
 }
 
+export async function changePlayerRankXp(args: {
+	amount: number;
+	ctx: MutationCtx;
+	playerId: Id<"players">;
+}) {
+	const progression = await ensurePlayerProgression({
+		ctx: args.ctx,
+		playerId: args.playerId,
+	});
+	let rank = progression.rank;
+	let rankXp = progression.rankXp + Math.floor(args.amount);
+
+	while (rankXp >= nextRankXpRequirement(rank)) {
+		rankXp -= nextRankXpRequirement(rank);
+		rank += 1;
+	}
+
+	while (rankXp < 0 && rank > 1) {
+		rank -= 1;
+		rankXp += nextRankXpRequirement(rank);
+	}
+
+	rankXp = Math.max(0, rankXp);
+
+	await args.ctx.db.patch(progression._id, {
+		rank,
+		rankXp,
+		updatedAt: Date.now(),
+	});
+}
+
 export const getPlayerProgression = query({
 	args: {},
 	returns: playerProgressionValidator,

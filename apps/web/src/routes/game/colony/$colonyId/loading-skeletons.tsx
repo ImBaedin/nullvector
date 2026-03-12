@@ -99,6 +99,25 @@ export function ShipyardRouteSkeleton() {
 	);
 }
 
+export function DefensesRouteSkeleton() {
+	return (
+		<ColonyTwoColumnSkeleton
+			left={
+				<>
+					<Sweep className="h-40 rounded-2xl" />
+					<Sweep className="h-[540px] rounded-2xl" />
+				</>
+			}
+			right={
+				<>
+					<Sweep className="h-64 rounded-2xl" />
+					<Sweep className="h-56 rounded-2xl" />
+				</>
+			}
+		/>
+	);
+}
+
 export function FleetRouteSkeleton() {
 	return (
 		<ColonyTwoColumnSkeleton

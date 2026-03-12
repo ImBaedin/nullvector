@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { X } from "lucide-react";
 
 import { NvBadge, NvButton, NvPanel } from "@/features/game-ui/primitives";
@@ -15,6 +16,8 @@ export function AppHeaderMobileDrawer({
 	onOpenStarMap?: () => void;
 	open: boolean;
 }) {
+	const navigate = useNavigate();
+
 	if (!open) {
 		return null;
 	}
@@ -79,7 +82,16 @@ export function AppHeaderMobileDrawer({
 						<p className="nv-caps text-[10px] text-(--nv-text-muted)">Colony Views</p>
 						<div className="mt-2 grid gap-1">
 							{config.contextTabs.map((tab) => (
-								<NvButton className="w-full justify-start" key={tab.id} variant="ghost">
+								<NvButton
+									className="w-full justify-start"
+									disabled={tab.isDisabled}
+									key={tab.id}
+									onClick={() => {
+										navigate({ to: tab.to });
+										onClose();
+									}}
+									variant="ghost"
+								>
 									{tab.label}
 								</NvButton>
 							))}

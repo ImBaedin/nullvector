@@ -1,5 +1,5 @@
-import { ConvexError } from "convex/values";
 import { generateSciFiName } from "@nullvector/game-logic";
+import { ConvexError } from "convex/values";
 
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";

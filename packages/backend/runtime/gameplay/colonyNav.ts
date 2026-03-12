@@ -99,10 +99,23 @@ export const getActiveColonyNextEvent = query({
 			colonyId: colony._id,
 			ctx,
 		});
+		const activeRaid = await ctx.db
+			.query("npcRaidOperations")
+			.withIndex("by_target_status_event", (q) =>
+				q.eq("targetColonyId", colony._id).eq("status", "inTransit"),
+			)
+			.first();
+		const queueNextEventAt = queueEventsNextAt(colonyQueueRows) ?? undefined;
+		const nextEventAt =
+			queueNextEventAt === undefined
+				? activeRaid?.nextEventAt
+				: activeRaid?.nextEventAt === undefined
+					? queueNextEventAt
+					: Math.min(queueNextEventAt, activeRaid.nextEventAt);
 
 		return {
 			activeColonyId: colony._id,
-			nextEventAt: queueEventsNextAt(colonyQueueRows) ?? undefined,
+			nextEventAt,
 		};
 	},
 });

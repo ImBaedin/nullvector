@@ -3,7 +3,7 @@ import type { ShipKey } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { useColonyResources } from "@/hooks/use-colony-resources";
@@ -58,17 +58,22 @@ function ShipyardRoute() {
 	const enqueueShipBuild = useMutation(api.shipyard.enqueueShipBuild);
 	const cancelShipBuildQueueItem = useMutation(api.shipyard.cancelShipBuildQueueItem);
 	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
+	const setShipCounts = useMutation(api.devConsole.setShipCounts);
 
 	const [nowMs, setNowMs] = useState(() => Date.now());
 	const [quantities, setQuantities] = useState<Partial<Record<ShipKey, number>>>({});
 	const [quantityInputs, setQuantityInputs] = useState<Partial<Record<ShipKey, string>>>({});
 	const [queueingShipKey, setQueueingShipKey] = useState<ShipKey | null>(null);
+	const [editingShipKey, setEditingShipKey] = useState<ShipKey | null>(null);
+	const [shipDraftValue, setShipDraftValue] = useState("");
+	const [savingShipKey, setSavingShipKey] = useState<ShipKey | null>(null);
 	const [cancelingQueueItemId, setCancelingQueueItemId] = useState<Id<"colonyQueueItems"> | null>(
 		null,
 	);
 	const [isCompletingQueueItem, setIsCompletingQueueItem] = useState(false);
 
 	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
+	const canUseDevConsole = devConsoleState?.canUseDevConsole === true;
 	const view = useMemo(() => {
 		if (!shipCatalogQuery || !shipyardState) {
 			return undefined;
@@ -240,6 +245,34 @@ function ShipyardRoute() {
 			});
 	}
 
+	const commitShipCount = useCallback(
+		async (shipKey: ShipKey) => {
+			if (!canShowDevUi || !canUseDevConsole) {
+				return;
+			}
+
+			const parsed = Math.max(0, Math.floor(Number(shipDraftValue) || 0));
+			setSavingShipKey(shipKey);
+			await setShipCounts({
+				colonyId: colonyIdAsId,
+				shipCounts: {
+					[shipKey]: parsed,
+				},
+			})
+				.then(() => {
+					toast.success("Ship count updated");
+					setEditingShipKey(null);
+				})
+				.catch((error) => {
+					toast.error(error instanceof Error ? error.message : "Failed to update ship count");
+				})
+				.finally(() => {
+					setSavingShipKey(null);
+				});
+		},
+		[canShowDevUi, canUseDevConsole, colonyIdAsId, setShipCounts, shipDraftValue],
+	);
+
 	async function handleCompleteActiveQueue() {
 		if (!canShowDevUi || !devConsoleState?.canUseDevConsole || isCompletingQueueItem) {
 			return;
@@ -282,7 +315,9 @@ function ShipyardRoute() {
 			activeUpgradeProgress={activeUpgradeProgress}
 			availableResources={colonyResources.projected!.stored}
 			canShowDevUi={canShowDevUi}
+			canUseDevConsole={canUseDevConsole}
 			cancelingQueueItemId={cancelingQueueItemId}
+			editingShipKey={editingShipKey}
 			isCompletingQueueItem={isCompletingQueueItem}
 			onCancelQueueItem={handleCancel}
 			onCompleteActiveQueueItem={() => {
@@ -292,11 +327,24 @@ function ShipyardRoute() {
 			onIncrementQuantity={handleIncrementQuantity}
 			onQuantityBlur={handleQuantityBlur}
 			onQuantityInputChange={handleQuantityInputChange}
+			onEditShip={(shipKey, currentCount) => {
+				setEditingShipKey(shipKey);
+				setShipDraftValue(String(currentCount));
+			}}
 			onQueueShip={handleQueueShip}
+			onShipDraftCancel={() => {
+				setEditingShipKey(null);
+			}}
+			onShipDraftChange={setShipDraftValue}
+			onShipDraftCommit={(shipKey) => {
+				void commitShipCount(shipKey);
+			}}
 			pendingQueueItems={pendingQueueItems}
 			quantities={quantities}
 			quantityInputs={quantityInputs}
 			queueingShipKey={queueingShipKey}
+			savingShipKey={savingShipKey}
+			shipDraftValue={shipDraftValue}
 			view={view}
 		/>
 	);

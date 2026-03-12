@@ -39,6 +39,7 @@ describe("resource helpers", () => {
 				fuelStorageLevel: 1,
 				roboticsHubLevel: 0,
 				shipyardLevel: 0,
+				defenseGridLevel: 0,
 			},
 			overflow: {
 				alloy: 0,
@@ -146,6 +147,7 @@ describe("resource helpers", () => {
 				fuelStorageLevel: 1,
 				roboticsHubLevel: 0,
 				shipyardLevel: 0,
+				defenseGridLevel: 0,
 			},
 			overflow: {
 				alloy: scaledUnits(10),

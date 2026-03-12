@@ -7,7 +7,7 @@ import { Bell, ChevronDown, Earth, Menu, Settings, Trophy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import type { ResourceDatum } from "@/features/game-ui/contracts/navigation";
+import type { ContextNavItem, ResourceDatum } from "@/features/game-ui/contracts/navigation";
 import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdata/types";
 
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
@@ -103,6 +103,10 @@ export function AppHeader({
 		api.colonyNav.getAllColonyQueueStatuses,
 		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
+	const raidStatus = useQuery(
+		api.raids.getRaidStatusForColony,
+		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+	);
 	const colonyResources = useColonyResources(colonyIdAsId && isAuthenticated ? colonyIdAsId : null);
 	const playerProfile = useQuery(
 		api.playerProgression.getPlayerProfile,
@@ -145,6 +149,41 @@ export function AppHeader({
 			),
 		[hud, pathname],
 	);
+	const contextTabs = useMemo<ContextNavItem[] | undefined>(() => {
+		if (!config.contextTabs) {
+			return undefined;
+		}
+		if (!raidStatus?.activeRaid) {
+			return config.contextTabs;
+		}
+
+		return config.contextTabs.map((tab) => {
+			if (tab.id !== "defenses") {
+				return tab;
+			}
+
+			return {
+				...tab,
+				icon: (
+					<span className="relative inline-flex shrink-0">
+						{tab.icon}
+						<span className="absolute -top-0.5 -right-0.5 flex size-2.5 items-center justify-center">
+							<span className="absolute inline-flex size-2.5 animate-ping rounded-full bg-rose-400/35" />
+							<span className="relative inline-flex size-1.5 rounded-full bg-rose-300 shadow-[0_0_8px_rgba(253,164,175,0.8)]" />
+						</span>
+					</span>
+				),
+			};
+		});
+	}, [config.contextTabs, raidStatus?.activeRaid]);
+	const drawerConfig = useMemo(
+		() => ({
+			...config,
+			contextTabs,
+			onOpenSettings: () => setSettingsOpen(true),
+		}),
+		[config, contextTabs],
+	);
 	const isCompact = useCompactHeaderMode();
 	const activeColony = useMemo(
 		() =>
@@ -164,11 +203,15 @@ export function AppHeader({
 		const targetPath =
 			config.activeTabId === "shipyard"
 				? "/game/colony/$colonyId/shipyard"
-				: config.activeTabId === "fleet"
-					? "/game/colony/$colonyId/fleet"
-					: config.activeTabId === "facilities"
-						? "/game/colony/$colonyId/facilities"
-						: "/game/colony/$colonyId/resources";
+				: config.activeTabId === "defenses"
+					? "/game/colony/$colonyId/defenses"
+					: config.activeTabId === "fleet"
+						? "/game/colony/$colonyId/fleet"
+						: config.activeTabId === "contracts"
+							? "/game/colony/$colonyId/contracts"
+							: config.activeTabId === "facilities"
+								? "/game/colony/$colonyId/facilities"
+								: "/game/colony/$colonyId/resources";
 		navigate({
 			to: targetPath,
 			params: { colonyId: nextColonyId },
@@ -687,7 +730,7 @@ export function AppHeader({
 					) : null}
 
 					{/* ═══ Context Navigation ═══ */}
-					{config.contextTabs?.length && config.activeTabId ? (
+					{contextTabs?.length && config.activeTabId ? (
 						<div className={cn(`
         grid overflow-hidden transition-[grid-template-rows,opacity]
         duration-300 ease-out
@@ -698,7 +741,7 @@ export function AppHeader({
 								<div className={cn("border-t border-white/6 px-4", isCompact ? "py-0" : `
           py-0.5
         `)}>
-									<ContextNav activeId={config.activeTabId} items={config.contextTabs} />
+									<ContextNav activeId={config.activeTabId} items={contextTabs} />
 								</div>
 							</div>
 						</div>
@@ -707,10 +750,7 @@ export function AppHeader({
 			</header>
 
 			<AppHeaderMobileDrawer
-				config={{
-					...config,
-					onOpenSettings: () => setSettingsOpen(true),
-				}}
+				config={drawerConfig}
 				onOpenStarMap={handleStarMapToggle}
 				onClose={() => setDrawerOpen(false)}
 				open={drawerOpen}

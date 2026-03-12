@@ -164,6 +164,7 @@ test("default generators have no unlock requirements", () => {
 
 test("facilities are unlock/buff structures", () => {
 	const shipyard = requireFacility("shipyard");
+	const defenseGrid = requireFacility("defense_grid");
 
 	expect(
 		isFacilityUnlocked(shipyard, {
@@ -173,6 +174,18 @@ test("facilities are unlock/buff structures", () => {
 	).toBe(true);
 
 	expect(getFacilityBuffs(shipyard).some((buff) => buff.type === "ship_unlock")).toBe(true);
+	expect(
+		isFacilityUnlocked(defenseGrid, {
+			facilityLevels: { shipyard: 1 },
+			researchLevels: {},
+		}),
+	).toBe(false);
+	expect(
+		isFacilityUnlocked(defenseGrid, {
+			facilityLevels: { shipyard: 2 },
+			researchLevels: {},
+		}),
+	).toBe(true);
 });
 
 test("nested unlock rules support any/all composition", () => {

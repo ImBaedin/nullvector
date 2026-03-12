@@ -32,6 +32,7 @@ describe("queue view helpers", () => {
 					fuelStorageLevel: 1,
 					roboticsHubLevel,
 					shipyardLevel: 0,
+					defenseGridLevel: 0,
 				},
 			}),
 		);

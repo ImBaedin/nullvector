@@ -11,6 +11,7 @@ import {
 	queueEventsNextAt,
 	queuesViewValidator,
 	settleColonyAndPersist,
+	settleDefenseQueue,
 	settleShipyardQueue,
 } from "./shared";
 
@@ -43,6 +44,11 @@ export const getColonyQueueLanes = query({
 					now,
 					rows: queueRows,
 				}),
+				defense: buildLaneQueueView({
+					lane: "defense",
+					now,
+					rows: queueRows,
+				}),
 				research: emptyLaneQueueView("research"),
 			},
 		};
@@ -71,6 +77,11 @@ export const syncColony = mutation({
 			now,
 		});
 		await settleShipyardQueue({
+			colony: settledColony,
+			ctx,
+			now,
+		});
+		await settleDefenseQueue({
 			colony: settledColony,
 			ctx,
 			now,

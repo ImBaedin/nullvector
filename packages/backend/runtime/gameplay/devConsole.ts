@@ -1,24 +1,35 @@
-import { DEFAULT_FACILITY_REGISTRY, type FacilityKey } from "@nullvector/game-logic";
+import {
+	DEFAULT_FACILITY_REGISTRY,
+	normalizeShipCounts,
+	type FacilityKey,
+} from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
 import type { Id } from "../../convex/_generated/dataModel";
 
 import { mutation, query, type MutationCtx } from "../../convex/_generated/server";
 import { settleDueFleetOperations } from "./fleetV2";
+import { resolveNpcRaidNow, spawnNpcRaidImmediatelyForColony } from "./raids";
 import { reconcileFleetOperationSchedule, rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	BUILDING_CONFIG,
 	compareQueueOrder,
 	getGeneratorOrThrow,
 	getOwnedColony,
+	incrementColonyDefenseCount,
 	incrementColonyShipCount,
 	isBuildingUpgradeQueueItem,
+	isDefenseBuildQueueItem,
 	isFacilityUpgradeQueueItem,
 	isShipBuildQueueItem,
 	listOpenLaneQueueItems,
+	readColonyDefenseCounts,
+	replaceColonyDefenseCounts,
+	replaceColonyShipCounts,
 	resolveCurrentPlayer,
 	scaledUnits,
 	settleColonyAndPersist,
+	settleDefenseQueue,
 	settleShipyardQueue,
 	storageCapsFromBuildings,
 	storedToWholeUnits,
@@ -42,7 +53,11 @@ const buildingLevelsPatchValidator = v.object({
 	fuelStorageLevel: v.optional(v.number()),
 });
 
-const devQueueLaneValidator = v.union(v.literal("building"), v.literal("shipyard"));
+const devQueueLaneValidator = v.union(
+	v.literal("building"),
+	v.literal("shipyard"),
+	v.literal("defense"),
+);
 
 const DEV_TERMINAL_OP_STATUSES = ["completed", "cancelled", "failed"] as const;
 const DEV_RESOLVABLE_OP_STATUSES = ["inTransit", "returning"] as const;
@@ -62,12 +77,34 @@ type DevActionType =
 	| "setColonyResources"
 	| "setBuildingLevels"
 	| "setFacilityLevels"
+	| "setShipCounts"
+	| "setDefenseCounts"
+	| "triggerNpcRaid"
+	| "completeActiveRaid"
 	| "completeActiveQueueItem"
 	| "completeActiveMission";
 
 const facilityLevelsPatchValidator = v.object({
 	robotics_hub: v.optional(v.number()),
 	shipyard: v.optional(v.number()),
+	defense_grid: v.optional(v.number()),
+});
+
+const shipCountsPatchValidator = v.object({
+	smallCargo: v.optional(v.number()),
+	largeCargo: v.optional(v.number()),
+	colonyShip: v.optional(v.number()),
+	interceptor: v.optional(v.number()),
+	frigate: v.optional(v.number()),
+	cruiser: v.optional(v.number()),
+	bomber: v.optional(v.number()),
+});
+
+const defenseCountsPatchValidator = v.object({
+	missileBattery: v.optional(v.number()),
+	laserTurret: v.optional(v.number()),
+	gaussCannon: v.optional(v.number()),
+	shieldDome: v.optional(v.number()),
 });
 
 function sanitizeNonNegativeInteger(value: number | undefined) {
@@ -128,7 +165,7 @@ async function getDevAuthorizedOwnedColony(args: { colonyId: Id<"colonies">; ctx
 async function shiftOpenLaneScheduleToNow(args: {
 	colonyId: Id<"colonies">;
 	ctx: MutationCtx;
-	lane: "building" | "shipyard";
+	lane: "building" | "shipyard" | "defense";
 	now: number;
 }) {
 	const openRows = (
@@ -427,6 +464,7 @@ export const setFacilityLevels = mutation({
 		facilityLevels: v.object({
 			robotics_hub: v.number(),
 			shipyard: v.number(),
+			defense_grid: v.number(),
 		}),
 	}),
 	handler: async (ctx, args) => {
@@ -442,7 +480,7 @@ export const setFacilityLevels = mutation({
 			now,
 		});
 
-		const provided = (["robotics_hub", "shipyard"] as const).filter(
+		const provided = (["robotics_hub", "shipyard", "defense_grid"] as const).filter(
 			(key) => args.facilityLevels[key] !== undefined,
 		);
 		if (provided.length === 0) {
@@ -466,6 +504,9 @@ export const setFacilityLevels = mutation({
 			}
 			if (key === "shipyard") {
 				nextBuildings.shipyardLevel = clamped;
+			}
+			if (key === "defense_grid") {
+				nextBuildings.defenseGridLevel = clamped;
 			}
 		}
 
@@ -492,6 +533,7 @@ export const setFacilityLevels = mutation({
 			facilityLevels: {
 				robotics_hub: nextBuildings.roboticsHubLevel,
 				shipyard: nextBuildings.shipyardLevel,
+				defense_grid: nextBuildings.defenseGridLevel,
 			},
 		};
 
@@ -502,6 +544,171 @@ export const setFacilityLevels = mutation({
 			now,
 			payload: args.facilityLevels,
 			result: result.facilityLevels,
+			targetColonyId: settledColony._id,
+		});
+
+		return result;
+	},
+});
+
+export const setShipCounts = mutation({
+	args: {
+		colonyId: v.id("colonies"),
+		shipCounts: shipCountsPatchValidator,
+	},
+	returns: v.object({
+		colonyId: v.id("colonies"),
+		shipCounts: v.object({
+			smallCargo: v.number(),
+			largeCargo: v.number(),
+			colonyShip: v.number(),
+			interceptor: v.number(),
+			frigate: v.number(),
+			cruiser: v.number(),
+			bomber: v.number(),
+		}),
+	}),
+	handler: async (ctx, args) => {
+		const now = Date.now();
+		const owned = await getDevAuthorizedOwnedColony({
+			ctx,
+			colonyId: args.colonyId,
+		});
+		const settledColony = await settleColonyAndPersist({
+			ctx,
+			colony: owned.colony,
+			planet: owned.planet,
+			now,
+		});
+		await settleShipyardQueue({
+			colony: settledColony,
+			ctx,
+			now,
+		});
+
+		const provided = (Object.keys(args.shipCounts) as Array<keyof typeof args.shipCounts>).filter(
+			(key) => args.shipCounts[key] !== undefined,
+		);
+		if (provided.length === 0) {
+			throw new ConvexError("Provide at least one ship count value");
+		}
+
+		const shipRows = await ctx.db
+			.query("colonyShips")
+			.withIndex("by_colony", (q) => q.eq("colonyId", settledColony._id))
+			.collect();
+		const nextShipCounts = normalizeShipCounts({});
+		for (const row of shipRows) {
+			nextShipCounts[row.shipKey] = row.count;
+		}
+		for (const key of provided) {
+			nextShipCounts[key] = sanitizeNonNegativeInteger(args.shipCounts[key]);
+		}
+		await replaceColonyShipCounts({
+			colony: settledColony,
+			counts: nextShipCounts,
+			ctx,
+			now,
+		});
+		await ctx.db.patch(settledColony._id, {
+			updatedAt: now,
+		});
+		await rescheduleColonyQueueResolution({
+			colonyId: settledColony._id,
+			ctx,
+		});
+
+		const result = {
+			colonyId: settledColony._id,
+			shipCounts: nextShipCounts,
+		};
+
+		await logDevAction({
+			actionType: "setShipCounts",
+			actorPlayerId: owned.player._id,
+			ctx,
+			now,
+			payload: args.shipCounts,
+			result: result.shipCounts,
+			targetColonyId: settledColony._id,
+		});
+
+		return result;
+	},
+});
+
+export const setDefenseCounts = mutation({
+	args: {
+		colonyId: v.id("colonies"),
+		defenseCounts: defenseCountsPatchValidator,
+	},
+	returns: v.object({
+		colonyId: v.id("colonies"),
+		defenseCounts: v.object({
+			missileBattery: v.number(),
+			laserTurret: v.number(),
+			gaussCannon: v.number(),
+			shieldDome: v.number(),
+		}),
+	}),
+	handler: async (ctx, args) => {
+		const now = Date.now();
+		const owned = await getDevAuthorizedOwnedColony({
+			ctx,
+			colonyId: args.colonyId,
+		});
+		const settledColony = await settleColonyAndPersist({
+			ctx,
+			colony: owned.colony,
+			planet: owned.planet,
+			now,
+		});
+		await settleDefenseQueue({
+			colony: settledColony,
+			ctx,
+			now,
+		});
+
+		const provided = (
+			Object.keys(args.defenseCounts) as Array<keyof typeof args.defenseCounts>
+		).filter((key) => args.defenseCounts[key] !== undefined);
+		if (provided.length === 0) {
+			throw new ConvexError("Provide at least one defense count value");
+		}
+
+		const nextDefenseCounts = await readColonyDefenseCounts({
+			colonyId: settledColony._id,
+			ctx,
+		});
+		for (const key of provided) {
+			nextDefenseCounts[key] = sanitizeNonNegativeInteger(args.defenseCounts[key]);
+		}
+		await replaceColonyDefenseCounts({
+			colony: settledColony,
+			counts: nextDefenseCounts,
+			ctx,
+			now,
+		});
+		await ctx.db.patch(settledColony._id, {
+			updatedAt: now,
+		});
+		await rescheduleColonyQueueResolution({
+			colonyId: settledColony._id,
+			ctx,
+		});
+
+		const result = {
+			colonyId: settledColony._id,
+			defenseCounts: nextDefenseCounts,
+		};
+
+		await logDevAction({
+			actionType: "setDefenseCounts",
+			actorPlayerId: owned.player._id,
+			ctx,
+			now,
+			payload: args.defenseCounts,
+			result: result.defenseCounts,
 			targetColonyId: settledColony._id,
 		});
 
@@ -540,6 +747,13 @@ export const completeActiveQueueItem = mutation({
 				now,
 			});
 		}
+		if (args.lane === "defense") {
+			await settleDefenseQueue({
+				colony: settledColony,
+				ctx,
+				now,
+			});
+		}
 
 		const queueRows = await listOpenLaneQueueItems({
 			colonyId: settledColony._id,
@@ -553,7 +767,10 @@ export const completeActiveQueueItem = mutation({
 			if (args.lane === "building") {
 				return isBuildingUpgradeQueueItem(row) || isFacilityUpgradeQueueItem(row);
 			}
-			return isShipBuildQueueItem(row);
+			if (args.lane === "shipyard") {
+				return isShipBuildQueueItem(row);
+			}
+			return isDefenseBuildQueueItem(row);
 		});
 
 		if (!activeQueue) {
@@ -573,7 +790,7 @@ export const completeActiveQueueItem = mutation({
 				planet: owned.planet,
 				now,
 			});
-		} else {
+		} else if (args.lane === "shipyard") {
 			if (!isShipBuildQueueItem(activeQueue)) {
 				throw new ConvexError("Expected active ship build queue item");
 			}
@@ -587,6 +804,51 @@ export const completeActiveQueueItem = mutation({
 					ctx,
 					now,
 					shipKey: payload.shipKey,
+				});
+			}
+
+			const payloadRow = await ctx.db
+				.query("colonyQueuePayloads")
+				.withIndex("by_queue_item_id", (q) => q.eq("queueItemId", activeQueue._id))
+				.unique();
+			if (payloadRow) {
+				await ctx.db.patch(payloadRow._id, {
+					payload: {
+						...payload,
+						completedQuantity: payload.quantity,
+					},
+					updatedAt: now,
+				});
+			}
+
+			await ctx.db.patch(activeQueue._id, {
+				status: "completed",
+				resolvedAt: now,
+				completesAt: now,
+				updatedAt: now,
+			});
+
+			const nextQueued = queueRows.find((row) => row.status === "queued");
+			if (nextQueued) {
+				await ctx.db.patch(nextQueued._id, {
+					status: "active",
+					updatedAt: now,
+				});
+			}
+		} else {
+			if (!isDefenseBuildQueueItem(activeQueue)) {
+				throw new ConvexError("Expected active defense build queue item");
+			}
+
+			const payload = activeQueue.payload;
+			const remaining = Math.max(0, payload.quantity - payload.completedQuantity);
+			if (remaining > 0) {
+				await incrementColonyDefenseCount({
+					amount: remaining,
+					colony: settledColony,
+					ctx,
+					defenseKey: payload.defenseKey,
+					now,
 				});
 			}
 
@@ -749,6 +1011,102 @@ export const completeActiveMission = mutation({
 			colonyId: args.colonyId,
 			operationId: args.operationId,
 			status: resolved.status,
+		};
+	},
+});
+
+export const triggerNpcRaidAtCurrentColony = mutation({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: v.object({
+		colonyId: v.id("colonies"),
+		raidOperationId: v.optional(v.id("npcRaidOperations")),
+	}),
+	handler: async (ctx, args) => {
+		const now = Date.now();
+		const owned = await getDevAuthorizedOwnedColony({
+			ctx,
+			colonyId: args.colonyId,
+		});
+		const result = await spawnNpcRaidImmediatelyForColony({
+			colony: owned.colony,
+			ctx,
+			scheduledAt: now,
+		});
+
+		await logDevAction({
+			actionType: "triggerNpcRaid",
+			actorPlayerId: owned.player._id,
+			ctx,
+			now,
+			payload: {
+				colonyId: args.colonyId,
+			},
+			result: {
+				raidOperationId: result.raidOperationId,
+			},
+			targetColonyId: owned.colony._id,
+		});
+
+		return {
+			colonyId: owned.colony._id,
+			raidOperationId: result.raidOperationId,
+		};
+	},
+});
+
+export const completeActiveRaidAtCurrentColony = mutation({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: v.object({
+		colonyId: v.id("colonies"),
+		raidOperationId: v.id("npcRaidOperations"),
+	}),
+	handler: async (ctx, args) => {
+		const now = Date.now();
+		const owned = await getDevAuthorizedOwnedColony({
+			ctx,
+			colonyId: args.colonyId,
+		});
+		const activeRaid = await ctx.db
+			.query("npcRaidOperations")
+			.withIndex("by_target_status_event", (q) =>
+				q.eq("targetColonyId", owned.colony._id).eq("status", "inTransit"),
+			)
+			.first();
+		if (!activeRaid) {
+			throw new ConvexError("No active raid found");
+		}
+
+		const result = await resolveNpcRaidNow({
+			ctx,
+			raidOperationId: activeRaid._id,
+			scheduledAt: activeRaid.nextEventAt,
+		});
+		if (result.stale) {
+			throw new ConvexError("Failed to resolve active raid immediately");
+		}
+
+		await logDevAction({
+			actionType: "completeActiveRaid",
+			actorPlayerId: owned.player._id,
+			ctx,
+			now,
+			payload: {
+				colonyId: args.colonyId,
+				raidOperationId: activeRaid._id,
+			},
+			result: {
+				raidOperationId: activeRaid._id,
+			},
+			targetColonyId: owned.colony._id,
+		});
+
+		return {
+			colonyId: owned.colony._id,
+			raidOperationId: activeRaid._id,
 		};
 	},
 });

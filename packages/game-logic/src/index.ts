@@ -47,8 +47,10 @@ export {
 	DEFAULT_DEFENSE_DEFINITIONS,
 	DEFENSE_KEYS,
 	EMPTY_DEFENSE_COUNTS,
+	getDefenseBuildDurationSeconds,
 	normalizeDefenseCounts,
 } from "./defenses";
+export { estimateColonyDefensePower, generateNpcRaidSnapshot } from "./raids";
 export {
 	COMBAT_MISSION_TYPE_KEYS,
 	CONTRACT_EXPIRY_MS,
@@ -92,6 +94,7 @@ export type {
 	ResourceBucket,
 	ResourceBuildingCardData,
 	ResourceBuildingLevelRow,
+	DefenseBuildQueuePayload,
 	ShipBuildQueuePayload,
 	ShipKey,
 } from "./gameplay";

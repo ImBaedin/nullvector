@@ -426,10 +426,7 @@ export const getHostileSectorsForUniverse = query({
 					return {
 						planetId: planetHostility.planetId,
 						addressLabel: planetAddressLabel(planet),
-						displayName: displayNameFromStoredOrGenerated(
-							planetAddressLabel(planet),
-							planet.name,
-						),
+						displayName: displayNameFromStoredOrGenerated(planetAddressLabel(planet), planet.name),
 						systemDisplayName: displayNameFromStoredOrGenerated(
 							`G${planet.galaxyIndex}:S${planet.sectorIndex}:SYS${planet.systemIndex}`,
 							systemForPlanet.name,
@@ -455,10 +452,7 @@ export const getHostileSectorsForUniverse = query({
 				hostilePlanetCount: sh.hostilePlanetCount,
 				clearedPlanetCount: sh.clearedPlanetCount,
 				addressLabel: sectorAddressLabel(sector),
-				displayName: displayNameFromStoredOrGenerated(
-					sectorAddressLabel(sector),
-					sector.name,
-				),
+				displayName: displayNameFromStoredOrGenerated(sectorAddressLabel(sector), sector.name),
 				centerX: cx,
 				centerY: cy,
 				planets: planetViews,

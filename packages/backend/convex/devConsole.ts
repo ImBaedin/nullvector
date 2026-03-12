@@ -1,11 +1,15 @@
 import {
 	completeActiveMission,
+	completeActiveRaidAtCurrentColony,
 	completeActiveQueueItem,
 	getDevConsoleState,
+	setDefenseCounts,
 	setDevConsoleUiEnabled,
 	setFacilityLevels,
 	setBuildingLevels,
+	setShipCounts,
 	setColonyResources,
+	triggerNpcRaidAtCurrentColony,
 } from "../runtime/gameplay/devConsole";
 
 export {
@@ -14,6 +18,10 @@ export {
 	setColonyResources,
 	setBuildingLevels,
 	setFacilityLevels,
+	setShipCounts,
+	setDefenseCounts,
 	completeActiveQueueItem,
+	completeActiveRaidAtCurrentColony,
 	completeActiveMission,
+	triggerNpcRaidAtCurrentColony,
 };

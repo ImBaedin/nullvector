@@ -1,5 +1,5 @@
-import { ConvexError, v } from "convex/values";
 import { generateSciFiName } from "@nullvector/game-logic";
+import { ConvexError, v } from "convex/values";
 
 import { mutation } from "../../convex/_generated/server";
 
@@ -49,13 +49,17 @@ export const backfillRoboticsHubLevel = mutation({
 		let updated = 0;
 
 		for (const row of rows) {
-			if (typeof row.buildings.roboticsHubLevel === "number") {
+			if (
+				typeof row.buildings.roboticsHubLevel === "number" &&
+				typeof row.buildings.defenseGridLevel === "number"
+			) {
 				continue;
 			}
 			await ctx.db.patch(row._id, {
 				buildings: {
 					...row.buildings,
 					roboticsHubLevel: 0,
+					defenseGridLevel: row.buildings.defenseGridLevel ?? 0,
 				},
 				updatedAt: Date.now(),
 			});
@@ -112,9 +116,7 @@ export const backfillUniverseObjectNames = mutation({
 
 		let updatedSectors = 0;
 		for (const sector of sectors) {
-			const nextName = generateSciFiName(
-				sectorAddress(sector.galaxyIndex, sector.sectorIndex),
-			);
+			const nextName = generateSciFiName(sectorAddress(sector.galaxyIndex, sector.sectorIndex));
 			if (sector.name === nextName) {
 				continue;
 			}

@@ -9,7 +9,7 @@ export const BUILDING_KEYS = [
 ] as const;
 
 export type BuildingKey = (typeof BUILDING_KEYS)[number];
-export const FACILITY_KEYS = ["robotics_hub", "shipyard"] as const;
+export const FACILITY_KEYS = ["robotics_hub", "shipyard", "defense_grid"] as const;
 export type FacilityKey = (typeof FACILITY_KEYS)[number];
 
 export type ResourceBucket = {
@@ -18,7 +18,7 @@ export type ResourceBucket = {
 	fuel: number;
 };
 
-export type QueueLane = "building" | "shipyard" | "research";
+export type QueueLane = "building" | "shipyard" | "defense" | "research";
 
 export type QueueItemStatus = "queued" | "active" | "completed" | "cancelled" | "failed";
 
@@ -52,7 +52,14 @@ export type ShipBuildQueuePayload = {
 	shipKey: ShipKey;
 };
 
-export type QueueItemKind = "buildingUpgrade" | "facilityUpgrade" | "shipBuild";
+export type DefenseBuildQueuePayload = {
+	completedQuantity: number;
+	defenseKey: "missileBattery" | "laserTurret" | "gaussCannon" | "shieldDome";
+	perUnitDurationSeconds: number;
+	quantity: number;
+};
+
+export type QueueItemKind = "buildingUpgrade" | "facilityUpgrade" | "shipBuild" | "defenseBuild";
 
 export type LaneQueueItem = {
 	completesAt: number;

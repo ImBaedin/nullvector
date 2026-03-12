@@ -201,6 +201,7 @@ const BUILDING_KEY_LABELS: Record<BuildingKey, string> = {
 const FACILITY_KEY_LABELS: Record<FacilityKey, string> = {
 	robotics_hub: "Robotics Hub",
 	shipyard: "Shipyard",
+	defense_grid: "Defense Grid",
 };
 
 function ResourcesRoute() {

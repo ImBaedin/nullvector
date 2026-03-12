@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import {
+	getDefenseBuildDurationSeconds,
 	getFleetCargoCapacity,
 	getFleetFuelCostForDistance,
 	getFleetSlowestSpeed,
@@ -34,6 +35,19 @@ test("shipyard level speeds up per-ship build duration", () => {
 	const level6 = getShipBuildDurationSeconds({
 		shipKey: "colonyShip",
 		shipyardLevel: 6,
+	});
+
+	expect(level6).toBeLessThan(level1);
+});
+
+test("defense grid level speeds up defense build duration", () => {
+	const level1 = getDefenseBuildDurationSeconds({
+		defenseKey: "shieldDome",
+		defenseGridLevel: 1,
+	});
+	const level6 = getDefenseBuildDurationSeconds({
+		defenseKey: "shieldDome",
+		defenseGridLevel: 6,
 	});
 
 	expect(level6).toBeLessThan(level1);

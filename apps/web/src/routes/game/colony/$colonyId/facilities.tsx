@@ -32,6 +32,10 @@ const FACILITY_VISUALS: Record<
 		description: "Enables ship construction and improves build throughput as the level rises.",
 		image: "/game-icons/facilities/shipyard.png",
 	},
+	defense_grid: {
+		description: "Unlocks planetary defenses and accelerates their production as the grid expands.",
+		image: "/game-icons/nav/defenses.png",
+	},
 };
 
 type FacilityQueueItem = {
@@ -111,6 +115,7 @@ const BUILDING_KEY_LABELS: Record<BuildingKey, string> = {
 const FACILITY_KEY_LABELS: Record<FacilityKey, string> = {
 	robotics_hub: "Robotics Hub",
 	shipyard: "Shipyard",
+	defense_grid: "Defense Grid",
 };
 
 function formatDurationMs(ms: number): string {
@@ -502,11 +507,7 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 							props.availableResources.crystal >= facility.nextUpgradeCost.crystal &&
 							props.availableResources.fuel >= facility.nextUpgradeCost.fuel;
 						const isActionDisabled =
-							isLocked ||
-							isMaxLevel ||
-							props.buildingLaneIsFull ||
-							isBusy ||
-							!hasRequiredResources;
+							isLocked || isMaxLevel || props.buildingLaneIsFull || isBusy || !hasRequiredResources;
 						const availabilityLabel = getFacilityAvailabilityLabel(
 							isLocked,
 							isActive,

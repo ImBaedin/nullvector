@@ -24,6 +24,7 @@ import {
 	queueItemStatusValidator,
 	resourceMapToScaledBucket,
 	settleColonyAndPersist,
+	settleDefenseQueue,
 	settleShipyardQueue,
 	shipKeyValidator,
 	upsertColonyCompanionRows,
@@ -256,6 +257,11 @@ export const enqueueShipBuild = mutation({
 			ctx,
 			now,
 		});
+		await settleDefenseQueue({
+			colony: settledColony,
+			ctx,
+			now,
+		});
 
 		const definition = DEFAULT_SHIP_DEFINITIONS[args.shipKey];
 		if (settledColony.buildings.shipyardLevel < definition.requiredShipyardLevel) {
@@ -393,6 +399,11 @@ export const cancelShipBuildQueueItem = mutation({
 			now,
 		});
 		await settleShipyardQueue({
+			colony: settledColony,
+			ctx,
+			now,
+		});
+		await settleDefenseQueue({
 			colony: settledColony,
 			ctx,
 			now,

@@ -682,11 +682,13 @@ function DeveloperPanel({ activeColonyId }: { activeColonyId: Id<"colonies"> | n
 	const [simulationSpeed, setSimulationSpeed] = useState("1x");
 	const [bypassCooldowns, setBypassCooldowns] = useState(false);
 	const [showEntityIds, setShowEntityIds] = useState(false);
+	const [isTriggeringRaid, setIsTriggeringRaid] = useState(false);
 	const devConsoleState = useQuery(
 		api.devConsole.getDevConsoleState,
 		activeColonyId && isAuthenticated ? { colonyId: activeColonyId } : "skip",
 	);
 	const setDevConsoleUiEnabled = useMutation(api.devConsole.setDevConsoleUiEnabled);
+	const triggerNpcRaidAtCurrentColony = useMutation(api.devConsole.triggerNpcRaidAtCurrentColony);
 	const devConsoleUiEnabled = devConsoleState?.showDevConsoleUi === true;
 	const canUseDevConsole = devConsoleState?.canUseDevConsole === true;
 	const canToggleDevConsoleUi = activeColonyId !== null && isAuthenticated;
@@ -769,6 +771,48 @@ function DeveloperPanel({ activeColonyId }: { activeColonyId: Id<"colonies"> | n
 							Open settings from a colony route to update this flag.
 						</p>
 					) : null}
+					<SettingsRow
+						label="Trigger Raid"
+						description="Force an NPC raid to target the currently open colony immediately."
+					>
+						<button
+							className="
+        inline-flex items-center gap-1.5 rounded-md border
+        border-[rgba(255,111,136,0.35)] bg-[rgba(255,111,136,0.08)] px-3 py-1.5
+        text-xs font-medium text-[#ffd4dd] transition
+        hover:bg-[rgba(255,111,136,0.15)]
+        disabled:cursor-not-allowed disabled:opacity-50
+      "
+							disabled={!activeColonyId || isTriggeringRaid}
+							onClick={() => {
+								if (!activeColonyId) {
+									toast.error("Open settings from a colony route to trigger a raid");
+									return;
+								}
+
+								setIsTriggeringRaid(true);
+								void triggerNpcRaidAtCurrentColony({
+									colonyId: activeColonyId,
+								})
+									.then((result) => {
+										if (result.raidOperationId) {
+											toast.success("NPC raid launched toward the current colony");
+											return;
+										}
+										toast.error("No hostile source available to launch a raid");
+									})
+									.catch((error) => {
+										toast.error(error instanceof Error ? error.message : "Failed to trigger raid");
+									})
+									.finally(() => {
+										setIsTriggeringRaid(false);
+									});
+							}}
+							type="button"
+						>
+							{isTriggeringRaid ? "Launching..." : "Launch Raid"}
+						</button>
+					</SettingsRow>
 				</SettingsSection>
 			) : null}
 

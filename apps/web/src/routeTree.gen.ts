@@ -18,6 +18,7 @@ import { Route as GameColonyColonyIdShipyardRouteImport } from './routes/game/co
 import { Route as GameColonyColonyIdResourcesRouteImport } from './routes/game/colony/$colonyId/resources'
 import { Route as GameColonyColonyIdFleetRouteImport } from './routes/game/colony/$colonyId/fleet'
 import { Route as GameColonyColonyIdFacilitiesRouteImport } from './routes/game/colony/$colonyId/facilities'
+import { Route as GameColonyColonyIdDefensesRouteImport } from './routes/game/colony/$colonyId/defenses'
 import { Route as GameColonyColonyIdContractsRouteImport } from './routes/game/colony/$colonyId/contracts'
 
 const UniverseExplorerRealdataRoute =
@@ -69,6 +70,12 @@ const GameColonyColonyIdFacilitiesRoute =
     path: '/facilities',
     getParentRoute: () => GameColonyColonyIdRoute,
   } as any)
+const GameColonyColonyIdDefensesRoute =
+  GameColonyColonyIdDefensesRouteImport.update({
+    id: '/defenses',
+    path: '/defenses',
+    getParentRoute: () => GameColonyColonyIdRoute,
+  } as any)
 const GameColonyColonyIdContractsRoute =
   GameColonyColonyIdContractsRouteImport.update({
     id: '/contracts',
@@ -83,6 +90,7 @@ export interface FileRoutesByFullPath {
   '/auth/complete': typeof AuthCompleteRoute
   '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
   '/game/colony/$colonyId/contracts': typeof GameColonyColonyIdContractsRoute
+  '/game/colony/$colonyId/defenses': typeof GameColonyColonyIdDefensesRoute
   '/game/colony/$colonyId/facilities': typeof GameColonyColonyIdFacilitiesRoute
   '/game/colony/$colonyId/fleet': typeof GameColonyColonyIdFleetRoute
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
@@ -95,6 +103,7 @@ export interface FileRoutesByTo {
   '/auth/complete': typeof AuthCompleteRoute
   '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
   '/game/colony/$colonyId/contracts': typeof GameColonyColonyIdContractsRoute
+  '/game/colony/$colonyId/defenses': typeof GameColonyColonyIdDefensesRoute
   '/game/colony/$colonyId/facilities': typeof GameColonyColonyIdFacilitiesRoute
   '/game/colony/$colonyId/fleet': typeof GameColonyColonyIdFleetRoute
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
@@ -108,6 +117,7 @@ export interface FileRoutesById {
   '/auth/complete': typeof AuthCompleteRoute
   '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
   '/game/colony/$colonyId/contracts': typeof GameColonyColonyIdContractsRoute
+  '/game/colony/$colonyId/defenses': typeof GameColonyColonyIdDefensesRoute
   '/game/colony/$colonyId/facilities': typeof GameColonyColonyIdFacilitiesRoute
   '/game/colony/$colonyId/fleet': typeof GameColonyColonyIdFleetRoute
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
@@ -122,6 +132,7 @@ export interface FileRouteTypes {
     | '/auth/complete'
     | '/game/colony/$colonyId'
     | '/game/colony/$colonyId/contracts'
+    | '/game/colony/$colonyId/defenses'
     | '/game/colony/$colonyId/facilities'
     | '/game/colony/$colonyId/fleet'
     | '/game/colony/$colonyId/resources'
@@ -134,6 +145,7 @@ export interface FileRouteTypes {
     | '/auth/complete'
     | '/game/colony/$colonyId'
     | '/game/colony/$colonyId/contracts'
+    | '/game/colony/$colonyId/defenses'
     | '/game/colony/$colonyId/facilities'
     | '/game/colony/$colonyId/fleet'
     | '/game/colony/$colonyId/resources'
@@ -146,6 +158,7 @@ export interface FileRouteTypes {
     | '/auth/complete'
     | '/game/colony/$colonyId'
     | '/game/colony/$colonyId/contracts'
+    | '/game/colony/$colonyId/defenses'
     | '/game/colony/$colonyId/facilities'
     | '/game/colony/$colonyId/fleet'
     | '/game/colony/$colonyId/resources'
@@ -225,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GameColonyColonyIdFacilitiesRouteImport
       parentRoute: typeof GameColonyColonyIdRoute
     }
+    '/game/colony/$colonyId/defenses': {
+      id: '/game/colony/$colonyId/defenses'
+      path: '/defenses'
+      fullPath: '/game/colony/$colonyId/defenses'
+      preLoaderRoute: typeof GameColonyColonyIdDefensesRouteImport
+      parentRoute: typeof GameColonyColonyIdRoute
+    }
     '/game/colony/$colonyId/contracts': {
       id: '/game/colony/$colonyId/contracts'
       path: '/contracts'
@@ -237,6 +257,7 @@ declare module '@tanstack/react-router' {
 
 interface GameColonyColonyIdRouteChildren {
   GameColonyColonyIdContractsRoute: typeof GameColonyColonyIdContractsRoute
+  GameColonyColonyIdDefensesRoute: typeof GameColonyColonyIdDefensesRoute
   GameColonyColonyIdFacilitiesRoute: typeof GameColonyColonyIdFacilitiesRoute
   GameColonyColonyIdFleetRoute: typeof GameColonyColonyIdFleetRoute
   GameColonyColonyIdResourcesRoute: typeof GameColonyColonyIdResourcesRoute
@@ -245,6 +266,7 @@ interface GameColonyColonyIdRouteChildren {
 
 const GameColonyColonyIdRouteChildren: GameColonyColonyIdRouteChildren = {
   GameColonyColonyIdContractsRoute: GameColonyColonyIdContractsRoute,
+  GameColonyColonyIdDefensesRoute: GameColonyColonyIdDefensesRoute,
   GameColonyColonyIdFacilitiesRoute: GameColonyColonyIdFacilitiesRoute,
   GameColonyColonyIdFleetRoute: GameColonyColonyIdFleetRoute,
   GameColonyColonyIdResourcesRoute: GameColonyColonyIdResourcesRoute,

@@ -30,6 +30,7 @@ import {
 	resourceMapToScaledBucket,
 	resourceMapToWholeUnitBucket,
 	settleColonyAndPersist,
+	settleDefenseQueue,
 	settleShipyardQueue,
 	cloneResourceBucket,
 	upsertColonyCompanionRows,
@@ -56,7 +57,7 @@ export const getFacilitiesCards = query({
 			(row) => row.lane === "building" && OPEN_QUEUE_STATUSES.includes(row.status),
 		);
 
-		const orderedKeys: FacilityKey[] = ["robotics_hub", SHIPYARD_FACILITY_KEY];
+		const orderedKeys: FacilityKey[] = ["robotics_hub", SHIPYARD_FACILITY_KEY, "defense_grid"];
 		const facilities = orderedKeys.map((facilityKey) => {
 			const facility = DEFAULT_FACILITY_REGISTRY.get(facilityKey);
 			if (!facility) {
@@ -147,6 +148,11 @@ export const syncColony = mutation({
 			now,
 		});
 		await settleShipyardQueue({
+			colony: settledColony,
+			ctx,
+			now,
+		});
+		await settleDefenseQueue({
 			colony: settledColony,
 			ctx,
 			now,

@@ -60,12 +60,21 @@ type ShipAvailability = {
 
 type ShipCardProps = {
 	availableResources: AvailableResources;
+	canShowDevUi: boolean;
+	canUseDevConsole: boolean;
+	editingShipKey: ShipKey | null;
+	isSavingShipCount: boolean;
 	onDecrementQuantity: (shipKey: ShipKey, currentQuantity: number) => void;
+	onEditShip: (shipKey: ShipKey, currentCount: number) => void;
 	onIncrementQuantity: (shipKey: ShipKey, currentQuantity: number) => void;
 	onQuantityBlur: (shipKey: ShipKey, currentQuantity: number) => void;
 	onQuantityInputChange: (shipKey: ShipKey, value: string) => void;
 	onQueueShip: (ship: ShipyardDisplayShip, quantity: number) => void;
+	onShipDraftCancel: () => void;
+	onShipDraftChange: (value: string) => void;
+	onShipDraftCommit: (shipKey: ShipKey) => void;
 	quantityInput: string;
+	shipDraftValue: string;
 	ship: ShipyardDisplayShip;
 	shipIndex: number;
 	shipyardLevel: number;
@@ -79,19 +88,27 @@ type ShipyardScreenProps = {
 	activeUpgradeProgress: number;
 	availableResources: AvailableResources;
 	canShowDevUi: boolean;
+	canUseDevConsole: boolean;
 	cancelingQueueItemId: string | null;
+	editingShipKey: ShipKey | null;
 	isCompletingQueueItem: boolean;
 	onCancelQueueItem: (id: string) => void;
 	onCompleteActiveQueueItem: () => void;
 	onDecrementQuantity: (shipKey: ShipKey, currentQuantity: number) => void;
+	onEditShip: (shipKey: ShipKey, currentCount: number) => void;
 	onIncrementQuantity: (shipKey: ShipKey, currentQuantity: number) => void;
 	onQuantityBlur: (shipKey: ShipKey, currentQuantity: number) => void;
 	onQuantityInputChange: (shipKey: ShipKey, value: string) => void;
 	onQueueShip: (ship: ShipyardDisplayShip, quantity: number) => void;
+	onShipDraftCancel: () => void;
+	onShipDraftChange: (value: string) => void;
+	onShipDraftCommit: (shipKey: ShipKey) => void;
 	pendingQueueItems: QueueItem[];
 	quantities: Partial<Record<ShipKey, number>>;
 	quantityInputs: Partial<Record<ShipKey, string>>;
 	queueingShipKey: ShipKey | null;
+	savingShipKey: ShipKey | null;
+	shipDraftValue: string;
 	view: ShipyardScreenView;
 };
 
@@ -132,19 +149,27 @@ export function ShipyardScreen(props: ShipyardScreenProps) {
 		activeUpgradeProgress,
 		availableResources,
 		canShowDevUi,
+		canUseDevConsole,
 		cancelingQueueItemId,
+		editingShipKey,
 		isCompletingQueueItem,
 		onCancelQueueItem,
 		onCompleteActiveQueueItem,
 		onDecrementQuantity,
+		onEditShip,
 		onIncrementQuantity,
 		onQuantityBlur,
 		onQuantityInputChange,
 		onQueueShip,
+		onShipDraftCancel,
+		onShipDraftChange,
+		onShipDraftCommit,
 		pendingQueueItems,
 		quantities,
 		quantityInputs,
 		queueingShipKey,
+		savingShipKey,
+		shipDraftValue,
 		view,
 	} = props;
 
@@ -189,16 +214,25 @@ export function ShipyardScreen(props: ShipyardScreenProps) {
 											return (
 												<ShipCard
 													availableResources={availableResources}
+													canShowDevUi={canShowDevUi}
+													canUseDevConsole={canUseDevConsole}
+													editingShipKey={editingShipKey}
 													isQueueFull={view.lane.isFull}
 													isQueueing={queueingShipKey === ship.key}
+													isSavingShipCount={savingShipKey === ship.key}
 													key={ship.key}
 													onDecrementQuantity={onDecrementQuantity}
+													onEditShip={onEditShip}
 													onIncrementQuantity={onIncrementQuantity}
 													onQuantityBlur={onQuantityBlur}
 													onQuantityInputChange={onQuantityInputChange}
 													onQueueShip={onQueueShip}
+													onShipDraftCancel={onShipDraftCancel}
+													onShipDraftChange={onShipDraftChange}
+													onShipDraftCommit={onShipDraftCommit}
 													quantity={quantity}
 													quantityInput={quantityInputs[ship.key] ?? String(quantity)}
+													shipDraftValue={shipDraftValue}
 													ship={ship}
 													shipIndex={view.ships.indexOf(ship)}
 													shipyardLevel={view.shipyardLevel}
@@ -390,15 +424,24 @@ function ShipCatalogSection(props: { children: ReactNode; shipCount: number }) {
 function ShipCard(props: ShipCardProps) {
 	const {
 		availableResources,
+		canShowDevUi,
+		canUseDevConsole,
+		editingShipKey,
 		isQueueFull,
 		isQueueing,
+		isSavingShipCount,
 		onDecrementQuantity,
+		onEditShip,
 		onIncrementQuantity,
 		onQuantityBlur,
 		onQuantityInputChange,
 		onQueueShip,
+		onShipDraftCancel,
+		onShipDraftChange,
+		onShipDraftCommit,
 		quantity,
 		quantityInput,
+		shipDraftValue,
 		ship,
 		shipIndex,
 		shipyardLevel,
@@ -455,16 +498,59 @@ function ShipCard(props: ShipCardProps) {
 							{presentation.description}
 						</p>
 					</div>
-					<span
-						className="
+					{canShowDevUi && editingShipKey === ship.key ? (
+						<input
+							className="
+              inline-flex h-7 w-14 shrink-0 items-center justify-center rounded-md
+              border border-cyan-300/35 bg-black/45 px-1 text-center
+              font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
+              outline-none focus:border-cyan-200/60
+            "
+							inputMode="numeric"
+							onBlur={onShipDraftCancel}
+							onChange={(event) => {
+								onShipDraftChange(event.target.value.replace(/[^\d]/g, ""));
+							}}
+							onKeyDown={(event) => {
+								if (event.key === "Escape") {
+									onShipDraftCancel();
+									return;
+								}
+								if (event.key === "Enter") {
+									event.preventDefault();
+									onShipDraftCommit(ship.key);
+								}
+							}}
+							value={shipDraftValue}
+						/>
+					) : canShowDevUi ? (
+						<button
+							className="
+              inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-md
+              border border-cyan-300/20 bg-cyan-400/8 px-1.5
+              font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
+              transition hover:border-cyan-200/45 hover:bg-cyan-400/14
+              disabled:cursor-not-allowed disabled:opacity-50
+            "
+							disabled={!canUseDevConsole || isSavingShipCount}
+							onClick={() => onEditShip(ship.key, ship.owned)}
+							title={`${ship.owned} owned`}
+							type="button"
+						>
+							{ship.owned}
+						</button>
+					) : (
+						<span
+							className="
               inline-flex size-7 shrink-0 items-center justify-center rounded-md
               border border-white/15 bg-black/25
               font-(family-name:--nv-font-mono) text-[11px] font-bold text-white/80
             "
-						title={`${ship.owned} owned`}
-					>
-						{ship.owned}
-					</span>
+							title={`${ship.owned} owned`}
+						>
+							{ship.owned}
+						</span>
+					)}
 				</div>
 
 				<div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2 border-t border-white/6 pt-3">

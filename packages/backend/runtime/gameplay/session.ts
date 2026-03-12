@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 
 import type { Doc } from "../../convex/_generated/dataModel";
 
+import { internal } from "../../convex/_generated/api";
 import { mutation, query, type MutationCtx } from "../../convex/_generated/server";
 import { authComponent } from "../../convex/auth";
 import { DEFAULT_UNIVERSE_SLUG } from "../../convex/lib/worldgen/config";
@@ -226,6 +227,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 		fuelStorageLevel: 1,
 		roboticsHubLevel: 0,
 		shipyardLevel: 0,
+		defenseGridLevel: 0,
 	} satisfies Doc<"colonyInfrastructure">["buildings"];
 
 	const storageCaps = storageCapsFromBuildings(starterBuildings);
@@ -268,6 +270,9 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 		inboundMissionPolicy: "allowAll",
 		createdAt: now,
 		updatedAt: now,
+	});
+	await ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
+		colonyId,
 	});
 	return {
 		playerId: player._id,

@@ -103,6 +103,27 @@ export const DEFAULT_FACILITIES: FacilityDefinition[] = [
 			},
 		],
 	},
+	{
+		id: "defense_grid",
+		kind: "facility",
+		name: "Defense Grid",
+		category: "military",
+		maxLevel: 15,
+		costCurve: {
+			baseCost: { alloy: 1_400, crystal: 900 },
+			formula: makeExponentialUpgradeFormula(2.12),
+		},
+		upgradeTimeCurve: {
+			baseSeconds: 240,
+			formula: makeExponentialUpgradeFormula(1.29),
+		},
+		unlock: {
+			type: "facility_level",
+			facilityId: "shipyard",
+			minLevel: 2,
+		},
+		buffs: [],
+	},
 ];
 
 export const DEFAULT_FACILITY_REGISTRY = createFacilityRegistry(DEFAULT_FACILITIES);

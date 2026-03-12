@@ -13,6 +13,7 @@ import { ConvexError, v } from "convex/values";
 
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 
+import { internal } from "../../convex/_generated/api";
 import {
 	internalMutation,
 	mutation,
@@ -34,6 +35,7 @@ import {
 	loadPlanetState,
 	resolveCurrentPlayer,
 	resourceBucketValidator,
+	settleDefenseQueue,
 	settleShipyardQueue,
 	toAddressLabel,
 	upsertColonyCompanionRows,
@@ -98,7 +100,10 @@ function scaledUnits(unscaledUnits: number) {
 }
 
 function planetDisplayNameFromStoredOrGenerated(
-	planet: Pick<Doc<"planets">, "galaxyIndex" | "sectorIndex" | "systemIndex" | "planetIndex" | "name">,
+	planet: Pick<
+		Doc<"planets">,
+		"galaxyIndex" | "sectorIndex" | "systemIndex" | "planetIndex" | "name"
+	>,
 ) {
 	const addressLabel = `G${planet.galaxyIndex}:S${planet.sectorIndex}:SYS${planet.systemIndex}:P${planet.planetIndex}`;
 	const trimmed = planet.name?.trim();
@@ -245,6 +250,7 @@ function starterColonyBuildings(): Doc<"colonyInfrastructure">["buildings"] {
 		fuelStorageLevel: 1,
 		roboticsHubLevel: 0,
 		shipyardLevel: 0,
+		defenseGridLevel: 0,
 	};
 }
 
@@ -276,6 +282,7 @@ function usedSlotsFromBuildings(buildings: Doc<"colonyInfrastructure">["building
 		"fuelStorageLevel",
 		"roboticsHubLevel",
 		"shipyardLevel",
+		"defenseGridLevel",
 	] as const;
 
 	let used = 0;
@@ -685,6 +692,9 @@ async function settleColonizeAtTarget(args: {
 		inboundMissionPolicy: "allowAll",
 		createdAt: args.now,
 		updatedAt: args.now,
+	});
+	await args.ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
+		colonyId,
 	});
 
 	const createdColonyBase = await args.ctx.db.get(colonyId);
@@ -2030,6 +2040,11 @@ export const createOperation = mutation({
 		}
 
 		await settleShipyardQueue({
+			colony: origin.colony,
+			ctx,
+			now,
+		});
+		await settleDefenseQueue({
 			colony: origin.colony,
 			ctx,
 			now,

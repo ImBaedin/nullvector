@@ -14,6 +14,7 @@ import {
 	loadColonyState,
 	loadPlanetState,
 	settleColonyAndPersist,
+	settleDefenseQueue,
 	settleShipyardQueue,
 } from "./shared";
 
@@ -63,6 +64,11 @@ export const resolveColonyQueues = internalMutation({
 			now,
 		});
 		await settleShipyardQueue({
+			colony: settledColony,
+			ctx,
+			now,
+		});
+		await settleDefenseQueue({
 			colony: settledColony,
 			ctx,
 			now,
@@ -214,6 +220,11 @@ export const backfillScheduledResolutions = internalMutation({
 				now,
 			});
 			await settleShipyardQueue({
+				colony: settledColony,
+				ctx,
+				now,
+			});
+			await settleDefenseQueue({
 				colony: settledColony,
 				ctx,
 				now,
