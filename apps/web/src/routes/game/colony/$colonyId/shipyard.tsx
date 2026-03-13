@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { useColonySelectors, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
@@ -46,17 +47,27 @@ function ShipyardRoute() {
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
 	const shipCatalogQuery = useQuery(api.shipyard.getShipCatalog, isAuthenticated ? {} : "skip");
-	const shipyardState = useQuery(
-		api.shipyard.getShipyardState,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
+	const colonySelectors = useColonySelectors(isAuthenticated ? colonyIdAsId : null);
 	const devConsoleState = useQuery(
 		api.devConsole.getDevConsoleState,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const colonyResources = useColonyResources(isAuthenticated ? colonyIdAsId : null);
-	const enqueueShipBuild = useMutation(api.shipyard.enqueueShipBuild);
-	const cancelShipBuildQueueItem = useMutation(api.shipyard.cancelShipBuildQueueItem);
+	const enqueueShipBuild = useOptimisticColonyMutation({
+		intentFromArgs: (args: { colonyId: Id<"colonies">; quantity: number; shipKey: ShipKey }) => ({
+			quantity: args.quantity,
+			shipKey: args.shipKey,
+			type: "enqueueShipBuild",
+		}),
+		mutation: api.shipyard.enqueueShipBuild,
+	});
+	const cancelShipBuildQueueItem = useOptimisticColonyMutation({
+		intentFromArgs: (args: { colonyId: Id<"colonies">; queueItemId: Id<"colonyQueueItems"> }) => ({
+			queueItemId: args.queueItemId,
+			type: "cancelShipBuild",
+		}),
+		mutation: api.shipyard.cancelShipBuildQueueItem,
+	});
 	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
 	const setShipCounts = useMutation(api.devConsole.setShipCounts);
 
@@ -75,11 +86,13 @@ function ShipyardRoute() {
 	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
 	const canUseDevConsole = devConsoleState?.canUseDevConsole === true;
 	const view = useMemo(() => {
-		if (!shipCatalogQuery || !shipyardState) {
+		if (!shipCatalogQuery || !colonySelectors) {
 			return undefined;
 		}
 
-		const stateByShipKey = new Map(shipyardState.shipStates.map((state) => [state.key, state]));
+		const stateByShipKey = new Map(
+			colonySelectors.shipyardState.shipStates.map((state) => [state.key, state]),
+		);
 		const ships = shipCatalogQuery.ships.map((ship) => {
 			const state = stateByShipKey.get(ship.key);
 			return {
@@ -91,10 +104,10 @@ function ShipyardRoute() {
 		});
 
 		return {
-			...shipyardState,
+			...colonySelectors.shipyardState,
 			ships,
 		};
-	}, [shipCatalogQuery, shipyardState]);
+	}, [colonySelectors, shipCatalogQuery]);
 
 	useEffect(() => {
 		if (!isAuthenticated) {

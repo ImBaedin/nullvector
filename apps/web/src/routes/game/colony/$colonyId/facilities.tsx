@@ -7,6 +7,7 @@ import { Clock3, Wrench, Zap } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { useColonySelectors, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
@@ -175,20 +176,19 @@ function FacilitiesRoute(): ReactElement {
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
-	const facilitiesCards = useQuery(
-		api.facilities.getFacilitiesCards,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
-	const queueLanes = useQuery(
-		api.colonyQueue.getColonyQueueLanes,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
+	const colonySelectors = useColonySelectors(isAuthenticated ? colonyIdAsId : null);
 	const devConsoleState = useQuery(
 		api.devConsole.getDevConsoleState,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const colonyResources = useColonyResources(isAuthenticated ? colonyIdAsId : null);
-	const enqueueFacilityUpgrade = useMutation(api.facilities.enqueueFacilityUpgrade);
+	const enqueueFacilityUpgrade = useOptimisticColonyMutation({
+		intentFromArgs: (args: { colonyId: Id<"colonies">; facilityKey: FacilityKey }) => ({
+			facilityKey: args.facilityKey,
+			type: "enqueueFacilityUpgrade",
+		}),
+		mutation: api.facilities.enqueueFacilityUpgrade,
+	});
 	const setFacilityLevels = useMutation(api.devConsole.setFacilityLevels);
 	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
 
@@ -202,14 +202,14 @@ function FacilitiesRoute(): ReactElement {
 	const canUseDevConsole = devConsoleState?.canUseDevConsole === true;
 
 	const view = useMemo(() => {
-		if (!facilitiesCards || !queueLanes) {
+		if (!colonySelectors) {
 			return undefined;
 		}
 		return {
-			facilities: facilitiesCards.facilities,
-			queues: queueLanes,
+			facilities: colonySelectors.facilities,
+			queues: colonySelectors.queueLanes,
 		};
-	}, [facilitiesCards, queueLanes]);
+	}, [colonySelectors]);
 
 	useEffect(() => {
 		if (!isAuthenticated) {
@@ -563,9 +563,7 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
             "
 												src={visual.image}
 											/>
-											<h3
-												className="font-(family-name:--nv-font-display) text-sm font-bold"
-											>
+											<h3 className="font-(family-name:--nv-font-display) text-sm font-bold">
 												{facility.name}
 											</h3>
 										</div>
@@ -770,9 +768,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
       bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
     "
 			>
-				<div
-					className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
-				>
+				<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
 					<Clock3 className="size-5 text-violet-300" />
 					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Building Queue</h2>
 					{totalQueueItems > 0 ? (
@@ -796,9 +792,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 							>
 								Active
 							</p>
-							<div
-								className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3"
-							>
+							<div className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3">
 								<div className="flex items-center justify-between">
 									<div>
 										<p className="text-xs font-semibold">{laneItemLabel(props.activeLaneItem)}</p>
@@ -843,9 +837,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 									/>
 								</div>
 								<div className="mt-1 flex items-center justify-between">
-									<span
-										className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
-									>
+									<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/25">
 										{Math.round(props.activeUpgradeProgress)}%
 									</span>
 									<span
