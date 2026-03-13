@@ -58,7 +58,7 @@ export type HostilePlanetView = {
 	systemY: number;
 };
 
-export type HostileSectorView = {
+export type HostileSectorSummaryView = {
 	sectorId: Id<"sectors">;
 	hostileFactionKey: HostileFactionKey;
 	status: "hostile" | "cleared";
@@ -68,7 +68,15 @@ export type HostileSectorView = {
 	displayName: string;
 	centerX: number;
 	centerY: number;
+};
+
+export type HostileSectorDetailView = {
+	sectorId: Id<"sectors">;
 	planets: HostilePlanetView[];
+};
+
+export type HostileSectorWithDistance = HostileSectorSummaryView & {
+	distance: number;
 };
 
 export type SystemGroup = {
@@ -83,15 +91,15 @@ export type SystemGroup = {
 
 export type BrowseLevel =
 	| { level: "sectors" }
-	| { level: "systems"; sector: HostileSectorView & { distance: number } }
+	| { level: "systems"; sector: HostileSectorWithDistance }
 	| {
 			level: "planets";
-			sector: HostileSectorView & { distance: number };
+			sector: HostileSectorWithDistance;
 			system: SystemGroup;
 	  }
 	| {
 			level: "contracts";
-			sector: HostileSectorView & { distance: number };
+			sector: HostileSectorWithDistance;
 			system: SystemGroup;
 			planet: HostilePlanetView;
 	  };

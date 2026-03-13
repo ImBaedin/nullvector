@@ -1,7 +1,13 @@
 import {
 	backfillUniverseHostility,
+	getHostileSectorDetail,
 	getHostileSectorsForUniverse,
 	getPlanetHostilityView,
 } from "../runtime/gameplay/hostility";
 
-export { backfillUniverseHostility, getHostileSectorsForUniverse, getPlanetHostilityView };
+export {
+	backfillUniverseHostility,
+	getHostileSectorDetail,
+	getHostileSectorsForUniverse,
+	getPlanetHostilityView,
+};

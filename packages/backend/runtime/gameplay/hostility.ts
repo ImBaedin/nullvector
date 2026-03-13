@@ -8,7 +8,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 
 import { mutation, query, type MutationCtx, type QueryCtx } from "../../convex/_generated/server";
-import { resolveCurrentPlayer, resolveUniverse } from "./shared";
+import { getOwnedColony, resolveUniverse } from "./shared";
 
 function clamp(value: number, min: number, max: number) {
 	return Math.min(max, Math.max(min, value));
@@ -280,7 +280,21 @@ export const getPlanetHostilityView = query({
 	},
 });
 
-const hostileSectorViewValidator = v.object({
+const hostilePlanetDetailValidator = v.object({
+	planetId: v.id("planets"),
+	addressLabel: v.string(),
+	displayName: v.string(),
+	systemDisplayName: v.string(),
+	hostileFactionKey: v.union(v.literal("spacePirates"), v.literal("rogueAi")),
+	controlCurrent: v.number(),
+	controlMax: v.number(),
+	status: v.union(v.literal("hostile"), v.literal("cleared")),
+	systemIndex: v.number(),
+	systemX: v.number(),
+	systemY: v.number(),
+});
+
+const hostileSectorSummaryValidator = v.object({
 	sectorId: v.id("sectors"),
 	hostileFactionKey: v.union(v.literal("spacePirates"), v.literal("rogueAi")),
 	status: v.union(v.literal("hostile"), v.literal("cleared")),
@@ -290,27 +304,17 @@ const hostileSectorViewValidator = v.object({
 	displayName: v.string(),
 	centerX: v.number(),
 	centerY: v.number(),
-	planets: v.array(
-		v.object({
-			planetId: v.id("planets"),
-			addressLabel: v.string(),
-			displayName: v.string(),
-			systemDisplayName: v.string(),
-			hostileFactionKey: v.union(v.literal("spacePirates"), v.literal("rogueAi")),
-			controlCurrent: v.number(),
-			controlMax: v.number(),
-			status: v.union(v.literal("hostile"), v.literal("cleared")),
-			systemIndex: v.number(),
-			systemX: v.number(),
-			systemY: v.number(),
-		}),
-	),
 });
 
 const hostileSectorsResponseValidator = v.object({
 	originX: v.number(),
 	originY: v.number(),
-	sectors: v.array(hostileSectorViewValidator),
+	sectors: v.array(hostileSectorSummaryValidator),
+});
+
+const hostileSectorDetailValidator = v.object({
+	sectorId: v.id("sectors"),
+	planets: v.array(hostilePlanetDetailValidator),
 });
 
 function planetAddressLabel(p: {
@@ -355,23 +359,75 @@ type HostilityDocMap = {
 	systems: Doc<"systems">;
 };
 
+type HostilePlanetDetail = typeof hostilePlanetDetailValidator.type;
+
+export function compareHostilePlanetDetails(left: HostilePlanetDetail, right: HostilePlanetDetail) {
+	if (left.status !== right.status) {
+		return left.status === "hostile" ? -1 : 1;
+	}
+
+	const leftPercent = left.controlMax > 0 ? left.controlCurrent / left.controlMax : 0;
+	const rightPercent = right.controlMax > 0 ? right.controlCurrent / right.controlMax : 0;
+	return leftPercent - rightPercent;
+}
+
+export function buildHostileSectorSummaryView(args: {
+	sector: Doc<"sectors">;
+	sectorHostility: Doc<"sectorHostility">;
+}) {
+	return {
+		sectorId: args.sectorHostility.sectorId,
+		hostileFactionKey: args.sectorHostility.hostileFactionKey as "spacePirates" | "rogueAi",
+		status: args.sectorHostility.status as "hostile" | "cleared",
+		hostilePlanetCount: args.sectorHostility.hostilePlanetCount,
+		clearedPlanetCount: args.sectorHostility.clearedPlanetCount,
+		addressLabel: sectorAddressLabel(args.sector),
+		displayName: displayNameFromStoredOrGenerated(
+			sectorAddressLabel(args.sector),
+			args.sector.name,
+		),
+		centerX: (args.sector.minX + args.sector.maxX) / 2,
+		centerY: (args.sector.minY + args.sector.maxY) / 2,
+	} satisfies typeof hostileSectorSummaryValidator.type;
+}
+
+export function buildHostilePlanetDetailView(args: {
+	planet: Doc<"planets">;
+	planetHostility: Doc<"planetHostility">;
+	system: Doc<"systems">;
+}) {
+	return {
+		planetId: args.planetHostility.planetId,
+		addressLabel: planetAddressLabel(args.planet),
+		displayName: displayNameFromStoredOrGenerated(
+			planetAddressLabel(args.planet),
+			args.planet.name,
+		),
+		systemDisplayName: displayNameFromStoredOrGenerated(
+			`G${args.planet.galaxyIndex}:S${args.planet.sectorIndex}:SYS${args.planet.systemIndex}`,
+			args.system.name,
+		),
+		hostileFactionKey: args.planetHostility.hostileFactionKey as "spacePirates" | "rogueAi",
+		controlCurrent: args.planetHostility.controlCurrent,
+		controlMax: args.planetHostility.controlMax,
+		status: args.planetHostility.status as "hostile" | "cleared",
+		systemIndex: args.planet.systemIndex,
+		systemX: args.system.x,
+		systemY: args.system.y,
+	} satisfies HostilePlanetDetail;
+}
+
 export const getHostileSectorsForUniverse = query({
 	args: {
 		colonyId: v.id("colonies"),
 	},
 	returns: hostileSectorsResponseValidator,
 	handler: async (ctx, args) => {
-		const playerResult = await resolveCurrentPlayer(ctx);
-		if (!playerResult?.player) {
-			throw new ConvexError("Authentication required");
-		}
-		const colony = await ctx.db.get(args.colonyId);
-		if (!colony || colony.playerId !== playerResult.player._id) {
-			throw new ConvexError("Colony not found");
-		}
-
-		const planet = await ctx.db.get(colony.planetId);
-		const system = planet ? await ctx.db.get(planet.systemId) : null;
+		const { colony, planet } = await getOwnedColony({
+			ctx,
+			colonyId: args.colonyId,
+		});
+		const system = await ctx.db.get(planet.systemId);
 		const originX = system?.x ?? 0;
 		const originY = system?.y ?? 0;
 
@@ -383,83 +439,81 @@ export const getHostileSectorsForUniverse = query({
 			ctx,
 			ids: sectorHostilities.map((sector) => sector.sectorId),
 		});
-		const planetHostilityGroups = await Promise.all(
-			sectorHostilities.map((sector) =>
-				ctx.db
-					.query("planetHostility")
-					.withIndex("by_sector_status", (q) => q.eq("sectorId", sector.sectorId))
-					.collect(),
-			),
-		);
-		const allPlanetHostilities = planetHostilityGroups.flat();
-		const planetById = await getDocsByIds({
-			ctx,
-			ids: allPlanetHostilities.map((planetHostility) => planetHostility.planetId),
-		});
-		const systemById = await getDocsByIds({
-			ctx,
-			ids: Array.from(new Set(Array.from(planetById.values()).map((planet) => planet.systemId))),
-		});
-		const planetHostilitiesBySectorId = new Map<
-			Id<"sectors">,
-			Array<(typeof allPlanetHostilities)[number]>
-		>();
-		for (const planetHostility of allPlanetHostilities) {
-			const existing = planetHostilitiesBySectorId.get(planetHostility.sectorId) ?? [];
-			existing.push(planetHostility);
-			planetHostilitiesBySectorId.set(planetHostility.sectorId, existing);
-		}
-
-		const sectors: Array<typeof hostileSectorViewValidator.type> = [];
+		const sectors: Array<typeof hostileSectorSummaryValidator.type> = [];
 
 		for (const sh of sectorHostilities) {
 			const sector = sectorById.get(sh.sectorId);
 			if (!sector) continue;
 
-			const planetViews = (planetHostilitiesBySectorId.get(sh.sectorId) ?? [])
-				.map((planetHostility) => {
-					const planet = planetById.get(planetHostility.planetId);
-					const systemForPlanet = planet ? systemById.get(planet.systemId) : null;
-					if (!planet || !systemForPlanet) {
-						return null;
-					}
-					return {
-						planetId: planetHostility.planetId,
-						addressLabel: planetAddressLabel(planet),
-						displayName: displayNameFromStoredOrGenerated(planetAddressLabel(planet), planet.name),
-						systemDisplayName: displayNameFromStoredOrGenerated(
-							`G${planet.galaxyIndex}:S${planet.sectorIndex}:SYS${planet.systemIndex}`,
-							systemForPlanet.name,
-						),
-						hostileFactionKey: planetHostility.hostileFactionKey,
-						controlCurrent: planetHostility.controlCurrent,
-						controlMax: planetHostility.controlMax,
-						status: planetHostility.status as "hostile" | "cleared",
-						systemIndex: planet.systemIndex,
-						systemX: systemForPlanet.x,
-						systemY: systemForPlanet.y,
-					};
-				})
-				.filter((planetView): planetView is NonNullable<typeof planetView> => planetView !== null);
-
-			const cx = (sector.minX + sector.maxX) / 2;
-			const cy = (sector.minY + sector.maxY) / 2;
-
-			sectors.push({
-				sectorId: sh.sectorId,
-				hostileFactionKey: sh.hostileFactionKey,
-				status: sh.status as "hostile" | "cleared",
-				hostilePlanetCount: sh.hostilePlanetCount,
-				clearedPlanetCount: sh.clearedPlanetCount,
-				addressLabel: sectorAddressLabel(sector),
-				displayName: displayNameFromStoredOrGenerated(sectorAddressLabel(sector), sector.name),
-				centerX: cx,
-				centerY: cy,
-				planets: planetViews,
-			});
+			sectors.push(
+				buildHostileSectorSummaryView({
+					sector,
+					sectorHostility: sh,
+				}),
+			);
 		}
 
 		return { originX, originY, sectors };
+	},
+});
+
+export const getHostileSectorDetail = query({
+	args: {
+		colonyId: v.id("colonies"),
+		sectorId: v.id("sectors"),
+	},
+	returns: hostileSectorDetailValidator,
+	handler: async (ctx, args) => {
+		const { colony } = await getOwnedColony({
+			ctx,
+			colonyId: args.colonyId,
+		});
+		const sector = await ctx.db.get(args.sectorId);
+		if (!sector || sector.universeId !== colony.universeId) {
+			throw new ConvexError("Sector not found");
+		}
+
+		const sectorHostility = await ctx.db
+			.query("sectorHostility")
+			.withIndex("by_sector_id", (q) => q.eq("sectorId", args.sectorId))
+			.unique();
+		if (!sectorHostility) {
+			throw new ConvexError("Sector hostility not found");
+		}
+
+		const planetHostilities = await ctx.db
+			.query("planetHostility")
+			.withIndex("by_sector_status", (q) => q.eq("sectorId", args.sectorId))
+			.collect();
+		const planetById = await getDocsByIds({
+			ctx,
+			ids: planetHostilities.map((planetHostility) => planetHostility.planetId),
+		});
+		const systemById = await getDocsByIds({
+			ctx,
+			ids: Array.from(new Set(Array.from(planetById.values()).map((planet) => planet.systemId))),
+		});
+
+		const planets = planetHostilities
+			.map((planetHostility) => {
+				const planet = planetById.get(planetHostility.planetId);
+				const system = planet ? systemById.get(planet.systemId) : null;
+				if (!planet || !system) {
+					return null;
+				}
+				return buildHostilePlanetDetailView({
+					planet,
+					planetHostility,
+					system,
+				});
+			})
+			.filter((planet): planet is HostilePlanetDetail => planet !== null)
+			.sort(compareHostilePlanetDetails);
+
+		return {
+			sectorId: args.sectorId,
+			planets,
+		};
 	},
 });
 

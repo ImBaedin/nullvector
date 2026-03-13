@@ -32,7 +32,6 @@ import {
 	getEnemyWeightLabel,
 	getForecastToneClass,
 	getPlanetControlToneClass,
-	groupPlanetsBySystems,
 	shipIconSrc,
 	sumDefenseCounts,
 	sumShipCounts,
@@ -42,7 +41,7 @@ import {
 	type ContractForecast,
 	type ContractView,
 	type HostilePlanetView,
-	type HostileSectorView,
+	type HostileSectorWithDistance,
 	type RecommendedContractView,
 	type ShipAssignment,
 	type SystemGroup,
@@ -210,19 +209,21 @@ function RecommendedContractCard(props: {
 }
 
 export function SectorBrowser(props: {
-	sectors: Array<HostileSectorView & { distance: number }>;
+	sectors: HostileSectorWithDistance[];
 	browseLevel: BrowseLevel;
 	planetContracts: ContractView[] | null;
 	contractsLoading: boolean;
+	selectedSectorLoading: boolean;
+	selectedSectorSystems: SystemGroup[];
 	selectedContractId: Id<"contracts"> | null;
 	playerRank: number;
 	nowMs: number;
 	originX: number;
 	originY: number;
-	onSelectSector: (sector: HostileSectorView & { distance: number }) => void;
-	onSelectSystem: (sector: HostileSectorView & { distance: number }, system: SystemGroup) => void;
+	onSelectSector: (sector: HostileSectorWithDistance) => void;
+	onSelectSystem: (sector: HostileSectorWithDistance, system: SystemGroup) => void;
 	onSelectPlanet: (
-		sector: HostileSectorView & { distance: number },
+		sector: HostileSectorWithDistance,
 		system: SystemGroup,
 		planet: HostilePlanetView,
 	) => void;
@@ -257,20 +258,29 @@ export function SectorBrowser(props: {
 				) : null}
 
 				{browseLevel.level === "systems" ? (
-					<SystemGrid
-						sector={browseLevel.sector}
-						onSelect={(system) => props.onSelectSystem(browseLevel.sector, system)}
-					/>
+					props.selectedSectorLoading ? (
+						<SectorDetailLoading label="Loading systems" />
+					) : (
+						<SystemGrid
+							sector={browseLevel.sector}
+							systems={props.selectedSectorSystems}
+							onSelect={(system) => props.onSelectSystem(browseLevel.sector, system)}
+						/>
+					)
 				) : null}
 
 				{browseLevel.level === "planets" ? (
-					<PlanetGrid
-						sector={browseLevel.sector}
-						system={browseLevel.system}
-						onSelect={(planet) =>
-							props.onSelectPlanet(browseLevel.sector, browseLevel.system, planet)
-						}
-					/>
+					props.selectedSectorLoading ? (
+						<SectorDetailLoading label="Loading planets" />
+					) : (
+						<PlanetGrid
+							sector={browseLevel.sector}
+							system={browseLevel.system}
+							onSelect={(planet) =>
+								props.onSelectPlanet(browseLevel.sector, browseLevel.system, planet)
+							}
+						/>
+					)
 				) : null}
 
 				{browseLevel.level === "contracts" ? (
@@ -288,6 +298,14 @@ export function SectorBrowser(props: {
 					/>
 				) : null}
 			</div>
+		</div>
+	);
+}
+
+function SectorDetailLoading(props: { label: string }): ReactNode {
+	return (
+		<div className="rounded-xl border border-white/10 bg-white/2 px-4 py-6 text-center text-xs text-white/45">
+			{props.label}
 		</div>
 	);
 }
@@ -335,8 +353,8 @@ function BrowseBreadcrumb(props: { level: BrowseLevel; onBack: () => void }): Re
 }
 
 function SectorGrid(props: {
-	sectors: Array<HostileSectorView & { distance: number }>;
-	onSelect: (sector: HostileSectorView & { distance: number }) => void;
+	sectors: HostileSectorWithDistance[];
+	onSelect: (sector: HostileSectorWithDistance) => void;
 }): ReactNode {
 	if (props.sectors.length === 0) {
 		return (
@@ -441,16 +459,13 @@ function SectorGrid(props: {
 }
 
 function SystemGrid(props: {
-	sector: HostileSectorView & { distance: number };
+	sector: HostileSectorWithDistance;
+	systems: SystemGroup[];
 	onSelect: (system: SystemGroup) => void;
 }): ReactNode {
-	const systems = useMemo(
-		() => groupPlanetsBySystems(props.sector.planets),
-		[props.sector.planets],
-	);
 	const factionClasses = factionColor(props.sector.hostileFactionKey);
 
-	if (systems.length === 0) {
+	if (props.systems.length === 0) {
 		return (
 			<div
 				className="
@@ -471,7 +486,7 @@ function SystemGrid(props: {
      xl:grid-cols-3
    "
 		>
-			{systems.map((system) => {
+			{props.systems.map((system) => {
 				const totalPlanets = system.planets.length;
 				const allCleared = system.clearedCount === totalPlanets;
 
@@ -536,7 +551,7 @@ function SystemGrid(props: {
 
 function PlanetGrid(props: {
 	system: SystemGroup;
-	sector: HostileSectorView & { distance: number };
+	sector: HostileSectorWithDistance;
 	onSelect: (planet: HostilePlanetView) => void;
 }): ReactNode {
 	return (
@@ -613,7 +628,7 @@ function PlanetGrid(props: {
 
 function PlanetContractList(props: {
 	planet: HostilePlanetView;
-	sector: HostileSectorView & { distance: number };
+	sector: HostileSectorWithDistance;
 	contracts: ContractView[] | null;
 	loading: boolean;
 	selectedContractId: Id<"contracts"> | null;

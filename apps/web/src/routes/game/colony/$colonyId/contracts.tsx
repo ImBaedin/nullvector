@@ -22,11 +22,12 @@ import {
 	type BrowseLevel,
 	type ContractView,
 	type HostilePlanetView,
-	type HostileSectorView,
+	type HostileSectorWithDistance,
 	type RecommendedContractView,
 	type SelectedContractContext,
 	type ShipAssignment,
 	type SystemGroup,
+	groupPlanetsBySystems,
 } from "./contracts-screen-shared";
 import {
 	ContractDetailPanel,
@@ -171,6 +172,15 @@ function ContractsRoute() {
 		null,
 	);
 	const [nowMs, setNowMs] = useState(() => Date.now());
+	const selectedSectorDetail = useQuery(
+		api.hostility.getHostileSectorDetail,
+		isAuthenticated && browseLevel.level !== "sectors"
+			? {
+					colonyId: colonyIdAsId,
+					sectorId: browseLevel.sector.sectorId,
+				}
+			: "skip",
+	);
 
 	const hostileSectors = useMemo(() => {
 		if (!hostileSectorsResponse) {
@@ -182,14 +192,6 @@ function ContractsRoute() {
 			.map((sector) => ({
 				...sector,
 				distance: Math.sqrt((sector.centerX - originX) ** 2 + (sector.centerY - originY) ** 2),
-				planets: [...sector.planets].sort((left, right) => {
-					if (left.status !== right.status) {
-						return left.status === "hostile" ? -1 : 1;
-					}
-					const leftPercent = left.controlMax > 0 ? left.controlCurrent / left.controlMax : 0;
-					const rightPercent = right.controlMax > 0 ? right.controlCurrent / right.controlMax : 0;
-					return leftPercent - rightPercent;
-				}),
 			}))
 			.sort((left, right) => {
 				if (left.status !== right.status) {
@@ -198,6 +200,12 @@ function ContractsRoute() {
 				return left.distance - right.distance;
 			});
 	}, [hostileSectorsResponse]);
+	const selectedSectorSystems = useMemo(
+		() => groupPlanetsBySystems(selectedSectorDetail?.planets ?? []),
+		[selectedSectorDetail],
+	);
+	const selectedSectorLoading =
+		browseLevel.level !== "sectors" && selectedSectorDetail === undefined;
 
 	useEffect(() => {
 		if (!isAuthenticated) {
@@ -431,13 +439,13 @@ function ContractsRoute() {
 		setSelectedShips(DEFAULT_SELECTED_SHIPS);
 	}
 
-	function handleBrowseSector(sector: HostileSectorView & { distance: number }): void {
+	function handleBrowseSector(sector: HostileSectorWithDistance): void {
 		setBrowseLevel({ level: "systems", sector });
 		setPlanetContracts(null);
 	}
 
 	function handleBrowseSystem(
-		sector: HostileSectorView & { distance: number },
+		sector: HostileSectorWithDistance,
 		system: SystemGroup,
 	): void {
 		setBrowseLevel({ level: "planets", sector, system });
@@ -445,7 +453,7 @@ function ContractsRoute() {
 	}
 
 	function handleBrowsePlanet(
-		sector: HostileSectorView & { distance: number },
+		sector: HostileSectorWithDistance,
 		system: SystemGroup,
 		planet: HostilePlanetView,
 	): void {
@@ -521,6 +529,8 @@ function ContractsRoute() {
 						originY={hostileSectorsResponse?.originY ?? 0}
 						planetContracts={planetContracts}
 						playerRank={progression.rank}
+						selectedSectorLoading={selectedSectorLoading}
+						selectedSectorSystems={selectedSectorSystems}
 						sectors={hostileSectors}
 						selectedContractId={selectedContext?.contract.id ?? null}
 						onBack={handleBrowseBack}
