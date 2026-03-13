@@ -1,3 +1,3 @@
-import { enqueueFacilityUpgrade, getFacilitiesCards } from "../runtime/gameplay/facilities";
+import { enqueueFacilityUpgrade } from "../runtime/gameplay/facilities";
 
-export { getFacilitiesCards, enqueueFacilityUpgrade };
+export { enqueueFacilityUpgrade };

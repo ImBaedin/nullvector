@@ -185,7 +185,6 @@ function ColonyLayoutContent() {
 			convex.query(api.colony.getColonySessionSnapshot, {
 				colonyId: colonyIdAsId,
 			}),
-			convex.query(api.shipyard.getShipCatalog, {}),
 			convex.query(api.fleetV2.getFleetGarrison, {
 				colonyId: colonyIdAsId,
 			}),

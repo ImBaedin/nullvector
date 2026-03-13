@@ -1,5 +1,5 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import type { DefenseKey } from "@nullvector/game-logic";
+import { selectDefenseCatalog, type DefenseKey } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { HOSTILE_FACTIONS } from "@nullvector/game-logic";
@@ -140,7 +140,7 @@ function DefensesRoute() {
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
-	const defenseCatalog = useQuery(api.defenses.getDefenseCatalog, isAuthenticated ? {} : "skip");
+	const defenseCatalog = useMemo(() => selectDefenseCatalog(), []);
 	const colonySelectors = useColonySelectors(isAuthenticated ? colonyIdAsId : null);
 	const colonySession = useColonySessionSnapshot(isAuthenticated ? colonyIdAsId : null);
 	const raidStatus = useQuery(
@@ -209,14 +209,14 @@ function DefensesRoute() {
 	}, [isAuthenticated]);
 
 	const view = useMemo(() => {
-		if (!defenseCatalog || !colonySelectors) {
+		if (!colonySelectors) {
 			return undefined;
 		}
 
 		const stateByDefenseKey = new Map(
 			colonySelectors.defenseState.defenseStates.map((state) => [state.key, state]),
 		);
-		const defenses = defenseCatalog.defenses.map((defense) => {
+		const defenses = defenseCatalog.map((defense) => {
 			const state = stateByDefenseKey.get(defense.key);
 			const presentation = DEFENSE_PRESENTATION[defense.key];
 

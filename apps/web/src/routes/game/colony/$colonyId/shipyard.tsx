@@ -1,5 +1,5 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import type { ShipKey } from "@nullvector/game-logic";
+import { selectShipCatalog, type ShipKey } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { createFileRoute } from "@tanstack/react-router";
@@ -46,7 +46,7 @@ function ShipyardRoute() {
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
-	const shipCatalogQuery = useQuery(api.shipyard.getShipCatalog, isAuthenticated ? {} : "skip");
+	const shipCatalog = useMemo(() => selectShipCatalog(), []);
 	const colonySelectors = useColonySelectors(isAuthenticated ? colonyIdAsId : null);
 	const devConsoleState = useQuery(
 		api.devConsole.getDevConsoleState,
@@ -86,14 +86,14 @@ function ShipyardRoute() {
 	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
 	const canUseDevConsole = devConsoleState?.canUseDevConsole === true;
 	const view = useMemo(() => {
-		if (!shipCatalogQuery || !colonySelectors) {
+		if (!colonySelectors) {
 			return undefined;
 		}
 
 		const stateByShipKey = new Map(
 			colonySelectors.shipyardState.shipStates.map((state) => [state.key, state]),
 		);
-		const ships = shipCatalogQuery.ships.map((ship) => {
+		const ships = shipCatalog.map((ship) => {
 			const state = stateByShipKey.get(ship.key);
 			return {
 				...ship,
@@ -107,7 +107,7 @@ function ShipyardRoute() {
 			...colonySelectors.shipyardState,
 			ships,
 		};
-	}, [colonySelectors, shipCatalogQuery]);
+	}, [colonySelectors, shipCatalog]);
 
 	useEffect(() => {
 		if (!isAuthenticated) {

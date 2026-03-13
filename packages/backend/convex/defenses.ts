@@ -1,8 +1,3 @@
-import {
-	cancelDefenseQueueItem,
-	enqueueDefenseBuild,
-	getDefenseCatalog,
-	getDefenseState,
-} from "../runtime/gameplay/defenses";
+import { cancelDefenseQueueItem, enqueueDefenseBuild } from "../runtime/gameplay/defenses";
 
-export { cancelDefenseQueueItem, enqueueDefenseBuild, getDefenseCatalog, getDefenseState };
+export { cancelDefenseQueueItem, enqueueDefenseBuild };

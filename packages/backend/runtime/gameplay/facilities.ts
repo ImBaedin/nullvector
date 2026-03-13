@@ -8,27 +8,22 @@ import {
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
-import { mutation, query } from "../../convex/_generated/server";
+import { mutation } from "../../convex/_generated/server";
 import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	EMPTY_RESEARCH_LEVELS,
-	OPEN_QUEUE_STATUSES,
 	RESOURCE_KEYS,
 	SHIPYARD_FACILITY_KEY,
-	emptyResourceBucket,
-	facilityCardValidator,
 	facilityKeyValidator,
 	facilityLevelFromColony,
 	facilityLevelsFromColony,
 	getBuildingLaneCapacity,
 	getOwnedColony,
 	isFacilityUpgradeQueueItem,
-	listOpenColonyQueueItems,
 	listOpenLaneQueueItems,
 	queueLaneValidator,
 	queueItemStatusValidator,
 	resourceMapToScaledBucket,
-	resourceMapToWholeUnitBucket,
 	settleColonyAndPersist,
 	settleDefenseQueue,
 	settleShipyardQueue,
@@ -36,95 +31,6 @@ import {
 	upsertColonyCompanionRows,
 	upsertQueuePayloadRow,
 } from "./shared";
-export const getFacilitiesCards = query({
-	args: {
-		colonyId: v.id("colonies"),
-	},
-	returns: v.object({
-		facilities: v.array(facilityCardValidator),
-	}),
-	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
-			ctx,
-			colonyId: args.colonyId,
-		});
-
-		const queueRows = await listOpenColonyQueueItems({
-			colonyId: colony._id,
-			ctx,
-		});
-		const openBuildingQueueRows = queueRows.filter(
-			(row) => row.lane === "building" && OPEN_QUEUE_STATUSES.includes(row.status),
-		);
-
-		const orderedKeys: FacilityKey[] = ["robotics_hub", SHIPYARD_FACILITY_KEY, "defense_grid"];
-		const facilities = orderedKeys.map((facilityKey) => {
-			const facility = DEFAULT_FACILITY_REGISTRY.get(facilityKey);
-			if (!facility) {
-				throw new ConvexError(`Missing ${facilityKey} facility config`);
-			}
-			const key = facility.id as FacilityKey;
-			const currentLevel = facilityLevelFromColony(colony, key);
-			const projectedLevel = openBuildingQueueRows.reduce((level, row) => {
-				if (!isFacilityUpgradeQueueItem(row) || row.payload.facilityKey !== key) {
-					return level;
-				}
-				return Math.max(level, row.payload.toLevel);
-			}, currentLevel);
-			const isUpgrading = openBuildingQueueRows.some(
-				(row) =>
-					row.status === "active" &&
-					isFacilityUpgradeQueueItem(row) &&
-					row.payload.facilityKey === key,
-			);
-			const isQueued = openBuildingQueueRows.some(
-				(row) =>
-					row.status === "queued" &&
-					isFacilityUpgradeQueueItem(row) &&
-					row.payload.facilityKey === key,
-			);
-			const isUnlocked = isFacilityUnlocked(facility, {
-				facilityLevels: facilityLevelsFromColony(colony),
-				researchLevels: EMPTY_RESEARCH_LEVELS,
-			});
-			const isMaxLevel = projectedLevel >= facility.maxLevel;
-
-			let nextUpgradeCost = emptyResourceBucket();
-			let nextUpgradeDurationSeconds: number | undefined;
-			if (!isMaxLevel) {
-				nextUpgradeCost = resourceMapToWholeUnitBucket(getUpgradeCost(facility, projectedLevel));
-				nextUpgradeDurationSeconds = getUpgradeDurationSeconds(facility, projectedLevel);
-			}
-			const status: "Online" | "Queued" | "Constructing" | "Locked" | "Maxed" = !isUnlocked
-				? "Locked"
-				: isUpgrading
-					? "Constructing"
-					: isQueued
-						? "Queued"
-						: isMaxLevel
-							? "Maxed"
-							: "Online";
-
-			return {
-				key,
-				name: facility.name,
-				category: facility.category,
-				currentLevel,
-				maxLevel: facility.maxLevel,
-				isUnlocked,
-				isUpgrading,
-				isQueued,
-				status,
-				nextUpgradeDurationSeconds,
-				nextUpgradeCost,
-			};
-		});
-
-		return {
-			facilities,
-		};
-	},
-});
 
 export const syncColony = mutation({
 	args: {
