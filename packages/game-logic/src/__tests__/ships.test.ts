@@ -93,19 +93,124 @@ test("fleet speed is bounded by slowest ship in fleet", () => {
 	).toBe(2_500);
 });
 
-test("fuel cost scales with distance and ship composition", () => {
+test("fleet fuel uses launch cost at zero distance", () => {
 	const fuel = getFleetFuelCostForDistance({
-		distance: 100,
+		distance: 0,
 		shipCounts: {
-			colonyShip: 1,
+			colonyShip: 0,
 			cruiser: 0,
 			bomber: 0,
 			interceptor: 0,
 			frigate: 0,
-			largeCargo: 2,
-			smallCargo: 4,
+			largeCargo: 0,
+			smallCargo: 1,
 		},
 	});
 
-	expect(fuel).toBe(100 * (1 * 8 + 2 * 2 + 4 * 1));
+	expect(fuel).toBe(15);
+});
+
+test("fleet fuel uses compressed sqrt distance", () => {
+	const fuel = getFleetFuelCostForDistance({
+		distance: 20_000,
+		shipCounts: {
+			colonyShip: 0,
+			cruiser: 0,
+			bomber: 0,
+			interceptor: 0,
+			frigate: 1,
+			largeCargo: 0,
+			smallCargo: 1,
+		},
+	});
+
+	expect(fuel).toBe(157 + 319);
+});
+
+test("fleet fuel scales with ship composition under the soft model", () => {
+	const fuel = getFleetFuelCostForDistance({
+		distance: 20_000,
+		shipCounts: {
+			colonyShip: 0,
+			cruiser: 0,
+			bomber: 0,
+			interceptor: 3,
+			frigate: 2,
+			largeCargo: 0,
+			smallCargo: 0,
+		},
+	});
+
+	expect(fuel).toBe(1_124);
+});
+
+test("fleet fuel remains monotonic with distance", () => {
+	const closeFuel = getFleetFuelCostForDistance({
+		distance: 100,
+		shipCounts: {
+			colonyShip: 0,
+			cruiser: 0,
+			bomber: 0,
+			interceptor: 3,
+			frigate: 2,
+			largeCargo: 0,
+			smallCargo: 0,
+		},
+	});
+	const mediumFuel = getFleetFuelCostForDistance({
+		distance: 2_500,
+		shipCounts: {
+			colonyShip: 0,
+			cruiser: 0,
+			bomber: 0,
+			interceptor: 3,
+			frigate: 2,
+			largeCargo: 0,
+			smallCargo: 0,
+		},
+	});
+	const longFuel = getFleetFuelCostForDistance({
+		distance: 20_000,
+		shipCounts: {
+			colonyShip: 0,
+			cruiser: 0,
+			bomber: 0,
+			interceptor: 3,
+			frigate: 2,
+			largeCargo: 0,
+			smallCargo: 0,
+		},
+	});
+
+	expect(closeFuel).toBeLessThan(mediumFuel);
+	expect(mediumFuel).toBeLessThan(longFuel);
+});
+
+test("fleet fuel remains monotonic with ship count", () => {
+	const baseFuel = getFleetFuelCostForDistance({
+		distance: 2_500,
+		shipCounts: {
+			colonyShip: 0,
+			cruiser: 0,
+			bomber: 0,
+			interceptor: 3,
+			frigate: 1,
+			largeCargo: 0,
+			smallCargo: 0,
+		},
+	});
+	const additionalFuel = getFleetFuelCostForDistance({
+		distance: 2_500,
+		shipCounts: {
+			colonyShip: 0,
+			cruiser: 0,
+			bomber: 0,
+			interceptor: 3,
+			frigate: 2,
+			largeCargo: 0,
+			smallCargo: 0,
+		},
+	});
+
+	expect(baseFuel).toBeLessThan(additionalFuel);
 });

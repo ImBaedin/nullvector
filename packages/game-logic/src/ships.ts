@@ -5,7 +5,8 @@ export type ShipDefinition = {
 	baseBuildSeconds: number;
 	cargoCapacity: number;
 	cost: ResourceBucket;
-	fuelPerDistance: number;
+	fuelDistanceRate: number;
+	fuelLaunchCost: number;
 	hull: number;
 	key: ShipKey;
 	name: string;
@@ -39,7 +40,8 @@ export const DEFAULT_SHIP_DEFINITIONS: Record<ShipKey, ShipDefinition> = {
 		shield: 40,
 		hull: 400,
 		baseBuildSeconds: 60,
-		fuelPerDistance: 1,
+		fuelLaunchCost: 15,
+		fuelDistanceRate: 1,
 		cost: {
 			alloy: 2_000,
 			crystal: 2_000,
@@ -57,7 +59,8 @@ export const DEFAULT_SHIP_DEFINITIONS: Record<ShipKey, ShipDefinition> = {
 		shield: 90,
 		hull: 1_250,
 		baseBuildSeconds: 180,
-		fuelPerDistance: 2,
+		fuelLaunchCost: 25,
+		fuelDistanceRate: 1,
 		cost: {
 			alloy: 6_000,
 			crystal: 6_000,
@@ -75,7 +78,8 @@ export const DEFAULT_SHIP_DEFINITIONS: Record<ShipKey, ShipDefinition> = {
 		shield: 180,
 		hull: 2_200,
 		baseBuildSeconds: 900,
-		fuelPerDistance: 8,
+		fuelLaunchCost: 150,
+		fuelDistanceRate: 6,
 		cost: {
 			alloy: 10_000,
 			crystal: 20_000,
@@ -93,7 +97,8 @@ export const DEFAULT_SHIP_DEFINITIONS: Record<ShipKey, ShipDefinition> = {
 		shield: 80,
 		hull: 650,
 		baseBuildSeconds: 95,
-		fuelPerDistance: 2,
+		fuelLaunchCost: 20,
+		fuelDistanceRate: 1,
 		cost: {
 			alloy: 3_000,
 			crystal: 1_500,
@@ -111,7 +116,8 @@ export const DEFAULT_SHIP_DEFINITIONS: Record<ShipKey, ShipDefinition> = {
 		shield: 180,
 		hull: 1_500,
 		baseBuildSeconds: 180,
-		fuelPerDistance: 4,
+		fuelLaunchCost: 35,
+		fuelDistanceRate: 2,
 		cost: {
 			alloy: 8_000,
 			crystal: 4_500,
@@ -129,7 +135,8 @@ export const DEFAULT_SHIP_DEFINITIONS: Record<ShipKey, ShipDefinition> = {
 		shield: 400,
 		hull: 3_400,
 		baseBuildSeconds: 420,
-		fuelPerDistance: 8,
+		fuelLaunchCost: 60,
+		fuelDistanceRate: 3,
 		cost: {
 			alloy: 20_000,
 			crystal: 11_000,
@@ -147,7 +154,8 @@ export const DEFAULT_SHIP_DEFINITIONS: Record<ShipKey, ShipDefinition> = {
 		shield: 520,
 		hull: 5_500,
 		baseBuildSeconds: 720,
-		fuelPerDistance: 10,
+		fuelLaunchCost: 80,
+		fuelDistanceRate: 4,
 		cost: {
 			alloy: 30_000,
 			crystal: 18_000,
@@ -214,11 +222,14 @@ export function getFleetFuelCostForDistance(args: {
 	shipCounts: Partial<ShipCounts>;
 }) {
 	const normalized = normalizeShipCounts(args.shipCounts);
-	const distance = Math.max(0, args.distance);
+	const billableDistance = Math.max(0, Math.ceil(Math.sqrt(Math.max(0, args.distance))));
 	let total = 0;
 
 	for (const key of Object.keys(DEFAULT_SHIP_DEFINITIONS) as ShipKey[]) {
-		total += normalized[key] * DEFAULT_SHIP_DEFINITIONS[key].fuelPerDistance * distance;
+		total +=
+			normalized[key] *
+			(DEFAULT_SHIP_DEFINITIONS[key].fuelLaunchCost +
+				DEFAULT_SHIP_DEFINITIONS[key].fuelDistanceRate * billableDistance);
 	}
 
 	return Math.max(0, Math.ceil(total));

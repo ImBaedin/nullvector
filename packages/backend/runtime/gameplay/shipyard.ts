@@ -106,7 +106,8 @@ const shipCatalogItemValidator = v.object({
 	requiredShipyardLevel: v.number(),
 	cargoCapacity: v.number(),
 	speed: v.number(),
-	fuelPerDistance: v.number(),
+	fuelLaunchCost: v.number(),
+	fuelDistanceRate: v.number(),
 	cost: v.object({
 		alloy: v.number(),
 		crystal: v.number(),
@@ -135,7 +136,8 @@ export const getShipCatalog = query({
 				requiredShipyardLevel: definition.requiredShipyardLevel,
 				cargoCapacity: definition.cargoCapacity,
 				speed: definition.speed,
-				fuelPerDistance: definition.fuelPerDistance,
+				fuelLaunchCost: definition.fuelLaunchCost,
+				fuelDistanceRate: definition.fuelDistanceRate,
 				cost: definition.cost,
 			};
 		});

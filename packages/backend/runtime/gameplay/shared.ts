@@ -1890,7 +1890,8 @@ const shipDefinitionViewValidator = v.object({
 	queued: v.number(),
 	cargoCapacity: v.number(),
 	speed: v.number(),
-	fuelPerDistance: v.number(),
+	fuelLaunchCost: v.number(),
+	fuelDistanceRate: v.number(),
 	cost: resourceBucketValidator,
 	perUnitDurationSeconds: v.number(),
 });

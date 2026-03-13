@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getFleetFuelCostForDistance } from "@nullvector/game-logic";
 
 import {
 	durationMsForFleet,
@@ -47,5 +48,57 @@ describe("fleet V2 utility helpers", () => {
 		});
 
 		expect(duration).toBeGreaterThanOrEqual(30_000);
+	});
+
+	it("computes softened one-way fuel using the shared sqrt distance model", () => {
+		const fuel = getFleetFuelCostForDistance({
+			distance: 20_000,
+			shipCounts: {
+				smallCargo: 0,
+				largeCargo: 0,
+				colonyShip: 0,
+				interceptor: 3,
+				frigate: 2,
+				cruiser: 0,
+				bomber: 0,
+			},
+		});
+
+		expect(fuel).toBe(1_124);
+	});
+
+	it("round-trip transport fuel remains exactly double one-way fuel", () => {
+		const oneWayFuel = getFleetFuelCostForDistance({
+			distance: 20_000,
+			shipCounts: {
+				smallCargo: 1,
+				largeCargo: 0,
+				colonyShip: 0,
+				interceptor: 0,
+				frigate: 0,
+				cruiser: 0,
+				bomber: 0,
+			},
+		});
+
+		expect(oneWayFuel).toBe(157);
+		expect(oneWayFuel * 2).toBe(314);
+	});
+
+	it("partial return fuel also uses the softened sqrt distance model", () => {
+		const returnFuel = getFleetFuelCostForDistance({
+			distance: 5_000,
+			shipCounts: {
+				smallCargo: 0,
+				largeCargo: 0,
+				colonyShip: 0,
+				interceptor: 0,
+				frigate: 1,
+				cruiser: 0,
+				bomber: 0,
+			},
+		});
+
+		expect(returnFuel).toBe(177);
 	});
 });

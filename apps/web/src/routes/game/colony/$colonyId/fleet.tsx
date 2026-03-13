@@ -903,7 +903,8 @@ function MissionPlannerPanel(props: {
 	ships: Array<{
 		available: number;
 		cargoCapacity: number;
-		fuelPerDistance: number;
+		fuelLaunchCost: number;
+		fuelDistanceRate: number;
 		key: ShipKey;
 		name: string;
 		speed: number;

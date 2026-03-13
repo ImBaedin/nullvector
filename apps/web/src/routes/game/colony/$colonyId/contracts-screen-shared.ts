@@ -109,7 +109,7 @@ export type SelectedContractContext = {
 
 export type ShipAssignment = Pick<
 	(typeof DEFAULT_SHIP_DEFINITIONS)[ShipKey],
-	"cargoCapacity" | "fuelPerDistance" | "key" | "name" | "speed"
+	"cargoCapacity" | "fuelLaunchCost" | "fuelDistanceRate" | "key" | "name" | "speed"
 > & {
 	available: number;
 };
