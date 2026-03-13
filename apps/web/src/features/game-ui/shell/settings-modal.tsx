@@ -3,6 +3,7 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import { Dialog } from "@base-ui/react/dialog";
 import { Switch } from "@base-ui/react/switch";
 import { api } from "@nullvector/backend/convex/_generated/api";
+import { useNavigate } from "@tanstack/react-router";
 import {
 	Bell,
 	ChevronRight,
@@ -23,6 +24,7 @@ import { Fragment, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { NvDivider, NvInput, NvScrollArea, NvSelect } from "@/features/game-ui/primitives";
+import { authClient } from "@/lib/auth-client";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
 
@@ -117,13 +119,15 @@ function SettingsSection({ title, children }: { title: string; children: React.R
 	);
 }
 
-function ProfilePanel() {
+function ProfilePanel({ onClose }: { onClose: () => void }) {
+	const navigate = useNavigate();
 	const { isAuthenticated } = useConvexAuth();
 	const profile = useQuery(api.auth.getCurrentPlayerProfile, isAuthenticated ? {} : "skip");
 	const updateCurrentPlayerDisplayName = useMutation(api.auth.updateCurrentPlayerDisplayName);
 	const [displayName, setDisplayName] = useState("");
 	const [bio, setBio] = useState("");
 	const [isSavingDisplayName, setIsSavingDisplayName] = useState(false);
+	const [isSigningOut, setIsSigningOut] = useState(false);
 
 	useEffect(() => {
 		if (!profile?.displayName) {
@@ -158,6 +162,28 @@ function ProfilePanel() {
 		} else {
 			toast.success("Display name updated");
 		}
+	};
+
+	const signOut = async () => {
+		setIsSigningOut(true);
+		await authClient.signOut({
+			fetchOptions: {
+				onSuccess: () => {
+					onClose();
+					navigate({
+						to: "/",
+						replace: true,
+					});
+					toast.success("Signed out");
+				},
+				onError: (error) => {
+					toast.error(error.error.message || error.error.statusText);
+				},
+			},
+		}).catch((error) => {
+			toast.error(error instanceof Error ? error.message : "Failed to sign out");
+		});
+		setIsSigningOut(false);
 	};
 
 	return (
@@ -214,6 +240,25 @@ function ProfilePanel() {
 						placeholder="Tell us about yourself..."
 						value={bio}
 					/>
+				</SettingsRow>
+				<SettingsRow
+					label="Session"
+					description="Sign out of this commander profile on this device"
+				>
+					<button
+						className="
+         inline-flex items-center gap-1.5 rounded-md border border-red-500/18
+         bg-red-500/8 px-3 py-1.5 text-xs font-medium text-red-200
+         transition hover:bg-red-500/14 hover:text-white disabled:opacity-50
+       "
+						disabled={isSigningOut}
+						onClick={() => {
+							void signOut();
+						}}
+						type="button"
+					>
+						{isSigningOut ? "Signing out..." : "Sign Out"}
+					</button>
 				</SettingsRow>
 			</SettingsSection>
 			<SettingsSection title="Avatar">
@@ -987,7 +1032,7 @@ function DeveloperPanel({ activeColonyId }: { activeColonyId: Id<"colonies"> | n
 
 const PANELS: Record<
 	string,
-	(props: { activeColonyId: Id<"colonies"> | null }) => React.ReactNode
+	(props: { activeColonyId: Id<"colonies"> | null; onClose: () => void }) => React.ReactNode
 > = {
 	profile: ProfilePanel,
 	privacy: PrivacyPanel,
@@ -1123,7 +1168,7 @@ export function SettingsModal({
 						</div>
 
 						<NvScrollArea className="flex-1 px-6 py-5">
-							<ActivePanel activeColonyId={activeColonyId} />
+							<ActivePanel activeColonyId={activeColonyId} onClose={() => onOpenChange(false)} />
 						</NvScrollArea>
 					</div>
 				</Dialog.Popup>
