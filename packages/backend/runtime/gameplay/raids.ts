@@ -23,6 +23,7 @@ import {
 	type QueryCtx,
 } from "../../convex/_generated/server";
 import { colonySystemCoords, durationMsForFleet, euclideanDistance } from "./fleetV2";
+import { emitRaidIncomingNotification, emitRaidResolvedNotification } from "./notifications";
 import { changePlayerRankXp } from "./progression";
 import {
 	cloneResourceBucket,
@@ -260,6 +261,18 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 	await scheduleRaidResolution({
 		ctx: args.ctx,
 		raid,
+	});
+	await emitRaidIncomingNotification({
+		arriveAt: raid.arriveAt,
+		attackerFleet: normalizeShipCounts(raid.attackerFleet),
+		ctx: args.ctx,
+		difficultyTier: raid.difficultyTier,
+		hostileFactionKey: raid.hostileFactionKey,
+		occurredAt: now,
+		playerId: raid.targetPlayerId,
+		raidOperationId: raid._id,
+		targetColonyId: raid.targetColonyId,
+		universeId: raid.universeId,
 	});
 	await args.ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
 		colonyId: args.colony._id,
@@ -740,6 +753,20 @@ export async function resolveNpcRaidNow(args: {
 		rankXpDelta,
 		createdAt: now,
 		updatedAt: now,
+	});
+	await emitRaidResolvedNotification({
+		ctx: args.ctx,
+		hostileFactionKey: raid.hostileFactionKey,
+		playerId: raid.targetPlayerId,
+		rankXpDelta,
+		raidOperationId: raid._id,
+		resolvedAt: now,
+		resourcesLooted,
+		roundsFought: combat.roundsFought,
+		salvageGranted,
+		success: combat.success,
+		targetColonyId: raid.targetColonyId,
+		universeId: raid.universeId,
 	});
 	return {
 		raidOperationId: raid._id,

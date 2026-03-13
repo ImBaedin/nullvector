@@ -58,7 +58,10 @@ export function AppHeaderMobileDrawer({
 					</NvButton>
 					<NvButton
 						className="w-full justify-start"
-						onClick={config.onOpenNotifications}
+						onClick={() => {
+							config.onOpenNotifications?.();
+							onClose();
+						}}
 						variant="ghost"
 					>
 						Notifications

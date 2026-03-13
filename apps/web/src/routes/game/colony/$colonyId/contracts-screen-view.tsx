@@ -153,10 +153,10 @@ function RecommendedContractCard(props: {
 		<button className={`
     relative overflow-hidden rounded-xl border p-4 text-left transition-all
     ${props.isSelected ? "border-cyan-300/30 bg-cyan-400/6" : `
-       border-white/10
-       bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
-       hover:border-white/15 hover:bg-white/3
-     `}
+      border-white/10
+      bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
+      hover:border-white/15 hover:bg-white/3
+    `}
     ${locked ? "opacity-60" : ""}
   `} onClick={props.onSelect} type="button">
 			<div
@@ -558,13 +558,15 @@ function PlanetGrid(props: {
        bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))] p-4
        text-left transition-all
        ${isCleared ? "border-white/8 opacity-60" : `
-          border-white/10
-          hover:border-white/15 hover:bg-white/3
-        `}
+         border-white/10
+         hover:border-white/15 hover:bg-white/3
+       `}
      `} onClick={() => props.onSelect(planet)} type="button">
 						<div className="flex items-center gap-2">
 							<span className="text-xs font-semibold">{planet.displayName}</span>
-							<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/25">
+							<span className="
+         font-(family-name:--nv-font-mono) text-[9px] text-white/25
+       ">
 								{planet.addressLabel}
 							</span>
 							{isCleared ? (
@@ -581,7 +583,9 @@ function PlanetGrid(props: {
 
 						{!isCleared ? (
 							<>
-								<div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-white/8">
+								<div className="
+          mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-white/8
+        ">
 									<div className={`
            h-full rounded-full
            ${getPlanetControlToneClass(controlPercent)}
@@ -691,10 +695,10 @@ function PlanetContractList(props: {
 					<button key={contract.id} className={`
        rounded-xl border p-4 text-left transition-all
        ${isSelected ? "border-cyan-300/30 bg-cyan-400/6" : `
-          border-white/10
-          bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
-          hover:border-white/15 hover:bg-white/3
-        `}
+         border-white/10
+         bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
+         hover:border-white/15 hover:bg-white/3
+       `}
        ${locked ? "opacity-60" : ""}
      `} onClick={() => props.onSelectContract(contract, planetContext, distance)} type="button">
 						<div className="flex items-center gap-2">
@@ -778,7 +782,9 @@ export function ContractDetailPanel(props: {
        bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
      "
 				>
-					<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
+					<div className="
+       flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
+     ">
 						<Swords className="size-5 text-rose-300" />
 						<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 							Mission Briefing
@@ -807,7 +813,9 @@ export function ContractDetailPanel(props: {
       bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
     "
 			>
-				<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
+				<div className="
+      flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
+    ">
 					<Swords className="size-5 text-rose-300" />
 					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 						Mission Briefing
@@ -1228,9 +1236,7 @@ export function ContractHistory(props: { contracts: ContractView[] }): ReactNode
 						>
 							<span className={`
          inline-block size-2 shrink-0 rounded-full
-         ${isSuccess ? `bg-emerald-400` : `
-          bg-rose-400
-        `}
+         ${isSuccess ? `bg-emerald-400` : `bg-rose-400`}
        `} />
 							<span className="min-w-0 flex-1 truncate text-[11px] font-semibold">
 								{missionName}
@@ -1240,7 +1246,9 @@ export function ContractHistory(props: { contracts: ContractView[] }): ReactNode
          ${isSuccess ? "text-emerald-200/60" : `text-rose-200/60`}
        `}>{isSuccess ? "Success" : "Failed"}</span>
 							{contract.resolvedAt ? (
-								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/20">
+								<span className="
+          font-(family-name:--nv-font-mono) text-[9px] text-white/20
+        ">
 									{new Date(contract.resolvedAt).toLocaleDateString()}
 								</span>
 							) : null}
@@ -1283,9 +1291,7 @@ function MissionMetric(props: {
 			</p>
 			<p className={`
      mt-0.5 font-(family-name:--nv-font-mono) text-sm font-bold
-     ${props.highlight ? `text-amber-300` : `
-      text-white/80
-    `}
+     ${props.highlight ? `text-amber-300` : `text-white/80`}
    `}>
 				{props.value}
 				{props.unit ? (

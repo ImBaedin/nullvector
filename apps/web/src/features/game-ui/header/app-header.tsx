@@ -12,6 +12,7 @@ import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdat
 
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
+import { NotificationsModal } from "@/features/game-ui/shell/notifications-modal";
 import { ResourceStrip } from "@/features/game-ui/shell/resource-strip";
 import { SettingsModal } from "@/features/game-ui/shell/settings-modal";
 import { useColonyResources } from "@/hooks/use-colony-resources";
@@ -87,6 +88,7 @@ export function AppHeader({
 	const { isAuthenticated } = useConvexAuth();
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
+	const [notificationsOpen, setNotificationsOpen] = useState(false);
 	const [starMapEntitiesOpen, setStarMapEntitiesOpen] = useState(false);
 	const [starMapQualityOpen, setStarMapQualityOpen] = useState(false);
 	const pathname = useRouterState({
@@ -110,6 +112,10 @@ export function AppHeader({
 	const colonyResources = useColonyResources(colonyIdAsId && isAuthenticated ? colonyIdAsId : null);
 	const playerProfile = useQuery(
 		api.playerProgression.getPlayerProfile,
+		isAuthenticated ? {} : "skip",
+	);
+	const notificationSummary = useQuery(
+		api.notifications.getNotificationUnreadSummary,
 		isAuthenticated ? {} : "skip",
 	);
 	const hud = useMemo<HeaderHudData | undefined>(() => {
@@ -149,6 +155,7 @@ export function AppHeader({
 			),
 		[hud, pathname],
 	);
+	const liveNotificationsCount = notificationSummary?.total ?? config.notificationsCount ?? 0;
 	const contextTabs = useMemo<ContextNavItem[] | undefined>(() => {
 		if (!config.contextTabs) {
 			return undefined;
@@ -167,9 +174,16 @@ export function AppHeader({
 				icon: (
 					<span className="relative inline-flex shrink-0">
 						{tab.icon}
-						<span className="absolute -top-0.5 -right-0.5 flex size-2.5 items-center justify-center">
-							<span className="absolute inline-flex size-2.5 animate-ping rounded-full bg-rose-400/35" />
-							<span className="relative inline-flex size-1.5 rounded-full bg-rose-300 shadow-[0_0_8px_rgba(253,164,175,0.8)]" />
+						<span className="
+        absolute -top-0.5 -right-0.5 flex size-2.5 items-center justify-center
+      ">
+							<span className="
+         absolute inline-flex size-2.5 animate-ping rounded-full bg-rose-400/35
+       " />
+							<span className="
+         relative inline-flex size-1.5 rounded-full bg-rose-300
+         shadow-[0_0_8px_rgba(253,164,175,0.8)]
+       " />
 						</span>
 					</span>
 				),
@@ -180,9 +194,11 @@ export function AppHeader({
 		() => ({
 			...config,
 			contextTabs,
+			notificationsCount: liveNotificationsCount,
+			onOpenNotifications: () => setNotificationsOpen(true),
 			onOpenSettings: () => setSettingsOpen(true),
 		}),
-		[config, contextTabs],
+		[config, contextTabs, liveNotificationsCount],
 	);
 	const isCompact = useCompactHeaderMode();
 	const activeColony = useMemo(
@@ -238,17 +254,18 @@ export function AppHeader({
 		}
 
 		setIsSavingColonyName(true);
-		try {
-			await renameColony({
+		const error = await renameColony({
 				colonyId: activeColony.id as Id<"colonies">,
 				name: normalizedName,
-			});
+			})
+				.then(() => null)
+				.catch((caughtError) => caughtError);
+		setIsSavingColonyName(false);
+		if (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to rename colony");
+		} else {
 			setIsRenamingColony(false);
 			toast.success("Colony renamed");
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Failed to rename colony");
-		} finally {
-			setIsSavingColonyName(false);
 		}
 	};
 
@@ -602,7 +619,9 @@ export function AppHeader({
        "
 						>
 							{playerProfile ? (
-								<div className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3">
+								<div className="
+          mr-1 flex items-center gap-2 border-r border-white/8 pr-3
+        ">
 									<div className="flex items-center gap-2">
 										<div
 											className="
@@ -659,11 +678,11 @@ export function AppHeader({
           text-white/30 transition-colors
           hover:bg-white/4 hover:text-white/60
         "
-								onClick={config.onOpenNotifications}
+								onClick={() => setNotificationsOpen(true)}
 								type="button"
 							>
 								<Bell className="size-3.5" />
-								{config.notificationsCount && config.notificationsCount > 0 ? (
+								{liveNotificationsCount > 0 ? (
 									<span
 										className="
             absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center
@@ -671,7 +690,7 @@ export function AppHeader({
             text-cyan-200
           "
 									>
-										{config.notificationsCount}
+										{liveNotificationsCount}
 									</span>
 								) : null}
 							</button>
@@ -754,6 +773,16 @@ export function AppHeader({
 				onOpenStarMap={handleStarMapToggle}
 				onClose={() => setDrawerOpen(false)}
 				open={drawerOpen}
+			/>
+
+			<NotificationsModal
+				activeColonyId={colonyIdAsId}
+				colonies={(hud?.colonies ?? []).map((colony) => ({
+					id: colony.id,
+					name: colony.name,
+				}))}
+				onOpenChange={setNotificationsOpen}
+				open={notificationsOpen}
 			/>
 
 			<SettingsModal

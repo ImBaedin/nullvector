@@ -605,7 +605,12 @@ function ActiveContractOperationsPanel(props: {
 				operation.canCancel ? (
 					<button
 						key="cancel"
-						className="ml-auto inline-flex items-center gap-1 rounded-md border border-rose-300/20 bg-rose-400/8 px-2.5 py-1 text-[10px] font-medium text-rose-200/80 transition-colors hover:border-rose-200/35 hover:bg-rose-400/12"
+						className="
+        ml-auto inline-flex items-center gap-1 rounded-md border
+        border-rose-300/20 bg-rose-400/8 px-2.5 py-1 text-[10px] font-medium
+        text-rose-200/80 transition-colors
+        hover:border-rose-200/35 hover:bg-rose-400/12
+      "
 						disabled={props.cancelingOperationId === operation.id}
 						onClick={(event) => {
 							event.stopPropagation();
@@ -620,7 +625,13 @@ function ActiveContractOperationsPanel(props: {
 				props.canShowDevUi ? (
 					<button
 						key="complete"
-						className="inline-flex items-center gap-1 rounded-md border border-cyan-300/20 bg-cyan-400/8 px-2.5 py-1 text-[10px] font-medium text-cyan-100 transition-colors hover:border-cyan-200/35 hover:bg-cyan-400/12 disabled:cursor-not-allowed disabled:opacity-50"
+						className="
+        inline-flex items-center gap-1 rounded-md border border-cyan-300/20
+        bg-cyan-400/8 px-2.5 py-1 text-[10px] font-medium text-cyan-100
+        transition-colors
+        hover:border-cyan-200/35 hover:bg-cyan-400/12
+        disabled:cursor-not-allowed disabled:opacity-50
+      "
 						disabled={props.completingOperationId === operation.id || !props.canUseDevConsole}
 						onClick={(event) => {
 							event.stopPropagation();
@@ -634,7 +645,10 @@ function ActiveContractOperationsPanel(props: {
 			].filter(Boolean),
 			detailChips: [
 				<div
-					className="rounded-sm border border-white/10 bg-white/3 px-1.5 py-0.5 text-[9px] font-semibold uppercase"
+					className="
+       rounded-sm border border-white/10 bg-white/3 px-1.5 py-0.5 text-[9px]
+       font-semibold uppercase
+     "
 					key="relation"
 				>
 					{operation.relation}
@@ -688,7 +702,10 @@ function ActiveContractOperationsPanel(props: {
 				subtitle: targetPreview?.address,
 				title: targetPreview?.name ?? operation.targetPreview.label,
 			},
-			transitIcon: <Swords className={`size-3 ${accent.iconText}`} />,
+			transitIcon: <Swords className={`
+     size-3
+     ${accent.iconText}
+   `} />,
 			transitIconBorderClassName: accent.iconBorder,
 			transitIconFillClassName: accent.iconFill,
 			transitLineClassName: accent.line,
@@ -700,11 +717,16 @@ function ActiveContractOperationsPanel(props: {
 			emptyMessage="No active contract missions."
 			expandedId={props.expandedOp}
 			header={
-				<h2 className="flex items-center gap-2 font-(family-name:--nv-font-display) text-sm font-bold">
+				<h2 className="
+      flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
+      font-bold
+    ">
 					<Layers3 className="size-4 text-rose-300/60" />
 					<span>
 						Active Contracts{" "}
-						<span className="font-(family-name:--nv-font-mono) text-xs font-medium text-white/35">
+						<span className="
+        font-(family-name:--nv-font-mono) text-xs font-medium text-white/35
+      ">
 							({props.activeContractCount}/{props.activeContractLimit})
 						</span>
 					</span>

@@ -246,7 +246,9 @@ export function QueuePanel(props: {
     ${className ?? ""}
   `}>
 			<div className="flex items-center justify-between gap-2">
-				<h3 className="text-xs font-semibold tracking-[0.14em] text-white/70 uppercase">
+				<h3 className="
+      text-xs font-semibold tracking-[0.14em] text-white/70 uppercase
+    ">
 					{title ?? "Production Queue"}
 				</h3>
 				<span className="text-[11px] text-white/60">
@@ -318,7 +320,9 @@ export function QueuePanel(props: {
 								</button>
 							</div>
 
-							<div className="mt-3 grid grid-cols-[64px_minmax(0,1fr)] items-center gap-3">
+							<div className="
+         mt-3 grid grid-cols-[64px_minmax(0,1fr)] items-center gap-3
+       ">
 								{ship ? (
 									<img
 										alt={`${ship.name} queue icon`}

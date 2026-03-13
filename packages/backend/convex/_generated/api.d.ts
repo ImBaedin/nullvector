@@ -26,6 +26,7 @@ import type * as lib_worldgen_pipeline from "../lib/worldgen/pipeline.js";
 import type * as lib_worldgen_planet from "../lib/worldgen/planet.js";
 import type * as lib_worldgen_prng from "../lib/worldgen/prng.js";
 import type * as migrations from "../migrations.js";
+import type * as notifications from "../notifications.js";
 import type * as playerProgression from "../playerProgression.js";
 import type * as privateData from "../privateData.js";
 import type * as raids from "../raids.js";
@@ -61,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   "lib/worldgen/planet": typeof lib_worldgen_planet;
   "lib/worldgen/prng": typeof lib_worldgen_prng;
   migrations: typeof migrations;
+  notifications: typeof notifications;
   playerProgression: typeof playerProgression;
   privateData: typeof privateData;
   raids: typeof raids;

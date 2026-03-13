@@ -323,7 +323,12 @@ function DefensesRoute() {
 					canShowDevUi && canUseDevConsole
 						? [
 								<button
-									className="rounded-md border border-cyan-300/20 bg-cyan-400/8 px-2 py-1 text-[10px] font-medium text-cyan-100 transition-colors hover:border-cyan-200/35 hover:bg-cyan-400/12 disabled:cursor-not-allowed disabled:opacity-50"
+									className="
+           rounded-md border border-cyan-300/20 bg-cyan-400/8 px-2 py-1
+           text-[10px] font-medium text-cyan-100 transition-colors
+           hover:border-cyan-200/35 hover:bg-cyan-400/12
+           disabled:cursor-not-allowed disabled:opacity-50
+         "
 									disabled={isCompletingRaid}
 									key="complete-raid"
 									onClick={(event) => {
@@ -352,7 +357,10 @@ function DefensesRoute() {
 						: undefined,
 				detailChips: [
 					<div
-						className="rounded-sm border border-amber-300/20 bg-amber-300/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-100/80 uppercase"
+						className="
+        rounded-sm border border-amber-300/20 bg-amber-300/10 px-1.5 py-0.5
+        text-[9px] font-semibold text-amber-100/80 uppercase
+      "
 						key="relation"
 					>
 						incoming
@@ -563,18 +571,30 @@ function DefensesRoute() {
 
 	return (
 		<div className="mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white">
-			<div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_450px]">
+			<div className="
+     grid gap-5
+     lg:grid-cols-[minmax(0,1fr)_450px]
+   ">
 				<div className="space-y-5">
-					<div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))] p-4">
+					<div className="
+       relative overflow-hidden rounded-2xl border border-white/10
+       bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))] p-4
+     ">
 						<div
-							className="pointer-events-none absolute -top-12 -right-12 size-48 rounded-full blur-3xl"
+							className="
+         pointer-events-none absolute -top-12 -right-12 size-48 rounded-full
+         blur-3xl
+       "
 							style={{ background: "rgba(251,113,133,0.05)" }}
 						/>
 
 						<div className="relative z-10">
 							<div className="flex items-center justify-between gap-3">
 								<div className="flex items-center gap-3">
-									<div className="flex size-8 items-center justify-center rounded-lg border border-rose-300/25 bg-rose-400/8">
+									<div className="
+           flex size-8 items-center justify-center rounded-lg border
+           border-rose-300/25 bg-rose-400/8
+         ">
 										<ShieldAlert className="size-4 text-rose-300" />
 									</div>
 									<div>
@@ -588,7 +608,9 @@ function DefensesRoute() {
 									</div>
 								</div>
 								<div className="text-right">
-									<p className="font-(family-name:--nv-font-mono) text-lg font-bold text-rose-200">
+									<p className="
+           font-(family-name:--nv-font-mono) text-lg font-bold text-rose-200
+         ">
 										{totalPower.toLocaleString()}
 									</p>
 									<p className="text-[8px] tracking-widest text-white/30 uppercase">
@@ -606,12 +628,19 @@ function DefensesRoute() {
 					</div>
 
 					<section
-						className="overflow-hidden rounded-2xl border border-l-4 border-white/10 border-l-rose-400/50 bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))]"
+						className="
+        overflow-hidden rounded-2xl border border-l-4 border-white/10
+        border-l-rose-400/50
+        bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,18,0.96))]
+      "
 						style={{
 							animation: "nv-resource-card-in 400ms cubic-bezier(0.21,1,0.34,1) both",
 						}}
 					>
-						<div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
+						<div className="
+        flex flex-wrap items-center justify-between gap-2 px-4 py-3
+        sm:px-5
+      ">
 							<div className="flex items-center gap-2.5">
 								<span className="text-white/50">
 									<Shield className="size-4" strokeWidth={2.2} />
@@ -625,12 +654,19 @@ function DefensesRoute() {
 									</p>
 								</div>
 							</div>
-							<span className="rounded-md border border-white/10 bg-white/3 px-2 py-0.5 font-(family-name:--nv-font-mono) text-[9px] font-semibold text-white/50">
+							<span className="
+         rounded-md border border-white/10 bg-white/3 px-2 py-0.5
+         font-(family-name:--nv-font-mono) text-[9px] font-semibold
+         text-white/50
+       ">
 								{view.defenses.length} types
 							</span>
 						</div>
 
-						<div className="border-t border-white/6 p-3 sm:p-4">
+						<div className="
+        border-t border-white/6 p-3
+        sm:p-4
+      ">
 							<div className="space-y-5">
 								{DEFENSE_GROUPS.map((group) => {
 									const groupDefenses = group.keys
@@ -642,7 +678,10 @@ function DefensesRoute() {
 
 									return (
 										<div key={group.label}>
-											<p className="mb-2 text-[10px] font-semibold tracking-[0.14em] text-white/35 uppercase">
+											<p className="
+             mb-2 text-[10px] font-semibold tracking-[0.14em] text-white/35
+             uppercase
+           ">
 												{group.label}
 											</p>
 											<div className="space-y-2">
@@ -691,7 +730,10 @@ function DefensesRoute() {
 					</section>
 				</div>
 
-				<div className="space-y-5 lg:sticky lg:top-4 lg:self-start">
+				<div className="
+      space-y-5
+      lg:sticky lg:top-4 lg:self-start
+    ">
 					<IncomingRaidPanel
 						emptyMessage={
 							nextRaidEtaSeconds != null
@@ -798,7 +840,16 @@ function DefenseCard(props: {
 
 	return (
 		<article
-			className={`group relative overflow-hidden rounded-xl border ${isLocked ? "border-white/8 opacity-60 grayscale" : "border-white/10"} bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))] text-[13px]`}
+			className={`
+     group relative overflow-hidden rounded-xl border
+     ${isLocked ? `
+     border-white/8 opacity-60 grayscale
+   ` : `
+     border-white/10
+   `}
+     bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
+     text-[13px]
+   `}
 			style={{
 				animation: "nv-resource-card-in 380ms cubic-bezier(0.21,1,0.34,1) both",
 				animationDelay: `${120 + index * 40}ms`,
@@ -811,11 +862,17 @@ function DefenseCard(props: {
 				}}
 			/>
 
-			<div className="relative z-10 p-3 sm:p-4">
+			<div className="
+     relative z-10 p-3
+     sm:p-4
+   ">
 				<div className="flex items-center gap-3">
 					<img
 						alt={defense.name}
-						className="size-10 shrink-0 rounded-lg border border-white/8 bg-black/30 object-contain p-1"
+						className="
+        size-10 shrink-0 rounded-lg border border-white/8 bg-black/30
+        object-contain p-1
+      "
 						src={defense.image}
 					/>
 					<div className="min-w-0 flex-1">
@@ -824,7 +881,11 @@ function DefenseCard(props: {
 								{defense.name}
 							</h3>
 							<span
-								className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[8px] font-semibold whitespace-nowrap uppercase ${badgeClassName}`}
+								className={`
+          inline-flex items-center rounded-md border px-1.5 py-0.5 text-[8px]
+          font-semibold whitespace-nowrap uppercase
+          ${badgeClassName}
+        `}
 							>
 								{badgeLabel}
 							</span>
@@ -838,7 +899,13 @@ function DefenseCard(props: {
 					</div>
 					{canShowDevUi && editingDefenseKey === defense.key ? (
 						<input
-							className="inline-flex h-7 w-14 shrink-0 items-center justify-center rounded-md border border-rose-300/35 bg-black/45 px-1 text-center font-(family-name:--nv-font-mono) text-[10px] font-bold text-rose-100 outline-none focus:border-rose-200/60"
+							className="
+         inline-flex h-7 w-14 shrink-0 items-center justify-center rounded-md
+         border border-rose-300/35 bg-black/45 px-1 text-center
+         font-(family-name:--nv-font-mono) text-[10px] font-bold text-rose-100
+         outline-none
+         focus:border-rose-200/60
+       "
 							inputMode="numeric"
 							onBlur={onDefenseDraftCancel}
 							onChange={(event) => {
@@ -858,7 +925,14 @@ function DefenseCard(props: {
 						/>
 					) : canShowDevUi ? (
 						<button
-							className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-md border border-rose-300/20 bg-rose-400/8 px-1.5 font-(family-name:--nv-font-mono) text-[10px] font-bold text-rose-100 transition hover:border-rose-200/45 hover:bg-rose-400/14 disabled:cursor-not-allowed disabled:opacity-50"
+							className="
+         inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-md
+         border border-rose-300/20 bg-rose-400/8 px-1.5
+         font-(family-name:--nv-font-mono) text-[10px] font-bold text-rose-100
+         transition
+         hover:border-rose-200/45 hover:bg-rose-400/14
+         disabled:cursor-not-allowed disabled:opacity-50
+       "
 							disabled={!canUseDevConsole || isSavingDefenseCount}
 							onClick={() => onEditDefense(defense.key, defense.owned)}
 							type="button"
@@ -866,13 +940,19 @@ function DefenseCard(props: {
 							{defense.owned}
 						</button>
 					) : (
-						<span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md border border-white/15 bg-black/25 font-(family-name:--nv-font-mono) text-[11px] font-bold text-white/80">
+						<span className="
+        inline-flex size-7 shrink-0 items-center justify-center rounded-md
+        border border-white/15 bg-black/25 font-(family-name:--nv-font-mono)
+        text-[11px] font-bold text-white/80
+      ">
 							{defense.owned}
 						</span>
 					)}
 				</div>
 
-				<div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2 border-t border-white/6 pt-3">
+				<div className="
+      mt-3 flex flex-wrap items-end gap-x-4 gap-y-2 border-t border-white/6 pt-3
+    ">
 					<div className="flex gap-3 text-[10px]">
 						<ColorStatMini
 							color="text-red-300/80"
@@ -905,9 +985,14 @@ function DefenseCard(props: {
 					</div>
 
 					<div className="ml-auto flex items-center gap-2">
-						<div className="flex items-center rounded-lg border border-white/12 bg-black/25">
+						<div className="
+        flex items-center rounded-lg border border-white/12 bg-black/25
+      ">
 							<button
-								className="flex size-7 items-center justify-center text-white/60 disabled:opacity-25"
+								className="
+          flex size-7 items-center justify-center text-white/60
+          disabled:opacity-25
+        "
 								disabled={isLocked || isQueueing}
 								onClick={() => {
 									onDecrementQuantity(defense.key, quantity);
@@ -917,7 +1002,14 @@ function DefenseCard(props: {
 								<Minus className="size-3" />
 							</button>
 							<input
-								className="w-10 [appearance:textfield] bg-transparent px-0.5 text-center font-(family-name:--nv-font-mono) text-xs font-bold text-white outline-none disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+								className="
+          w-10 [appearance:textfield] bg-transparent px-0.5 text-center
+          font-(family-name:--nv-font-mono) text-xs font-bold text-white
+          outline-none
+          disabled:opacity-50
+          [&::-webkit-inner-spin-button]:appearance-none
+          [&::-webkit-outer-spin-button]:appearance-none
+        "
 								disabled={isLocked || isQueueing}
 								onBlur={() => {
 									onQuantityBlur(defense.key, quantity);
@@ -929,7 +1021,10 @@ function DefenseCard(props: {
 								value={quantityInput}
 							/>
 							<button
-								className="flex size-7 items-center justify-center text-white/60 disabled:opacity-25"
+								className="
+          flex size-7 items-center justify-center text-white/60
+          disabled:opacity-25
+        "
 								disabled={isLocked || isQueueing}
 								onClick={() => {
 									onIncrementQuantity(defense.key, quantity);
@@ -941,7 +1036,16 @@ function DefenseCard(props: {
 						</div>
 
 						<button
-							className="flex items-center gap-1.5 rounded-lg border border-rose-200/50 bg-linear-to-b from-rose-400/25 to-rose-400/10 px-3 py-1.5 font-(family-name:--nv-font-display) text-[11px] font-bold tracking-[0.06em] text-rose-50 uppercase shadow-[0_0_16px_rgba(251,113,133,0.10)] transition-all hover:border-rose-100/70 hover:shadow-[0_0_24px_rgba(251,113,133,0.2)] disabled:border-white/10 disabled:bg-white/5 disabled:text-white/30 disabled:shadow-none"
+							className="
+         flex items-center gap-1.5 rounded-lg border border-rose-200/50
+         bg-linear-to-b from-rose-400/25 to-rose-400/10 px-3 py-1.5
+         font-(family-name:--nv-font-display) text-[11px] font-bold
+         tracking-[0.06em] text-rose-50 uppercase
+         shadow-[0_0_16px_rgba(251,113,133,0.10)] transition-all
+         hover:border-rose-100/70 hover:shadow-[0_0_24px_rgba(251,113,133,0.2)]
+         disabled:border-white/10 disabled:bg-white/5 disabled:text-white/30
+         disabled:shadow-none
+       "
 							disabled={!isStructurallyAvailable || isQueueing}
 							onClick={() => {
 								onQueueDefense(defense, quantity);
@@ -962,7 +1066,10 @@ function ColorStatMini(props: { color: string; label: string; value: string }) {
 	return (
 		<div>
 			<span className="text-[8px] tracking-wider text-white/30 uppercase">{props.label}</span>
-			<p className={`font-(family-name:--nv-font-mono) font-bold ${props.color}`}>{props.value}</p>
+			<p className={`
+     font-(family-name:--nv-font-mono) font-bold
+     ${props.color}
+   `}>{props.value}</p>
 		</div>
 	);
 }
@@ -1006,7 +1113,11 @@ function PowerSplitBar(props: { totalAttack: number; totalHull: number; totalShi
 			<div className="flex h-2.5 overflow-hidden rounded-full bg-white/8">
 				{segments.map((seg) => (
 					<div
-						className={`h-full ${seg.bg} transition-all`}
+						className={`
+        h-full
+        ${seg.bg}
+        transition-all
+      `}
 						key={seg.label}
 						style={{ width: `${seg.pct}%` }}
 					/>
@@ -1015,13 +1126,18 @@ function PowerSplitBar(props: { totalAttack: number; totalHull: number; totalShi
 			<div className="mt-2 flex">
 				{segments.map((seg) => (
 					<div
-						className={`flex items-center justify-center gap-1.5 text-[9px] ${seg.color}`}
+						className={`
+        flex items-center justify-center gap-1.5 text-[9px]
+        ${seg.color}
+      `}
 						key={seg.label}
 						style={{ width: `${seg.pct}%` }}
 					>
 						{seg.icon}
 						<span className="tracking-wider uppercase">{seg.label}</span>
-						<span className="font-(family-name:--nv-font-mono) font-bold text-white/70">
+						<span className="
+        font-(family-name:--nv-font-mono) font-bold text-white/70
+      ">
 							{seg.value.toLocaleString()}
 						</span>
 						<span className="font-(family-name:--nv-font-mono) text-white/30">
@@ -1045,7 +1161,10 @@ function IncomingRaidPanel(props: {
 			emptyMessage={props.emptyMessage}
 			expandedId={props.expandedRaidId}
 			header={
-				<h2 className="flex items-center gap-2 font-(family-name:--nv-font-display) text-sm font-bold">
+				<h2 className="
+      flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
+      font-bold
+    ">
 					<ShieldAlert className="size-4 text-rose-300/70" />
 					Incoming Raid
 				</h2>
@@ -1080,12 +1199,19 @@ function DefenseQueuePanel(props: {
 	} = props;
 
 	return (
-		<div className="rounded-2xl border border-white/12 bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]">
-			<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
+		<div className="
+    rounded-2xl border border-white/12
+    bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
+  ">
+			<div className="
+     flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
+   ">
 				<Clock3 className="size-5 text-rose-300" />
 				<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Defense Queue</h2>
 				{queueItemsCount > 0 ? (
-					<span className="ml-auto font-(family-name:--nv-font-mono) text-[9px] text-white/30">
+					<span className="
+       ml-auto font-(family-name:--nv-font-mono) text-[9px] text-white/30
+     ">
 						{queueItemsCount} item{queueItemsCount !== 1 ? "s" : ""}
 					</span>
 				) : null}
@@ -1094,20 +1220,29 @@ function DefenseQueuePanel(props: {
 			<div className="p-5">
 				{activeQueueItem ? (
 					<div className="space-y-3">
-						<p className="text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase">
+						<p className="
+        text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
+      ">
 							Active
 						</p>
-						<div className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3">
+						<div className="
+        rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3
+      ">
 							<div className="flex items-start justify-between gap-2">
 								<div className="flex items-center gap-2.5">
 									<img
 										alt={activeQueueItem.defenseName}
-										className="size-10 rounded-lg border border-white/8 bg-black/30 object-contain p-1"
+										className="
+            size-10 rounded-lg border border-white/8 bg-black/30 object-contain
+            p-1
+          "
 										src={DEFENSE_PRESENTATION[activeQueueItem.defenseKey].image}
 									/>
 									<div>
 										<p className="text-xs font-semibold">{activeQueueItem.defenseName}</p>
-										<p className="mt-0.5 font-(family-name:--nv-font-mono) text-[10px] text-white/40">
+										<p className="
+            mt-0.5 font-(family-name:--nv-font-mono) text-[10px] text-white/40
+          ">
 											{activeQueueItem.remaining} of {activeQueueItem.total} remaining
 										</p>
 									</div>
@@ -1115,7 +1250,12 @@ function DefenseQueuePanel(props: {
 								<div className="flex items-center gap-1.5">
 									{canShowDevUi ? (
 										<button
-											className="rounded-md border border-cyan-300/20 bg-cyan-400/8 px-2 py-1 text-[10px] font-medium text-cyan-100 transition-colors hover:border-cyan-200/35 hover:bg-cyan-400/12 disabled:cursor-not-allowed disabled:opacity-50"
+											className="
+             rounded-md border border-cyan-300/20 bg-cyan-400/8 px-2 py-1
+             text-[10px] font-medium text-cyan-100 transition-colors
+             hover:border-cyan-200/35 hover:bg-cyan-400/12
+             disabled:cursor-not-allowed disabled:opacity-50
+           "
 											disabled={isCompletingQueueItem}
 											onClick={onCompleteActiveQueueItem}
 											type="button"
@@ -1124,7 +1264,12 @@ function DefenseQueuePanel(props: {
 										</button>
 									) : null}
 									<button
-										className="rounded-md border border-rose-300/20 bg-rose-400/8 px-2 py-1 text-[10px] font-medium text-rose-200/80 transition-colors hover:border-rose-200/35 hover:bg-rose-400/12 disabled:opacity-50"
+										className="
+            rounded-md border border-rose-300/20 bg-rose-400/8 px-2 py-1
+            text-[10px] font-medium text-rose-200/80 transition-colors
+            hover:border-rose-200/35 hover:bg-rose-400/12
+            disabled:opacity-50
+          "
 										disabled={cancelingQueueItemId === activeQueueItem.id}
 										onClick={() => {
 											onCancelQueueItem(activeQueueItem.id);
@@ -1139,15 +1284,22 @@ function DefenseQueuePanel(props: {
 							<div className="mt-2 flex items-center justify-between text-right">
 								<div className="flex items-center gap-1.5">
 									<Layers3 className="size-3 text-emerald-300/50" />
-									<span className="font-(family-name:--nv-font-mono) text-[10px] text-white/40">
+									<span className="
+           font-(family-name:--nv-font-mono) text-[10px] text-white/40
+         ">
 										Batch {activeQueueItem.total}
 									</span>
 								</div>
 								<div>
-									<p className="font-(family-name:--nv-font-mono) text-xs font-bold text-emerald-200">
+									<p className="
+           font-(family-name:--nv-font-mono) text-xs font-bold text-emerald-200
+         ">
 										{formatDuration(activeQueueItem.timeLeftSeconds)}
 									</p>
-									<p className="font-(family-name:--nv-font-mono) text-[8px] tracking-widest text-emerald-200/45 uppercase">
+									<p className="
+           font-(family-name:--nv-font-mono) text-[8px] tracking-widest
+           text-emerald-200/45 uppercase
+         ">
 										remaining
 									</p>
 								</div>
@@ -1155,15 +1307,22 @@ function DefenseQueuePanel(props: {
 
 							<div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/8">
 								<div
-									className="h-full rounded-full bg-linear-to-r from-emerald-400/60 to-emerald-300/40 transition-all"
+									className="
+           h-full rounded-full bg-linear-to-r from-emerald-400/60
+           to-emerald-300/40 transition-all
+         "
 									style={{ width: `${activeUpgradeProgress}%` }}
 								/>
 							</div>
 							<div className="mt-1 flex items-center justify-between">
-								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/25">
+								<span className="
+          font-(family-name:--nv-font-mono) text-[9px] text-white/25
+        ">
 									{Math.round(activeUpgradeProgress)}%
 								</span>
-								<span className="inline-flex items-center gap-1 text-[9px] text-emerald-300/60">
+								<span className="
+          inline-flex items-center gap-1 text-[9px] text-emerald-300/60
+        ">
 									<span
 										className="inline-block size-1.5 rounded-full bg-emerald-400"
 										style={{ animation: "nv-queue-pulse 2s ease-in-out infinite" }}
@@ -1177,33 +1336,51 @@ function DefenseQueuePanel(props: {
 
 				{pendingQueueItems.length > 0 ? (
 					<div className={activeQueueItem ? "mt-4" : ""}>
-						<p className="text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase">
+						<p className="
+        text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
+      ">
 							Pending ({pendingQueueItems.length})
 						</p>
 						<div className="mt-2 space-y-1">
 							{pendingQueueItems.map((item, index) => (
 								<div
-									className="flex items-center justify-between rounded-lg border border-white/6 bg-white/2 px-3 py-2"
+									className="
+           flex items-center justify-between rounded-lg border border-white/6
+           bg-white/2 px-3 py-2
+         "
 									key={item.id}
 								>
 									<div className="flex items-center gap-2">
-										<span className="flex size-5 items-center justify-center rounded-sm font-(family-name:--nv-font-mono) text-[9px] font-bold text-white/25">
+										<span className="
+            flex size-5 items-center justify-center rounded-sm
+            font-(family-name:--nv-font-mono) text-[9px] font-bold text-white/25
+          ">
 											{index + 1}
 										</span>
 										<img
 											alt={item.defenseName}
-											className="size-6 rounded-sm border border-white/8 bg-black/20 object-contain p-0.5"
+											className="
+             size-6 rounded-sm border border-white/8 bg-black/20 object-contain
+             p-0.5
+           "
 											src={DEFENSE_PRESENTATION[item.defenseKey].image}
 										/>
 										<div>
 											<p className="text-[11px] font-semibold text-white/80">{item.defenseName}</p>
-											<p className="font-(family-name:--nv-font-mono) text-[9px] text-white/30">
+											<p className="
+             font-(family-name:--nv-font-mono) text-[9px] text-white/30
+           ">
 												{item.total} units • {formatDuration(item.timeLeftSeconds)}
 											</p>
 										</div>
 									</div>
 									<button
-										className="rounded-md border border-rose-300/20 bg-rose-400/8 px-2 py-1 text-[10px] font-medium text-rose-200/80 transition-colors hover:border-rose-200/35 hover:bg-rose-400/12 disabled:opacity-50"
+										className="
+            rounded-md border border-rose-300/20 bg-rose-400/8 px-2 py-1
+            text-[10px] font-medium text-rose-200/80 transition-colors
+            hover:border-rose-200/35 hover:bg-rose-400/12
+            disabled:opacity-50
+          "
 										disabled={cancelingQueueItemId === item.id}
 										onClick={() => {
 											onCancelQueueItem(item.id);
@@ -1220,7 +1397,10 @@ function DefenseQueuePanel(props: {
 
 				{queueItemsCount === 0 ? (
 					<div className="flex flex-col items-center py-8 text-center">
-						<div className="flex size-12 items-center justify-center rounded-full border border-white/8 bg-white/3">
+						<div className="
+        flex size-12 items-center justify-center rounded-full border
+        border-white/8 bg-white/3
+      ">
 							<Package className="size-5 text-white/20" />
 						</div>
 						<p className="mt-3 text-xs font-medium text-white/30">No active builds</p>

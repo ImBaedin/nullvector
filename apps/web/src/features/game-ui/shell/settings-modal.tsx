@@ -11,6 +11,8 @@ import {
 	Gamepad2,
 	Globe,
 	Keyboard,
+	LoaderCircle,
+	Lock,
 	Palette,
 	Shield,
 	User,
@@ -145,15 +147,16 @@ function ProfilePanel() {
 		}
 
 		setIsSavingDisplayName(true);
-		try {
-			await updateCurrentPlayerDisplayName({
+		const error = await updateCurrentPlayerDisplayName({
 				displayName: trimmedDisplayName,
-			});
-			toast.success("Display name updated");
-		} catch (error) {
+			})
+				.then(() => null)
+				.catch((caughtError) => caughtError);
+		setIsSavingDisplayName(false);
+		if (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to update display name");
-		} finally {
-			setIsSavingDisplayName(false);
+		} else {
+			toast.success("Display name updated");
 		}
 	};
 
@@ -300,45 +303,176 @@ function PrivacyPanel() {
 }
 
 function NotificationsPanel() {
-	const [combatAlerts, setCombatAlerts] = useState(true);
-	const [buildComplete, setBuildComplete] = useState(true);
-	const [fleetArrival, setFleetArrival] = useState(true);
-	const [researchDone, setResearchDone] = useState(false);
-	const [allianceMessages, setAllianceMessages] = useState(true);
-	const [emailDigest, setEmailDigest] = useState("daily");
+	const { isAuthenticated } = useConvexAuth();
+	const preferences = useQuery(
+		api.notifications.getNotificationPreferences,
+		isAuthenticated ? {} : "skip",
+	);
+	const updateNotificationPreferences = useMutation(
+		api.notifications.updateNotificationPreferences,
+	);
+	const [savingKind, setSavingKind] = useState<string | null>(null);
+
+	const savePreference = async (
+		kind:
+			| "raidResolved"
+			| "contractResolved"
+			| "transportDelivered"
+			| "transportReceived"
+			| "transportReturned"
+			| "operationFailed",
+		enabled: boolean,
+	) => {
+		setSavingKind(kind);
+		const error = await updateNotificationPreferences({
+				preferences: {
+					[kind]: enabled,
+				},
+			})
+				.then(() => null)
+				.catch((caughtError) => caughtError);
+		setSavingKind(null);
+		if (error) {
+			toast.error(error instanceof Error ? error.message : "Failed to update preferences");
+		}
+	};
+
+	if (!isAuthenticated) {
+		return (
+			<SettingsSection title="Notifications">
+				<p className="py-3 text-sm text-(--nv-text-muted)">
+					Sign in to manage notification preferences.
+				</p>
+			</SettingsSection>
+		);
+	}
 
 	return (
 		<>
-			<SettingsSection title="In-Game Alerts">
-				<SettingsRow label="Combat Alerts" description="Notify when your colonies are under attack">
-					<NvSwitch checked={combatAlerts} onCheckedChange={setCombatAlerts} />
-				</SettingsRow>
-				<SettingsRow label="Build Complete" description="Alert when constructions finish">
-					<NvSwitch checked={buildComplete} onCheckedChange={setBuildComplete} />
-				</SettingsRow>
-				<SettingsRow label="Fleet Arrival" description="Notify when fleets reach their destination">
-					<NvSwitch checked={fleetArrival} onCheckedChange={setFleetArrival} />
-				</SettingsRow>
-				<SettingsRow label="Research Complete" description="Alert when research projects finish">
-					<NvSwitch checked={researchDone} onCheckedChange={setResearchDone} />
-				</SettingsRow>
-				<SettingsRow label="Alliance Messages" description="Notifications from your alliance">
-					<NvSwitch checked={allianceMessages} onCheckedChange={setAllianceMessages} />
+			<SettingsSection title="Critical">
+				<SettingsRow
+					label="Incoming Raids"
+					description="Critical hostile approach warnings are always enabled."
+				>
+					<div className="flex items-center gap-2 text-(--nv-text-muted)">
+						<Lock className="size-3.5" />
+						<NvSwitch
+							checked={preferences?.settings.raidIncoming.enabled ?? true}
+							disabled
+							onCheckedChange={() => {}}
+						/>
+					</div>
 				</SettingsRow>
 			</SettingsSection>
+
+			<SettingsSection title="Combat">
+				<SettingsRow label="Raid Results" description="Battle outcomes, salvage, and XP deltas">
+					<div className="flex items-center gap-2">
+						{savingKind === "raidResolved" ? (
+							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
+						) : null}
+						<NvSwitch
+							checked={preferences?.settings.raidResolved.enabled ?? true}
+							disabled={!preferences || savingKind !== null}
+							onCheckedChange={(checked) => {
+								void savePreference("raidResolved", checked);
+							}}
+						/>
+					</div>
+				</SettingsRow>
+				<SettingsRow label="Contract Results" description="Contract success, rewards, and losses">
+					<div className="flex items-center gap-2">
+						{savingKind === "contractResolved" ? (
+							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
+						) : null}
+						<NvSwitch
+							checked={preferences?.settings.contractResolved.enabled ?? true}
+							disabled={!preferences || savingKind !== null}
+							onCheckedChange={(checked) => {
+								void savePreference("contractResolved", checked);
+							}}
+						/>
+					</div>
+				</SettingsRow>
+			</SettingsSection>
+
+			<SettingsSection title="Fleet">
+				<SettingsRow
+					label="Transport Delivered"
+					description="Cargo delivered by your outbound fleets"
+				>
+					<div className="flex items-center gap-2">
+						{savingKind === "transportDelivered" ? (
+							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
+						) : null}
+						<NvSwitch
+							checked={preferences?.settings.transportDelivered.enabled ?? true}
+							disabled={!preferences || savingKind !== null}
+							onCheckedChange={(checked) => {
+								void savePreference("transportDelivered", checked);
+							}}
+						/>
+					</div>
+				</SettingsRow>
+				<SettingsRow
+					label="Transport Received"
+					description="Cargo arriving from other colonies or players"
+				>
+					<div className="flex items-center gap-2">
+						{savingKind === "transportReceived" ? (
+							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
+						) : null}
+						<NvSwitch
+							checked={preferences?.settings.transportReceived.enabled ?? true}
+							disabled={!preferences || savingKind !== null}
+							onCheckedChange={(checked) => {
+								void savePreference("transportReceived", checked);
+							}}
+						/>
+					</div>
+				</SettingsRow>
+				<SettingsRow
+					label="Transport Returned"
+					description="Fleet returns after completing a transport"
+				>
+					<div className="flex items-center gap-2">
+						{savingKind === "transportReturned" ? (
+							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
+						) : null}
+						<NvSwitch
+							checked={preferences?.settings.transportReturned.enabled ?? true}
+							disabled={!preferences || savingKind !== null}
+							onCheckedChange={(checked) => {
+								void savePreference("transportReturned", checked);
+							}}
+						/>
+					</div>
+				</SettingsRow>
+				<SettingsRow
+					label="Operation Failures"
+					description="Transport, colonize, contract, and combat failures"
+				>
+					<div className="flex items-center gap-2">
+						{savingKind === "operationFailed" ? (
+							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
+						) : null}
+						<NvSwitch
+							checked={preferences?.settings.operationFailed.enabled ?? true}
+							disabled={!preferences || savingKind !== null}
+							onCheckedChange={(checked) => {
+								void savePreference("operationFailed", checked);
+							}}
+						/>
+					</div>
+				</SettingsRow>
+			</SettingsSection>
+
 			<SettingsSection title="Email">
-				<SettingsRow label="Email Digest" description="Summary of events while you were away">
-					<NvSelect
-						className="w-36"
-						onValueChange={setEmailDigest}
-						options={[
-							{ label: "Real-time", value: "realtime" },
-							{ label: "Daily", value: "daily" },
-							{ label: "Weekly", value: "weekly" },
-							{ label: "Never", value: "never" },
-						]}
-						value={emailDigest}
-					/>
+				<SettingsRow
+					label="Email Delivery"
+					description="Email notification delivery is not available yet."
+				>
+					<span className="text-xs text-(--nv-text-muted)">Coming soon</span>
 				</SettingsRow>
 			</SettingsSection>
 		</>
@@ -777,12 +911,12 @@ function DeveloperPanel({ activeColonyId }: { activeColonyId: Id<"colonies"> | n
 					>
 						<button
 							className="
-        inline-flex items-center gap-1.5 rounded-md border
-        border-[rgba(255,111,136,0.35)] bg-[rgba(255,111,136,0.08)] px-3 py-1.5
-        text-xs font-medium text-[#ffd4dd] transition
-        hover:bg-[rgba(255,111,136,0.15)]
-        disabled:cursor-not-allowed disabled:opacity-50
-      "
+         inline-flex items-center gap-1.5 rounded-md border
+         border-[rgba(255,111,136,0.35)] bg-[rgba(255,111,136,0.08)] px-3 py-1.5
+         text-xs font-medium text-[#ffd4dd] transition
+         hover:bg-[rgba(255,111,136,0.15)]
+         disabled:cursor-not-allowed disabled:opacity-50
+       "
 							disabled={!activeColonyId || isTriggeringRaid}
 							onClick={() => {
 								if (!activeColonyId) {

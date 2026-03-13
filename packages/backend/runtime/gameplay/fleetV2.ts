@@ -24,6 +24,12 @@ import {
 import { RESOURCE_SCALE } from "../../convex/schema";
 import { reconcilePlanetContracts } from "./contracts";
 import { applyPlanetControlReduction, isPlanetCurrentlyColonizable } from "./hostility";
+import {
+	emitContractResolvedNotification,
+	emitOperationFailedNotification,
+	emitTransportDeliveredNotifications,
+	emitTransportReturnedNotification,
+} from "./notifications";
 import { grantPlayerCredits, grantPlayerRankXp } from "./progression";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
@@ -409,6 +415,40 @@ async function upsertOperationResult(args: {
 	});
 }
 
+async function failOperationAndNotify(args: {
+	ctx: MutationCtx;
+	now: number;
+	operation: Doc<"fleetOperations">;
+	resultCode?: FleetResultCode;
+	resultMessage: string;
+}) {
+	await args.ctx.db.patch(args.operation._id, {
+		status: "failed",
+		updatedAt: args.now,
+	});
+	await upsertOperationResult({
+		ctx: args.ctx,
+		operation: args.operation,
+		now: args.now,
+		patch: {
+			resolvedAt: args.now,
+			resultCode: args.resultCode ?? "failed",
+			resultMessage: args.resultMessage,
+		},
+	});
+	await emitOperationFailedNotification({
+		ctx: args.ctx,
+		operationId: args.operation._id,
+		operationKind: args.operation.kind,
+		originColonyId: args.operation.originColonyId,
+		playerId: args.operation.ownerPlayerId,
+		resultCode: args.resultCode ?? "failed",
+		resultMessage: args.resultMessage,
+		resolvedAt: args.now,
+		universeId: args.operation.universeId,
+	});
+}
+
 async function settleTransportAtTarget(args: {
 	ctx: MutationCtx;
 	now: number;
@@ -416,38 +456,24 @@ async function settleTransportAtTarget(args: {
 }) {
 	const destinationId = args.operation.target.colonyId;
 	if (!destinationId) {
-		await args.ctx.db.patch(args.operation._id, {
-			status: "failed",
-			updatedAt: args.now,
-		});
-		await upsertOperationResult({
+		await failOperationAndNotify({
 			ctx: args.ctx,
-			operation: args.operation,
 			now: args.now,
-			patch: {
-				resolvedAt: args.now,
-				resultCode: "failed",
-				resultMessage: "Missing transport destination",
-			},
+			operation: args.operation,
+			resultCode: "failed",
+			resultMessage: "Missing transport destination",
 		});
 		return;
 	}
 
 	const destinationBase = await args.ctx.db.get(destinationId);
 	if (!destinationBase) {
-		await args.ctx.db.patch(args.operation._id, {
-			status: "failed",
-			updatedAt: args.now,
-		});
-		await upsertOperationResult({
+		await failOperationAndNotify({
 			ctx: args.ctx,
-			operation: args.operation,
 			now: args.now,
-			patch: {
-				resolvedAt: args.now,
-				resultCode: "failed",
-				resultMessage: "Destination colony not found",
-			},
+			operation: args.operation,
+			resultCode: "failed",
+			resultMessage: "Destination colony not found",
 		});
 		return;
 	}
@@ -456,6 +482,19 @@ async function settleTransportAtTarget(args: {
 		colony: destinationBase,
 		ctx: args.ctx,
 	});
+	if (
+		args.operation.postDeliveryAction === "stationAtDestination" &&
+		destination.playerId !== args.operation.ownerPlayerId
+	) {
+		await failOperationAndNotify({
+			ctx: args.ctx,
+			now: args.now,
+			operation: args.operation,
+			resultCode: "failed",
+			resultMessage: "Cross-player stationing is not allowed",
+		});
+		return;
+	}
 
 	const delivery = await applyCargoToColony({
 		cargoScaled: args.operation.cargoRequested,
@@ -465,9 +504,6 @@ async function settleTransportAtTarget(args: {
 	});
 
 	if (args.operation.postDeliveryAction === "stationAtDestination") {
-		if (destination.playerId !== args.operation.ownerPlayerId) {
-			throw new ConvexError("Cross-player stationing is not allowed");
-		}
 		const stationingShips = normalizeShipCounts(args.operation.shipCounts);
 		for (const key of Object.keys(stationingShips) as ShipKey[]) {
 			if (stationingShips[key] <= 0) {
@@ -520,6 +556,18 @@ async function settleTransportAtTarget(args: {
 			ownerPlayerId: args.operation.ownerPlayerId,
 			universeId: args.operation.universeId,
 		});
+		await emitTransportDeliveredNotifications({
+			ctx: args.ctx,
+			deliveredAt: args.now,
+			deliveredToOverflow: delivery.deliveredToOverflow,
+			deliveredToStorage: delivery.deliveredToStorage,
+			destinationColonyId: destination._id,
+			destinationPlayerId: destination.playerId,
+			operationId: args.operation._id,
+			originColonyId: args.operation.originColonyId,
+			ownerPlayerId: args.operation.ownerPlayerId,
+			universeId: args.operation.universeId,
+		});
 		return;
 	}
 
@@ -562,6 +610,19 @@ async function settleTransportAtTarget(args: {
 		ownerPlayerId: args.operation.ownerPlayerId,
 		universeId: args.operation.universeId,
 	});
+	await emitTransportDeliveredNotifications({
+		ctx: args.ctx,
+		deliveredAt: args.now,
+		deliveredToOverflow: delivery.deliveredToOverflow,
+		deliveredToStorage: delivery.deliveredToStorage,
+		destinationColonyId: destination._id,
+		destinationPlayerId: destination.playerId,
+		operationId: args.operation._id,
+		originColonyId: args.operation.originColonyId,
+		ownerPlayerId: args.operation.ownerPlayerId,
+		returnAt: args.now + returnDuration,
+		universeId: args.operation.universeId,
+	});
 }
 
 async function settleColonizeAtTarget(args: {
@@ -571,38 +632,24 @@ async function settleColonizeAtTarget(args: {
 }) {
 	const targetPlanetId = args.operation.target.planetId;
 	if (!targetPlanetId) {
-		await args.ctx.db.patch(args.operation._id, {
-			status: "failed",
-			updatedAt: args.now,
-		});
-		await upsertOperationResult({
+		await failOperationAndNotify({
 			ctx: args.ctx,
-			operation: args.operation,
 			now: args.now,
-			patch: {
-				resolvedAt: args.now,
-				resultCode: "failed",
-				resultMessage: "Missing colonization target planet",
-			},
+			operation: args.operation,
+			resultCode: "failed",
+			resultMessage: "Missing colonization target planet",
 		});
 		return;
 	}
 
 	const targetPlanetBase = await args.ctx.db.get(targetPlanetId);
 	if (!targetPlanetBase) {
-		await args.ctx.db.patch(args.operation._id, {
-			status: "failed",
-			updatedAt: args.now,
-		});
-		await upsertOperationResult({
+		await failOperationAndNotify({
 			ctx: args.ctx,
-			operation: args.operation,
 			now: args.now,
-			patch: {
-				resolvedAt: args.now,
-				resultCode: "failed",
-				resultMessage: "Target planet not found",
-			},
+			operation: args.operation,
+			resultCode: "failed",
+			resultMessage: "Target planet not found",
 		});
 		return;
 	}
@@ -618,19 +665,12 @@ async function settleColonizeAtTarget(args: {
 			planetId: targetPlanetId,
 		}))
 	) {
-		await args.ctx.db.patch(args.operation._id, {
-			status: "failed",
-			updatedAt: args.now,
-		});
-		await upsertOperationResult({
+		await failOperationAndNotify({
 			ctx: args.ctx,
-			operation: args.operation,
 			now: args.now,
-			patch: {
-				resolvedAt: args.now,
-				resultCode: "failed",
-				resultMessage: "Target planet is not colonizable",
-			},
+			operation: args.operation,
+			resultCode: "failed",
+			resultMessage: "Target planet is not colonizable",
 		});
 		return;
 	}
@@ -641,19 +681,12 @@ async function settleColonizeAtTarget(args: {
 		.first();
 
 	if (existing) {
-		await args.ctx.db.patch(args.operation._id, {
-			status: "failed",
-			updatedAt: args.now,
-		});
-		await upsertOperationResult({
+		await failOperationAndNotify({
 			ctx: args.ctx,
-			operation: args.operation,
 			now: args.now,
-			patch: {
-				resolvedAt: args.now,
-				resultCode: "failed",
-				resultMessage: "Target planet already colonized",
-			},
+			operation: args.operation,
+			resultCode: "failed",
+			resultMessage: "Target planet already colonized",
 		});
 		return;
 	}
@@ -773,18 +806,24 @@ async function settleContractAtTarget(args: {
 }) {
 	const contractId = args.operation.target.contractId;
 	if (!contractId) {
-		await args.ctx.db.patch(args.operation._id, {
-			status: "failed",
-			updatedAt: args.now,
+		await failOperationAndNotify({
+			ctx: args.ctx,
+			now: args.now,
+			operation: args.operation,
+			resultCode: "failed",
+			resultMessage: "Missing contract target",
 		});
 		return;
 	}
 
 	const contract = await args.ctx.db.get(contractId);
 	if (!contract) {
-		await args.ctx.db.patch(args.operation._id, {
-			status: "failed",
-			updatedAt: args.now,
+		await failOperationAndNotify({
+			ctx: args.ctx,
+			now: args.now,
+			operation: args.operation,
+			resultCode: "failed",
+			resultMessage: "Contract not found",
 		});
 		return;
 	}
@@ -920,6 +959,23 @@ async function settleContractAtTarget(args: {
 		ownerPlayerId: args.operation.ownerPlayerId,
 		universeId: args.operation.universeId,
 	});
+	await emitContractResolvedNotification({
+		controlReductionApplied,
+		ctx: args.ctx,
+		operationId: args.operation._id,
+		originColonyId: contract.originColonyId ?? args.operation.originColonyId,
+		planetId: contract.planetId,
+		playerId: contract.playerId,
+		resolvedAt: args.now,
+		rewardCargoLoaded: rewardCargoScaled,
+		rewardCargoLostByCapacity: rewardCargoLostScaled,
+		rewardCreditsGranted: combat.success ? contract.snapshot.rewardCredits : 0,
+		rewardRankXpGranted: rankXpGranted,
+		roundsFought: combat.roundsFought,
+		success: combat.success,
+		contractId: contract._id,
+		universeId: args.operation.universeId,
+	});
 
 	await reconcilePlanetContracts({
 		ctx: args.ctx,
@@ -937,19 +993,12 @@ async function settleOperationReturn(args: {
 }) {
 	const originBase = await args.ctx.db.get(args.operation.originColonyId);
 	if (!originBase) {
-		await args.ctx.db.patch(args.operation._id, {
-			status: "failed",
-			updatedAt: args.now,
-		});
-		await upsertOperationResult({
+		await failOperationAndNotify({
 			ctx: args.ctx,
-			operation: args.operation,
 			now: args.now,
-			patch: {
-				resolvedAt: args.now,
-				resultCode: "failed",
-				resultMessage: "Origin colony not found for return",
-			},
+			operation: args.operation,
+			resultCode: "failed",
+			resultMessage: "Origin colony not found for return",
 		});
 		return;
 	}
@@ -1029,6 +1078,16 @@ async function settleOperationReturn(args: {
 		ownerPlayerId: args.operation.ownerPlayerId,
 		universeId: args.operation.universeId,
 	});
+	if (args.operation.kind === "transport" && !result?.cancelledAt) {
+		await emitTransportReturnedNotification({
+			ctx: args.ctx,
+			operationId: args.operation._id,
+			originColonyId: originBase._id,
+			playerId: args.operation.ownerPlayerId,
+			returnedAt: args.now,
+			universeId: args.operation.universeId,
+		});
+	}
 }
 
 export async function settleDueFleetOperations(args: {
@@ -1163,6 +1222,17 @@ export async function settleDueFleetOperations(args: {
 			now: args.now,
 			operationId: latest._id,
 			ownerPlayerId: latest.ownerPlayerId,
+			universeId: latest.universeId,
+		});
+		await emitOperationFailedNotification({
+			ctx: args.ctx,
+			operationId: latest._id,
+			operationKind: latest.kind,
+			originColonyId: latest.originColonyId,
+			playerId: latest.ownerPlayerId,
+			resultCode: "notImplemented",
+			resultMessage: `${latest.kind} operations are not implemented yet`,
+			resolvedAt: args.now,
 			universeId: latest.universeId,
 		});
 	}

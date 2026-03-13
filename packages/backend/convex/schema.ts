@@ -1,6 +1,16 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+import {
+	notificationCategoryValidator,
+	notificationDestinationValidator,
+	notificationKindValidator,
+	notificationPayloadValidator,
+	notificationSeverityValidator,
+	notificationSourceKindValidator,
+	notificationStatusValidator,
+} from "../runtime/gameplay/notificationsModel";
+
 export const RESOURCE_SCALE = 1_000;
 
 const sectorTypeValidator = v.union(v.literal("core"), v.literal("frontier"));
@@ -705,6 +715,46 @@ export default defineSchema({
 		.index("by_contract_id", ["contractId"])
 		.index("by_operation_id", ["operationId"])
 		.index("by_player_id", ["playerId"]),
+
+	notifications: defineTable({
+		universeId: v.id("universes"),
+		playerId: v.id("players"),
+		colonyId: v.optional(v.id("colonies")),
+		category: notificationCategoryValidator,
+		kind: notificationKindValidator,
+		severity: notificationSeverityValidator,
+		status: notificationStatusValidator,
+		sourceKind: notificationSourceKindValidator,
+		sourceKey: v.string(),
+		payload: notificationPayloadValidator,
+		destination: v.optional(notificationDestinationValidator),
+		occurredAt: v.number(),
+		readAt: v.optional(v.number()),
+		archivedAt: v.optional(v.number()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_pl_time", ["playerId", "occurredAt"])
+		.index("by_pl_st_time", ["playerId", "status", "occurredAt"])
+		.index("by_pl_cat_time", ["playerId", "category", "occurredAt"])
+		.index("by_pl_cat_st_t", ["playerId", "category", "status", "occurredAt"])
+		.index("by_pl_col_cat_t", ["playerId", "colonyId", "category", "occurredAt"])
+		.index("by_pl_col_cat_st_t", ["playerId", "colonyId", "category", "status", "occurredAt"])
+		.index("by_pl_col_time", ["playerId", "colonyId", "occurredAt"])
+		.index("by_pl_col_st_t", ["playerId", "colonyId", "status", "occurredAt"])
+		.index("by_pl_src", ["playerId", "sourceKey"]),
+
+	playerNotificationPreferences: defineTable({
+		playerId: v.id("players"),
+		raidResolvedEnabled: v.boolean(),
+		contractResolvedEnabled: v.boolean(),
+		transportDeliveredEnabled: v.boolean(),
+		transportReceivedEnabled: v.boolean(),
+		transportReturnedEnabled: v.boolean(),
+		operationFailedEnabled: v.boolean(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_player_id", ["playerId"]),
 
 	colonyQueueItems: defineTable({
 		universeId: v.id("universes"),
