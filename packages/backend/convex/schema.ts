@@ -580,6 +580,7 @@ export default defineSchema({
 		.index("by_owner_stat_evt", ["ownerPlayerId", "status", "nextEventAt"])
 		.index("by_stat_evt", ["status", "nextEventAt"])
 		.index("by_origin_stat_evt", ["originColonyId", "status", "nextEventAt"])
+		.index("by_tcol_st_evt", ["target.colonyId", "status", "nextEventAt"])
 		.index("by_target_planet_status", ["target.planetId", "status"])
 		.index("by_tplanet_st_evt", ["target.planetId", "status", "nextEventAt"])
 		.index("by_parent_op", ["parentOperationId"])
@@ -748,6 +749,7 @@ export default defineSchema({
 		playerId: v.id("players"),
 		raidResolvedEnabled: v.boolean(),
 		contractResolvedEnabled: v.boolean(),
+		transportIncomingEnabled: v.optional(v.boolean()),
 		transportDeliveredEnabled: v.boolean(),
 		transportReceivedEnabled: v.boolean(),
 		transportReturnedEnabled: v.boolean(),

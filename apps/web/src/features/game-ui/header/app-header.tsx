@@ -174,16 +174,22 @@ export function AppHeader({
 				icon: (
 					<span className="relative inline-flex shrink-0">
 						{tab.icon}
-						<span className="
-        absolute -top-0.5 -right-0.5 flex size-2.5 items-center justify-center
-      ">
-							<span className="
-         absolute inline-flex size-2.5 animate-ping rounded-full bg-rose-400/35
-       " />
-							<span className="
-         relative inline-flex size-1.5 rounded-full bg-rose-300
-         shadow-[0_0_8px_rgba(253,164,175,0.8)]
-       " />
+						<span
+							className="
+         absolute -top-0.5 -right-0.5 flex size-2.5 items-center justify-center
+       "
+						>
+							<span
+								className="
+          absolute inline-flex size-2.5 animate-ping rounded-full bg-rose-400/35
+        "
+							/>
+							<span
+								className="
+          relative inline-flex size-1.5 rounded-full bg-rose-300
+          shadow-[0_0_8px_rgba(253,164,175,0.8)]
+        "
+							/>
 						</span>
 					</span>
 				),
@@ -255,11 +261,11 @@ export function AppHeader({
 
 		setIsSavingColonyName(true);
 		const error = await renameColony({
-				colonyId: activeColony.id as Id<"colonies">,
-				name: normalizedName,
-			})
-				.then(() => null)
-				.catch((caughtError) => caughtError);
+			colonyId: activeColony.id as Id<"colonies">,
+			name: normalizedName,
+		})
+			.then(() => null)
+			.catch((caughtError) => caughtError);
 		setIsSavingColonyName(false);
 		if (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to rename colony");
@@ -619,9 +625,9 @@ export function AppHeader({
        "
 						>
 							{playerProfile ? (
-								<div className="
-          mr-1 flex items-center gap-2 border-r border-white/8 pr-3
-        ">
+								<div
+									className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3"
+								>
 									<div className="flex items-center gap-2">
 										<div
 											className="

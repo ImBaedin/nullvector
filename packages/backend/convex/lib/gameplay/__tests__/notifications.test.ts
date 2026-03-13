@@ -52,6 +52,25 @@ describe("notification helpers", () => {
 
 		expect(
 			destinationForNotification({
+				kind: "transportIncoming",
+				operationId: "op_0" as never,
+				originColonyId: "origin_0" as never,
+				destinationColonyId: "dest_0" as never,
+				cargoRequested: {
+					alloy: 25,
+					crystal: 5,
+					fuel: 10,
+				},
+				arriveAt: 9_000,
+			}),
+		).toEqual({
+			kind: "colonyTab",
+			colonyId: "dest_0",
+			tab: "fleet",
+		});
+
+		expect(
+			destinationForNotification({
 				kind: "transportDelivered",
 				operationId: "op_1" as never,
 				originColonyId: "origin_1" as never,
@@ -115,6 +134,10 @@ describe("notification helpers", () => {
 			editable: true,
 			enabled: true,
 		});
+		expect(preferences.settings.transportIncoming).toEqual({
+			editable: true,
+			enabled: true,
+		});
 	});
 
 	it("resolves stored notification preferences and kind checks", () => {
@@ -137,6 +160,7 @@ describe("notification helpers", () => {
 		expect(defaultNotificationPreferenceRecord()).toEqual({
 			raidResolved: true,
 			contractResolved: true,
+			transportIncoming: true,
 			transportDelivered: true,
 			transportReceived: true,
 			transportReturned: true,

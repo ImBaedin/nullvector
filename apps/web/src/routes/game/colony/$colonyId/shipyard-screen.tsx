@@ -205,10 +205,12 @@ export function ShipyardScreen(props: ShipyardScreenProps) {
 
 							return (
 								<div key={group.label}>
-									<p className="
-           mb-2 text-[10px] font-semibold tracking-[0.14em] text-white/35
-           uppercase
-         ">
+									<p
+										className="
+            mb-2 text-[10px] font-semibold tracking-[0.14em] text-white/35
+            uppercase
+          "
+									>
 										{group.label}
 									</p>
 									<div className="space-y-2">
@@ -314,17 +316,21 @@ function ShipyardSummaryStrip(props: {
 
 					return (
 						<div key={group.label}>
-							<p className="
-         mb-1.5 text-[9px] font-semibold tracking-[0.12em] text-white/30
-         uppercase
-       ">
+							<p
+								className="
+          mb-1.5 text-[9px] font-semibold tracking-[0.12em] text-white/30
+          uppercase
+        "
+							>
 								{group.label}
 							</p>
-							<div className="
-         grid grid-cols-2 gap-2
-         sm:grid-cols-3
-         md:grid-cols-4
-       ">
+							<div
+								className="
+          grid grid-cols-2 gap-2
+          sm:grid-cols-3
+          md:grid-cols-4
+        "
+							>
 								{groupShips.map((ship) => (
 									<SummaryShipCard key={ship.key} ship={ship} />
 								))}
@@ -350,8 +356,8 @@ function SummaryShipCard(props: { ship: ShipyardDisplayShip }) {
 		<div className={`
     relative overflow-hidden rounded-xl border p-2.5 transition-colors
     ${hasAny ? "border-white/10 bg-white/[0.035]" : `
-                     border-white/6 bg-white/[0.015] opacity-50
-                   `}
+      border-white/6 bg-white/[0.015] opacity-50
+    `}
   `}>
 			<div className="flex items-center gap-2">
 				<img
@@ -473,9 +479,7 @@ function ShipCard(props: ShipCardProps) {
 		<article
 			className={`
      group relative overflow-hidden rounded-xl border
-     ${availability.lockedByLevel ? `
-               border-white/8 opacity-60 grayscale
-             ` : `
+     ${availability.lockedByLevel ? `border-white/8 opacity-60 grayscale` : `
                border-white/10
              `}
      bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
@@ -493,10 +497,12 @@ function ShipCard(props: ShipCardProps) {
 				}}
 			/>
 
-			<div className="
-     relative z-10 p-3
-     sm:p-4
-   ">
+			<div
+				className="
+      relative z-10 p-3
+      sm:p-4
+    "
+			>
 				<div className="flex items-center gap-3">
 					<img
 						alt={ship.name}
@@ -579,9 +585,12 @@ function ShipCard(props: ShipCardProps) {
 					)}
 				</div>
 
-				<div className="
-      mt-3 flex flex-wrap items-end gap-x-4 gap-y-2 border-t border-white/6 pt-3
-    ">
+				<div
+					className="
+       mt-3 flex flex-wrap items-end gap-x-4 gap-y-2 border-t border-white/6
+       pt-3
+     "
+				>
 					<div className="flex gap-3 text-[10px]">
 						<div>
 							<span className="text-[8px] tracking-wider text-white/30 uppercase">Cargo</span>
@@ -660,9 +669,9 @@ function QuantityStepper(props: {
 	const { canEdit, onBlur, onChange, onDecrement, onIncrement, quantity, value } = props;
 
 	return (
-		<div className="
-    flex items-center rounded-lg border border-white/12 bg-black/25
-  ">
+		<div
+			className="flex items-center rounded-lg border border-white/12 bg-black/25"
+		>
 			<button
 				className="
       flex size-7 items-center justify-center text-white/60
@@ -734,15 +743,17 @@ function CommandQueuePanel(props: {
      bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
    "
 		>
-			<div className="
-     flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
-   ">
+			<div
+				className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
+			>
 				<Clock3 className="size-5 text-cyan-300" />
 				<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Command Queue</h2>
 				{queueItemsCount > 0 ? (
-					<span className="
-       ml-auto font-(family-name:--nv-font-mono) text-[9px] text-white/30
-     ">
+					<span
+						className="
+        ml-auto font-(family-name:--nv-font-mono) text-[9px] text-white/30
+      "
+					>
 						{queueItemsCount} item{queueItemsCount !== 1 ? "s" : ""}
 					</span>
 				) : null}
@@ -803,12 +814,14 @@ function ActiveQueueCard(props: {
 
 	return (
 		<div className="space-y-3">
-			<p className="
-     text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
-   ">Active</p>
-			<div
-				className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3"
+			<p
+				className="
+      text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
+    "
 			>
+				Active
+			</p>
+			<div className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3">
 				<div className="flex items-start justify-between gap-2">
 					<div className="flex items-center gap-2.5">
 						{activeImage ? (
@@ -823,9 +836,11 @@ function ActiveQueueCard(props: {
 						) : null}
 						<div>
 							<p className="text-xs font-semibold">{activeQueueItem.shipName}</p>
-							<p className="
-         mt-0.5 font-(family-name:--nv-font-mono) text-[10px] text-white/40
-       ">
+							<p
+								className="
+          mt-0.5 font-(family-name:--nv-font-mono) text-[10px] text-white/40
+        "
+							>
 								{activeQueueItem.remaining.toLocaleString()} of{" "}
 								{activeQueueItem.total.toLocaleString()} remaining
 							</p>
@@ -857,9 +872,13 @@ function ActiveQueueCard(props: {
 							onClick={() => onCancelQueueItem(activeQueueItem.id)}
 							type="button"
 						>
-							{cancelingQueueItemId === activeQueueItem.id ? "..." : <X className="
-         size-3
-       " />}
+							{cancelingQueueItemId === activeQueueItem.id ? (
+								"..."
+							) : (
+								<X
+									className="size-3"
+								/>
+							)}
 						</button>
 					</div>
 				</div>
@@ -867,22 +886,26 @@ function ActiveQueueCard(props: {
 				<div className="mt-2 flex items-center justify-between text-right">
 					<div className="flex items-center gap-1.5">
 						<Layers3 className="size-3 text-emerald-300/50" />
-						<span className="
-        font-(family-name:--nv-font-mono) text-[10px] text-white/40
-      ">
+						<span
+							className="font-(family-name:--nv-font-mono) text-[10px] text-white/40"
+						>
 							Batch {activeQueueItem.total.toLocaleString()}
 						</span>
 					</div>
 					<div>
-						<p className="
-        font-(family-name:--nv-font-mono) text-xs font-bold text-emerald-200
-      ">
+						<p
+							className="
+         font-(family-name:--nv-font-mono) text-xs font-bold text-emerald-200
+       "
+						>
 							{formatDuration(activeQueueItem.timeLeftSeconds)}
 						</p>
-						<p className="
-        font-(family-name:--nv-font-mono) text-[8px] tracking-widest
-        text-emerald-200/45 uppercase
-      ">
+						<p
+							className="
+         font-(family-name:--nv-font-mono) text-[8px] tracking-widest
+         text-emerald-200/45 uppercase
+       "
+						>
 							remaining
 						</p>
 					</div>
@@ -898,14 +921,14 @@ function ActiveQueueCard(props: {
 					/>
 				</div>
 				<div className="mt-1 flex items-center justify-between">
-					<span className="
-       font-(family-name:--nv-font-mono) text-[9px] text-white/25
-     ">
+					<span
+						className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
+					>
 						{Math.round(activeUpgradeProgress)}%
 					</span>
-					<span className="
-       inline-flex items-center gap-1 text-[9px] text-emerald-300/60
-     ">
+					<span
+						className="inline-flex items-center gap-1 text-[9px] text-emerald-300/60"
+					>
 						<span
 							className="inline-block size-1.5 rounded-full bg-emerald-400"
 							style={{
@@ -931,9 +954,11 @@ function PendingQueueList(props: {
 
 	return (
 		<div className={activeQueueItem ? "mt-4" : ""}>
-			<p className="
-     text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
-   ">
+			<p
+				className="
+      text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
+    "
+			>
 				Pending ({items.length})
 			</p>
 			<div className="mt-2 space-y-1">
@@ -970,9 +995,9 @@ function PendingQueueList(props: {
 								) : null}
 								<div>
 									<p className="text-[11px] font-semibold text-white/80">{item.shipName}</p>
-									<p className="
-           font-(family-name:--nv-font-mono) text-[9px] text-white/30
-         ">
+									<p
+										className="font-(family-name:--nv-font-mono) text-[9px] text-white/30"
+									>
 										{item.total.toLocaleString()} ships • {formatDuration(item.timeLeftSeconds)}
 									</p>
 								</div>

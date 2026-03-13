@@ -444,10 +444,7 @@ function ContractsRoute() {
 		setPlanetContracts(null);
 	}
 
-	function handleBrowseSystem(
-		sector: HostileSectorWithDistance,
-		system: SystemGroup,
-	): void {
+	function handleBrowseSystem(sector: HostileSectorWithDistance, system: SystemGroup): void {
 		setBrowseLevel({ level: "planets", sector, system });
 		setPlanetContracts(null);
 	}
@@ -727,16 +724,20 @@ function ActiveContractOperationsPanel(props: {
 			emptyMessage="No active contract missions."
 			expandedId={props.expandedOp}
 			header={
-				<h2 className="
-      flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
-      font-bold
-    ">
+				<h2
+					className="
+       flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
+       font-bold
+     "
+				>
 					<Layers3 className="size-4 text-rose-300/60" />
 					<span>
 						Active Contracts{" "}
-						<span className="
-        font-(family-name:--nv-font-mono) text-xs font-medium text-white/35
-      ">
+						<span
+							className="
+         font-(family-name:--nv-font-mono) text-xs font-medium text-white/35
+       "
+						>
 							({props.activeContractCount}/{props.activeContractLimit})
 						</span>
 					</span>

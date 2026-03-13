@@ -29,6 +29,7 @@ import {
 	type RaidIncomingNotification,
 	type RaidResolvedNotification,
 	type TransportDeliveredNotification,
+	type TransportIncomingNotification,
 	type TransportReceivedNotification,
 	type TransportReturnedNotification,
 } from "./notificationsModel";
@@ -421,6 +422,41 @@ export async function emitTransportDeliveredNotifications(args: {
 	}
 }
 
+export async function emitTransportIncomingNotification(args: {
+	arriveAt: number;
+	cargoRequested: TransportIncomingNotification["cargoRequested"];
+	ctx: MutationCtx;
+	destinationColonyId: Id<"colonies">;
+	destinationPlayerId: Id<"players">;
+	operationId: Id<"fleetOperations">;
+	originColonyId: Id<"colonies">;
+	occurredAt: number;
+	universeId: Id<"universes">;
+}) {
+	const payload: TransportIncomingNotification = {
+		kind: "transportIncoming",
+		operationId: args.operationId,
+		originColonyId: args.originColonyId,
+		destinationColonyId: args.destinationColonyId,
+		cargoRequested: args.cargoRequested,
+		arriveAt: args.arriveAt,
+	};
+	return insertNotificationIfMissing({
+		category: categoryForNotificationKind(payload.kind),
+		colonyId: args.destinationColonyId,
+		ctx: args.ctx,
+		destination: destinationForNotification(payload),
+		kind: payload.kind,
+		occurredAt: args.occurredAt,
+		payload,
+		playerId: args.destinationPlayerId,
+		severity: severityForNotificationKind({ kind: payload.kind }),
+		sourceId: args.operationId,
+		sourceKind: "fleetOperation",
+		universeId: args.universeId,
+	});
+}
+
 export async function emitTransportReturnedNotification(args: {
 	ctx: MutationCtx;
 	operationId: Id<"fleetOperations">;
@@ -524,6 +560,7 @@ export const updateNotificationPreferences = mutation({
 			playerId?: Id<"players">;
 			raidResolvedEnabled: boolean;
 			contractResolvedEnabled: boolean;
+			transportIncomingEnabled?: boolean;
 			transportDeliveredEnabled: boolean;
 			transportReceivedEnabled: boolean;
 			transportReturnedEnabled: boolean;
@@ -532,6 +569,7 @@ export const updateNotificationPreferences = mutation({
 			updatedAt: now,
 			raidResolvedEnabled: existing?.raidResolvedEnabled ?? defaults.raidResolved,
 			contractResolvedEnabled: existing?.contractResolvedEnabled ?? defaults.contractResolved,
+			transportIncomingEnabled: existing?.transportIncomingEnabled ?? defaults.transportIncoming,
 			transportDeliveredEnabled: existing?.transportDeliveredEnabled ?? defaults.transportDelivered,
 			transportReceivedEnabled: existing?.transportReceivedEnabled ?? defaults.transportReceived,
 			transportReturnedEnabled: existing?.transportReturnedEnabled ?? defaults.transportReturned,

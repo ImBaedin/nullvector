@@ -7,6 +7,7 @@ export const NOTIFICATION_KINDS = [
 	"raidIncoming",
 	"raidResolved",
 	"contractResolved",
+	"transportIncoming",
 	"transportDelivered",
 	"transportReceived",
 	"transportReturned",
@@ -15,6 +16,7 @@ export const NOTIFICATION_KINDS = [
 export const MUTABLE_NOTIFICATION_PREFERENCE_KINDS = [
 	"raidResolved",
 	"contractResolved",
+	"transportIncoming",
 	"transportDelivered",
 	"transportReceived",
 	"transportReturned",
@@ -116,6 +118,15 @@ export type TransportDeliveredNotification = {
 	returnAt?: number;
 };
 
+export type TransportIncomingNotification = {
+	kind: "transportIncoming";
+	operationId: Id<"fleetOperations">;
+	originColonyId: Id<"colonies">;
+	destinationColonyId: Id<"colonies">;
+	cargoRequested: ResourceBucket;
+	arriveAt: number;
+};
+
 export type TransportReceivedNotification = {
 	kind: "transportReceived";
 	operationId: Id<"fleetOperations">;
@@ -144,6 +155,7 @@ export type NotificationPayload =
 	| RaidIncomingNotification
 	| RaidResolvedNotification
 	| ContractResolvedNotification
+	| TransportIncomingNotification
 	| TransportDeliveredNotification
 	| TransportReceivedNotification
 	| TransportReturnedNotification
@@ -193,6 +205,7 @@ export const notificationKindValidator = v.union(
 	v.literal("raidIncoming"),
 	v.literal("raidResolved"),
 	v.literal("contractResolved"),
+	v.literal("transportIncoming"),
 	v.literal("transportDelivered"),
 	v.literal("transportReceived"),
 	v.literal("transportReturned"),
@@ -267,6 +280,14 @@ export const notificationPayloadValidator = v.union(
 		controlReductionApplied: v.number(),
 	}),
 	v.object({
+		kind: v.literal("transportIncoming"),
+		operationId: v.id("fleetOperations"),
+		originColonyId: v.id("colonies"),
+		destinationColonyId: v.id("colonies"),
+		cargoRequested: resourceBucketValidator,
+		arriveAt: v.number(),
+	}),
+	v.object({
 		kind: v.literal("transportDelivered"),
 		operationId: v.id("fleetOperations"),
 		originColonyId: v.id("colonies"),
@@ -314,6 +335,7 @@ export const notificationPayloadValidator = v.union(
 export const mutableNotificationPreferenceKindValidator = v.union(
 	v.literal("raidResolved"),
 	v.literal("contractResolved"),
+	v.literal("transportIncoming"),
 	v.literal("transportDelivered"),
 	v.literal("transportReceived"),
 	v.literal("transportReturned"),
@@ -328,6 +350,7 @@ export const notificationPreferenceSettingValidator = v.object({
 export const notificationPreferencePatchValidator = v.object({
 	raidResolved: v.optional(v.boolean()),
 	contractResolved: v.optional(v.boolean()),
+	transportIncoming: v.optional(v.boolean()),
 	transportDelivered: v.optional(v.boolean()),
 	transportReceived: v.optional(v.boolean()),
 	transportReturned: v.optional(v.boolean()),
@@ -340,6 +363,7 @@ export const notificationPreferencesViewValidator = v.object({
 		raidIncoming: notificationPreferenceSettingValidator,
 		raidResolved: notificationPreferenceSettingValidator,
 		contractResolved: notificationPreferenceSettingValidator,
+		transportIncoming: notificationPreferenceSettingValidator,
 		transportDelivered: notificationPreferenceSettingValidator,
 		transportReceived: notificationPreferenceSettingValidator,
 		transportReturned: notificationPreferenceSettingValidator,
@@ -391,6 +415,8 @@ export function notificationPreferenceFieldForKind(kind: MutableNotificationPref
 			return "raidResolvedEnabled";
 		case "contractResolved":
 			return "contractResolvedEnabled";
+		case "transportIncoming":
+			return "transportIncomingEnabled";
 		case "transportDelivered":
 			return "transportDeliveredEnabled";
 		case "transportReceived":
@@ -409,6 +435,7 @@ export function defaultNotificationPreferenceRecord(): Record<
 	return {
 		raidResolved: true,
 		contractResolved: true,
+		transportIncoming: true,
 		transportDelivered: true,
 		transportReceived: true,
 		transportReturned: true,
@@ -436,6 +463,10 @@ export function buildNotificationPreferencesView(args: {
 			contractResolved: {
 				editable: true,
 				enabled: args.stored?.contractResolvedEnabled ?? defaults.contractResolved,
+			},
+			transportIncoming: {
+				editable: true,
+				enabled: args.stored?.transportIncomingEnabled ?? defaults.transportIncoming,
 			},
 			transportDelivered: {
 				editable: true,
@@ -471,6 +502,7 @@ export function categoryForNotificationKind(kind: NotificationKind): Notificatio
 		case "raidResolved":
 		case "contractResolved":
 			return "combat";
+		case "transportIncoming":
 		case "transportDelivered":
 		case "transportReceived":
 		case "transportReturned":
@@ -513,6 +545,12 @@ export function destinationForNotification(payload: NotificationPayload): Notifi
 				kind: "colonyTab",
 				colonyId: payload.originColonyId,
 				tab: "contracts",
+			};
+		case "transportIncoming":
+			return {
+				kind: "colonyTab",
+				colonyId: payload.destinationColonyId,
+				tab: "fleet",
 			};
 		case "transportDelivered":
 			return {

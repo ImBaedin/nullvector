@@ -30,9 +30,12 @@ export function ShipAssignmentList(props: {
 
 					return (
 						<div key={group.label}>
-							<p className="
-         mb-1 text-[8px] font-semibold tracking-[0.12em] text-white/25 uppercase
-       ">
+							<p
+								className="
+          mb-1 text-[8px] font-semibold tracking-[0.12em] text-white/25
+          uppercase
+        "
+							>
 								{group.label}
 							</p>
 							{groupShips.map((ship, index) => {
@@ -102,9 +105,11 @@ export function ShipAssignmentList(props: {
 
 function SectionLabel(props: { children: string }) {
 	return (
-		<p className="
-    text-[10px] font-semibold tracking-[0.18em] text-white/45 uppercase
-  ">
+		<p
+			className="
+     text-[10px] font-semibold tracking-[0.18em] text-white/45 uppercase
+   "
+		>
 			{props.children}
 		</p>
 	);

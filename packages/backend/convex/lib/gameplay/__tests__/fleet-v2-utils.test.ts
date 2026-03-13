@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { getFleetFuelCostForDistance } from "@nullvector/game-logic";
+import { describe, expect, it } from "vitest";
 
 import {
 	durationMsForFleet,

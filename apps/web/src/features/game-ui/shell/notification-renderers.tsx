@@ -80,13 +80,18 @@ function ResourceToken({
 	resourceKey: "alloy" | "crystal" | "fuel";
 }) {
 	return (
-		<span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-2 py-0.5">
+		<span className="
+    inline-flex items-center gap-1 rounded-full border border-white/10
+    bg-black/20 px-2 py-0.5
+  ">
 			<img
 				alt={`${resourceKey} icon`}
 				className="size-3 shrink-0 object-contain"
 				src={RESOURCE_ICON_BY_KEY[resourceKey]}
 			/>
-			<span className="font-(family-name:--nv-font-mono) text-[11px] text-(--nv-text-secondary)">
+			<span className="
+     font-(family-name:--nv-font-mono) text-[11px] text-(--nv-text-secondary)
+   ">
 				{amount.toLocaleString()}
 			</span>
 		</span>
@@ -132,7 +137,9 @@ function NotificationTitle({
 		<h4
 			className={cn(
 				"truncate text-[13px] font-medium",
-				status === "unread" ? "text-(--nv-text-primary)" : "text-(--nv-text-secondary)",
+				status === "unread" ? "text-(--nv-text-primary)" : `
+      text-(--nv-text-secondary)
+    `,
 			)}
 		>
 			{children}
@@ -151,7 +158,9 @@ function NotificationSummary({
 		<p
 			className={cn(
 				"mt-0.5 line-clamp-2 text-xs/relaxed",
-				status === "unread" ? "text-(--nv-text-secondary)" : "text-(--nv-text-muted)",
+				status === "unread" ? "text-(--nv-text-secondary)" : `
+      text-(--nv-text-muted)
+    `,
 			)}
 		>
 			{children}
@@ -159,13 +168,7 @@ function NotificationSummary({
 	);
 }
 
-function NotificationStat({
-	label,
-	value,
-}: {
-	label: string;
-	value: React.ReactNode;
-}) {
+function NotificationStat({ label, value }: { label: string; value: React.ReactNode }) {
 	return (
 		<div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3">
 			<p className="text-[11px] font-medium text-(--nv-text-muted)">{label}</p>
@@ -174,11 +177,7 @@ function NotificationStat({
 	);
 }
 
-function NotificationBody({
-	children,
-}: {
-	children: React.ReactNode;
-}) {
+function NotificationBody({ children }: { children: React.ReactNode }) {
 	return <div className="space-y-2">{children}</div>;
 }
 
@@ -196,7 +195,9 @@ function NotificationRowLayout({
 			<div className="flex min-w-0 items-center gap-2">
 				<NotificationTitle status={notification.status}>{title}</NotificationTitle>
 				{notification.status === "unread" ? (
-					<span className="size-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(61,217,255,0.5)]" />
+					<span className="
+       size-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(61,217,255,0.5)]
+     " />
 				) : null}
 			</div>
 			<NotificationSummary status={notification.status}>{summary}</NotificationSummary>
@@ -204,11 +205,7 @@ function NotificationRowLayout({
 	);
 }
 
-function NotificationDetailLayout({
-	children,
-}: {
-	children: React.ReactNode;
-}) {
+function NotificationDetailLayout({ children }: { children: React.ReactNode }) {
 	return (
 		<div className="space-y-2 rounded-xl border border-white/8 bg-white/3 p-4">{children}</div>
 	);
@@ -268,9 +265,16 @@ function RaidResolvedNotification({
 			<NotificationRowLayout
 				notification={notification}
 				summary={
-					payload.success
-						? <>Recovered <ResourceInlineList bucket={payload.salvageGranted} /> from salvage.</>
-						: <>Gained <ResourceInlineList bucket={payload.salvageGranted} />. Lost <ResourceInlineList bucket={payload.resourcesLooted} /> to the raid.</>
+					payload.success ? (
+						<>
+							Recovered <ResourceInlineList bucket={payload.salvageGranted} /> from salvage.
+						</>
+					) : (
+						<>
+							Gained <ResourceInlineList bucket={payload.salvageGranted} />. Lost{" "}
+							<ResourceInlineList bucket={payload.resourcesLooted} /> to the raid.
+						</>
+					)
 				}
 				title={titleWithColony({
 					baseTitle: payload.success ? "Raid defended" : "Raid breached defenses",
@@ -283,10 +287,7 @@ function RaidResolvedNotification({
 
 	return (
 		<NotificationDetailLayout>
-			<NotificationStat
-				label="Outcome"
-				value={payload.success ? "Defended" : "Breached"}
-			/>
+			<NotificationStat label="Outcome" value={payload.success ? "Defended" : "Breached"} />
 			<NotificationStat label="Rounds fought" value={payload.roundsFought} />
 			<NotificationStat
 				label="Resources gained"
@@ -296,10 +297,7 @@ function RaidResolvedNotification({
 				label="Resources looted"
 				value={<ResourceInlineList bucket={payload.resourcesLooted} />}
 			/>
-			<NotificationStat
-				label="Rank XP delta"
-				value={payload.rankXpDelta.toLocaleString()}
-			/>
+			<NotificationStat label="Rank XP delta" value={payload.rankXpDelta.toLocaleString()} />
 		</NotificationDetailLayout>
 	);
 }
@@ -313,7 +311,10 @@ function ContractResolvedNotification({
 	notification: NotificationFeedItem;
 	variant: "detail" | "row";
 }) {
-	const payload = notification.payload as Extract<NotificationPayload, { kind: "contractResolved" }>;
+	const payload = notification.payload as Extract<
+		NotificationPayload,
+		{ kind: "contractResolved" }
+	>;
 
 	if (variant === "row") {
 		return (
@@ -335,19 +336,10 @@ function ContractResolvedNotification({
 
 	return (
 		<NotificationDetailLayout>
-			<NotificationStat
-				label="Outcome"
-				value={payload.success ? "Success" : "Failed"}
-			/>
+			<NotificationStat label="Outcome" value={payload.success ? "Success" : "Failed"} />
 			<NotificationStat label="Rounds fought" value={payload.roundsFought} />
-			<NotificationStat
-				label="Credits"
-				value={payload.rewardCreditsGranted.toLocaleString()}
-			/>
-			<NotificationStat
-				label="Rank XP"
-				value={payload.rewardRankXpGranted.toLocaleString()}
-			/>
+			<NotificationStat label="Credits" value={payload.rewardCreditsGranted.toLocaleString()} />
+			<NotificationStat label="Rank XP" value={payload.rewardRankXpGranted.toLocaleString()} />
 			<NotificationStat
 				label="Cargo loaded"
 				value={<ResourceInlineList bucket={payload.rewardCargoLoaded} />}
@@ -373,7 +365,10 @@ function TransportDeliveredNotification({
 	notification: NotificationFeedItem;
 	variant: "detail" | "row";
 }) {
-	const payload = notification.payload as Extract<NotificationPayload, { kind: "transportDelivered" }>;
+	const payload = notification.payload as Extract<
+		NotificationPayload,
+		{ kind: "transportDelivered" }
+	>;
 
 	if (variant === "row") {
 		return (
@@ -410,6 +405,50 @@ function TransportDeliveredNotification({
 	);
 }
 
+function TransportIncomingNotification({
+	getColonyName,
+	notification,
+	variant,
+}: {
+	getColonyName: ColonyNameResolver;
+	notification: NotificationFeedItem;
+	variant: "detail" | "row";
+}) {
+	const payload = notification.payload as Extract<
+		NotificationPayload,
+		{ kind: "transportIncoming" }
+	>;
+
+	if (variant === "row") {
+		return (
+			<NotificationRowLayout
+				notification={notification}
+				summary={
+					<>
+						Incoming cargo: <ResourceInlineList bucket={payload.cargoRequested} />. ETA{" "}
+						{formatDateTime(payload.arriveAt)}.
+					</>
+				}
+				title={titleWithColony({
+					baseTitle: "Transport incoming",
+					getColonyName,
+					notification,
+				})}
+			/>
+		);
+	}
+
+	return (
+		<NotificationDetailLayout>
+			<NotificationStat
+				label="Incoming cargo"
+				value={<ResourceInlineList bucket={payload.cargoRequested} />}
+			/>
+			<NotificationStat label="Arrival ETA" value={formatDateTime(payload.arriveAt)} />
+		</NotificationDetailLayout>
+	);
+}
+
 function TransportReceivedNotification({
 	getColonyName,
 	notification,
@@ -419,7 +458,10 @@ function TransportReceivedNotification({
 	notification: NotificationFeedItem;
 	variant: "detail" | "row";
 }) {
-	const payload = notification.payload as Extract<NotificationPayload, { kind: "transportReceived" }>;
+	const payload = notification.payload as Extract<
+		NotificationPayload,
+		{ kind: "transportReceived" }
+	>;
 
 	if (variant === "row") {
 		return (
@@ -427,8 +469,8 @@ function TransportReceivedNotification({
 				notification={notification}
 				summary={
 					<>
-						Cargo delivered: <ResourceInlineList bucket={payload.deliveredToStorage} /> to storage and{" "}
-						<ResourceInlineList bucket={payload.deliveredToOverflow} /> to overflow.
+						Cargo delivered: <ResourceInlineList bucket={payload.deliveredToStorage} /> to storage
+						and <ResourceInlineList bucket={payload.deliveredToOverflow} /> to overflow.
 					</>
 				}
 				title={titleWithColony({
@@ -479,10 +521,7 @@ function TransportReturnedNotification({
 
 	return (
 		<NotificationDetailLayout>
-			<NotificationStat
-				label="Status"
-				value="The transport fleet returned to its origin colony."
-			/>
+			<NotificationStat label="Status" value="The transport fleet returned to its origin colony." />
 		</NotificationDetailLayout>
 	);
 }
@@ -515,10 +554,7 @@ function OperationFailedNotification({
 	return (
 		<NotificationDetailLayout>
 			<NotificationStat label="Operation kind" value={payload.operationKind} />
-			<NotificationStat
-				label="Result code"
-				value={payload.resultCode ?? "failed"}
-			/>
+			<NotificationStat label="Result code" value={payload.resultCode ?? "failed"} />
 			<NotificationStat label="Message" value={payload.resultMessage} />
 		</NotificationDetailLayout>
 	);
@@ -599,6 +635,14 @@ export function NotificationContent({
 					variant={variant}
 				/>
 			);
+		case "transportIncoming":
+			return (
+				<TransportIncomingNotification
+					getColonyName={getColonyName}
+					notification={notification}
+					variant={variant}
+				/>
+			);
 		case "transportReceived":
 			return (
 				<TransportReceivedNotification
@@ -658,6 +702,8 @@ export function NotificationDisplayTitle({
 			});
 		case "transportDelivered":
 			return titleWithColony({ baseTitle: "Transport delivered", getColonyName, notification });
+		case "transportIncoming":
+			return titleWithColony({ baseTitle: "Transport incoming", getColonyName, notification });
 		case "transportReceived":
 			return titleWithColony({ baseTitle: "Transport received", getColonyName, notification });
 		case "transportReturned":
@@ -669,11 +715,7 @@ export function NotificationDisplayTitle({
 	}
 }
 
-export function NotificationStateBadge({
-	status,
-}: {
-	status: NotificationStatus;
-}) {
+export function NotificationStateBadge({ status }: { status: NotificationStatus }) {
 	return (
 		<NvBadge tone="neutral">
 			{status === "archived" ? "Archived" : status === "read" ? "Read" : "Unread"}

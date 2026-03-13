@@ -653,9 +653,9 @@ function ResourcesRoute() {
 									<div className="flex items-center gap-2.5">
 										<span className="text-white/50">{groupVisual.icon}</span>
 										<div>
-											<h2 className="
-             font-(family-name:--nv-font-display) text-sm font-bold
-           ">
+											<h2
+												className="font-(family-name:--nv-font-display) text-sm font-bold"
+											>
 												{groupVisual.label}
 											</h2>
 											<p className="mt-0.5 text-[10px] text-white/35">{groupVisual.description}</p>
@@ -826,9 +826,9 @@ function ResourcesRoute() {
       "
 					>
 						{/* Queue header */}
-						<div className="
-        flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
-      ">
+						<div
+							className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
+						>
 							<Clock3 className="size-5 text-cyan-300" />
 							<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 								Building Queue

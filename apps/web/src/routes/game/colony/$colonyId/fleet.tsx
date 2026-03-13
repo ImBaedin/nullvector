@@ -739,18 +739,14 @@ function ActiveOperationsPanel(props: {
 				subtitle: targetPreview?.address,
 				title: targetPreview?.name ?? operation.targetPreview.label,
 			},
-			transitIcon: isContract ? (
-				<Swords className={`
-      size-3
-      ${accent.iconText}
-    `} />
-			) : (
-				<Ship className={`
+			transitIcon: isContract ? <Swords className={`
+     size-3
+     ${accent.iconText}
+   `} /> : <Ship className={`
       size-3
       ${isReturning ? "rotate-180" : ""}
       ${accent.iconText}
-    `} />
-			),
+    `} />,
 			transitIconBorderClassName: accent.iconBorder,
 			transitIconFillClassName: accent.iconFill,
 			transitLineClassName: accent.line,
@@ -762,10 +758,12 @@ function ActiveOperationsPanel(props: {
 			emptyMessage="No active expeditions."
 			expandedId={props.expandedOp}
 			header={
-				<h2 className="
-      flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
-      font-bold
-    ">
+				<h2
+					className="
+       flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
+       font-bold
+     "
+				>
 					<Layers3 className="size-4 text-cyan-300/60" />
 					Active Expeditions
 				</h2>
@@ -820,25 +818,29 @@ function FleetSummaryStrip(props: {
 					if (groupShips.length === 0) return null;
 					return (
 						<div key={group.label}>
-							<p className="
-         mb-1.5 text-[9px] font-semibold tracking-[0.12em] text-white/30
-         uppercase
-       ">
+							<p
+								className="
+          mb-1.5 text-[9px] font-semibold tracking-[0.12em] text-white/30
+          uppercase
+        "
+							>
 								{group.label}
 							</p>
-							<div className="
-         grid grid-cols-2 gap-2
-         sm:grid-cols-3
-         md:grid-cols-4
-       ">
+							<div
+								className="
+          grid grid-cols-2 gap-2
+          sm:grid-cols-3
+          md:grid-cols-4
+        "
+							>
 								{groupShips.map((ship) => {
 									const hasAny = ship.owned > 0;
 									return (
 										<div className={`
             relative overflow-hidden rounded-xl border p-2.5 transition-colors
             ${hasAny ? "border-white/10 bg-white/[0.035]" : `
-                 border-white/6 bg-white/[0.015] opacity-50
-               `}
+              border-white/6 bg-white/[0.015] opacity-50
+            `}
           `} key={ship.key}>
 											<div className="flex items-center gap-2">
 												<img
@@ -851,9 +853,11 @@ function FleetSummaryStrip(props: {
 												/>
 												<div className="min-w-0">
 													<p className="truncate text-xs font-semibold">{ship.name}</p>
-													<p className="
-               font-(family-name:--nv-font-mono) text-[10px] text-white/50
-             ">
+													<p
+														className="
+                font-(family-name:--nv-font-mono) text-[10px] text-white/50
+              "
+													>
 														{ship.owned}
 													</p>
 												</div>
@@ -862,9 +866,9 @@ function FleetSummaryStrip(props: {
 												<span className="text-emerald-300/70">{ship.available} avail</span>
 												<span className="text-cyan-200/50">{ship.deployed} out</span>
 											</div>
-											<div className="
-             mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8
-           ">
+											<div
+												className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8"
+											>
 												<div
 													className="h-full rounded-full bg-cyan-400/40"
 													style={{
@@ -942,9 +946,9 @@ function MissionPlannerPanel(props: {
       bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
     "
 			>
-				<div className="
-      flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
-    ">
+				<div
+					className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
+				>
 					<Rocket className="size-5 text-cyan-300" />
 					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 						Plan Expedition
@@ -1151,9 +1155,9 @@ function MissionPlannerPanel(props: {
 					<div>
 						<div className="flex items-center justify-between">
 							<SectionLabel>Cargo</SectionLabel>
-							<span className="
-         font-(family-name:--nv-font-mono) text-[9px] text-white/25
-       ">
+							<span
+								className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
+							>
 								{props.cargoUsed.toLocaleString()} / {props.cargoCapacity.toLocaleString()}
 							</span>
 						</div>

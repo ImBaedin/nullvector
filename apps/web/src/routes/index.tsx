@@ -7,7 +7,6 @@ import z from "zod";
 import { NvButton } from "@/features/game-ui/primitives/button";
 import { NvInput } from "@/features/game-ui/primitives/input";
 import { authClient } from "@/lib/auth-client";
-
 import "@/features/game-ui/theme";
 
 export const Route = createFileRoute("/")({
@@ -41,13 +40,15 @@ const signInSchema = z.object({
 	password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
-const signUpSchema = signInSchema.extend({
-	name: z.string().min(2, "Name must be at least 2 characters"),
-	confirmPassword: z.string().min(8, "Password must be at least 8 characters"),
-}).refine((value) => value.password === value.confirmPassword, {
-	path: ["confirmPassword"],
-	message: "Passwords do not match",
-});
+const signUpSchema = signInSchema
+	.extend({
+		name: z.string().min(2, "Name must be at least 2 characters"),
+		confirmPassword: z.string().min(8, "Password must be at least 8 characters"),
+	})
+	.refine((value) => value.password === value.confirmPassword, {
+		path: ["confirmPassword"],
+		message: "Passwords do not match",
+	});
 
 type Mode = "signIn" | "signUp";
 
@@ -133,26 +134,28 @@ function IndexRoute() {
 			setErrors({});
 			setIsSubmitting(true);
 
-			await authClient.signIn.email(
-				{
-					email: parsed.data.email,
-					password: parsed.data.password,
-				},
-				{
-					onSuccess: () => {
-						navigate({
-							to: "/auth/complete",
-							replace: true,
-						});
-						toast.success("Sign in successful");
+			await authClient.signIn
+				.email(
+					{
+						email: parsed.data.email,
+						password: parsed.data.password,
 					},
-					onError: (error) => {
-						toast.error(error.error.message || error.error.statusText);
+					{
+						onSuccess: () => {
+							navigate({
+								to: "/auth/complete",
+								replace: true,
+							});
+							toast.success("Sign in successful");
+						},
+						onError: (error) => {
+							toast.error(error.error.message || error.error.statusText);
+						},
 					},
-				},
-			).catch((error) => {
-				toast.error(error instanceof Error ? error.message : "Authentication failed");
-			});
+				)
+				.catch((error) => {
+					toast.error(error instanceof Error ? error.message : "Authentication failed");
+				});
 
 			setIsSubmitting(false);
 			return;
@@ -167,33 +170,37 @@ function IndexRoute() {
 		setErrors({});
 		setIsSubmitting(true);
 
-		await authClient.signUp.email(
-			{
-				email: parsed.data.email,
-				password: parsed.data.password,
-				name: parsed.data.name,
-			},
-			{
-				onSuccess: () => {
-					navigate({
-						to: "/auth/complete",
-						replace: true,
-					});
-					toast.success("Sign up successful");
+		await authClient.signUp
+			.email(
+				{
+					email: parsed.data.email,
+					password: parsed.data.password,
+					name: parsed.data.name,
 				},
-				onError: (error) => {
-					toast.error(error.error.message || error.error.statusText);
+				{
+					onSuccess: () => {
+						navigate({
+							to: "/auth/complete",
+							replace: true,
+						});
+						toast.success("Sign up successful");
+					},
+					onError: (error) => {
+						toast.error(error.error.message || error.error.statusText);
+					},
 				},
-			},
-		).catch((error) => {
-			toast.error(error instanceof Error ? error.message : "Authentication failed");
-		});
+			)
+			.catch((error) => {
+				toast.error(error instanceof Error ? error.message : "Authentication failed");
+			});
 
 		setIsSubmitting(false);
 	}
 
 	return (
-		<div className="game-theme-neon-dockyard relative flex h-svh min-h-0 overflow-hidden">
+		<div className="
+    game-theme-neon-dockyard relative flex h-svh min-h-0 overflow-hidden
+  ">
 			<div
 				className="absolute inset-0 bg-cover bg-center bg-no-repeat"
 				style={{ backgroundImage: "url('/login/login-bg.png')" }}
@@ -221,7 +228,10 @@ function IndexRoute() {
 				}}
 			/>
 
-			<div className="relative ml-auto flex w-full max-w-xl flex-col p-3 lg:p-4">
+			<div className="
+     relative ml-auto flex w-full max-w-xl flex-col p-3
+     lg:p-4
+   ">
 				<div
 					className="absolute inset-0"
 					style={{
@@ -231,14 +241,19 @@ function IndexRoute() {
 				/>
 
 				<div
-					className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-(--nv-r-sm)"
+					className="
+       relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-(--nv-r-sm)
+     "
 					style={{
 						border: "1px solid var(--nv-glass-stroke)",
 						animation: "nv-resource-card-in 500ms var(--nv-ease-emphasis) both",
 					}}
 				>
 					<div
-						className="nv-mono nv-caps flex shrink-0 items-center justify-between gap-3 px-4 py-2.5 text-xs"
+						className="
+        nv-mono nv-caps flex shrink-0 items-center justify-between gap-3 px-4
+        py-2.5 text-xs
+      "
 						style={{
 							backgroundColor: "rgba(17,27,47,0.9)",
 							borderBottom: "1px solid var(--nv-glass-stroke)",
@@ -247,9 +262,18 @@ function IndexRoute() {
 					>
 						<div className="flex items-center gap-3">
 							<div className="flex gap-1.5">
-								<div className="size-2 rounded-full" style={{ backgroundColor: "var(--nv-danger)", opacity: 0.7 }} />
-								<div className="size-2 rounded-full" style={{ backgroundColor: "var(--nv-warning)", opacity: 0.7 }} />
-								<div className="size-2 rounded-full" style={{ backgroundColor: "var(--nv-success)", opacity: 0.7 }} />
+								<div
+									className="size-2 rounded-full"
+									style={{ backgroundColor: "var(--nv-danger)", opacity: 0.7 }}
+								/>
+								<div
+									className="size-2 rounded-full"
+									style={{ backgroundColor: "var(--nv-warning)", opacity: 0.7 }}
+								/>
+								<div
+									className="size-2 rounded-full"
+									style={{ backgroundColor: "var(--nv-success)", opacity: 0.7 }}
+								/>
 							</div>
 							<span>Secure Terminal // Session 0x4F2A</span>
 						</div>
@@ -264,7 +288,7 @@ function IndexRoute() {
 							{BOOT_LINES.map(({ tag, text }, i) => (
 								<div
 									key={`${tag}-${text}`}
-									className="nv-mono text-sm leading-relaxed"
+									className="nv-mono text-sm/relaxed "
 									style={{
 										animation: `nv-colony-row-in 350ms var(--nv-ease-emphasis) ${i * 100}ms both`,
 									}}
@@ -319,7 +343,10 @@ function IndexRoute() {
 											onChange={(event) => handleChange("name", event.target.value)}
 											placeholder="commander name"
 											autoComplete="name"
-											className="rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)] bg-transparent!"
+											className="
+             rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)]
+             bg-transparent!
+           "
 										/>
 									</div>
 									<FormFieldError message={errors.name} />
@@ -342,7 +369,10 @@ function IndexRoute() {
 										onChange={(event) => handleChange("email", event.target.value)}
 										placeholder="commander@fleet.nv"
 										autoComplete="email"
-										className="rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)] bg-transparent!"
+										className="
+            rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)]
+            bg-transparent!
+          "
 									/>
 								</div>
 								<FormFieldError message={errors.email} />
@@ -364,7 +394,10 @@ function IndexRoute() {
 										onChange={(event) => handleChange("password", event.target.value)}
 										placeholder="••••••••"
 										autoComplete={mode === "signIn" ? "current-password" : "new-password"}
-										className="rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)] bg-transparent!"
+										className="
+            rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)]
+            bg-transparent!
+          "
 									/>
 								</div>
 								<FormFieldError message={errors.password} />
@@ -383,7 +416,10 @@ function IndexRoute() {
 											onChange={(event) => handleChange("confirmPassword", event.target.value)}
 											placeholder="••••••••"
 											autoComplete="new-password"
-											className="rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)] bg-transparent!"
+											className="
+             rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)]
+             bg-transparent!
+           "
 										/>
 									</div>
 									<FormFieldError message={errors.confirmPassword} />
@@ -454,7 +490,7 @@ function IndexRoute() {
 							{SYSTEM_LOG.map(({ tag, text }, i) => (
 								<div
 									key={`${tag}-${text}`}
-									className="nv-mono text-xs leading-relaxed"
+									className="nv-mono text-xs/relaxed "
 									style={{
 										opacity: 0.45,
 										animation: `nv-colony-row-in 350ms var(--nv-ease-emphasis) ${logDelay + i * 80}ms both`,
@@ -474,7 +510,9 @@ function IndexRoute() {
 					</div>
 
 					<div
-						className="nv-mono nv-caps flex shrink-0 justify-between px-4 py-2 text-xs"
+						className="
+        nv-mono nv-caps flex shrink-0 justify-between px-4 py-2 text-xs
+      "
 						style={{
 							backgroundColor: "rgba(17,27,47,0.9)",
 							borderTop: "1px solid var(--nv-glass-stroke)",

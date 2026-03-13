@@ -1,5 +1,8 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import type { NotificationCategory, NotificationSeverity } from "@nullvector/backend/runtime/gameplay/notificationsModel";
+import type {
+	NotificationCategory,
+	NotificationSeverity,
+} from "@nullvector/backend/runtime/gameplay/notificationsModel";
 
 import { Dialog } from "@base-ui/react/dialog";
 import { Select } from "@base-ui/react/select";
@@ -24,22 +27,17 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import {
-	NvBadge,
-	NvButton,
-	NvDivider,
-	NvScrollArea,
-} from "@/features/game-ui/primitives";
+import { NvBadge, NvButton, NvDivider, NvScrollArea } from "@/features/game-ui/primitives";
 import { useConvexAuth, useMutation, usePaginatedQuery, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
 
-import { resolveNotificationDestinationPath } from "./notification-routing";
 import {
 	NotificationContent,
 	NotificationDisplayTitle,
 	NotificationStateBadge,
 	type NotificationFeedItem,
 } from "./notification-renderers";
+import { resolveNotificationDestinationPath } from "./notification-routing";
 
 type StatusFilter = "all" | "unread" | "read" | "archived";
 type CategoryFilter = NotificationCategory | "all";
@@ -137,11 +135,11 @@ function NotificationRow({
 	return (
 		<div className={cn(`
     group flex items-start gap-3 rounded-lg border px-3.5 py-3 transition-all
-    hover:bg-white/[0.04]
+    hover:bg-white/4
   `, notification.status === "unread" ? "border-white/10 bg-white/3" : `
-      border-transparent bg-transparent
-      hover:border-white/6
-    `)}>
+    border-transparent bg-transparent
+    hover:border-white/6
+  `)}>
 			<button
 				className="flex min-w-0 flex-1 items-start gap-3 text-left"
 				onClick={() => onNavigate(notification)}
@@ -150,9 +148,7 @@ function NotificationRow({
 				<div className={cn(`
       mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border
       transition-colors
-    `, notification.severity === "danger" ? `
-        border-rose-400/25 bg-rose-400/10
-      ` : notification.severity === "warning" ? `
+    `, notification.severity === "danger" ? `border-rose-400/25 bg-rose-400/10` : notification.severity === "warning" ? `
         border-amber-400/25 bg-amber-400/10
       ` : `
         border-white/10 bg-white/5
@@ -263,9 +259,11 @@ function NotificationDetail({
 				</div>
 			</NvScrollArea>
 
-			<div className="
-     flex items-center justify-between gap-3 border-t border-white/8 px-6 py-4
-   ">
+			<div
+				className="
+      flex items-center justify-between gap-3 border-t border-white/8 px-6 py-4
+    "
+			>
 				<NvButton
 					disabled={archiving}
 					onClick={() => onArchive(notification)}
@@ -331,9 +329,8 @@ function AuthenticatedNotificationList({
 					{Array.from({ length: 4 }).map((_, index) => (
 						<div
 							className="
-								h-24 animate-pulse rounded-lg border border-white/6
-								bg-white/[0.03]
-							"
+         h-24 animate-pulse rounded-lg border border-white/6 bg-white/[0.03]
+       "
 							key={index}
 						/>
 					))}
@@ -368,15 +365,13 @@ function AuthenticatedNotificationList({
 				</div>
 			) : (
 				<div
-					className="
-						flex flex-col items-center justify-center py-16 text-center
-					"
+					className="flex flex-col items-center justify-center py-16 text-center"
 				>
 					<div
 						className="
-							mb-3 flex size-12 items-center justify-center rounded-xl border
-							border-white/8 bg-white/3
-						"
+        mb-3 flex size-12 items-center justify-center rounded-xl border
+        border-white/8 bg-white/3
+      "
 					>
 						{statusFilter === "unread" ? (
 							<Check className="size-5 text-(--nv-text-muted)" />
@@ -552,9 +547,11 @@ export function NotificationsModal({
 						/>
 					) : (
 						<>
-							<div className="
-         flex items-center justify-between border-b border-white/8 px-6 py-4
-       ">
+							<div
+								className="
+          flex items-center justify-between border-b border-white/8 px-6 py-4
+        "
+							>
 								<div className="flex items-center gap-2.5">
 									<Bell className="size-4 text-cyan-400/70" />
 									<Dialog.Title
@@ -618,56 +615,61 @@ export function NotificationsModal({
 										}}
 										value={selectedColonyFilter}
 									>
-											<Select.Trigger
+										<Select.Trigger
 											className="
-												nv-transition group flex h-8 items-center gap-2 rounded-lg border
-												border-white/10 bg-white/[0.04] px-3 text-xs font-medium
-												text-(--nv-text-secondary)
-												hover:border-white/16 hover:bg-white/[0.07]
-												focus-visible:ring-2 focus-visible:ring-(--nv-focus-ring) focus-visible:outline-none
-												data-popup-open:border-cyan-400/30 data-popup-open:bg-cyan-400/[0.06]
-											"
-											>
-												<Globe className="size-3.5 text-(--nv-text-muted) group-data-popup-open:text-cyan-400/70" />
-												<Select.Value className="min-w-0 truncate" placeholder="All Colonies">
-													{selectedColonyLabel}
-												</Select.Value>
-												<ChevronDown
-													className="
-													size-3.5 text-(--nv-text-muted) transition-transform duration-200
-													group-data-popup-open:rotate-180 group-data-popup-open:text-cyan-400/70
-												"
+             nv-transition group flex h-8 items-center gap-2 rounded-lg border
+             border-white/10 bg-white/[0.04] px-3 text-xs font-medium
+             text-(--nv-text-secondary)
+             hover:border-white/16 hover:bg-white/[0.07]
+             focus-visible:ring-2 focus-visible:ring-(--nv-focus-ring)
+             focus-visible:outline-none
+             data-popup-open:border-cyan-400/30
+             data-popup-open:bg-cyan-400/[0.06]
+           "
+										>
+											<Globe className="
+             size-3.5 text-(--nv-text-muted)
+             group-data-popup-open:text-cyan-400/70
+           " />
+											<Select.Value className="min-w-0 truncate" placeholder="All Colonies">
+												{selectedColonyLabel}
+											</Select.Value>
+											<ChevronDown
+												className="
+              size-3.5 text-(--nv-text-muted) transition-transform duration-200
+              group-data-popup-open:rotate-180
+              group-data-popup-open:text-cyan-400/70
+            "
 											/>
 										</Select.Trigger>
 										<Select.Portal>
-											<Select.Positioner
-												align="start"
-												className="z-[200]"
-												sideOffset={6}
-											>
+											<Select.Positioner align="start" className="z-200" sideOffset={6}>
 												<Select.Popup
 													className="
-														origin-[var(--transform-origin)] rounded-xl border border-white/12
-														bg-[rgba(8,14,26,0.96)] p-1 shadow-[0_16px_48px_rgba(0,0,0,0.5)]
-														backdrop-blur-xl
-														transition-[transform,opacity] duration-200
-														data-ending-style:scale-95 data-ending-style:opacity-0
-														data-starting-style:scale-95 data-starting-style:opacity-0
-													"
+               origin-[var(--transform-origin)] rounded-xl border
+               border-white/12 bg-[rgba(8,14,26,0.96)] p-1
+               shadow-[0_16px_48px_rgba(0,0,0,0.5)] backdrop-blur-xl
+               transition-[transform,opacity] duration-200
+               data-ending-style:scale-95 data-ending-style:opacity-0
+               data-starting-style:scale-95 data-starting-style:opacity-0
+             "
 												>
 													{colonyOptions.map((option) => (
 														<Select.Item
 															className="
-																nv-transition flex cursor-default items-center gap-2.5 rounded-lg
-																px-3 py-2 text-xs font-medium text-(--nv-text-secondary)
-																outline-none select-none
-																data-highlighted:bg-white/[0.07] data-highlighted:text-(--nv-text-primary)
-																data-selected:text-cyan-200
-															"
+                 nv-transition flex cursor-default items-center gap-2.5
+                 rounded-lg px-3 py-2 text-xs font-medium
+                 text-(--nv-text-secondary) outline-none select-none
+                 data-highlighted:bg-white/[0.07]
+                 data-highlighted:text-(--nv-text-primary)
+                 data-selected:text-cyan-200
+               "
 															key={option.value}
 															value={option.value}
 														>
-															<Select.ItemIndicator className="flex size-4 items-center justify-center">
+															<Select.ItemIndicator className="
+                 flex size-4 items-center justify-center
+               ">
 																<Check className="size-3 text-cyan-400" />
 															</Select.ItemIndicator>
 															<Select.ItemText>{option.label}</Select.ItemText>
@@ -684,11 +686,19 @@ export function NotificationsModal({
 										{STATUS_FILTERS.map((filter) => (
 											<button
 												className={cn(
-													`nv-transition rounded-md px-2.5 py-1 text-[11px] font-semibold
-													tracking-wide uppercase`,
+													`
+               nv-transition rounded-md px-2.5 py-1 text-[11px] font-semibold
+               tracking-wide uppercase
+             `,
 													statusFilter === filter.id
-														? "bg-cyan-400/12 text-cyan-200 shadow-[inset_0_0_0_1px_rgba(61,217,255,0.18)]"
-														: `text-(--nv-text-muted) hover:bg-white/[0.05] hover:text-(--nv-text-secondary)`,
+														? `
+                bg-cyan-400/12 text-cyan-200
+                shadow-[inset_0_0_0_1px_rgba(61,217,255,0.18)]
+              `
+														: `
+                text-(--nv-text-muted)
+                hover:bg-white/[0.05] hover:text-(--nv-text-secondary)
+              `,
 												)}
 												key={filter.id}
 												onClick={() => setStatusFilter(filter.id)}
@@ -704,12 +714,17 @@ export function NotificationsModal({
 									{CATEGORY_FILTERS.map((filter) => (
 										<button
 											className={cn(
-												`nv-transition flex items-center gap-1.5 rounded-lg border px-2.5
-												py-1.5 text-[11px] font-medium`,
+												`
+              nv-transition flex items-center gap-1.5 rounded-lg border px-2.5
+              py-1.5 text-[11px] font-medium
+            `,
 												categoryFilter === filter.id
 													? "border-cyan-400/20 bg-cyan-400/10 text-cyan-200"
-													: `border-transparent text-(--nv-text-muted)
-													hover:border-white/8 hover:bg-white/[0.04] hover:text-(--nv-text-secondary)`,
+													: `
+               border-transparent text-(--nv-text-muted)
+               hover:border-white/8 hover:bg-white/[0.04]
+               hover:text-(--nv-text-secondary)
+             `,
 											)}
 											key={filter.id}
 											onClick={() => setCategoryFilter(filter.id)}
@@ -731,9 +746,9 @@ export function NotificationsModal({
 										{Array.from({ length: 4 }).map((_, index) => (
 											<div
 												className="
-													h-24 animate-pulse rounded-lg border border-white/6
-													bg-white/[0.03]
-												"
+              h-24 animate-pulse rounded-lg border border-white/6
+              bg-white/[0.03]
+            "
 												key={index}
 											/>
 										))}
@@ -741,9 +756,11 @@ export function NotificationsModal({
 								</NvScrollArea>
 							) : !isAuthenticated ? (
 								<NvScrollArea className="flex-1 px-3 py-2">
-									<div className="
-           flex flex-col items-center justify-center py-16 text-center
-         ">
+									<div
+										className="
+            flex flex-col items-center justify-center py-16 text-center
+          "
+									>
 										<Bell className="mb-3 size-8 text-(--nv-text-muted)" />
 										<p className="text-sm font-medium text-(--nv-text-secondary)">
 											Sign in to view notifications

@@ -28,6 +28,7 @@ import {
 	emitContractResolvedNotification,
 	emitOperationFailedNotification,
 	emitTransportDeliveredNotifications,
+	emitTransportIncomingNotification,
 	emitTransportReturnedNotification,
 } from "./notifications";
 import { grantPlayerCredits, grantPlayerRankXp } from "./progression";
@@ -1663,7 +1664,7 @@ export const getFleetOperationsForColony = query({
 			colonyId: args.colonyId,
 		});
 
-		const [inTransit, returning] = await Promise.all([
+		const [ownedInTransit, ownedReturning, inboundInTransit, inboundReturning] = await Promise.all([
 			ctx.db
 				.query("fleetOperations")
 				.withIndex("by_owner_stat_evt", (q) =>
@@ -1676,11 +1677,27 @@ export const getFleetOperationsForColony = query({
 					q.eq("ownerPlayerId", player._id).eq("status", "returning"),
 				)
 				.collect(),
+			ctx.db
+				.query("fleetOperations")
+				.withIndex("by_tcol_st_evt", (q) =>
+					q.eq("target.colonyId", colony._id).eq("status", "inTransit"),
+				)
+				.collect(),
+			ctx.db
+				.query("fleetOperations")
+				.withIndex("by_tcol_st_evt", (q) =>
+					q.eq("target.colonyId", colony._id).eq("status", "returning"),
+				)
+				.collect(),
 		]);
 
-		const activeOps = [...inTransit, ...returning].sort(
-			(left, right) => left.nextEventAt - right.nextEventAt,
-		);
+		const activeOps = [
+			...new Map(
+				[...ownedInTransit, ...ownedReturning, ...inboundInTransit, ...inboundReturning].map(
+					(operation) => [operation._id, operation],
+				),
+			).values(),
+		].sort((left, right) => left.nextEventAt - right.nextEventAt);
 
 		const colonySummaryCache = new Map<Id<"colonies">, { addressLabel: string; name: string }>();
 		const getColonySummary = async (colonyId: Id<"colonies">) => {
@@ -2362,6 +2379,24 @@ export const createOperation = mutation({
 			ctx,
 			operationId,
 		});
+
+		if (args.kind === "transport" && args.target.kind === "colony" && args.target.colonyId) {
+			const destinationBase = await ctx.db.get(args.target.colonyId);
+			if (!destinationBase) {
+				throw new ConvexError("Transport destination not found");
+			}
+			await emitTransportIncomingNotification({
+				arriveAt: now + durationMs,
+				cargoRequested: cargoScaled,
+				ctx,
+				destinationColonyId: destinationBase._id,
+				destinationPlayerId: destinationBase.playerId,
+				operationId,
+				originColonyId: latestOrigin._id,
+				occurredAt: now,
+				universeId: latestOrigin.universeId,
+			});
+		}
 
 		return {
 			operationId,

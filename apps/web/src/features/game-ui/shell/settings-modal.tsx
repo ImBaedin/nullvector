@@ -152,10 +152,10 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 
 		setIsSavingDisplayName(true);
 		const error = await updateCurrentPlayerDisplayName({
-				displayName: trimmedDisplayName,
-			})
-				.then(() => null)
-				.catch((caughtError) => caughtError);
+			displayName: trimmedDisplayName,
+		})
+			.then(() => null)
+			.catch((caughtError) => caughtError);
 		setIsSavingDisplayName(false);
 		if (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to update display name");
@@ -166,23 +166,25 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 
 	const signOut = async () => {
 		setIsSigningOut(true);
-		await authClient.signOut({
-			fetchOptions: {
-				onSuccess: () => {
-					onClose();
-					navigate({
-						to: "/",
-						replace: true,
-					});
-					toast.success("Signed out");
+		await authClient
+			.signOut({
+				fetchOptions: {
+					onSuccess: () => {
+						onClose();
+						navigate({
+							to: "/",
+							replace: true,
+						});
+						toast.success("Signed out");
+					},
+					onError: (error) => {
+						toast.error(error.error.message || error.error.statusText);
+					},
 				},
-				onError: (error) => {
-					toast.error(error.error.message || error.error.statusText);
-				},
-			},
-		}).catch((error) => {
-			toast.error(error instanceof Error ? error.message : "Failed to sign out");
-		});
+			})
+			.catch((error) => {
+				toast.error(error instanceof Error ? error.message : "Failed to sign out");
+			});
 		setIsSigningOut(false);
 	};
 
@@ -247,10 +249,11 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 				>
 					<button
 						className="
-         inline-flex items-center gap-1.5 rounded-md border border-red-500/18
-         bg-red-500/8 px-3 py-1.5 text-xs font-medium text-red-200
-         transition hover:bg-red-500/14 hover:text-white disabled:opacity-50
-       "
+        inline-flex items-center gap-1.5 rounded-md border border-red-500/18
+        bg-red-500/8 px-3 py-1.5 text-xs font-medium text-red-200 transition
+        hover:bg-red-500/14 hover:text-white
+        disabled:opacity-50
+      "
 						disabled={isSigningOut}
 						onClick={() => {
 							void signOut();
@@ -362,6 +365,7 @@ function NotificationsPanel() {
 		kind:
 			| "raidResolved"
 			| "contractResolved"
+			| "transportIncoming"
 			| "transportDelivered"
 			| "transportReceived"
 			| "transportReturned"
@@ -370,12 +374,12 @@ function NotificationsPanel() {
 	) => {
 		setSavingKind(kind);
 		const error = await updateNotificationPreferences({
-				preferences: {
-					[kind]: enabled,
-				},
-			})
-				.then(() => null)
-				.catch((caughtError) => caughtError);
+			preferences: {
+				[kind]: enabled,
+			},
+		})
+			.then(() => null)
+			.catch((caughtError) => caughtError);
 		setSavingKind(null);
 		if (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to update preferences");
@@ -442,6 +446,23 @@ function NotificationsPanel() {
 			</SettingsSection>
 
 			<SettingsSection title="Fleet">
+				<SettingsRow
+					label="Transport Incoming"
+					description="Another fleet has been dispatched to this colony"
+				>
+					<div className="flex items-center gap-2">
+						{savingKind === "transportIncoming" ? (
+							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
+						) : null}
+						<NvSwitch
+							checked={preferences?.settings.transportIncoming.enabled ?? true}
+							disabled={!preferences || savingKind !== null}
+							onCheckedChange={(checked) => {
+								void savePreference("transportIncoming", checked);
+							}}
+						/>
+					</div>
+				</SettingsRow>
 				<SettingsRow
 					label="Transport Delivered"
 					description="Cargo delivered by your outbound fleets"
