@@ -6,6 +6,7 @@ import type {
 	NotificationSeverity,
 	NotificationStatus,
 } from "@nullvector/backend/runtime/gameplay/notificationsModel";
+import { RESOURCE_SCALE } from "@nullvector/backend/convex/schema";
 
 import { NvBadge } from "@/features/game-ui/primitives";
 import { cn } from "@/lib/utils";
@@ -55,11 +56,24 @@ function titleWithColony(args: {
 	return colonyName ? `${args.baseTitle} • ${colonyName}` : args.baseTitle;
 }
 
+function storedToWholeUnits(storedAmount: number) {
+	return Math.max(0, Math.floor(storedAmount / RESOURCE_SCALE));
+}
+
+function toWholeResourceBucket(bucket: { alloy: number; crystal: number; fuel: number }) {
+	return {
+		alloy: storedToWholeUnits(bucket.alloy),
+		crystal: storedToWholeUnits(bucket.crystal),
+		fuel: storedToWholeUnits(bucket.fuel),
+	};
+}
+
 function formatResourceBucket(bucket: { alloy: number; crystal: number; fuel: number }) {
+	const wholeBucket = toWholeResourceBucket(bucket);
 	return [
-		`Alloy ${bucket.alloy.toLocaleString()}`,
-		`Crystal ${bucket.crystal.toLocaleString()}`,
-		`Fuel ${bucket.fuel.toLocaleString()}`,
+		`Alloy ${wholeBucket.alloy.toLocaleString()}`,
+		`Crystal ${wholeBucket.crystal.toLocaleString()}`,
+		`Fuel ${wholeBucket.fuel.toLocaleString()}`,
 	].join(" | ");
 }
 
@@ -103,10 +117,11 @@ function ResourceInlineList({
 }: {
 	bucket: { alloy: number; crystal: number; fuel: number };
 }) {
+	const wholeBucket = toWholeResourceBucket(bucket);
 	const resources = [
-		{ amount: bucket.alloy, resourceKey: "alloy" as const },
-		{ amount: bucket.crystal, resourceKey: "crystal" as const },
-		{ amount: bucket.fuel, resourceKey: "fuel" as const },
+		{ amount: wholeBucket.alloy, resourceKey: "alloy" as const },
+		{ amount: wholeBucket.crystal, resourceKey: "crystal" as const },
+		{ amount: wholeBucket.fuel, resourceKey: "fuel" as const },
 	].filter((entry) => entry.amount > 0);
 
 	if (resources.length === 0) {

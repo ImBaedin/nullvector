@@ -16,6 +16,18 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useMutation, useQuery } from "@/lib/convex-hooks";
 
+function getMonotonicNow() {
+	return typeof performance === "undefined" ? Date.now() : performance.now();
+}
+
+function deriveColonySessionStatus(snapshot: {
+	openQueues: Array<{ status: "active" | "cancelled" | "completed" | "failed" | "queued" }>;
+}): "Queued" | "Stable" | "Upgrading" {
+	const hasActive = snapshot.openQueues.some((row) => row.status === "active");
+	const hasQueued = snapshot.openQueues.some((row) => row.status === "queued");
+	return hasActive ? "Upgrading" : hasQueued ? "Queued" : "Stable";
+}
+
 export function useColonySnapshot(colonyId: Id<"colonies"> | null) {
 	return useQuery(api.colony.getColonySnapshot, colonyId ? { colonyId } : "skip");
 }
@@ -26,19 +38,22 @@ export function useColonySessionSnapshot(colonyId: Id<"colonies"> | null) {
 
 export function useColonySelectors(colonyId: Id<"colonies"> | null) {
 	const snapshot = useColonySnapshot(colonyId);
-	const [nowMs, setNowMs] = useState(() => Date.now());
+	const [nowMs, setNowMs] = useState(() => snapshot?.serverNowMs ?? Date.now());
 
 	useEffect(() => {
-		if (!colonyId) {
+		if (!snapshot) {
 			return;
 		}
+		const anchorServerNowMs = snapshot.serverNowMs;
+		const anchorMonotonicNow = getMonotonicNow();
+		setNowMs(anchorServerNowMs);
 		const tick = window.setInterval(() => {
-			setNowMs(Date.now());
+			setNowMs(anchorServerNowMs + Math.max(0, getMonotonicNow() - anchorMonotonicNow));
 		}, 1_000);
 		return () => {
 			window.clearInterval(tick);
 		};
-	}, [colonyId]);
+	}, [snapshot]);
 
 	return useMemo(() => {
 		if (!snapshot) {
@@ -69,15 +84,41 @@ export function useOptimisticColonyMutation<TArgs extends { colonyId: Id<"coloni
 		if (!snapshot) {
 			return;
 		}
+		const optimisticNowMs = Date.now();
 		const nextSnapshot = applyColonyIntent(
-			snapshot as never,
-			args.intentFromArgs(localArgs, snapshot.serverNowMs),
-			snapshot.serverNowMs,
+			{
+				...snapshot,
+				serverNowMs: optimisticNowMs,
+			} as never,
+			args.intentFromArgs(localArgs, optimisticNowMs),
+			optimisticNowMs,
 		);
 		localStore.setQuery(
 			api.colony.getColonySnapshot,
 			{ colonyId: localArgs.colonyId },
 			nextSnapshot as typeof snapshot,
 		);
+		const sessionSnapshot = localStore.getQuery(api.colony.getColonySessionSnapshot, {
+			colonyId: localArgs.colonyId,
+		});
+		if (!sessionSnapshot) {
+			return;
+		}
+		localStore.setQuery(api.colony.getColonySessionSnapshot, { colonyId: localArgs.colonyId }, {
+			...sessionSnapshot,
+			colonies: sessionSnapshot.colonies.map((colony) =>
+				colony.id === localArgs.colonyId
+					? {
+							...colony,
+							name: nextSnapshot.name,
+							status: deriveColonySessionStatus(nextSnapshot),
+						}
+					: colony,
+			),
+			title:
+				sessionSnapshot.activeColonyId === localArgs.colonyId
+					? `${nextSnapshot.name} Resources`
+					: sessionSnapshot.title,
+		});
 	});
 }

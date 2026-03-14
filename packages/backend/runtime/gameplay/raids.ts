@@ -22,6 +22,7 @@ import {
 	type MutationCtx,
 	type QueryCtx,
 } from "../../convex/_generated/server";
+import { RESOURCE_SCALE } from "../../convex/schema";
 import { colonySystemCoords, durationMsForFleet, euclideanDistance } from "./fleetV2";
 import { emitRaidIncomingNotification, emitRaidResolvedNotification } from "./notifications";
 import { changePlayerRankXp } from "./progression";
@@ -45,6 +46,10 @@ const RESOURCE_KEYS = ["alloy", "crystal", "fuel"] as const;
 const MAX_RAID_DIFFICULTY_TIER = 10;
 const DEFENSE_SALVAGE_FACTOR = 0.35;
 const RAID_FAILURE_RANK_XP_PER_TIER = 25;
+
+function scaledUnits(unscaledUnits: number) {
+	return Math.round(Math.max(0, unscaledUnits) * RESOURCE_SCALE);
+}
 
 function hashString(seed: string) {
 	let hash = 2166136261;
@@ -286,7 +291,7 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 
 function lootFromResources(args: { available: ResourceBucket; capacity: number }) {
 	const looted = emptyResourceBucket();
-	let remaining = Math.max(0, Math.floor(args.capacity));
+	let remaining = scaledUnits(args.capacity);
 	for (const key of RESOURCE_KEYS) {
 		const amount = Math.max(0, Math.min(args.available[key], remaining));
 		looted[key] = amount;
@@ -296,7 +301,7 @@ function lootFromResources(args: { available: ResourceBucket; capacity: number }
 }
 
 function salvageFromDestroyedAttackers(args: { initialFleet: ShipCounts; survivors: ShipCounts }) {
-	const salvage = emptyResourceBucket();
+	const salvageWhole = emptyResourceBucket();
 
 	for (const key of Object.keys(DEFAULT_SHIP_DEFINITIONS) as ShipKey[]) {
 		const destroyed = Math.max(0, args.initialFleet[key] - args.survivors[key]);
@@ -304,12 +309,16 @@ function salvageFromDestroyedAttackers(args: { initialFleet: ShipCounts; survivo
 			continue;
 		}
 		const cost = DEFAULT_SHIP_DEFINITIONS[key].cost;
-		salvage.alloy += Math.floor(cost.alloy * destroyed * DEFENSE_SALVAGE_FACTOR);
-		salvage.crystal += Math.floor(cost.crystal * destroyed * DEFENSE_SALVAGE_FACTOR);
-		salvage.fuel += Math.floor(cost.fuel * destroyed * DEFENSE_SALVAGE_FACTOR);
+		salvageWhole.alloy += Math.floor(cost.alloy * destroyed * DEFENSE_SALVAGE_FACTOR);
+		salvageWhole.crystal += Math.floor(cost.crystal * destroyed * DEFENSE_SALVAGE_FACTOR);
+		salvageWhole.fuel += Math.floor(cost.fuel * destroyed * DEFENSE_SALVAGE_FACTOR);
 	}
 
-	return salvage;
+	return {
+		alloy: scaledUnits(salvageWhole.alloy),
+		crystal: scaledUnits(salvageWhole.crystal),
+		fuel: scaledUnits(salvageWhole.fuel),
+	};
 }
 
 async function applyResourcesToColony(args: {
