@@ -75,12 +75,11 @@ export function useColonySelectors(colonyId: Id<"colonies"> | null) {
 
 export function useOptimisticColonyMutation<TArgs extends { colonyId: Id<"colonies"> }>(args: {
 	intentFromArgs: (args: TArgs, snapshotServerNowMs: number) => ColonyIntent;
-	mutation: FunctionReference<"mutation">;
+	mutation: FunctionReference<"mutation", "public", TArgs>;
 }) {
 	return useMutation(args.mutation).withOptimisticUpdate((localStore, mutationArgs) => {
-		const localArgs = mutationArgs as TArgs;
 		const snapshot = localStore.getQuery(api.colony.getColonySnapshot, {
-			colonyId: localArgs.colonyId,
+			colonyId: mutationArgs.colonyId,
 		});
 		if (!snapshot) {
 			return;
@@ -92,24 +91,24 @@ export function useOptimisticColonyMutation<TArgs extends { colonyId: Id<"coloni
 		};
 		const nextSnapshot = applyColonyIntent(
 			optimisticSnapshot,
-			args.intentFromArgs(localArgs, optimisticNowMs),
+			args.intentFromArgs(mutationArgs, optimisticNowMs),
 			optimisticNowMs,
 		);
 		localStore.setQuery(
 			api.colony.getColonySnapshot,
-			{ colonyId: localArgs.colonyId },
+			{ colonyId: mutationArgs.colonyId },
 			nextSnapshot as typeof snapshot,
 		);
 		const sessionSnapshot = localStore.getQuery(api.colony.getColonySessionSnapshot, {
-			colonyId: localArgs.colonyId,
+			colonyId: mutationArgs.colonyId,
 		});
 		if (!sessionSnapshot) {
 			return;
 		}
-		localStore.setQuery(api.colony.getColonySessionSnapshot, { colonyId: localArgs.colonyId }, {
+		localStore.setQuery(api.colony.getColonySessionSnapshot, { colonyId: mutationArgs.colonyId }, {
 			...sessionSnapshot,
 			colonies: sessionSnapshot.colonies.map((colony) =>
-				colony.id === localArgs.colonyId
+				colony.id === mutationArgs.colonyId
 					? {
 							...colony,
 							name: nextSnapshot.name,
@@ -118,7 +117,7 @@ export function useOptimisticColonyMutation<TArgs extends { colonyId: Id<"coloni
 					: colony,
 			),
 			title:
-				sessionSnapshot.activeColonyId === localArgs.colonyId
+				sessionSnapshot.activeColonyId === mutationArgs.colonyId
 					? `${nextSnapshot.name} Resources`
 					: sessionSnapshot.title,
 		});
