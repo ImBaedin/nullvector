@@ -1,8 +1,15 @@
 import {
 	getContractHistory,
+	getContractHistorySummary,
 	getPlanetContracts,
 	getRecommendedContracts,
 	launchContract,
 } from "../runtime/gameplay/contracts";
 
-export { getContractHistory, getPlanetContracts, getRecommendedContracts, launchContract };
+export {
+	getContractHistory,
+	getContractHistorySummary,
+	getPlanetContracts,
+	getRecommendedContracts,
+	launchContract,
+};

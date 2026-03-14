@@ -304,10 +304,12 @@ export function SectorBrowser(props: {
 
 function SectorDetailLoading(props: { label: string }): ReactNode {
 	return (
-		<div className="
+		<div
+			className="
     rounded-xl border border-white/10 bg-white/2 px-4 py-6 text-center text-xs
     text-white/45
-  ">
+  "
+		>
 			{props.label}
 		</div>
 	);
@@ -582,9 +584,7 @@ function PlanetGrid(props: {
      `} onClick={() => props.onSelect(planet)} type="button">
 						<div className="flex items-center gap-2">
 							<span className="text-xs font-semibold">{planet.displayName}</span>
-							<span
-								className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
-							>
+							<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/25">
 								{planet.addressLabel}
 							</span>
 							{isCleared ? (
@@ -601,9 +601,7 @@ function PlanetGrid(props: {
 
 						{!isCleared ? (
 							<>
-								<div
-									className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-white/8"
-								>
+								<div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-white/8">
 									<div className={`
            h-full rounded-full
            ${getPlanetControlToneClass(controlPercent)}
@@ -800,9 +798,7 @@ export function ContractDetailPanel(props: {
        bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
      "
 				>
-					<div
-						className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
-					>
+					<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
 						<Swords className="size-5 text-rose-300" />
 						<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 							Mission Briefing
@@ -831,9 +827,7 @@ export function ContractDetailPanel(props: {
       bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
     "
 			>
-				<div
-					className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
-				>
+				<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
 					<Swords className="size-5 text-rose-300" />
 					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 						Mission Briefing
@@ -1237,7 +1231,6 @@ function UnitCountCard(props: { iconSrc: string; label: string; value: number })
 export function ContractHistory(props: { contracts: ContractView[] }): ReactNode {
 	return (
 		<div>
-			<SectionHeading icon={<Layers3 className="size-4 text-white/40" />} label="Recent Missions" />
 			<div className="mt-3 space-y-1">
 				{props.contracts.map((contract) => {
 					const template = MISSION_TEMPLATES[contract.missionTypeKey as CombatMissionTypeKey];
@@ -1264,9 +1257,7 @@ export function ContractHistory(props: { contracts: ContractView[] }): ReactNode
          ${isSuccess ? "text-emerald-200/60" : `text-rose-200/60`}
        `}>{isSuccess ? "Success" : "Failed"}</span>
 							{contract.resolvedAt ? (
-								<span
-									className="font-(family-name:--nv-font-mono) text-[9px] text-white/20"
-								>
+								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/20">
 									{new Date(contract.resolvedAt).toLocaleDateString()}
 								</span>
 							) : null}

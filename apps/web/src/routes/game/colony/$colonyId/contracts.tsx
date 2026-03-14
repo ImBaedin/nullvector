@@ -11,7 +11,7 @@ import {
 	type ShipKey,
 } from "@nullvector/game-logic";
 import { createFileRoute } from "@tanstack/react-router";
-import { Layers3, MapPin, Package, RotateCcw, Ship, Swords, X } from "lucide-react";
+import { ChevronDown, Layers3, MapPin, Package, RotateCcw, Ship, Swords, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -145,9 +145,14 @@ function ContractsRoute() {
 		api.devConsole.getDevConsoleState,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
+	const historySummary = useQuery(
+		api.contracts.getContractHistorySummary,
+		isAuthenticated ? {} : "skip",
+	);
+	const [historyExpanded, setHistoryExpanded] = useState(false);
 	const history = useQuery(
 		api.contracts.getContractHistory,
-		isAuthenticated ? { limit: 10 } : "skip",
+		isAuthenticated && historyExpanded ? { limit: 10 } : "skip",
 	);
 
 	const getRecommendedContracts = useMutation(api.contracts.getRecommendedContracts);
@@ -278,6 +283,7 @@ function ContractsRoute() {
 			hostileSectorsResponse &&
 			hostileSectors &&
 			progression &&
+			historySummary &&
 			garrison &&
 			operations,
 		);
@@ -286,7 +292,7 @@ function ContractsRoute() {
 		return <ContractsSkeleton />;
 	}
 
-	if (!ready || !hostileSectors || !progression || !garrison || !operations) {
+	if (!ready || !hostileSectors || !progression || !historySummary || !garrison || !operations) {
 		return (
 			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
 				Unable to load contracts. Please sign in again.
@@ -306,8 +312,8 @@ function ContractsRoute() {
 	const selectedShipCounts = normalizeShipCounts(selectedShips);
 	const hasShips = Object.values(selectedShipCounts).some((count) => count > 0);
 	const rankTooLow = selectedContract ? progression.rank < selectedContract.requiredRank : false;
-	const activeContractCount = history?.activeContractCount ?? 0;
-	const activeContractLimit = history?.activeContractLimit ?? 1;
+	const activeContractCount = historySummary.activeContractCount;
+	const activeContractLimit = historySummary.activeContractLimit;
 	const contractLimitReached = activeContractCount >= activeContractLimit;
 	const distance = selectedContext?.distance ?? 0;
 	const fuelCost = hasShips
@@ -537,9 +543,57 @@ function ContractsRoute() {
 						onSelectSystem={handleBrowseSystem}
 					/>
 
-					{history && history.contracts.length > 0 ? (
-						<ContractHistory contracts={history.contracts as ContractView[]} />
-					) : null}
+					<section className="rounded-[24px] border border-white/8 bg-black/18 p-4">
+						<button
+							type="button"
+							className="
+								flex w-full items-center gap-3 text-left transition-colors hover:text-white/90
+							"
+							onClick={() => setHistoryExpanded((current) => !current)}
+						>
+							<div className="flex min-w-0 flex-1 items-center gap-2">
+								<Layers3 className="size-4 text-white/40" />
+								<div>
+									<div className="font-(family-name:--nv-font-display) text-sm font-bold">
+										Recent Missions
+									</div>
+									<div className="text-[10px] text-white/45">
+										Load resolved mission history on demand.
+									</div>
+								</div>
+							</div>
+							<ChevronDown
+								className={`
+									size-4 shrink-0 text-white/35 transition-transform
+									${historyExpanded ? "rotate-180" : ""}
+								`}
+							/>
+						</button>
+
+						<div
+							className="
+								grid transition-[grid-template-rows] duration-300
+								ease-[cubic-bezier(0.25,0.8,0.25,1)]
+							"
+							style={{ gridTemplateRows: historyExpanded ? "1fr" : "0fr" }}
+						>
+							<div className="overflow-hidden">
+								<div className="pt-4">
+									{historyExpanded && history === undefined ? (
+										<div className="text-xs text-white/45">Loading mission history...</div>
+									) : null}
+									{historyExpanded && history && history.contracts.length > 0 ? (
+										<ContractHistory contracts={history.contracts as ContractView[]} />
+									) : null}
+									{historyExpanded && history && history.contracts.length === 0 ? (
+										<div className="text-xs text-white/45">
+											No resolved missions yet.
+										</div>
+									) : null}
+								</div>
+							</div>
+						</div>
+					</section>
 				</div>
 
 				<ContractDetailPanel
