@@ -10,6 +10,7 @@ import {
 	selectHudResources,
 	selectQueueLanes,
 	selectShipyardView,
+	type ColonySnapshot,
 	type ColonyIntent,
 } from "@nullvector/game-logic";
 import { useEffect, useMemo, useState } from "react";
@@ -85,11 +86,12 @@ export function useOptimisticColonyMutation<TArgs extends { colonyId: Id<"coloni
 			return;
 		}
 		const optimisticNowMs = Date.now();
+		const optimisticSnapshot: ColonySnapshot = {
+			...snapshot,
+			serverNowMs: optimisticNowMs,
+		};
 		const nextSnapshot = applyColonyIntent(
-			{
-				...snapshot,
-				serverNowMs: optimisticNowMs,
-			} as never,
+			optimisticSnapshot,
 			args.intentFromArgs(localArgs, optimisticNowMs),
 			optimisticNowMs,
 		);
