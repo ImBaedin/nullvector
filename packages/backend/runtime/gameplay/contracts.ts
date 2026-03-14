@@ -126,6 +126,52 @@ async function getInProgressContractCount(args: {
 	return rows.length;
 }
 
+async function listRecentResolvedContracts(args: {
+	ctx: MutationCtx | QueryCtx;
+	playerId: Id<"players">;
+	planetId?: Id<"planets">;
+	status: "completed" | "failed";
+	limit: number;
+}): Promise<ContractRow[]> {
+	const planetId = args.planetId;
+	if (planetId !== undefined) {
+		return args.ctx.db
+			.query("contracts")
+			.withIndex("by_p_pl_st_res", (q) =>
+				q
+					.eq("playerId", args.playerId)
+					.eq("planetId", planetId)
+					.eq("status", args.status),
+			)
+			.order("desc")
+			.take(args.limit);
+	}
+
+	return args.ctx.db
+		.query("contracts")
+		.withIndex("by_p_st_res", (q) =>
+			q.eq("playerId", args.playerId).eq("status", args.status),
+		)
+		.order("desc")
+		.take(args.limit);
+}
+
+async function getContractHistorySummaryForPlayer(args: {
+	ctx: MutationCtx | QueryCtx;
+	playerId: Id<"players">;
+}) {
+	const progression = await ensurePlayerProgression({
+		ctx: args.ctx,
+		playerId: args.playerId,
+	});
+	const activeContractCount = await getInProgressContractCount(args);
+
+	return {
+		activeContractCount,
+		activeContractLimit: getConcurrentContractLimit(progression.rank),
+	};
+}
+
 function contractAddressLabel(planet: Doc<"planets">): string {
 	return `G${planet.galaxyIndex}:S${planet.sectorIndex}:SYS${planet.systemIndex}:P${planet.planetIndex}`;
 }
@@ -767,28 +813,57 @@ export const getContractHistory = query({
 		if (!playerResult?.player) {
 			throw new ConvexError("Authentication required");
 		}
-		const progression = await ensurePlayerProgression({
-			ctx,
-			playerId: playerResult.player._id,
-		});
-		const rows = await ctx.db
-			.query("contracts")
-			.withIndex("by_player_status", (q) => q.eq("playerId", playerResult.player._id))
-			.collect();
 		const limit = Math.max(1, Math.min(100, Math.floor(args.limit ?? 20)));
-		const activeContractCount = rows.filter((row) => row.status === "inProgress").length;
+		const [summary, completedRows, failedRows] = await Promise.all([
+			getContractHistorySummaryForPlayer({
+				ctx,
+				playerId: playerResult.player._id,
+			}),
+			listRecentResolvedContracts({
+				ctx,
+				playerId: playerResult.player._id,
+				planetId: args.planetId,
+				status: "completed",
+				limit,
+			}),
+			listRecentResolvedContracts({
+				ctx,
+				playerId: playerResult.player._id,
+				planetId: args.planetId,
+				status: "failed",
+				limit,
+			}),
+		]);
+
 		return {
-			contracts: rows
-				.filter((row) => row.status === "completed" || row.status === "failed")
-				.filter((row) => (args.planetId ? row.planetId === args.planetId : true))
+			contracts: [...completedRows, ...failedRows]
 				.sort(
 					(left, right) =>
 						(right.resolvedAt ?? right._creationTime) - (left.resolvedAt ?? left._creationTime),
 				)
 				.slice(0, limit)
 				.map((row) => snapshotToView(row)),
-			activeContractCount,
-			activeContractLimit: getConcurrentContractLimit(progression.rank),
+			activeContractCount: summary.activeContractCount,
+			activeContractLimit: summary.activeContractLimit,
 		};
+	},
+});
+
+export const getContractHistorySummary = query({
+	args: {},
+	returns: v.object({
+		activeContractCount: v.number(),
+		activeContractLimit: v.number(),
+	}),
+	handler: async (ctx) => {
+		const playerResult = await resolveCurrentPlayer(ctx);
+		if (!playerResult?.player) {
+			throw new ConvexError("Authentication required");
+		}
+
+		return getContractHistorySummaryForPlayer({
+			ctx,
+			playerId: playerResult.player._id,
+		});
 	},
 });

@@ -690,6 +690,8 @@ export default defineSchema({
 	})
 		.index("by_player_planet_status", ["playerId", "planetId", "status"])
 		.index("by_player_status", ["playerId", "status"])
+		.index("by_p_st_res", ["playerId", "status", "resolvedAt"])
+		.index("by_p_pl_st_res", ["playerId", "planetId", "status", "resolvedAt"])
 		.index("by_operation_id", ["operationId"])
 		.index("by_player_planet_slot", ["playerId", "planetId", "slot"]),
 
