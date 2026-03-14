@@ -35,7 +35,9 @@ import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import { ActivityTimelinePanel, splitActivityLabel } from "./active-activity-panel";
 import { FleetRouteSkeleton } from "./loading-skeletons";
 import { ShipAssignmentList } from "./ship-assignment-list";
-import { formatDuration, getShipImagePath, SHIP_GROUPS } from "./shipyard-mock-shared";
+import { formatColonyDuration } from "@/features/colony-ui/time";
+
+import { getShipImagePath, SHIP_GROUPS } from "./shipyard-shared";
 import { useColonyStarMapPicker, type FleetMissionKind } from "./star-map-picker-context";
 
 export const Route = createFileRoute("/game/colony/$colonyId/fleet")({
@@ -705,7 +707,7 @@ function ActiveOperationsPanel(props: {
 				) : null,
 			].filter(Boolean),
 			dotClassName: accent.dot,
-			etaLabel: formatDuration(etaSeconds),
+			etaLabel: formatColonyDuration(etaSeconds, "seconds"),
 			id: operation.id,
 			kindBadgeClassName: accent.badge,
 			kindLabel: accent.kindLabel,
@@ -1215,7 +1217,10 @@ function MissionPlannerPanel(props: {
 									label="Distance"
 									value={props.distance > 0 ? props.distance.toFixed(1) : "—"}
 								/>
-								<MetricCard label="One Way" value={formatDuration(props.oneWaySeconds)} />
+								<MetricCard
+									label="One Way"
+									value={formatColonyDuration(props.oneWaySeconds, "seconds")}
+								/>
 								<MetricCard
 									label={props.roundTrip ? "Travel Fuel" : "One Way Fuel"}
 									value={props.travelFuelCost.toLocaleString()}

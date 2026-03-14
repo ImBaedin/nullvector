@@ -47,7 +47,7 @@ import {
 	type SystemGroup,
 } from "./contracts-screen-shared";
 import { ShipAssignmentList } from "./ship-assignment-list";
-import { formatDuration } from "./shipyard-mock-shared";
+import { formatColonyDuration } from "@/features/colony-ui/time";
 
 export function RecommendedSection(props: {
 	contracts: RecommendedContractView[] | null;
@@ -200,7 +200,7 @@ function RecommendedContractCard(props: {
 				{expirySeconds > 0 && contract.status === "available" ? (
 					<span className="flex items-center gap-0.5 text-white/25">
 						<Clock3 className="size-2.5" />
-						{formatDuration(expirySeconds)}
+						{formatColonyDuration(expirySeconds, "seconds")}
 					</span>
 				) : null}
 			</div>
@@ -755,7 +755,7 @@ function PlanetContractList(props: {
 							{expirySeconds > 0 && contract.status === "available" ? (
 								<span className="flex items-center gap-0.5 text-white/25">
 									<Clock3 className="size-2.5" />
-									{formatDuration(expirySeconds)}
+									{formatColonyDuration(expirySeconds, "seconds")}
 								</span>
 							) : null}
 						</div>
@@ -904,7 +904,11 @@ export function ContractDetailPanel(props: {
 						/>
 						<MissionMetric
 							label="Travel"
-							value={props.travelSeconds > 0 ? formatDuration(props.travelSeconds) : "—"}
+							value={
+								props.travelSeconds > 0
+									? formatColonyDuration(props.travelSeconds, "seconds")
+									: "—"
+							}
 						/>
 					</div>
 

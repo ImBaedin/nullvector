@@ -37,7 +37,7 @@ import {
 	RecommendedSection,
 	SectorBrowser,
 } from "./contracts-screen-view";
-import { formatDuration } from "./shipyard-mock-shared";
+import { formatColonyDuration } from "@/features/colony-ui/time";
 
 export const Route = createFileRoute("/game/colony/$colonyId/contracts")({
 	component: ContractsRoute,
@@ -738,7 +738,7 @@ function ActiveContractOperationsPanel(props: {
 				) : null,
 			].filter(Boolean),
 			dotClassName: accent.dot,
-			etaLabel: formatDuration(etaSeconds),
+			etaLabel: formatColonyDuration(etaSeconds, "seconds"),
 			id: operation.id,
 			kindBadgeClassName: accent.badge,
 			kindLabel: accent.kindLabel,

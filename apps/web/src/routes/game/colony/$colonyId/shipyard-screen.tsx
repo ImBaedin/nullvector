@@ -1,15 +1,17 @@
 import type { ShipKey } from "@nullvector/game-logic";
 import type { ReactNode } from "react";
 
-import { Anchor, Clock3, Layers3, Minus, Package, Plus, Ship, X, Zap } from "lucide-react";
+import { Anchor, Clock3, Layers3, Package, Ship, X, Zap } from "lucide-react";
 
-import {
-	CostPill,
-	formatDuration,
-	LockWarningPopover,
-	type QueueItem,
-	SHIP_GROUPS,
-} from "./shipyard-mock-shared";
+import { getQueueableBuildActionPresentation } from "@/features/colony-ui/action-state";
+import { ActionButton } from "@/features/colony-ui/components/action-button";
+import { CostPill } from "@/features/colony-ui/components/cost-pill";
+import { LockWarningPopover } from "@/features/colony-ui/components/lock-warning-popover";
+import { QuantityStepper } from "@/features/colony-ui/components/quantity-stepper";
+import { StatusBadge } from "@/features/colony-ui/components/status-badge";
+import { formatColonyDuration } from "@/features/colony-ui/time";
+
+import { SHIP_GROUPS } from "./shipyard-shared";
 
 type ResourceCost = {
 	alloy: number;
@@ -48,14 +50,13 @@ type ShipyardPresentation = {
 	image: string;
 };
 
-type ShipAvailability = {
-	badgeClassName: string;
-	buttonLabel: string;
-	canAffordSelectedQuantity: boolean;
-	isStructurallyAvailable: boolean;
-	label: string;
-	lockedByLevel: boolean;
-	warning?: string;
+export type QueueItem = {
+	id: string;
+	isActive: boolean;
+	remaining: number;
+	shipName: string;
+	timeLeftSeconds: number;
+	total: number;
 };
 
 type ShipCardProps = {
@@ -479,7 +480,7 @@ function ShipCard(props: ShipCardProps) {
 		<article
 			className={`
      group relative overflow-hidden rounded-xl border
-     ${availability.lockedByLevel ? `border-white/8 opacity-60 grayscale` : `
+     ${availability.state === "locked" ? `border-white/8 opacity-60 grayscale` : `
                border-white/10
              `}
      bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
@@ -517,12 +518,10 @@ function ShipCard(props: ShipCardProps) {
 							<h3 className="font-(family-name:--nv-font-display) text-sm font-bold">
 								{ship.name}
 							</h3>
-							<span className={`
-         inline-flex items-center rounded-md border px-1.5 py-0.5 text-[8px]
-         font-semibold whitespace-nowrap uppercase
-         ${availability.badgeClassName}
-       `}>{availability.label}</span>
-							{availability.warning ? <LockWarningPopover message={availability.warning} /> : null}
+							<StatusBadge compact label={availability.badgeLabel} tone={availability.badgeTone} />
+							{availability.lockMessage ? (
+								<LockWarningPopover message={availability.lockMessage} />
+							) : null}
 						</div>
 						<p className="mt-0.5 text-[11px] leading-snug text-white/40">
 							{presentation.description}
@@ -607,7 +606,7 @@ function ShipCard(props: ShipCardProps) {
 						<div>
 							<span className="text-[8px] tracking-wider text-white/30 uppercase">Build</span>
 							<p className="font-(family-name:--nv-font-mono) font-bold text-white/75">
-								{formatDuration(ship.perUnitDurationSeconds)}
+								{formatColonyDuration(ship.perUnitDurationSeconds, "seconds")}
 							</p>
 						</div>
 					</div>
@@ -620,7 +619,9 @@ function ShipCard(props: ShipCardProps) {
 
 					<div className="ml-auto flex items-center gap-2">
 						<QuantityStepper
-							canEdit={availability.isStructurallyAvailable}
+							canEdit={availability.state !== "locked" && !isQueueing}
+							max={10_000}
+							min={1}
 							onBlur={() => onQuantityBlur(ship.key, quantity)}
 							onChange={(value) => onQuantityInputChange(ship.key, value)}
 							onDecrement={() => onDecrementQuantity(ship.key, quantity)}
@@ -629,85 +630,19 @@ function ShipCard(props: ShipCardProps) {
 							value={quantityInput}
 						/>
 
-						<button
-							className="
-         flex items-center gap-1.5 rounded-lg border border-cyan-200/50
-         bg-linear-to-b from-cyan-400/25 to-cyan-400/10 px-3 py-1.5
-         font-(family-name:--nv-font-display) text-[11px] font-bold
-         tracking-[0.06em] text-cyan-50 uppercase
-         shadow-[0_0_16px_rgba(61,217,255,0.10)] transition-all
-         hover:border-cyan-100/70 hover:shadow-[0_0_24px_rgba(61,217,255,0.2)]
-         disabled:border-white/10 disabled:bg-white/5 disabled:text-white/30
-         disabled:shadow-none
-       "
-							disabled={
-								!availability.isStructurallyAvailable ||
-								!availability.canAffordSelectedQuantity ||
-								isQueueing
-							}
+						<ActionButton
+							className="px-3 py-1.5 text-[11px]"
+							disabled={!availability.isActionEnabled || isQueueing}
+							label={availability.buttonLabel}
+							leadingIcon={<Zap className="size-3" />}
+							loading={isQueueing}
 							onClick={() => onQueueShip(ship, quantity)}
-						>
-							<Zap className="size-3" />
-							{isQueueing ? "..." : availability.buttonLabel}
-						</button>
+							tone="shipyard"
+						/>
 					</div>
 				</div>
 			</div>
 		</article>
-	);
-}
-
-function QuantityStepper(props: {
-	canEdit: boolean;
-	onBlur: () => void;
-	onChange: (value: string) => void;
-	onDecrement: () => void;
-	onIncrement: () => void;
-	quantity: number;
-	value: string;
-}) {
-	const { canEdit, onBlur, onChange, onDecrement, onIncrement, quantity, value } = props;
-
-	return (
-		<div
-			className="flex items-center rounded-lg border border-white/12 bg-black/25"
-		>
-			<button
-				className="
-      flex size-7 items-center justify-center text-white/60
-      disabled:opacity-25
-    "
-				disabled={!canEdit || quantity <= 1}
-				onClick={onDecrement}
-			>
-				<Minus className="size-3" />
-			</button>
-			<input
-				className="
-      w-10 [appearance:textfield] bg-transparent px-0.5 text-center
-      font-(family-name:--nv-font-mono) text-xs font-bold text-white
-      outline-none
-      [&::-webkit-inner-spin-button]:appearance-none
-      [&::-webkit-outer-spin-button]:appearance-none
-    "
-				max={10_000}
-				min={1}
-				onBlur={onBlur}
-				onChange={(event) => onChange(event.target.value)}
-				type="number"
-				value={value}
-			/>
-			<button
-				className="
-      flex size-7 items-center justify-center text-white/60
-      disabled:opacity-25
-    "
-				disabled={!canEdit}
-				onClick={onIncrement}
-			>
-				<Plus className="size-3" />
-			</button>
-		</div>
 	);
 }
 
@@ -898,7 +833,7 @@ function ActiveQueueCard(props: {
          font-(family-name:--nv-font-mono) text-xs font-bold text-emerald-200
        "
 						>
-							{formatDuration(activeQueueItem.timeLeftSeconds)}
+							{formatColonyDuration(activeQueueItem.timeLeftSeconds, "seconds")}
 						</p>
 						<p
 							className="
@@ -998,7 +933,8 @@ function PendingQueueList(props: {
 									<p
 										className="font-(family-name:--nv-font-mono) text-[9px] text-white/30"
 									>
-										{item.total.toLocaleString()} ships • {formatDuration(item.timeLeftSeconds)}
+										{item.total.toLocaleString()} ships •{" "}
+										{formatColonyDuration(item.timeLeftSeconds, "seconds")}
 									</p>
 								</div>
 							</div>
@@ -1044,66 +980,16 @@ function getShipAvailability(args: {
 	quantity: number;
 	ship: ShipyardDisplayShip;
 	shipyardLevel: number;
-}): ShipAvailability {
+}) {
 	const { availableResources, isQueueFull, quantity, ship, shipyardLevel } = args;
-	const lockedByLevel = shipyardLevel < ship.requiredShipyardLevel;
-	const isStructurallyAvailable = !lockedByLevel && !isQueueFull;
-	const canAffordSelectedQuantity =
-		availableResources.alloy >= ship.cost.alloy * quantity &&
-		availableResources.crystal >= ship.cost.crystal * quantity &&
-		availableResources.fuel >= ship.cost.fuel * quantity;
-
-	if (lockedByLevel) {
-		return {
-			badgeClassName: "border-amber-300/35 bg-amber-400/10 text-amber-200/80",
-			buttonLabel: "Locked",
-			canAffordSelectedQuantity,
-			isStructurallyAvailable,
-			label: "Locked",
-			lockedByLevel,
-			warning: `Requires Shipyard Level ${ship.requiredShipyardLevel} (current: ${shipyardLevel}).`,
-		};
-	}
-
-	if (isQueueFull) {
-		return {
-			badgeClassName: "border-rose-300/35 bg-rose-400/10 text-rose-200/80",
-			buttonLabel: "Full",
-			canAffordSelectedQuantity,
-			isStructurallyAvailable,
-			label: "Queue Full",
-			lockedByLevel,
-		};
-	}
-
-	if (!canAffordSelectedQuantity) {
-		return {
-			badgeClassName: "border-white/15 bg-white/6 text-white/70",
-			buttonLabel: "Need Res.",
-			canAffordSelectedQuantity,
-			isStructurallyAvailable,
-			label: "Need Resources",
-			lockedByLevel,
-		};
-	}
-
-	if (ship.queued > 0) {
-		return {
-			badgeClassName: "border-cyan-300/30 bg-cyan-400/8 text-cyan-200/80",
-			buttonLabel: `Queue ${quantity}`,
-			canAffordSelectedQuantity,
-			isStructurallyAvailable,
-			label: `${ship.queued.toLocaleString()} Queued`,
-			lockedByLevel,
-		};
-	}
-
-	return {
-		badgeClassName: "border-emerald-300/30 bg-emerald-400/8 text-emerald-200/80",
-		buttonLabel: `Queue ${quantity}`,
-		canAffordSelectedQuantity,
-		isStructurallyAvailable,
-		label: "Available",
-		lockedByLevel,
-	};
+	return getQueueableBuildActionPresentation({
+		actionQuantity: quantity,
+		availableResources,
+		cost: ship.cost,
+		isBusy: false,
+		isLocked: shipyardLevel < ship.requiredShipyardLevel,
+		isQueueFull,
+		lockMessage: `Requires Shipyard Level ${ship.requiredShipyardLevel} (current: ${shipyardLevel}).`,
+		queuedCount: ship.queued,
+	});
 }

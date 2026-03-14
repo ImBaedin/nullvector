@@ -3,16 +3,16 @@ import { selectShipCatalog, type ShipKey } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { useColonySelectors, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
+import { getQueueProgress } from "@/features/colony-ui/queue-state";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { ShipyardRouteSkeleton } from "./loading-skeletons";
-import { type QueueItem } from "./shipyard-mock-shared";
-import { ShipyardScreen, type ShipyardDisplayShip } from "./shipyard-screen";
+import { ShipyardScreen, type QueueItem, type ShipyardDisplayShip } from "./shipyard-screen";
 
 type ShipBuildQueueRow = {
 	completesAt: number;
@@ -71,7 +71,6 @@ function ShipyardRoute() {
 	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
 	const setShipCounts = useMutation(api.devConsole.setShipCounts);
 
-	const [nowMs, setNowMs] = useState(() => Date.now());
 	const [quantities, setQuantities] = useState<Partial<Record<ShipKey, number>>>({});
 	const [quantityInputs, setQuantityInputs] = useState<Partial<Record<ShipKey, string>>>({});
 	const [queueingShipKey, setQueueingShipKey] = useState<ShipKey | null>(null);
@@ -109,18 +108,7 @@ function ShipyardRoute() {
 		};
 	}, [colonySelectors, shipCatalog]);
 
-	useEffect(() => {
-		if (!isAuthenticated) {
-			return;
-		}
-
-		const tick = window.setInterval(() => {
-			setNowMs(Date.now());
-		}, 1_000);
-		return () => {
-			window.clearInterval(tick);
-		};
-	}, [isAuthenticated]);
+	const nowMs = colonyResources.nowMs;
 
 	const shipsByKey = useMemo(
 		() => new Map((view?.ships ?? []).map((ship) => [ship.key, ship])),
@@ -160,20 +148,9 @@ function ShipyardRoute() {
 		view?.lane.activeItem && isShipBuildQueueRow(view.lane.activeItem)
 			? view.lane.activeItem
 			: null;
-	const activeItemStartsAt = activeRawItem?.startsAt;
-	const activeItemDurationMs =
-		activeRawItem && activeItemStartsAt ? activeRawItem.completesAt - activeItemStartsAt : 0;
-	const activeUpgradeProgress =
-		activeRawItem && activeItemDurationMs > 0
-			? Math.min(
-					100,
-					Math.max(
-						0,
-						((nowMs - (activeRawItem.completesAt - activeItemDurationMs)) / activeItemDurationMs) *
-							100,
-					),
-				)
-			: 0;
+	const activeUpgradeProgress = activeRawItem
+		? getQueueProgress(nowMs, activeRawItem.startsAt, activeRawItem.completesAt).percent
+		: 0;
 
 	function updateQuantity(shipKey: ShipKey, value: number) {
 		setQuantities((current) => ({ ...current, [shipKey]: value }));

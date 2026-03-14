@@ -4,15 +4,21 @@ import type { BuildingKey, FacilityKey, ResourceBucket } from "@nullvector/game-
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { createFileRoute } from "@tanstack/react-router";
 import { Clock3, Wrench, Zap } from "lucide-react";
-import { type ReactElement, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactElement, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { useColonySelectors, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
+import { getUpgradeActionPresentation } from "@/features/colony-ui/action-state";
+import { ActionButton } from "@/features/colony-ui/components/action-button";
+import { CostPill } from "@/features/colony-ui/components/cost-pill";
+import { QueuePanel } from "@/features/colony-ui/components/queue-panel";
+import { StatusBadge } from "@/features/colony-ui/components/status-badge";
+import { formatQueueRemainingLabel, getQueueProgress } from "@/features/colony-ui/queue-state";
+import { formatColonyDuration } from "@/features/colony-ui/time";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { FacilitiesRouteSkeleton } from "./loading-skeletons";
-import { CostPill, formatDuration } from "./shipyard-mock-shared";
 
 export const Route = createFileRoute("/game/colony/$colonyId/facilities")({
 	component: FacilitiesRoute,
@@ -119,58 +125,6 @@ const FACILITY_KEY_LABELS: Record<FacilityKey, string> = {
 	defense_grid: "Defense Grid",
 };
 
-function formatDurationMs(ms: number): string {
-	return formatDuration(Math.max(0, Math.ceil(ms / 1_000)));
-}
-
-function getFacilityAvailabilityLabel(
-	isLocked: boolean,
-	isActive: boolean,
-	hasQueuedItem: boolean,
-): "Locked" | "Upgrading" | "Queued" | "Available" {
-	if (isLocked) {
-		return "Locked";
-	}
-	if (isActive) {
-		return "Upgrading";
-	}
-	if (hasQueuedItem) {
-		return "Queued";
-	}
-	return "Available";
-}
-
-function getFacilityAvailabilityClasses(
-	isLocked: boolean,
-	isActive: boolean,
-	hasQueuedItem: boolean,
-): string {
-	if (isLocked) {
-		return "border-amber-300/35 bg-amber-400/10 text-amber-200/80";
-	}
-	if (isActive) {
-		return "border-emerald-300/30 bg-emerald-400/8 text-emerald-200/80";
-	}
-	if (hasQueuedItem) {
-		return "border-cyan-300/30 bg-cyan-400/8 text-cyan-200/80";
-	}
-	return "border-emerald-300/30 bg-emerald-400/8 text-emerald-200/80";
-}
-
-function getUpgradeButtonLabel(
-	isBusy: boolean,
-	isBuildingLaneFull: boolean,
-	actionLabel: "Build" | "Upgrade",
-): string {
-	if (isBusy) {
-		return "Queueing...";
-	}
-	if (isBuildingLaneFull) {
-		return "Queue Full";
-	}
-	return actionLabel;
-}
-
 function FacilitiesRoute(): ReactElement {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
@@ -197,7 +151,6 @@ function FacilitiesRoute(): ReactElement {
 	const [facilityDraftValue, setFacilityDraftValue] = useState("");
 	const [savingFacilityKey, setSavingFacilityKey] = useState<FacilityKey | null>(null);
 	const [isCompletingQueueItem, setIsCompletingQueueItem] = useState(false);
-	const [nowMs, setNowMs] = useState(() => Date.now());
 	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
 	const canUseDevConsole = devConsoleState?.canUseDevConsole === true;
 
@@ -211,19 +164,7 @@ function FacilitiesRoute(): ReactElement {
 		};
 	}, [colonySelectors]);
 
-	useEffect(() => {
-		if (!isAuthenticated) {
-			return;
-		}
-
-		const tick = window.setInterval(() => {
-			setNowMs(Date.now());
-		}, 1_000);
-
-		return () => {
-			window.clearInterval(tick);
-		};
-	}, [isAuthenticated]);
+	const nowMs = colonyResources.nowMs;
 
 	const buildingLane = view?.queues.lanes.building;
 	const allActiveItem = buildingLane?.activeItem ?? null;
@@ -243,25 +184,16 @@ function FacilitiesRoute(): ReactElement {
 		isBuildingLaneQueueItem,
 	) as BuildingLaneQueueItem[];
 
-	const activeItemStartsAt = (activeLaneItem as Record<string, unknown> | null)?.startsAt as
-		| number
-		| undefined;
-	const activeItemDurationMs =
-		activeLaneItem && activeItemStartsAt ? activeLaneItem.completesAt - activeItemStartsAt : 0;
-	const activeUpgradeProgress =
-		activeLaneItem && activeItemDurationMs > 0
-			? Math.min(
-					100,
-					Math.max(
-						0,
-						((nowMs - (activeLaneItem.completesAt - activeItemDurationMs)) / activeItemDurationMs) *
-							100,
-					),
-				)
-			: 0;
+	const activeUpgradeProgress = activeLaneItem
+		? getQueueProgress(
+				nowMs,
+				(activeLaneItem as Record<string, unknown>).startsAt as number | undefined,
+				activeLaneItem.completesAt,
+			).percent
+		: 0;
 
 	const remainingTimeLabel = activeLaneItem
-		? formatDurationMs(Math.max(0, activeLaneItem.completesAt - nowMs))
+		? formatQueueRemainingLabel(nowMs, activeLaneItem.completesAt)
 		: null;
 
 	const commitFacilityLevel = useCallback(
@@ -497,32 +429,21 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 						const actionLabel: "Build" | "Upgrade" =
 							facility.currentLevel <= 0 ? "Build" : "Upgrade";
 						const durationLabel = facility.nextUpgradeDurationSeconds
-							? formatDuration(facility.nextUpgradeDurationSeconds)
+							? formatColonyDuration(facility.nextUpgradeDurationSeconds, "seconds")
 							: null;
 						const isLocked = facility.status === "Locked";
 						const isMaxLevel = facility.nextUpgradeDurationSeconds === undefined;
-						const hasRequiredResources =
-							props.availableResources !== null &&
-							props.availableResources.alloy >= facility.nextUpgradeCost.alloy &&
-							props.availableResources.crystal >= facility.nextUpgradeCost.crystal &&
-							props.availableResources.fuel >= facility.nextUpgradeCost.fuel;
-						const isActionDisabled =
-							isLocked || isMaxLevel || props.buildingLaneIsFull || isBusy || !hasRequiredResources;
-						const availabilityLabel = getFacilityAvailabilityLabel(
-							isLocked,
-							isActive,
-							Boolean(queuedItem),
-						);
-						const availabilityClasses = getFacilityAvailabilityClasses(
-							isLocked,
-							isActive,
-							Boolean(queuedItem),
-						);
-						const buttonLabel = getUpgradeButtonLabel(
-							isBusy,
-							props.buildingLaneIsFull,
+						const actionPresentation = getUpgradeActionPresentation({
 							actionLabel,
-						);
+							availableResources: props.availableResources,
+							cost: facility.nextUpgradeCost,
+							hasQueuedItem: Boolean(queuedItem),
+							isActive,
+							isBusy,
+							isLocked,
+							isMaxLevel,
+							isQueueFull: props.buildingLaneIsFull,
+						});
 
 						return (
 							<article
@@ -631,11 +552,11 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 										</div>
 									</div>
 
-									<p className={`
-           mt-2 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5
-           text-[9px] font-semibold whitespace-nowrap uppercase
-           ${availabilityClasses}
-         `}>{availabilityLabel}</p>
+									<StatusBadge
+										className="mt-2"
+										label={actionPresentation.badgeLabel}
+										tone={actionPresentation.badgeTone}
+									/>
 
 									<div className="mt-3 flex items-center justify-center">
 										<div
@@ -693,25 +614,15 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 									</div>
 
 									<div className="mt-3 border-t border-white/6 pt-3">
-										<button
-											className="
-             flex w-full items-center justify-center gap-2 rounded-xl border
-             border-violet-200/50 bg-linear-to-b from-violet-400/25
-             to-violet-400/10 px-4 py-2.5 font-(family-name:--nv-font-display)
-             text-xs font-bold tracking-[0.08em] text-violet-50 uppercase
-             shadow-[0_0_20px_rgba(167,139,250,0.12)] transition-all
-             hover:-translate-y-0.5 hover:border-violet-100/70
-             hover:shadow-[0_0_30px_rgba(167,139,250,0.25)]
-             disabled:translate-y-0 disabled:border-white/10 disabled:bg-white/5
-             disabled:text-white/30 disabled:shadow-none
-           "
-											disabled={isActionDisabled}
+										<ActionButton
+											className="w-full"
+											disabled={!actionPresentation.isActionEnabled}
+											label={actionPresentation.buttonLabel}
+											leadingIcon={<Zap className="size-3.5" />}
+											loading={isBusy}
 											onClick={() => props.onUpgrade(facility.key, facility.name)}
-											type="button"
-										>
-											<Zap className="size-3.5" />
-											{buttonLabel}
-										</button>
+											tone="facility"
+										/>
 
 										<div className="mt-2 flex flex-wrap justify-center gap-1.5">
 											<CostPill
@@ -759,203 +670,57 @@ function laneItemLabel(item: BuildingLaneQueueItem): string {
 
 function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 	const totalQueueItems = (props.activeLaneItem ? 1 : 0) + props.pendingLaneItems.length;
+	const activeItem = props.activeLaneItem
+		? {
+				id: `${props.activeLaneItem.kind}-${props.activeLaneItem.completesAt}`,
+				isActive: true,
+				remainingLabel: props.remainingTimeLabel ?? undefined,
+				subtitle: `Lv ${props.activeLaneItem.payload.fromLevel} → ${props.activeLaneItem.payload.toLevel}`,
+				title: laneItemLabel(props.activeLaneItem),
+			}
+		: null;
+	const pendingItems = props.pendingLaneItems.map((item) => ({
+		id: `${item.kind}-${item.completesAt}-${item.payload.toLevel}`,
+		isActive: false,
+		remainingLabel: formatColonyDuration(
+			item.completesAt -
+				(((item as Record<string, unknown>).startsAt as number | undefined) ?? props.nowMs),
+			"milliseconds",
+		),
+		subtitle: `Lv ${item.payload.fromLevel} → ${item.payload.toLevel}`,
+		title: laneItemLabel(item),
+	}));
 
 	return (
 		<div className="lg:sticky lg:top-4 lg:self-start">
-			<div
-				className="
-      rounded-2xl border border-white/12
-      bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
-    "
-			>
-				<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
-					<Clock3 className="size-5 text-violet-300" />
-					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Building Queue</h2>
-					{totalQueueItems > 0 ? (
-						<span
+			<QueuePanel
+				activeItem={activeItem}
+				activeProgressPercent={props.activeUpgradeProgress}
+				completeAction={
+					props.canShowDevUi ? (
+						<button
 							className="
-         ml-auto font-(family-name:--nv-font-mono) text-[9px] text-white/30
-       "
+								inline-flex items-center gap-1 rounded-md border
+								border-cyan-300/30 bg-cyan-400/10 px-2 py-1 text-[10px] font-medium
+								text-cyan-100 transition hover:border-cyan-200/55 hover:bg-cyan-400/16
+								disabled:cursor-not-allowed disabled:opacity-50
+							"
+							disabled={props.isCompletingQueueItem || !props.canUseDevConsole}
+							onClick={props.onCompleteActiveQueue}
+							type="button"
 						>
-							{totalQueueItems} item{totalQueueItems !== 1 ? "s" : ""}
-						</span>
-					) : null}
-				</div>
-
-				<div className="p-5">
-					{props.activeLaneItem ? (
-						<div className="space-y-3">
-							<p
-								className="
-          text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
-        "
-							>
-								Active
-							</p>
-							<div className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3">
-								<div className="flex items-center justify-between">
-									<div>
-										<p className="text-xs font-semibold">{laneItemLabel(props.activeLaneItem)}</p>
-										<p
-											className="
-             mt-0.5 font-(family-name:--nv-font-mono) text-[10px] text-white/40
-           "
-										>
-											Lv {props.activeLaneItem.payload.fromLevel} →{" "}
-											{props.activeLaneItem.payload.toLevel}
-										</p>
-									</div>
-									<div className="text-right">
-										<p
-											className="
-             font-(family-name:--nv-font-mono) text-xs font-bold
-             text-emerald-200
-           "
-										>
-											{props.remainingTimeLabel ?? "—"}
-										</p>
-										<p
-											className="
-             font-(family-name:--nv-font-mono) text-[8px] tracking-widest
-             text-emerald-200/45 uppercase
-           "
-										>
-											remaining
-										</p>
-									</div>
-								</div>
-
-								<div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/8">
-									<div
-										className="
-            h-full rounded-full bg-linear-to-r from-emerald-400/60
-            to-emerald-300/40 transition-all
-          "
-										style={{
-											width: `${props.activeUpgradeProgress}%`,
-										}}
-									/>
-								</div>
-								<div className="mt-1 flex items-center justify-between">
-									<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/25">
-										{Math.round(props.activeUpgradeProgress)}%
-									</span>
-									<span
-										className="
-            inline-flex items-center gap-1 text-[9px] text-emerald-300/60
-          "
-									>
-										<span
-											className="inline-block size-1.5 rounded-full bg-emerald-400"
-											style={{
-												animation: "nv-queue-pulse 2s ease-in-out infinite",
-											}}
-										/>
-										In progress
-									</span>
-								</div>
-								{props.canShowDevUi ? (
-									<button
-										className="
-            mt-2 inline-flex items-center gap-1 rounded-md border
-            border-cyan-300/30 bg-cyan-400/10 px-2 py-1 text-[10px] font-medium
-            text-cyan-100 transition
-            hover:border-cyan-200/55 hover:bg-cyan-400/16
-            disabled:cursor-not-allowed disabled:opacity-50
-          "
-										disabled={props.isCompletingQueueItem || !props.canUseDevConsole}
-										onClick={props.onCompleteActiveQueue}
-										type="button"
-									>
-										{props.isCompletingQueueItem ? "Completing..." : "Complete"}
-									</button>
-								) : null}
-							</div>
-						</div>
-					) : null}
-
-					{props.pendingLaneItems.length > 0 ? (
-						<div className={props.activeLaneItem ? "mt-4" : ""}>
-							<p
-								className="
-          text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
-        "
-							>
-								Pending ({props.pendingLaneItems.length})
-							</p>
-							<div className="mt-2 space-y-1">
-								{props.pendingLaneItems.map((item, i) => {
-									const itemStartsAt = (item as Record<string, unknown>).startsAt as
-										| number
-										| undefined;
-									const itemDurationMs =
-										itemStartsAt && itemStartsAt > 0 ? item.completesAt - itemStartsAt : 0;
-
-									return (
-										<div
-											className="
-             flex items-center justify-between rounded-lg border border-white/6
-             bg-white/2 px-3 py-2
-           "
-											key={`pending-${item.kind}-${item.completesAt}-${item.payload.toLevel}`}
-										>
-											<div className="flex items-center gap-2">
-												<span
-													className="
-               flex size-5 items-center justify-center rounded-sm
-               font-(family-name:--nv-font-mono) text-[9px] font-bold
-               text-white/25
-             "
-												>
-													{i + 1}
-												</span>
-												<div>
-													<p className="text-[11px] font-semibold text-white/80">
-														{laneItemLabel(item)}
-													</p>
-													<p
-														className="
-                font-(family-name:--nv-font-mono) text-[9px] text-white/30
-              "
-													>
-														Lv {item.payload.fromLevel} → {item.payload.toLevel}
-													</p>
-												</div>
-											</div>
-											<div className="text-right">
-												<p
-													className="
-               font-(family-name:--nv-font-mono) text-[10px] text-white/35
-             "
-												>
-													{itemDurationMs > 0
-														? formatDurationMs(itemDurationMs)
-														: formatDurationMs(item.completesAt - props.nowMs)}
-												</p>
-											</div>
-										</div>
-									);
-								})}
-							</div>
-						</div>
-					) : null}
-
-					{!props.activeLaneItem && props.pendingLaneItems.length === 0 ? (
-						<div className="flex flex-col items-center py-8 text-center">
-							<div
-								className="
-          flex size-12 items-center justify-center rounded-full border
-          border-white/8 bg-white/3
-        "
-							>
-								<Clock3 className="size-5 text-white/20" />
-							</div>
-							<p className="mt-3 text-xs font-medium text-white/30">No upgrades in progress</p>
-							<p className="mt-1 text-[10px] text-white/18">Select a facility to begin upgrading</p>
-						</div>
-					) : null}
-				</div>
-			</div>
+							{props.isCompletingQueueItem ? "Completing..." : "Complete"}
+						</button>
+					) : null
+				}
+				emptyDescription="Select a facility to begin upgrading"
+				emptyTitle="No upgrades in progress"
+				headerIcon={<Clock3 className="size-5 text-violet-300" />}
+				pendingItems={pendingItems}
+				theme="facility"
+				title="Building Queue"
+				totalCount={totalQueueItems}
+			/>
 		</div>
 	);
 }
