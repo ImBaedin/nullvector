@@ -5,22 +5,17 @@ import { ConvexError, v } from "convex/values";
 
 import type { Id } from "../../convex/_generated/dataModel";
 
-import { mutation, query } from "../../convex/_generated/server";
+import { mutation } from "../../convex/_generated/server";
 import { RESOURCE_SCALE } from "../../convex/schema";
 import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	LANE_QUEUE_CAPACITY,
-	OPEN_QUEUE_STATUSES,
 	RESOURCE_KEYS,
-	buildLaneQueueView,
 	cloneResourceBucket,
 	getOwnedColony,
 	isShipBuildQueueItem,
-	laneQueueViewValidator,
 	loadColonyState,
-	listOpenColonyQueueItems,
 	listOpenLaneQueueItems,
-	queueEventsNextAt,
 	queueItemStatusValidator,
 	resourceMapToScaledBucket,
 	settleColonyAndPersist,
@@ -99,124 +94,6 @@ export function buildShipyardReschedulePatches(args: {
 
 	return patches;
 }
-
-const shipCatalogItemValidator = v.object({
-	key: shipKeyValidator,
-	name: v.string(),
-	requiredShipyardLevel: v.number(),
-	cargoCapacity: v.number(),
-	speed: v.number(),
-	fuelLaunchCost: v.number(),
-	fuelDistanceRate: v.number(),
-	cost: v.object({
-		alloy: v.number(),
-		crystal: v.number(),
-		fuel: v.number(),
-	}),
-});
-
-const shipyardStateItemValidator = v.object({
-	key: shipKeyValidator,
-	owned: v.number(),
-	queued: v.number(),
-	perUnitDurationSeconds: v.number(),
-});
-
-export const getShipCatalog = query({
-	args: {},
-	returns: v.object({
-		ships: v.array(shipCatalogItemValidator),
-	}),
-	handler: async () => {
-		const ships = (Object.keys(DEFAULT_SHIP_DEFINITIONS) as ShipKey[]).map((shipKey) => {
-			const definition = DEFAULT_SHIP_DEFINITIONS[shipKey];
-			return {
-				key: shipKey,
-				name: definition.name,
-				requiredShipyardLevel: definition.requiredShipyardLevel,
-				cargoCapacity: definition.cargoCapacity,
-				speed: definition.speed,
-				fuelLaunchCost: definition.fuelLaunchCost,
-				fuelDistanceRate: definition.fuelDistanceRate,
-				cost: definition.cost,
-			};
-		});
-		return { ships };
-	},
-});
-
-export const getShipyardState = query({
-	args: {
-		colonyId: v.id("colonies"),
-	},
-	returns: v.object({
-		colonyId: v.id("colonies"),
-		shipyardLevel: v.number(),
-		nextEventAt: v.optional(v.number()),
-		lane: laneQueueViewValidator,
-		shipStates: v.array(shipyardStateItemValidator),
-	}),
-	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
-			ctx,
-			colonyId: args.colonyId,
-		});
-
-		const queueRows = await listOpenColonyQueueItems({
-			colonyId: colony._id,
-			ctx,
-		});
-		const shipyardLane = buildLaneQueueView({
-			lane: "shipyard",
-			now: Date.now(),
-			rows: queueRows,
-		});
-		const openShipyardRows = queueRows.filter(
-			(row) =>
-				row.lane === "shipyard" &&
-				OPEN_QUEUE_STATUSES.includes(row.status) &&
-				isShipBuildQueueItem(row),
-		);
-		const shipRows = await ctx.db
-			.query("colonyShips")
-			.withIndex("by_colony", (q) => q.eq("colonyId", colony._id))
-			.collect();
-		const countsByShip = new Map<ShipKey, number>();
-		for (const row of shipRows) {
-			countsByShip.set(row.shipKey, row.count);
-		}
-
-		const shipStates = (Object.keys(DEFAULT_SHIP_DEFINITIONS) as ShipKey[]).map((shipKey) => {
-			const queued = openShipyardRows.reduce((total, row) => {
-				if (!isShipBuildQueueItem(row)) {
-					return total;
-				}
-				if (row.payload.shipKey !== shipKey) {
-					return total;
-				}
-				return total + Math.max(0, row.payload.quantity - row.payload.completedQuantity);
-			}, 0);
-
-			return {
-				key: shipKey,
-				owned: countsByShip.get(shipKey) ?? 0,
-				queued,
-				perUnitDurationSeconds: getShipBuildDurationSeconds({
-					shipKey,
-					shipyardLevel: colony.buildings.shipyardLevel,
-				}),
-			};
-		});
-
-		return {
-			colonyId: colony._id,
-			shipyardLevel: colony.buildings.shipyardLevel,
-			nextEventAt: queueEventsNextAt(queueRows) ?? undefined,
-			lane: shipyardLane,
-			shipStates,
-		};
-	},
-});
 
 export const enqueueShipBuild = mutation({
 	args: {

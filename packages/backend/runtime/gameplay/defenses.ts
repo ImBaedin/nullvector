@@ -3,27 +3,21 @@ import type { DefenseKey, ResourceBucket } from "@nullvector/game-logic";
 import {
 	DEFAULT_DEFENSE_DEFINITIONS,
 	getDefenseBuildDurationSeconds,
-	type DefenseCounts,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
 import type { Id } from "../../convex/_generated/dataModel";
 
-import { mutation, query } from "../../convex/_generated/server";
+import { mutation } from "../../convex/_generated/server";
 import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	LANE_QUEUE_CAPACITY,
-	OPEN_QUEUE_STATUSES,
 	RESOURCE_KEYS,
-	buildLaneQueueView,
 	cloneResourceBucket,
 	getOwnedColony,
 	incrementColonyDefenseCount,
 	isDefenseBuildQueueItem,
-	laneQueueViewValidator,
-	listOpenColonyQueueItems,
 	listOpenLaneQueueItems,
-	queueEventsNextAt,
 	queueItemStatusValidator,
 	readColonyDefenseCounts,
 	resourceMapToScaledBucket,
@@ -41,120 +35,6 @@ const defenseKeyValidator = v.union(
 	v.literal("gaussCannon"),
 	v.literal("shieldDome"),
 );
-
-const defenseCatalogItemValidator = v.object({
-	key: defenseKeyValidator,
-	name: v.string(),
-	requiredDefenseGridLevel: v.number(),
-	attack: v.number(),
-	shield: v.number(),
-	hull: v.number(),
-	cost: v.object({
-		alloy: v.number(),
-		crystal: v.number(),
-		fuel: v.number(),
-	}),
-});
-
-const defenseStateItemValidator = v.object({
-	key: defenseKeyValidator,
-	owned: v.number(),
-	queued: v.number(),
-	perUnitDurationSeconds: v.number(),
-	isUnlocked: v.boolean(),
-});
-
-export const getDefenseCatalog = query({
-	args: {},
-	returns: v.object({
-		defenses: v.array(defenseCatalogItemValidator),
-	}),
-	handler: async () => ({
-		defenses: (Object.keys(DEFAULT_DEFENSE_DEFINITIONS) as DefenseKey[]).map((defenseKey) => {
-			const definition = DEFAULT_DEFENSE_DEFINITIONS[defenseKey];
-			return {
-				key: defenseKey,
-				name: definition.name,
-				requiredDefenseGridLevel: definition.requiredDefenseGridLevel,
-				attack: definition.attack,
-				shield: definition.shield,
-				hull: definition.hull,
-				cost: definition.cost,
-			};
-		}),
-	}),
-});
-
-export const getDefenseState = query({
-	args: {
-		colonyId: v.id("colonies"),
-	},
-	returns: v.object({
-		colonyId: v.id("colonies"),
-		defenseGridLevel: v.number(),
-		nextEventAt: v.optional(v.number()),
-		lane: laneQueueViewValidator,
-		defenseStates: v.array(defenseStateItemValidator),
-	}),
-	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
-			ctx,
-			colonyId: args.colonyId,
-		});
-
-		const [queueRows, defenseCounts] = await Promise.all([
-			listOpenColonyQueueItems({
-				colonyId: colony._id,
-				ctx,
-			}),
-			readColonyDefenseCounts({
-				colonyId: colony._id,
-				ctx,
-			}),
-		]);
-		const defenseLane = buildLaneQueueView({
-			lane: "defense",
-			now: Date.now(),
-			rows: queueRows,
-		});
-		const openDefenseRows = queueRows.filter(
-			(row) =>
-				row.lane === "defense" &&
-				OPEN_QUEUE_STATUSES.includes(row.status) &&
-				isDefenseBuildQueueItem(row),
-		);
-
-		const defenseStates = (Object.keys(DEFAULT_DEFENSE_DEFINITIONS) as DefenseKey[]).map(
-			(defenseKey) => {
-				const definition = DEFAULT_DEFENSE_DEFINITIONS[defenseKey];
-				const queued = openDefenseRows.reduce((total, row) => {
-					if (!isDefenseBuildQueueItem(row) || row.payload.defenseKey !== defenseKey) {
-						return total;
-					}
-					return total + Math.max(0, row.payload.quantity - row.payload.completedQuantity);
-				}, 0);
-				return {
-					key: defenseKey,
-					owned: defenseCounts[defenseKey] ?? 0,
-					queued,
-					perUnitDurationSeconds: getDefenseBuildDurationSeconds({
-						defenseKey,
-						defenseGridLevel: colony.buildings.defenseGridLevel,
-					}),
-					isUnlocked: colony.buildings.defenseGridLevel >= definition.requiredDefenseGridLevel,
-				};
-			},
-		);
-
-		return {
-			colonyId: colony._id,
-			defenseGridLevel: colony.buildings.defenseGridLevel,
-			nextEventAt: queueEventsNextAt(queueRows) ?? undefined,
-			lane: defenseLane,
-			defenseStates,
-		};
-	},
-});
 
 export const enqueueDefenseBuild = mutation({
 	args: {

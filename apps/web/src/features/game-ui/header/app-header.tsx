@@ -10,13 +10,17 @@ import { toast } from "sonner";
 import type { ContextNavItem, ResourceDatum } from "@/features/game-ui/contracts/navigation";
 import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdata/types";
 
+import {
+	useColonySessionSnapshot,
+	useOptimisticColonyMutation,
+} from "@/features/colony-state/hooks";
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { NotificationsModal } from "@/features/game-ui/shell/notifications-modal";
 import { ResourceStrip } from "@/features/game-ui/shell/resource-strip";
 import { SettingsModal } from "@/features/game-ui/shell/settings-modal";
 import { useColonyResources } from "@/hooks/use-colony-resources";
-import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
+import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
 
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";
@@ -96,14 +100,15 @@ export function AppHeader({
 	});
 	const colonyId = parseColonyId(pathname);
 	const colonyIdAsId = colonyId ? (colonyId as Id<"colonies">) : null;
-	const renameColony = useMutation(api.colonyNav.renameColony);
-	const colonyNav = useQuery(
-		api.colonyNav.getColonyNav,
-		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
-	const allColonyQueueStatuses = useQuery(
-		api.colonyNav.getAllColonyQueueStatuses,
-		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
+	const renameColony = useOptimisticColonyMutation({
+		intentFromArgs: (args: { colonyId: Id<"colonies">; name: string }) => ({
+			name: args.name,
+			type: "renameColony",
+		}),
+		mutation: api.colonyNav.renameColony,
+	});
+	const colonySession = useColonySessionSnapshot(
+		colonyIdAsId && isAuthenticated ? colonyIdAsId : null,
 	);
 	const raidStatus = useQuery(
 		api.raids.getRaidStatusForColony,
@@ -119,24 +124,17 @@ export function AppHeader({
 		isAuthenticated ? {} : "skip",
 	);
 	const hud = useMemo<HeaderHudData | undefined>(() => {
-		if (!colonyNav || !colonyResources.hudResources) {
+		if (!colonySession || !colonyResources.hudResources) {
 			return undefined;
 		}
 
-		const statusByColonyId = new Map<Id<"colonies">, "Upgrading" | "Queued" | "Stable">(
-			(allColonyQueueStatuses?.statuses ?? []).map((entry) => [entry.colonyId, entry.status]),
-		);
-
 		return {
-			activeColonyId: colonyNav.activeColonyId,
-			title: colonyNav.title,
-			colonies: colonyNav.colonies.map((colony) => ({
-				...colony,
-				status: statusByColonyId.get(colony.id),
-			})),
+			activeColonyId: colonySession.activeColonyId,
+			title: colonySession.title,
+			colonies: colonySession.colonies,
 			resources: colonyResources.hudResources as ResourceDatum[],
 		};
-	}, [allColonyQueueStatuses?.statuses, colonyNav, colonyResources.hudResources]);
+	}, [colonyResources.hudResources, colonySession]);
 	const [isRenamingColony, setIsRenamingColony] = useState(false);
 	const [isSavingColonyName, setIsSavingColonyName] = useState(false);
 	const [draftColonyName, setDraftColonyName] = useState("");
@@ -625,9 +623,7 @@ export function AppHeader({
        "
 						>
 							{playerProfile ? (
-								<div
-									className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3"
-								>
+								<div className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3">
 									<div className="flex items-center gap-2">
 										<div
 											className="

@@ -5,6 +5,7 @@ import {
 	getFleetFuelCostForDistance,
 	getFleetSlowestSpeed,
 	normalizeShipCounts,
+	selectShipCatalog,
 	type HostileFactionKey,
 	type ResourceBucket,
 	type ShipKey,
@@ -131,7 +132,7 @@ function ContractsRoute() {
 		api.playerProgression.getPlayerProgression,
 		isAuthenticated ? {} : "skip",
 	);
-	const shipCatalog = useQuery(api.shipyard.getShipCatalog, isAuthenticated ? {} : "skip");
+	const shipCatalog = useMemo(() => selectShipCatalog(), []);
 	const garrison = useQuery(
 		api.fleetV2.getFleetGarrison,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
@@ -277,7 +278,6 @@ function ContractsRoute() {
 			hostileSectorsResponse &&
 			hostileSectors &&
 			progression &&
-			shipCatalog &&
 			garrison &&
 			operations,
 		);
@@ -286,7 +286,7 @@ function ContractsRoute() {
 		return <ContractsSkeleton />;
 	}
 
-	if (!ready || !hostileSectors || !progression || !shipCatalog || !garrison || !operations) {
+	if (!ready || !hostileSectors || !progression || !garrison || !operations) {
 		return (
 			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
 				Unable to load contracts. Please sign in again.
@@ -294,11 +294,11 @@ function ContractsRoute() {
 		);
 	}
 
-	const ships: ShipAssignment[] = shipCatalog.ships.map((ship) => ({
+	const ships: ShipAssignment[] = shipCatalog.map((ship) => ({
 		...ship,
 		available: garrison.garrisonShips[ship.key] ?? 0,
 	}));
-	const shipsByKey = new Map(shipCatalog.ships.map((ship) => [ship.key, { name: ship.name }]));
+	const shipsByKey = new Map(shipCatalog.map((ship) => [ship.key, { name: ship.name }]));
 	const activeContractOperations = operations.active.filter(
 		(operation): operation is ContractOperationRow => operation.kind === "contract",
 	);

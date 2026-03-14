@@ -1,5 +1,5 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import type { DefenseKey } from "@nullvector/game-logic";
+import { selectDefenseCatalog, type DefenseKey } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { HOSTILE_FACTIONS } from "@nullvector/game-logic";
@@ -20,6 +20,11 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import {
+	useColonySelectors,
+	useColonySessionSnapshot,
+	useOptimisticColonyMutation,
+} from "@/features/colony-state/hooks";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
@@ -135,15 +140,9 @@ function DefensesRoute() {
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
-	const defenseCatalog = useQuery(api.defenses.getDefenseCatalog, isAuthenticated ? {} : "skip");
-	const defenseState = useQuery(
-		api.defenses.getDefenseState,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
-	const colonyNav = useQuery(
-		api.colonyNav.getColonyNav,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
+	const defenseCatalog = useMemo(() => selectDefenseCatalog(), []);
+	const colonySelectors = useColonySelectors(isAuthenticated ? colonyIdAsId : null);
+	const colonySession = useColonySessionSnapshot(isAuthenticated ? colonyIdAsId : null);
 	const raidStatus = useQuery(
 		api.raids.getRaidStatusForColony,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
@@ -153,8 +152,25 @@ function DefensesRoute() {
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const colonyResources = useColonyResources(isAuthenticated ? colonyIdAsId : null);
-	const enqueueDefenseBuild = useMutation(api.defenses.enqueueDefenseBuild);
-	const cancelDefenseQueueItem = useMutation(api.defenses.cancelDefenseQueueItem);
+	const enqueueDefenseBuild = useOptimisticColonyMutation({
+		intentFromArgs: (args: {
+			colonyId: Id<"colonies">;
+			defenseKey: DefenseKey;
+			quantity: number;
+		}) => ({
+			defenseKey: args.defenseKey,
+			quantity: args.quantity,
+			type: "enqueueDefenseBuild",
+		}),
+		mutation: api.defenses.enqueueDefenseBuild,
+	});
+	const cancelDefenseQueueItem = useOptimisticColonyMutation({
+		intentFromArgs: (args: { colonyId: Id<"colonies">; queueItemId: Id<"colonyQueueItems"> }) => ({
+			queueItemId: args.queueItemId,
+			type: "cancelDefenseBuild",
+		}),
+		mutation: api.defenses.cancelDefenseQueueItem,
+	});
 	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
 	const setDefenseCounts = useMutation(api.devConsole.setDefenseCounts);
 	const completeActiveRaidAtCurrentColony = useMutation(
@@ -193,14 +209,14 @@ function DefensesRoute() {
 	}, [isAuthenticated]);
 
 	const view = useMemo(() => {
-		if (!defenseCatalog || !defenseState) {
+		if (!colonySelectors) {
 			return undefined;
 		}
 
 		const stateByDefenseKey = new Map(
-			defenseState.defenseStates.map((state) => [state.key, state]),
+			colonySelectors.defenseState.defenseStates.map((state) => [state.key, state]),
 		);
-		const defenses = defenseCatalog.defenses.map((defense) => {
+		const defenses = defenseCatalog.map((defense) => {
 			const state = stateByDefenseKey.get(defense.key);
 			const presentation = DEFENSE_PRESENTATION[defense.key];
 
@@ -222,12 +238,12 @@ function DefensesRoute() {
 		});
 
 		return {
-			colonyId: defenseState.colonyId,
-			defenseGridLevel: defenseState.defenseGridLevel,
+			colonyId: colonySelectors.defenseState.colonyId,
+			defenseGridLevel: colonySelectors.defenseState.defenseGridLevel,
 			defenses,
-			lane: defenseState.lane,
+			lane: colonySelectors.defenseState.lane,
 		};
-	}, [defenseCatalog, defenseState]);
+	}, [colonySelectors, defenseCatalog]);
 
 	const defensesByKey = useMemo(
 		() => new Map((view?.defenses ?? []).map((defense) => [defense.key, defense])),
@@ -295,11 +311,11 @@ function DefensesRoute() {
 	const totalPower = totalAttack + totalShield + totalHull;
 	const activeColonyNav = useMemo(
 		() =>
-			colonyNav?.colonies.find((colony) => colony.id === colonyIdAsId) ?? {
+			colonySession?.colonies.find((colony) => colony.id === colonyIdAsId) ?? {
 				addressLabel: undefined,
 				name: "Planetary Defenses",
 			},
-		[colonyIdAsId, colonyNav?.colonies],
+		[colonyIdAsId, colonySession?.colonies],
 	);
 	const incomingRaidItems = useMemo(() => {
 		if (!raidStatus?.activeRaid) {
@@ -1148,9 +1164,7 @@ function PowerSplitBar(props: { totalAttack: number; totalHull: number; totalShi
      `} key={seg.label} style={{ width: `${seg.pct}%` }}>
 						{seg.icon}
 						<span className="tracking-wider uppercase">{seg.label}</span>
-						<span
-							className="font-(family-name:--nv-font-mono) font-bold text-white/70"
-						>
+						<span className="font-(family-name:--nv-font-mono) font-bold text-white/70">
 							{seg.value.toLocaleString()}
 						</span>
 						<span className="font-(family-name:--nv-font-mono) text-white/30">
@@ -1220,9 +1234,7 @@ function DefenseQueuePanel(props: {
      bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
    "
 		>
-			<div
-				className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
-			>
+			<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
 				<Clock3 className="size-5 text-rose-300" />
 				<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Defense Queue</h2>
 				{queueItemsCount > 0 ? (
@@ -1246,9 +1258,7 @@ function DefenseQueuePanel(props: {
 						>
 							Active
 						</p>
-						<div
-							className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3"
-						>
+						<div className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3">
 							<div className="flex items-start justify-between gap-2">
 								<div className="flex items-center gap-2.5">
 									<img
@@ -1344,9 +1354,7 @@ function DefenseQueuePanel(props: {
 								/>
 							</div>
 							<div className="mt-1 flex items-center justify-between">
-								<span
-									className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
-								>
+								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/25">
 									{Math.round(activeUpgradeProgress)}%
 								</span>
 								<span

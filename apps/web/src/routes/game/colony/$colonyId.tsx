@@ -179,29 +179,16 @@ function ColonyLayoutContent() {
 		prefetchedColonyIdsRef.current.add(colonyId);
 
 		void Promise.allSettled([
-			convex.query(api.resources.getColonyResourceSnapshot, {
+			convex.query(api.colony.getColonySnapshot, {
 				colonyId: colonyIdAsId,
 			}),
-			convex.query(api.resources.getColonyBuildingCards, {
-				colonyId: colonyIdAsId,
-			}),
-			convex.query(api.colonyQueue.getColonyQueueLanes, {
-				colonyId: colonyIdAsId,
-			}),
-			convex.query(api.facilities.getFacilitiesCards, {
-				colonyId: colonyIdAsId,
-			}),
-			convex.query(api.shipyard.getShipCatalog, {}),
-			convex.query(api.shipyard.getShipyardState, {
+			convex.query(api.colony.getColonySessionSnapshot, {
 				colonyId: colonyIdAsId,
 			}),
 			convex.query(api.fleetV2.getFleetGarrison, {
 				colonyId: colonyIdAsId,
 			}),
 			convex.query(api.fleetV2.getFleetOperationsForColony, {
-				colonyId: colonyIdAsId,
-			}),
-			convex.query(api.colonyNav.getColonyNav, {
 				colonyId: colonyIdAsId,
 			}),
 		]);

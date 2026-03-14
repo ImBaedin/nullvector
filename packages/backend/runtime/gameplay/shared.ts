@@ -1975,6 +1975,7 @@ export {
 	storageUpgradeCost,
 	storageUpgradeDurationSeconds,
 	toAddressLabel,
+	toQueueViewItem,
 	upsertColonyCompanionRows,
 	upsertQueuePayloadRow,
 	usedSlotsFromBuildings,

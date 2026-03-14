@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as colony from "../colony.js";
 import type * as colonyNav from "../colonyNav.js";
 import type * as colonyQueue from "../colonyQueue.js";
 import type * as contracts from "../contracts.js";
@@ -45,6 +46,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  colony: typeof colony;
   colonyNav: typeof colonyNav;
   colonyQueue: typeof colonyQueue;
   contracts: typeof contracts;

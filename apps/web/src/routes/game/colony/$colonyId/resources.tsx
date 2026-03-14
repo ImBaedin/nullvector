@@ -8,6 +8,7 @@ import { BatteryCharging, Clock3, Factory, Layers3, Pickaxe, Radar } from "lucid
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { useColonySelectors, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { formatResourceValue } from "@/lib/colony-resource-simulation";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
@@ -209,30 +210,45 @@ function ResourcesRoute() {
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
-	const buildingCards = useQuery(
-		api.resources.getColonyBuildingCards,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
-	const queueLanes = useQuery(
-		api.colonyQueue.getColonyQueueLanes,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
+	const colonySelectors = useColonySelectors(isAuthenticated ? colonyIdAsId : null);
 	const devConsoleState = useQuery(
 		api.devConsole.getDevConsoleState,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const colonyResources = useColonyResources(isAuthenticated ? colonyIdAsId : null);
 	const view = useMemo(() => {
-		if (!colonyResources.snapshot || !buildingCards || !queueLanes) {
+		if (!colonyResources.snapshot || !colonySelectors) {
 			return undefined;
 		}
+		const projected = colonyResources.projected;
 		return {
-			...colonyResources.snapshot,
-			queues: queueLanes,
-			buildings: buildingCards.buildings,
+			queues: colonySelectors.queueLanes,
+			buildings: colonySelectors.buildingCards,
+			colony: {
+				id: colonyResources.snapshot.colonyId,
+				name: colonyResources.snapshot.name,
+				addressLabel: colonyResources.snapshot.addressLabel,
+				lastAccruedAt: colonyResources.snapshot.lastAccruedAt,
+			},
+			planetMultipliers: colonyResources.snapshot.planetMultipliers,
+			resources: {
+				energyConsumed: projected?.energyConsumed ?? 0,
+				energyProduced: projected?.energyProduced ?? 0,
+				energyRatio: projected?.energyRatio ?? 1,
+				overflow: colonyResources.snapshot.overflow,
+				ratesPerMinute: projected?.ratesPerMinute ?? { alloy: 0, crystal: 0, fuel: 0 },
+				storageCaps: colonyResources.snapshot.storageCaps,
+				stored: colonyResources.snapshot.resources,
+			},
 		};
-	}, [buildingCards, colonyResources.snapshot, queueLanes]);
-	const enqueueBuildingUpgrade = useMutation(api.resources.enqueueBuildingUpgrade);
+	}, [colonyResources.projected, colonyResources.snapshot, colonySelectors]);
+	const enqueueBuildingUpgrade = useOptimisticColonyMutation({
+		intentFromArgs: (args: { buildingKey: BuildingKey; colonyId: Id<"colonies"> }) => ({
+			buildingKey: args.buildingKey,
+			type: "enqueueBuildingUpgrade",
+		}),
+		mutation: api.resources.enqueueBuildingUpgrade,
+	});
 	const setColonyResources = useMutation(api.devConsole.setColonyResources);
 	const setBuildingLevels = useMutation(api.devConsole.setBuildingLevels);
 	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
@@ -653,9 +669,7 @@ function ResourcesRoute() {
 									<div className="flex items-center gap-2.5">
 										<span className="text-white/50">{groupVisual.icon}</span>
 										<div>
-											<h2
-												className="font-(family-name:--nv-font-display) text-sm font-bold"
-											>
+											<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 												{groupVisual.label}
 											</h2>
 											<p className="mt-0.5 text-[10px] text-white/35">{groupVisual.description}</p>
@@ -826,9 +840,7 @@ function ResourcesRoute() {
       "
 					>
 						{/* Queue header */}
-						<div
-							className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
-						>
+						<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
 							<Clock3 className="size-5 text-cyan-300" />
 							<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 								Building Queue

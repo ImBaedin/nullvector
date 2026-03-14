@@ -6,6 +6,7 @@ import {
 	getFleetFuelCostForDistance,
 	getFleetSlowestSpeed,
 	normalizeShipCounts,
+	selectShipCatalog,
 	type ResourceBucket,
 	type ShipKey,
 } from "@nullvector/game-logic";
@@ -176,7 +177,7 @@ function FleetRoute() {
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 	const { consumedSelection, openPicker, selectedTarget } = useColonyStarMapPicker();
 
-	const shipCatalog = useQuery(api.shipyard.getShipCatalog, isAuthenticated ? {} : "skip");
+	const shipCatalog = useMemo(() => selectShipCatalog(), []);
 	const garrison = useQuery(
 		api.fleetV2.getFleetGarrison,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
@@ -260,7 +261,7 @@ function FleetRoute() {
 	const ready =
 		!isAuthLoading &&
 		isAuthenticated &&
-		Boolean(shipCatalog && garrison && operations && colonyNav && colonyResources.projected);
+		Boolean(garrison && operations && colonyNav && colonyResources.projected);
 	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
 
 	const parsedCoords = useMemo(() => {
@@ -298,7 +299,6 @@ function FleetRoute() {
 
 	if (
 		!ready ||
-		!shipCatalog ||
 		!garrison ||
 		!operations ||
 		!colonyNav ||
@@ -330,7 +330,7 @@ function FleetRoute() {
 		deployedByShip.colonyShip += operation.shipCounts.colonyShip;
 	}
 
-	const ships = shipCatalog.ships.map((ship) => {
+	const ships = shipCatalog.map((ship) => {
 		const available = garrison.garrisonShips[ship.key] ?? 0;
 		const deployed = deployedByShip[ship.key] ?? 0;
 		return {
