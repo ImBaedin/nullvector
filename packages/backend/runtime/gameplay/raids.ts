@@ -6,7 +6,6 @@ import {
 	normalizeDefenseCounts,
 	normalizeShipCounts,
 	simulateCombat,
-	type DefenseCounts,
 	type ResourceBucket,
 	type ShipCounts,
 	type ShipKey,
@@ -18,6 +17,7 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { internal } from "../../convex/_generated/api";
 import {
 	internalMutation,
+	mutation,
 	query,
 	type MutationCtx,
 	type QueryCtx,
@@ -171,14 +171,92 @@ function nextRaidIntervalMs() {
 	return 12 * 60 * 60 * 1_000;
 }
 
-async function cancelScheduledJobIfPresent(args: {
-	ctx: MutationCtx;
-	jobId: Id<"_scheduled_functions"> | undefined;
+function nextRaidJitterMs(args: { colonyId: Id<"colonies">; sourcePlanetId: Id<"planets"> }) {
+	return hashString(`${args.colonyId}:${args.sourcePlanetId}`) % (30 * 60 * 1_000);
+}
+
+function computeNextRaidAt(args: {
+	anchorAt: number;
+	colonyId: Id<"colonies">;
+	sourcePlanetId: Id<"planets">;
 }) {
-	if (!args.jobId) {
-		return;
+	return args.anchorAt + nextRaidIntervalMs() + nextRaidJitterMs(args);
+}
+
+async function findActiveRaidForColony(args: {
+	colonyId: Id<"colonies">;
+	ctx: QueryCtx | MutationCtx;
+}) {
+	return args.ctx.db
+		.query("npcRaidOperations")
+		.withIndex("by_target_status_event", (q) =>
+			q.eq("targetColonyId", args.colonyId).eq("status", RAID_STATUS_IN_TRANSIT),
+		)
+		.first();
+}
+
+async function setNextNpcRaidAtForColony(args: {
+	colony: Doc<"colonies">;
+	ctx: MutationCtx;
+	hostileSource: {
+		planetId: Id<"planets">;
+	} | null;
+	now: number;
+	scheduledAt?: number;
+}) {
+	const nextNpcRaidAt = args.hostileSource
+		? computeNextRaidAt({
+				anchorAt: args.scheduledAt ?? args.now,
+				colonyId: args.colony._id,
+				sourcePlanetId: args.hostileSource.planetId,
+			})
+		: undefined;
+	await args.ctx.db.patch(args.colony._id, {
+		nextNpcRaidAt,
+		updatedAt: args.now,
+	});
+	return nextNpcRaidAt ?? null;
+}
+
+async function reconcileNpcRaidScheduleForColony(args: {
+	colony: Doc<"colonies">;
+	ctx: MutationCtx;
+}) {
+	const progression = await args.ctx.db
+		.query("playerProgression")
+		.withIndex("by_player_id", (q) => q.eq("playerId", args.colony.playerId))
+		.unique();
+	const now = Date.now();
+	if ((progression?.rank ?? 1) < 5) {
+		await args.ctx.db.patch(args.colony._id, {
+			nextNpcRaidAt: undefined,
+			updatedAt: now,
+		});
+		return null;
 	}
-	await args.ctx.scheduler.cancel(args.jobId);
+
+	const hostileSource = await getNearestHostilePlanetForColony({
+		colony: args.colony,
+		ctx: args.ctx,
+	});
+	if (!hostileSource) {
+		await args.ctx.db.patch(args.colony._id, {
+			nextNpcRaidAt: undefined,
+			updatedAt: now,
+		});
+		return null;
+	}
+
+	if (args.colony.nextNpcRaidAt !== undefined) {
+		return args.colony.nextNpcRaidAt;
+	}
+
+	return setNextNpcRaidAtForColony({
+		colony: args.colony,
+		ctx: args.ctx,
+		hostileSource,
+		now,
+	});
 }
 
 async function scheduleRaidResolution(args: { ctx: MutationCtx; raid: Doc<"npcRaidOperations"> }) {
@@ -202,21 +280,18 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 	ctx: MutationCtx;
 	scheduledAt: number;
 }) {
-	await cancelScheduledJobIfPresent({
-		ctx: args.ctx,
-		jobId: args.colony.npcRaidSchedulingJobId,
-	});
-	await args.ctx.db.patch(args.colony._id, {
-		nextNpcRaidAt: undefined,
-		npcRaidSchedulingJobId: undefined,
-		updatedAt: Date.now(),
-	});
-
+	const now = Date.now();
 	const hostileSource = await getNearestHostilePlanetForColony({
 		colony: args.colony,
 		ctx: args.ctx,
 	});
 	if (!hostileSource) {
+		await setNextNpcRaidAtForColony({
+			colony: args.colony,
+			ctx: args.ctx,
+			hostileSource: null,
+			now,
+		});
 		return {
 			colonyId: args.colony._id,
 			raidOperationId: undefined,
@@ -241,7 +316,6 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 		distance: hostileSource.distance,
 		shipCounts: snapshot.attackerFleet,
 	});
-	const now = Date.now();
 	const raidOperationId = await args.ctx.db.insert("npcRaidOperations", {
 		universeId: args.colony.universeId,
 		targetColonyId: args.colony._id,
@@ -279,8 +353,12 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 		targetColonyId: raid.targetColonyId,
 		universeId: raid.universeId,
 	});
-	await args.ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
-		colonyId: args.colony._id,
+	await setNextNpcRaidAtForColony({
+		colony: args.colony,
+		ctx: args.ctx,
+		hostileSource,
+		now,
+		scheduledAt: args.scheduledAt,
 	});
 	return {
 		colonyId: args.colony._id,
@@ -398,12 +476,10 @@ export const getRaidStatusForColony = query({
 			ctx,
 			colonyId: args.colonyId,
 		});
-		const activeRaid = await ctx.db
-			.query("npcRaidOperations")
-			.withIndex("by_target_status_event", (q) =>
-				q.eq("targetColonyId", colony._id).eq("status", RAID_STATUS_IN_TRANSIT),
-			)
-			.first();
+		const activeRaid = await findActiveRaidForColony({
+			colonyId: colony._id,
+			ctx,
+		});
 		const activeRaidView = activeRaid
 			? {
 					id: activeRaid._id,
@@ -480,6 +556,56 @@ export const getRaidHistoryForColony = query({
 	},
 });
 
+export const resolveOverdueRaidForColony = mutation({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: v.object({
+		colonyId: v.id("colonies"),
+		raidOperationId: v.optional(v.id("npcRaidOperations")),
+		resolved: v.boolean(),
+		stale: v.boolean(),
+	}),
+	handler: async (ctx, args) => {
+		const { colony } = await getOwnedColony({
+			ctx,
+			colonyId: args.colonyId,
+		});
+		const activeRaid = await findActiveRaidForColony({
+			colonyId: colony._id,
+			ctx,
+		});
+		if (!activeRaid) {
+			return {
+				colonyId: colony._id,
+				raidOperationId: undefined,
+				resolved: false,
+				stale: false,
+			};
+		}
+		if (activeRaid.arriveAt > Date.now()) {
+			return {
+				colonyId: colony._id,
+				raidOperationId: activeRaid._id,
+				resolved: false,
+				stale: false,
+			};
+		}
+
+		const result = await resolveNpcRaidNow({
+			ctx,
+			raidOperationId: activeRaid._id,
+			scheduledAt: activeRaid.nextEventAt,
+		});
+		return {
+			colonyId: colony._id,
+			raidOperationId: activeRaid._id,
+			resolved: !result.stale,
+			stale: result.stale,
+		};
+	},
+});
+
 export const reconcileNpcRaidSchedule = internalMutation({
 	args: {
 		colonyId: v.id("colonies"),
@@ -496,97 +622,99 @@ export const reconcileNpcRaidSchedule = internalMutation({
 				nextNpcRaidAt: null,
 			};
 		}
-		const progression = await ctx.db
-			.query("playerProgression")
-			.withIndex("by_player_id", (q) => q.eq("playerId", colony.playerId))
-			.unique();
-		if ((progression?.rank ?? 1) < 5) {
-			await cancelScheduledJobIfPresent({
-				ctx,
-				jobId: colony.npcRaidSchedulingJobId,
-			});
-			await ctx.db.patch(colony._id, {
-				nextNpcRaidAt: undefined,
-				npcRaidSchedulingJobId: undefined,
-				updatedAt: Date.now(),
-			});
-			return {
-				colonyId: colony._id,
-				nextNpcRaidAt: null,
-			};
-		}
-
-		const hostileSource = await getNearestHostilePlanetForColony({
+		const nextNpcRaidAt = await reconcileNpcRaidScheduleForColony({
 			colony,
 			ctx,
 		});
-		if (!hostileSource) {
-			await cancelScheduledJobIfPresent({
-				ctx,
-				jobId: colony.npcRaidSchedulingJobId,
-			});
-			await ctx.db.patch(colony._id, {
-				nextNpcRaidAt: undefined,
-				npcRaidSchedulingJobId: undefined,
-				updatedAt: Date.now(),
-			});
-			return {
-				colonyId: colony._id,
-				nextNpcRaidAt: null,
-			};
-		}
-
-		const jitterMs = hashString(`${colony._id}:${hostileSource.planetId}`) % (30 * 60 * 1_000);
-		const nextNpcRaidAt = Date.now() + nextRaidIntervalMs() + jitterMs;
-
-		await cancelScheduledJobIfPresent({
-			ctx,
-			jobId: colony.npcRaidSchedulingJobId,
-		});
-		const jobId = await ctx.scheduler.runAt(
-			Math.max(Date.now(), nextNpcRaidAt),
-			internal.raids.spawnNpcRaidForColony,
-			{
-				colonyId: colony._id,
-				scheduledAt: nextNpcRaidAt,
-			},
-		);
-		await ctx.db.patch(colony._id, {
-			nextNpcRaidAt,
-			npcRaidSchedulingJobId: jobId,
-			updatedAt: Date.now(),
-		});
 		return {
 			colonyId: colony._id,
-			nextNpcRaidAt,
+			nextNpcRaidAt: nextNpcRaidAt ?? null,
 		};
 	},
 });
 
-export const spawnNpcRaidForColony = internalMutation({
-	args: {
-		colonyId: v.id("colonies"),
-		scheduledAt: v.number(),
-	},
+export const reconcileAllNpcRaidSchedules = internalMutation({
+	args: {},
 	returns: v.object({
-		colonyId: v.id("colonies"),
-		raidOperationId: v.optional(v.id("npcRaidOperations")),
-		stale: v.boolean(),
+		processed: v.number(),
+		scheduled: v.number(),
+		cleared: v.number(),
+		runAt: v.number(),
 	}),
-	handler: async (ctx, args) => {
-		const colony = await ctx.db.get(args.colonyId);
-		if (!colony || colony.nextNpcRaidAt !== args.scheduledAt) {
-			return {
-				colonyId: args.colonyId,
-				raidOperationId: undefined,
-				stale: true,
-			};
+	handler: async (ctx) => {
+		const colonies = await ctx.db.query("colonies").collect();
+		let scheduled = 0;
+		let cleared = 0;
+		for (const colony of colonies) {
+			const nextNpcRaidAt = await reconcileNpcRaidScheduleForColony({
+				colony,
+				ctx,
+			});
+			if (nextNpcRaidAt === null) {
+				cleared += 1;
+			} else {
+				scheduled += 1;
+			}
 		}
-		return spawnNpcRaidImmediatelyForColony({
-			colony,
-			ctx,
-			scheduledAt: args.scheduledAt,
-		});
+		return {
+			processed: colonies.length,
+			scheduled,
+			cleared,
+			runAt: Date.now(),
+		};
+	},
+});
+
+export const reconcileDueNpcRaids = internalMutation({
+	args: {},
+	returns: v.object({
+		processed: v.number(),
+		spawned: v.number(),
+		runAt: v.number(),
+	}),
+	handler: async (ctx) => {
+		const now = Date.now();
+		const dueColonies = await ctx.db
+			.query("colonies")
+			.withIndex("by_next_npc_raid_at", (q) => q.lte("nextNpcRaidAt", now))
+			.take(64);
+		let spawned = 0;
+		for (const colony of dueColonies) {
+			if (colony.nextNpcRaidAt === undefined || colony.nextNpcRaidAt > now) {
+				continue;
+			}
+			const activeRaid = await findActiveRaidForColony({
+				colonyId: colony._id,
+				ctx,
+			});
+			if (activeRaid) {
+				const hostileSource = await getNearestHostilePlanetForColony({
+					colony,
+					ctx,
+				});
+				await setNextNpcRaidAtForColony({
+					colony,
+					ctx,
+					hostileSource,
+					now,
+					scheduledAt: colony.nextNpcRaidAt,
+				});
+				continue;
+			}
+			const result = await spawnNpcRaidImmediatelyForColony({
+				colony,
+				ctx,
+				scheduledAt: colony.nextNpcRaidAt,
+			});
+			if (result.raidOperationId) {
+				spawned += 1;
+			}
+		}
+		return {
+			processed: dueColonies.length,
+			spawned,
+			runAt: now,
+		};
 	},
 });
 

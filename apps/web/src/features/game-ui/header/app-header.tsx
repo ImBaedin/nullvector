@@ -14,6 +14,7 @@ import {
 	useColonySessionSnapshot,
 	useOptimisticColonyMutation,
 } from "@/features/colony-state/hooks";
+import { useAutoResolveOverdueRaid } from "@/features/raids/use-auto-resolve-overdue-raid";
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { NotificationsModal } from "@/features/game-ui/shell/notifications-modal";
@@ -114,6 +115,11 @@ export function AppHeader({
 		api.raids.getRaidStatusForColony,
 		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
+	useAutoResolveOverdueRaid({
+		activeRaid: raidStatus?.activeRaid ?? null,
+		colonyId: colonyIdAsId,
+		enabled: isAuthenticated,
+	});
 	const colonyResources = useColonyResources(colonyIdAsId && isAuthenticated ? colonyIdAsId : null);
 	const playerProfile = useQuery(
 		api.playerProgression.getPlayerProfile,

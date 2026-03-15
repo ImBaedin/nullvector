@@ -23,6 +23,7 @@ import {
 	useColonySessionSnapshot,
 	useOptimisticColonyMutation,
 } from "@/features/colony-state/hooks";
+import { useAutoResolveOverdueRaid } from "@/features/raids/use-auto-resolve-overdue-raid";
 import { getQueueableBuildActionPresentation } from "@/features/colony-ui/action-state";
 import { ActionButton } from "@/features/colony-ui/components/action-button";
 import { CostPill } from "@/features/colony-ui/components/cost-pill";
@@ -140,6 +141,11 @@ function DefensesRoute() {
 		api.raids.getRaidStatusForColony,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
+	useAutoResolveOverdueRaid({
+		activeRaid: raidStatus?.activeRaid ?? null,
+		colonyId: colonyIdAsId,
+		enabled: isAuthenticated,
+	});
 	const devConsoleState = useQuery(
 		api.devConsole.getDevConsoleState,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",

@@ -479,14 +479,14 @@ export default defineSchema({
 		queueResolutionScheduledAt: v.optional(v.number()),
 		queueResolutionJobId: v.optional(v.id("_scheduled_functions")),
 		nextNpcRaidAt: v.optional(v.number()),
-		npcRaidSchedulingJobId: v.optional(v.id("_scheduled_functions")),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	})
 		.index("by_player_id", ["playerId"])
 		.index("by_planet_id", ["planetId"])
 		.index("by_player_universe", ["playerId", "universeId"])
-		.index("by_universe_id", ["universeId"]),
+		.index("by_universe_id", ["universeId"])
+		.index("by_next_npc_raid_at", ["nextNpcRaidAt"]),
 
 	colonyEconomy: defineTable({
 		colonyId: v.id("colonies"),
@@ -716,10 +716,10 @@ export default defineSchema({
 		controlReductionApplied: v.number(),
 		createdAt: v.number(),
 		updatedAt: v.number(),
-		})
-			.index("by_contract_id", ["contractId"])
-			.index("by_operation_id", ["operationId"])
-			.index("by_player_id", ["playerId"]),
+	})
+		.index("by_contract_id", ["contractId"])
+		.index("by_operation_id", ["operationId"])
+		.index("by_player_id", ["playerId"]),
 
 	colonyContractCandidates: defineTable({
 		universeId: v.id("universes"),

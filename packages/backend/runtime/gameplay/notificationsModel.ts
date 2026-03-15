@@ -521,7 +521,7 @@ export function severityForNotificationKind(args: {
 		case "raidIncoming":
 			return "danger";
 		case "raidResolved":
-			return args.success ? "warning" : "danger";
+			return args.success ? "danger" : "warning";
 		case "contractResolved":
 			return args.success ? "info" : "warning";
 		case "operationFailed":

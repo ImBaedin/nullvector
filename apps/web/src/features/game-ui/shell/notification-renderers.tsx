@@ -282,17 +282,16 @@ function RaidResolvedNotification({
 				summary={
 					payload.success ? (
 						<>
-							Recovered <ResourceInlineList bucket={payload.salvageGranted} /> from salvage.
+							Lost <ResourceInlineList bucket={payload.resourcesLooted} /> to the raid.
 						</>
 					) : (
 						<>
-							Gained <ResourceInlineList bucket={payload.salvageGranted} />. Lost{" "}
-							<ResourceInlineList bucket={payload.resourcesLooted} /> to the raid.
+							Recovered <ResourceInlineList bucket={payload.salvageGranted} /> from salvage.
 						</>
 					)
 				}
 				title={titleWithColony({
-					baseTitle: payload.success ? "Raid defended" : "Raid breached defenses",
+					baseTitle: payload.success ? "Raid breached defenses" : "Raid defended",
 					getColonyName,
 					notification,
 				})}
@@ -302,7 +301,7 @@ function RaidResolvedNotification({
 
 	return (
 		<NotificationDetailLayout>
-			<NotificationStat label="Outcome" value={payload.success ? "Defended" : "Breached"} />
+			<NotificationStat label="Outcome" value={payload.success ? "Breached" : "Defended"} />
 			<NotificationStat label="Rounds fought" value={payload.roundsFought} />
 			<NotificationStat
 				label="Resources gained"
@@ -705,7 +704,7 @@ export function NotificationDisplayTitle({
 			return titleWithColony({ baseTitle: "Raid incoming", getColonyName, notification });
 		case "raidResolved":
 			return titleWithColony({
-				baseTitle: notification.payload.success ? "Raid defended" : "Raid breached defenses",
+				baseTitle: notification.payload.success ? "Raid breached defenses" : "Raid defended",
 				getColonyName,
 				notification,
 			});
