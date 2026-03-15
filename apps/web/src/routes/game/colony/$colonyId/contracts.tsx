@@ -20,22 +20,16 @@ import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import { ActivityTimelinePanel, splitActivityLabel } from "./active-activity-panel";
 import {
 	DEFAULT_SELECTED_SHIPS,
-	type BrowseLevel,
 	type ContractView,
-	type HostilePlanetView,
-	type HostileSectorWithDistance,
 	type RecommendedContractView,
 	type SelectedContractContext,
 	type ShipAssignment,
-	type SystemGroup,
-	groupPlanetsBySystems,
 } from "./contracts-screen-shared";
 import {
 	ContractDetailPanel,
 	ContractHistory,
 	ContractsSkeleton,
 	RecommendedSection,
-	SectorBrowser,
 } from "./contracts-screen-view";
 import { formatColonyDuration } from "@/features/colony-ui/time";
 
@@ -124,13 +118,13 @@ function ContractsRoute() {
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
-	const hostileSectorsResponse = useQuery(
-		api.hostility.getHostileSectorsForUniverse,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
 	const progression = useQuery(
 		api.playerProgression.getPlayerProgression,
 		isAuthenticated ? {} : "skip",
+	);
+	const recommendedResult = useQuery(
+		api.contracts.getRecommendedContracts,
+		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const shipCatalog = useMemo(() => selectShipCatalog(), []);
 	const garrison = useQuery(
@@ -155,17 +149,11 @@ function ContractsRoute() {
 		isAuthenticated && historyExpanded ? { limit: 10 } : "skip",
 	);
 
-	const getRecommendedContracts = useMutation(api.contracts.getRecommendedContracts);
-	const getPlanetContracts = useMutation(api.contracts.getPlanetContracts);
 	const launchContract = useMutation(api.contracts.launchContract);
+	const rebuildContractDiscovery = useMutation(api.contracts.rebuildContractDiscovery);
 	const cancelOperation = useMutation(api.fleetV2.cancelOperation);
 	const completeActiveMission = useMutation(api.devConsole.completeActiveMission);
 
-	const [recommended, setRecommended] = useState<RecommendedContractView[] | null>(null);
-	const [recommendedLoading, setRecommendedLoading] = useState(false);
-	const [browseLevel, setBrowseLevel] = useState<BrowseLevel>({ level: "sectors" });
-	const [planetContracts, setPlanetContracts] = useState<ContractView[] | null>(null);
-	const [contractsLoading, setContractsLoading] = useState(false);
 	const [selectedContext, setSelectedContext] = useState<SelectedContractContext | null>(null);
 	const [selectedShips, setSelectedShips] =
 		useState<Record<ShipKey, number>>(DEFAULT_SELECTED_SHIPS);
@@ -178,40 +166,16 @@ function ContractsRoute() {
 		null,
 	);
 	const [nowMs, setNowMs] = useState(() => Date.now());
-	const selectedSectorDetail = useQuery(
-		api.hostility.getHostileSectorDetail,
-		isAuthenticated && browseLevel.level !== "sectors"
-			? {
-					colonyId: colonyIdAsId,
-					sectorId: browseLevel.sector.sectorId,
-				}
-			: "skip",
+	const [isRebuildingDiscovery, setIsRebuildingDiscovery] = useState(false);
+	const [rebuildAttemptedForColony, setRebuildAttemptedForColony] = useState<Id<"colonies"> | null>(
+		null,
 	);
-
-	const hostileSectors = useMemo(() => {
-		if (!hostileSectorsResponse) {
+	const recommended = useMemo(() => {
+		if (!recommendedResult) {
 			return null;
 		}
-
-		const { originX, originY, sectors } = hostileSectorsResponse;
-		return sectors
-			.map((sector) => ({
-				...sector,
-				distance: Math.sqrt((sector.centerX - originX) ** 2 + (sector.centerY - originY) ** 2),
-			}))
-			.sort((left, right) => {
-				if (left.status !== right.status) {
-					return left.status === "hostile" ? -1 : 1;
-				}
-				return left.distance - right.distance;
-			});
-	}, [hostileSectorsResponse]);
-	const selectedSectorSystems = useMemo(
-		() => groupPlanetsBySystems(selectedSectorDetail?.planets ?? []),
-		[selectedSectorDetail],
-	);
-	const selectedSectorLoading =
-		browseLevel.level !== "sectors" && selectedSectorDetail === undefined;
+		return recommendedResult.recommendedContracts as RecommendedContractView[];
+	}, [recommendedResult]);
 
 	useEffect(() => {
 		if (!isAuthenticated) {
@@ -222,66 +186,63 @@ function ContractsRoute() {
 	}, [isAuthenticated]);
 
 	useEffect(() => {
-		if (!isAuthenticated) {
+		setRebuildAttemptedForColony(null);
+		setIsRebuildingDiscovery(false);
+	}, [colonyIdAsId]);
+
+	useEffect(() => {
+		const needsRebuild =
+			recommendedResult?.needsRebuild === true;
+		if (
+			!isAuthenticated ||
+			!recommendedResult ||
+			!needsRebuild ||
+			isRebuildingDiscovery ||
+			rebuildAttemptedForColony === colonyIdAsId
+		) {
 			return;
 		}
 
 		let cancelled = false;
-		setRecommendedLoading(true);
-		getRecommendedContracts({ colonyId: colonyIdAsId })
-			.then((result) => {
-				if (cancelled) {
-					return;
+		setIsRebuildingDiscovery(true);
+		setRebuildAttemptedForColony(colonyIdAsId);
+		void rebuildContractDiscovery({ colonyId: colonyIdAsId })
+			.catch((error) => {
+				if (!cancelled) {
+					const message =
+						error instanceof Error ? error.message : "Failed to rebuild nearby contracts.";
+					toast.error(message);
 				}
-				setRecommended(result.contracts as RecommendedContractView[]);
-				setRecommendedLoading(false);
 			})
-			.catch(() => {
-				if (cancelled) {
-					return;
+			.finally(() => {
+				if (!cancelled) {
+					setIsRebuildingDiscovery(false);
 				}
-				setRecommended([]);
-				setRecommendedLoading(false);
 			});
 
 		return () => {
 			cancelled = true;
 		};
-	}, [colonyIdAsId, getRecommendedContracts, isAuthenticated]);
+	}, [
+		colonyIdAsId,
+		isAuthenticated,
+		isRebuildingDiscovery,
+		recommendedResult,
+		rebuildAttemptedForColony,
+		rebuildContractDiscovery,
+	]);
 
 	function resetSelection(): void {
 		setSelectedContext(null);
 		setSelectedShips(DEFAULT_SELECTED_SHIPS);
 	}
 
-	function loadPlanetContractsForSelection(
-		planetId: Id<"planets">,
-		_planetContext: {
-			displayName: string;
-			addressLabel: string;
-			hostileFactionKey: HostileFactionKey;
-			sectorDisplayName: string;
-		},
-	): void {
-		setContractsLoading(true);
-		setPlanetContracts(null);
-		getPlanetContracts({ originColonyId: colonyIdAsId, planetId })
-			.then((result) => {
-				setPlanetContracts(result.contracts as ContractView[]);
-				setContractsLoading(false);
-			})
-			.catch(() => {
-				setPlanetContracts(null);
-				setContractsLoading(false);
-			});
-	}
-
 	const ready =
 		!isAuthLoading &&
 		isAuthenticated &&
+		!isRebuildingDiscovery &&
 		Boolean(
-			hostileSectorsResponse &&
-			hostileSectors &&
+			recommendedResult &&
 			progression &&
 			historySummary &&
 			garrison &&
@@ -292,7 +253,14 @@ function ContractsRoute() {
 		return <ContractsSkeleton />;
 	}
 
-	if (!ready || !hostileSectors || !progression || !historySummary || !garrison || !operations) {
+	if (
+		!ready ||
+		!progression ||
+		!historySummary ||
+		!garrison ||
+		!operations ||
+		!recommendedResult
+	) {
 		return (
 			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
 				Unable to load contracts. Please sign in again.
@@ -308,6 +276,7 @@ function ContractsRoute() {
 	const activeContractOperations = operations.active.filter(
 		(operation): operation is ContractOperationRow => operation.kind === "contract",
 	);
+	const visibleRecommended = recommended ?? null;
 	const selectedContract = selectedContext?.contract ?? null;
 	const selectedShipCounts = normalizeShipCounts(selectedShips);
 	const hasShips = Object.values(selectedShipCounts).some((count) => count > 0);
@@ -355,17 +324,12 @@ function ContractsRoute() {
 		return "Launch Mission";
 	}
 
-	async function refreshRecommendedContracts(): Promise<void> {
-		try {
-			const result = await getRecommendedContracts({ colonyId: colonyIdAsId });
-			setRecommended(result.contracts as RecommendedContractView[]);
-		} catch {
-			// Keep the current list if refresh fails.
-		}
-	}
-
 	async function handleLaunch(): Promise<void> {
 		if (!selectedContract || !canLaunch) {
+			return;
+		}
+		if (selectedContract.offerSequence === undefined) {
+			toast.error("Selected contract offer is stale");
 			return;
 		}
 
@@ -373,12 +337,13 @@ function ContractsRoute() {
 		try {
 			await launchContract({
 				originColonyId: colonyIdAsId,
-				contractId: selectedContract.id,
+				planetId: selectedContract.planetId,
+				slot: selectedContract.slot,
+				offerSequence: selectedContract.offerSequence,
 				shipCounts: selectedShipCounts,
 			});
 			toast.success("Contract mission launched");
 			resetSelection();
-			await refreshRecommendedContracts();
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to launch mission");
 		} finally {
@@ -427,67 +392,6 @@ function ContractsRoute() {
 		setSelectedShips(DEFAULT_SELECTED_SHIPS);
 	}
 
-	function handleSelectBrowseContract(
-		contract: ContractView,
-		planetContext: {
-			displayName: string;
-			addressLabel: string;
-			hostileFactionKey: HostileFactionKey;
-			sectorDisplayName: string;
-		},
-		contractDistance: number,
-	): void {
-		setSelectedContext({
-			contract,
-			planet: planetContext,
-			distance: contractDistance,
-		});
-		setSelectedShips(DEFAULT_SELECTED_SHIPS);
-	}
-
-	function handleBrowseSector(sector: HostileSectorWithDistance): void {
-		setBrowseLevel({ level: "systems", sector });
-		setPlanetContracts(null);
-	}
-
-	function handleBrowseSystem(sector: HostileSectorWithDistance, system: SystemGroup): void {
-		setBrowseLevel({ level: "planets", sector, system });
-		setPlanetContracts(null);
-	}
-
-	function handleBrowsePlanet(
-		sector: HostileSectorWithDistance,
-		system: SystemGroup,
-		planet: HostilePlanetView,
-	): void {
-		setBrowseLevel({ level: "contracts", sector, system, planet });
-		loadPlanetContractsForSelection(planet.planetId, {
-			displayName: planet.displayName,
-			addressLabel: planet.addressLabel,
-			hostileFactionKey: sector.hostileFactionKey,
-			sectorDisplayName: sector.displayName,
-		});
-	}
-
-	function handleBrowseBack(): void {
-		if (browseLevel.level === "contracts") {
-			setBrowseLevel({
-				level: "planets",
-				sector: browseLevel.sector,
-				system: browseLevel.system,
-			});
-			setPlanetContracts(null);
-			return;
-		}
-		if (browseLevel.level === "planets") {
-			setBrowseLevel({ level: "systems", sector: browseLevel.sector });
-			return;
-		}
-		if (browseLevel.level === "systems") {
-			setBrowseLevel({ level: "sectors" });
-		}
-	}
-
 	return (
 		<div className="mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white">
 			<div
@@ -516,31 +420,12 @@ function ContractsRoute() {
 					/>
 
 					<RecommendedSection
-						contracts={recommended}
-						loading={recommendedLoading}
+						contracts={visibleRecommended}
+						loading={false}
 						nowMs={nowMs}
 						playerRank={progression.rank}
 						selectedContractId={selectedContext?.contract.id ?? null}
 						onSelect={handleSelectRecommended}
-					/>
-
-					<SectorBrowser
-						browseLevel={browseLevel}
-						contractsLoading={contractsLoading}
-						nowMs={nowMs}
-						originX={hostileSectorsResponse?.originX ?? 0}
-						originY={hostileSectorsResponse?.originY ?? 0}
-						planetContracts={planetContracts}
-						playerRank={progression.rank}
-						selectedSectorLoading={selectedSectorLoading}
-						selectedSectorSystems={selectedSectorSystems}
-						sectors={hostileSectors}
-						selectedContractId={selectedContext?.contract.id ?? null}
-						onBack={handleBrowseBack}
-						onSelectContract={handleSelectBrowseContract}
-						onSelectPlanet={handleBrowsePlanet}
-						onSelectSector={handleBrowseSector}
-						onSelectSystem={handleBrowseSystem}
 					/>
 
 					<section className="rounded-[24px] border border-white/8 bg-black/18 p-4">

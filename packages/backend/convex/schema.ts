@@ -682,6 +682,7 @@ export default defineSchema({
 		expiresAt: v.optional(v.number()),
 		acceptedAt: v.optional(v.number()),
 		resolvedAt: v.optional(v.number()),
+		offerSequence: v.optional(v.number()),
 		originColonyId: v.optional(v.id("colonies")),
 		operationId: v.optional(v.id("fleetOperations")),
 		snapshot: contractSnapshotValidator,
@@ -690,6 +691,7 @@ export default defineSchema({
 	})
 		.index("by_player_planet_status", ["playerId", "planetId", "status"])
 		.index("by_player_status", ["playerId", "status"])
+		.index("by_st_exp", ["status", "expiresAt"])
 		.index("by_p_st_res", ["playerId", "status", "resolvedAt"])
 		.index("by_p_pl_st_res", ["playerId", "planetId", "status", "resolvedAt"])
 		.index("by_operation_id", ["operationId"])
@@ -714,10 +716,61 @@ export default defineSchema({
 		controlReductionApplied: v.number(),
 		createdAt: v.number(),
 		updatedAt: v.number(),
+		})
+			.index("by_contract_id", ["contractId"])
+			.index("by_operation_id", ["operationId"])
+			.index("by_player_id", ["playerId"]),
+
+	colonyContractCandidates: defineTable({
+		universeId: v.id("universes"),
+		playerId: v.id("players"),
+		colonyId: v.id("colonies"),
+		planetId: v.id("planets"),
+		planetHostilityId: v.id("planetHostility"),
+		hostileFactionKey: v.optional(hostileFactionKeyValidator),
+		controlCurrent: v.optional(v.number()),
+		controlMax: v.optional(v.number()),
+		status: v.optional(hostilityStatusValidator),
+		sectorId: v.id("sectors"),
+		systemId: v.id("systems"),
+		systemIndex: v.number(),
+		sortOrder: v.number(),
+		distance: v.number(),
+		systemX: v.number(),
+		systemY: v.number(),
+		sectorDisplayName: v.string(),
+		sectorAddressLabel: v.string(),
+		systemDisplayName: v.string(),
+		planetDisplayName: v.string(),
+		planetAddressLabel: v.string(),
+		planetSeed: v.string(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
 	})
-		.index("by_contract_id", ["contractId"])
-		.index("by_operation_id", ["operationId"])
-		.index("by_player_id", ["playerId"]),
+		.index("by_colony_sort", ["colonyId", "sortOrder"])
+		.index("by_colony_sector_sort", ["colonyId", "sectorId", "sortOrder"])
+		.index("by_colony_planet", ["colonyId", "planetId"]),
+
+	colonyContractDiscoveryState: defineTable({
+		universeId: v.id("universes"),
+		playerId: v.id("players"),
+		colonyId: v.id("colonies"),
+		hostileCount: v.number(),
+		version: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_colony", ["colonyId"]),
+
+	contractBoardState: defineTable({
+		universeId: v.id("universes"),
+		playerId: v.id("players"),
+		colonyId: v.id("colonies"),
+		planetId: v.id("planets"),
+		slotSequences: v.array(v.number()),
+		version: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_colony_planet", ["colonyId", "planetId"]),
 
 	notifications: defineTable({
 		universeId: v.id("universes"),

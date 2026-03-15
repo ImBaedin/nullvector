@@ -17,7 +17,7 @@ import {
 } from "@nullvector/game-logic";
 
 export type ContractView = {
-	id: Id<"contracts">;
+	id: Id<"contracts"> | string;
 	planetId: Id<"planets">;
 	slot: number;
 	status: "available" | "inProgress" | "completed" | "failed" | "expired" | "replaced";
@@ -27,6 +27,7 @@ export type ContractView = {
 	expiresAt?: number;
 	acceptedAt?: number;
 	resolvedAt?: number;
+	offerSequence?: number;
 	rewardCredits: number;
 	rewardRankXpSuccess: number;
 	rewardRankXpFailure: number;
@@ -43,66 +44,6 @@ export type RecommendedContractView = ContractView & {
 	hostileFactionKey: HostileFactionKey;
 	distance: number;
 };
-
-export type HostilePlanetView = {
-	planetId: Id<"planets">;
-	addressLabel: string;
-	displayName: string;
-	systemDisplayName: string;
-	hostileFactionKey: HostileFactionKey;
-	controlCurrent: number;
-	controlMax: number;
-	status: "hostile" | "cleared";
-	systemIndex: number;
-	systemX: number;
-	systemY: number;
-};
-
-export type HostileSectorSummaryView = {
-	sectorId: Id<"sectors">;
-	hostileFactionKey: HostileFactionKey;
-	status: "hostile" | "cleared";
-	hostilePlanetCount: number;
-	clearedPlanetCount: number;
-	addressLabel: string;
-	displayName: string;
-	centerX: number;
-	centerY: number;
-};
-
-export type HostileSectorDetailView = {
-	sectorId: Id<"sectors">;
-	planets: HostilePlanetView[];
-};
-
-export type HostileSectorWithDistance = HostileSectorSummaryView & {
-	distance: number;
-};
-
-export type SystemGroup = {
-	systemIndex: number;
-	displayName: string;
-	systemX: number;
-	systemY: number;
-	planets: HostilePlanetView[];
-	hostileCount: number;
-	clearedCount: number;
-};
-
-export type BrowseLevel =
-	| { level: "sectors" }
-	| { level: "systems"; sector: HostileSectorWithDistance }
-	| {
-			level: "planets";
-			sector: HostileSectorWithDistance;
-			system: SystemGroup;
-	  }
-	| {
-			level: "contracts";
-			sector: HostileSectorWithDistance;
-			system: SystemGroup;
-			planet: HostilePlanetView;
-	  };
 
 export type SelectedContractContext = {
 	contract: ContractView;
@@ -242,16 +183,6 @@ export function getForecastToneClass(tone: ContractForecast["tone"]): string {
 	return "border-rose-300/20 bg-rose-400/8 text-rose-100";
 }
 
-export function getPlanetControlToneClass(controlPercent: number): string {
-	if (controlPercent > 60) {
-		return "bg-rose-400/60";
-	}
-	if (controlPercent > 30) {
-		return "bg-amber-400/50";
-	}
-	return "bg-emerald-400/50";
-}
-
 export function getEnemyWeightLabel(fleetWeight: number): string {
 	if (fleetWeight > 0.5) {
 		return "Heavy";
@@ -366,33 +297,4 @@ export function buildContractForecast(
 		rewardCargoRecoverable,
 		rewardCargoLost,
 	};
-}
-
-export function groupPlanetsBySystems(planets: HostilePlanetView[]): SystemGroup[] {
-	const grouped = new Map<number, SystemGroup>();
-
-	for (const planet of planets) {
-		const existing = grouped.get(planet.systemIndex);
-		if (existing) {
-			existing.planets.push(planet);
-			if (planet.status === "hostile") {
-				existing.hostileCount += 1;
-			} else {
-				existing.clearedCount += 1;
-			}
-			continue;
-		}
-
-		grouped.set(planet.systemIndex, {
-			systemIndex: planet.systemIndex,
-			displayName: planet.systemDisplayName,
-			systemX: planet.systemX,
-			systemY: planet.systemY,
-			planets: [planet],
-			hostileCount: planet.status === "hostile" ? 1 : 0,
-			clearedCount: planet.status === "cleared" ? 1 : 0,
-		});
-	}
-
-	return [...grouped.values()].sort((left, right) => left.systemIndex - right.systemIndex);
 }

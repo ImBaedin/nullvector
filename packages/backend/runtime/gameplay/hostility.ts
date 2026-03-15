@@ -317,6 +317,10 @@ const hostileSectorDetailValidator = v.object({
 	planets: v.array(hostilePlanetDetailValidator),
 });
 
+const hostileSectorDetailsValidator = v.object({
+	sectors: v.array(hostileSectorDetailValidator),
+});
+
 function planetAddressLabel(p: {
 	galaxyIndex: number;
 	sectorIndex: number;
@@ -513,6 +517,77 @@ export const getHostileSectorDetail = query({
 		return {
 			sectorId: args.sectorId,
 			planets,
+		};
+	},
+});
+
+export const getHostileSectorDetails = query({
+	args: {
+		colonyId: v.id("colonies"),
+		sectorIds: v.array(v.id("sectors")),
+	},
+	returns: hostileSectorDetailsValidator,
+	handler: async (ctx, args) => {
+		const { colony } = await getOwnedColony({
+			ctx,
+			colonyId: args.colonyId,
+		});
+		const sectorIds = Array.from(new Set(args.sectorIds)).slice(0, 6);
+		const sectors = await Promise.all(
+			sectorIds.map(async (sectorId) => {
+				const sector = await ctx.db.get(sectorId);
+				if (!sector || sector.universeId !== colony.universeId) {
+					return null;
+				}
+
+				const sectorHostility = await ctx.db
+					.query("sectorHostility")
+					.withIndex("by_sector_id", (q) => q.eq("sectorId", sectorId))
+					.unique();
+				if (!sectorHostility) {
+					return null;
+				}
+
+				const planetHostilities = await ctx.db
+					.query("planetHostility")
+					.withIndex("by_sector_status", (q) => q.eq("sectorId", sectorId))
+					.collect();
+				const planetById = await getDocsByIds({
+					ctx,
+					ids: planetHostilities.map((planetHostility) => planetHostility.planetId),
+				});
+				const systemById = await getDocsByIds({
+					ctx,
+					ids: Array.from(
+						new Set(Array.from(planetById.values()).map((planet) => planet.systemId)),
+					),
+				});
+
+				return {
+					sectorId,
+					planets: planetHostilities
+						.map((planetHostility) => {
+							const planet = planetById.get(planetHostility.planetId);
+							const system = planet ? systemById.get(planet.systemId) : null;
+							if (!planet || !system) {
+								return null;
+							}
+							return buildHostilePlanetDetailView({
+								planet,
+								planetHostility,
+								system,
+							});
+						})
+						.filter((planet): planet is HostilePlanetDetail => planet !== null)
+						.sort(compareHostilePlanetDetails),
+				};
+			}),
+		);
+
+		return {
+			sectors: sectors.filter(
+				(sector): sector is typeof hostileSectorDetailValidator.type => sector !== null,
+			),
 		};
 	},
 });

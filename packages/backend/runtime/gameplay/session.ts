@@ -274,6 +274,9 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	await ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
 		colonyId,
 	});
+	await ctx.scheduler.runAfter(0, internal.contracts.rebuildContractDiscoveryForColony, {
+		colonyId,
+	});
 	return {
 		playerId: player._id,
 		defaultColonyId: colonyId,
