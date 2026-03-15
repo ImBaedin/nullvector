@@ -54,6 +54,7 @@ export type QueueItem = {
 	id: string;
 	isActive: boolean;
 	remaining: number;
+	shipKey: ShipKey;
 	shipName: string;
 	timeLeftSeconds: number;
 	total: number;
@@ -357,7 +358,7 @@ function SummaryShipCard(props: { ship: ShipyardDisplayShip }) {
 		<div className={`
     relative overflow-hidden rounded-xl border p-2.5 transition-colors
     ${hasAny ? "border-white/10 bg-white/[0.035]" : `
-      border-white/6 bg-white/[0.015] opacity-50
+      border-white/6 bg-white/1.5 opacity-50
     `}
   `}>
 			<div className="flex items-center gap-2">
@@ -481,8 +482,8 @@ function ShipCard(props: ShipCardProps) {
 			className={`
      group relative overflow-hidden rounded-xl border
      ${availability.state === "locked" ? `border-white/8 opacity-60 grayscale` : `
-               border-white/10
-             `}
+       border-white/10
+     `}
      bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
      text-[13px]
    `}
@@ -744,7 +745,7 @@ function ActiveQueueCard(props: {
 		onCompleteActiveQueueItem,
 		ships,
 	} = props;
-	const activeShip = ships.find((ship) => ship.name === activeQueueItem.shipName);
+	const activeShip = ships.find((ship) => ship.key === activeQueueItem.shipKey);
 	const activeImage = activeShip ? SHIP_PRESENTATION[activeShip.key].image : null;
 
 	return (
@@ -898,7 +899,7 @@ function PendingQueueList(props: {
 			</p>
 			<div className="mt-2 space-y-1">
 				{items.map((item, index) => {
-					const pendingShip = ships.find((ship) => ship.name === item.shipName);
+					const pendingShip = ships.find((ship) => ship.key === item.shipKey);
 					const pendingImage = pendingShip ? SHIP_PRESENTATION[pendingShip.key].image : null;
 
 					return (

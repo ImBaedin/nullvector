@@ -6,6 +6,7 @@ import type {
 	NotificationSeverity,
 	NotificationStatus,
 } from "@nullvector/backend/runtime/gameplay/notificationsModel";
+
 import { RESOURCE_SCALE } from "@nullvector/backend/convex/schema";
 
 import { NvBadge } from "@/features/game-ui/primitives";
@@ -94,18 +95,22 @@ function ResourceToken({
 	resourceKey: "alloy" | "crystal" | "fuel";
 }) {
 	return (
-		<span className="
-    inline-flex items-center gap-1 rounded-full border border-white/10
-    bg-black/20 px-2 py-0.5
-  ">
+		<span
+			className="
+     inline-flex items-center gap-1 rounded-full border border-white/10
+     bg-black/20 px-2 py-0.5
+   "
+		>
 			<img
 				alt={`${resourceKey} icon`}
 				className="size-3 shrink-0 object-contain"
 				src={RESOURCE_ICON_BY_KEY[resourceKey]}
 			/>
-			<span className="
-     font-(family-name:--nv-font-mono) text-[11px] text-(--nv-text-secondary)
-   ">
+			<span
+				className="
+      font-(family-name:--nv-font-mono) text-[11px] text-(--nv-text-secondary)
+    "
+			>
 				{amount.toLocaleString()}
 			</span>
 		</span>
@@ -210,9 +215,11 @@ function NotificationRowLayout({
 			<div className="flex min-w-0 items-center gap-2">
 				<NotificationTitle status={notification.status}>{title}</NotificationTitle>
 				{notification.status === "unread" ? (
-					<span className="
-       size-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(61,217,255,0.5)]
-     " />
+					<span
+						className="
+        size-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(61,217,255,0.5)]
+      "
+					/>
 				) : null}
 			</div>
 			<NotificationSummary status={notification.status}>{summary}</NotificationSummary>

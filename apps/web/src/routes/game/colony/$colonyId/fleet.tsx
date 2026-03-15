@@ -29,14 +29,13 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { formatColonyDuration } from "@/features/colony-ui/time";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { ActivityTimelinePanel, splitActivityLabel } from "./active-activity-panel";
 import { FleetRouteSkeleton } from "./loading-skeletons";
 import { ShipAssignmentList } from "./ship-assignment-list";
-import { formatColonyDuration } from "@/features/colony-ui/time";
-
 import { getShipImagePath, SHIP_GROUPS } from "./shipyard-shared";
 import { useColonyStarMapPicker, type FleetMissionKind } from "./star-map-picker-context";
 
@@ -299,13 +298,7 @@ function FleetRoute() {
 		return <FleetRouteSkeleton />;
 	}
 
-	if (
-		!ready ||
-		!garrison ||
-		!operations ||
-		!colonyNav ||
-		!colonyResources.projected
-	) {
+	if (!ready || !garrison || !operations || !colonyNav || !colonyResources.projected) {
 		return (
 			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
 				Unable to load fleet. Please sign in again.
@@ -745,10 +738,10 @@ function ActiveOperationsPanel(props: {
      size-3
      ${accent.iconText}
    `} /> : <Ship className={`
-      size-3
-      ${isReturning ? "rotate-180" : ""}
-      ${accent.iconText}
-    `} />,
+     size-3
+     ${isReturning ? "rotate-180" : ""}
+     ${accent.iconText}
+   `} />,
 			transitIconBorderClassName: accent.iconBorder,
 			transitIconFillClassName: accent.iconFill,
 			transitLineClassName: accent.line,
@@ -841,7 +834,7 @@ function FleetSummaryStrip(props: {
 										<div className={`
             relative overflow-hidden rounded-xl border p-2.5 transition-colors
             ${hasAny ? "border-white/10 bg-white/[0.035]" : `
-              border-white/6 bg-white/[0.015] opacity-50
+              border-white/6 bg-white/1.5 opacity-50
             `}
           `} key={ship.key}>
 											<div className="flex items-center gap-2">
@@ -868,9 +861,9 @@ function FleetSummaryStrip(props: {
 												<span className="text-emerald-300/70">{ship.available} avail</span>
 												<span className="text-cyan-200/50">{ship.deployed} out</span>
 											</div>
-											<div
-												className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8"
-											>
+											<div className="
+             mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8
+           ">
 												<div
 													className="h-full rounded-full bg-cyan-400/40"
 													style={{
@@ -948,9 +941,9 @@ function MissionPlannerPanel(props: {
       bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
     "
 			>
-				<div
-					className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
-				>
+				<div className="
+      flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
+    ">
 					<Rocket className="size-5 text-cyan-300" />
 					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 						Plan Expedition
@@ -1157,9 +1150,9 @@ function MissionPlannerPanel(props: {
 					<div>
 						<div className="flex items-center justify-between">
 							<SectionLabel>Cargo</SectionLabel>
-							<span
-								className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
-							>
+							<span className="
+         font-(family-name:--nv-font-mono) text-[9px] text-white/25
+       ">
 								{props.cargoUsed.toLocaleString()} / {props.cargoCapacity.toLocaleString()}
 							</span>
 						</div>

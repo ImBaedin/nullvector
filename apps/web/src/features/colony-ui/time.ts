@@ -1,6 +1,8 @@
 export function formatColonyDuration(value: number, unitMode: "milliseconds" | "seconds"): string {
 	const totalSeconds =
-		unitMode === "milliseconds" ? Math.max(0, Math.floor(value / 1_000)) : Math.max(0, Math.floor(value));
+		unitMode === "milliseconds"
+			? Math.max(0, Math.floor(value / 1_000))
+			: Math.max(0, Math.floor(value));
 	const hours = Math.floor(totalSeconds / 3_600);
 	const minutes = Math.floor((totalSeconds % 3_600) / 60);
 	const seconds = totalSeconds % 60;

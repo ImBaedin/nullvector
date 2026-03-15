@@ -682,6 +682,7 @@ export default defineSchema({
 		expiresAt: v.optional(v.number()),
 		acceptedAt: v.optional(v.number()),
 		resolvedAt: v.optional(v.number()),
+		// Cache/control metadata for derived offer freshness within a board slot.
 		offerSequence: v.optional(v.number()),
 		originColonyId: v.optional(v.id("colonies")),
 		operationId: v.optional(v.id("fleetOperations")),
@@ -691,7 +692,6 @@ export default defineSchema({
 	})
 		.index("by_player_planet_status", ["playerId", "planetId", "status"])
 		.index("by_player_status", ["playerId", "status"])
-		.index("by_st_exp", ["status", "expiresAt"])
 		.index("by_p_st_res", ["playerId", "status", "resolvedAt"])
 		.index("by_p_pl_st_res", ["playerId", "planetId", "status", "resolvedAt"])
 		.index("by_operation_id", ["operationId"])
@@ -721,19 +721,21 @@ export default defineSchema({
 		.index("by_operation_id", ["operationId"])
 		.index("by_player_id", ["playerId"]),
 
+	// Cached nearby-hostile candidate rows for a colony's projected contract board.
 	colonyContractCandidates: defineTable({
 		universeId: v.id("universes"),
 		playerId: v.id("players"),
 		colonyId: v.id("colonies"),
 		planetId: v.id("planets"),
 		planetHostilityId: v.id("planetHostility"),
-		hostileFactionKey: v.optional(hostileFactionKeyValidator),
-		controlCurrent: v.optional(v.number()),
-		controlMax: v.optional(v.number()),
-		status: v.optional(hostilityStatusValidator),
+		hostileFactionKey: hostileFactionKeyValidator,
+		controlCurrent: v.number(),
+		controlMax: v.number(),
+		status: hostilityStatusValidator,
 		sectorId: v.id("sectors"),
 		systemId: v.id("systems"),
 		systemIndex: v.number(),
+		// Cache ordering metadata used to keep candidate projections stable.
 		sortOrder: v.number(),
 		distance: v.number(),
 		systemX: v.number(),
@@ -751,22 +753,27 @@ export default defineSchema({
 		.index("by_colony_sector_sort", ["colonyId", "sectorId", "sortOrder"])
 		.index("by_colony_planet", ["colonyId", "planetId"]),
 
+	// Cache metadata tracking the current candidate projection version for a colony.
 	colonyContractDiscoveryState: defineTable({
 		universeId: v.id("universes"),
 		playerId: v.id("players"),
 		colonyId: v.id("colonies"),
 		hostileCount: v.number(),
+		// Version counter for cache invalidation and derived-offer regeneration.
 		version: v.number(),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	}).index("by_colony", ["colonyId"]),
 
+	// Per-colony/per-planet board state for sequencing projected contract offers.
 	contractBoardState: defineTable({
 		universeId: v.id("universes"),
 		playerId: v.id("players"),
 		colonyId: v.id("colonies"),
 		planetId: v.id("planets"),
+		// Per-slot counters that invalidate stale projected offers when the board rotates.
 		slotSequences: v.array(v.number()),
+		// Version counter for board-state migrations and cache invalidation.
 		version: v.number(),
 		createdAt: v.number(),
 		updatedAt: v.number(),

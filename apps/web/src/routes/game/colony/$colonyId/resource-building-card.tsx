@@ -1092,8 +1092,10 @@ export function ResourceBuildingCard(props: {
 						<Popover.Trigger
 							closeDelay={90}
 							delay={60}
+							nativeButton={false}
 							openOnHover
 							render={
+								<div>
 									<ActionButton
 										disabled={!actionPresentation.isActionEnabled}
 										durationLabel={formatUpgradeTime(nextUpgradeDurationSeconds)}
@@ -1107,8 +1109,9 @@ export function ResourceBuildingCard(props: {
 										}}
 										tone="resource"
 									/>
-								}
-							/>
+								</div>
+							}
+						/>
 						<Popover.Portal>
 							<Popover.Positioner align="end" className="z-90" sideOffset={8}>
 								<Popover.Popup

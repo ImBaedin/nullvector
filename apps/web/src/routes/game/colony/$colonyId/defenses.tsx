@@ -1,20 +1,10 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import { selectDefenseCatalog, type DefenseKey } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
+import { selectDefenseCatalog, type DefenseKey } from "@nullvector/game-logic";
 import { HOSTILE_FACTIONS } from "@nullvector/game-logic";
 import { createFileRoute } from "@tanstack/react-router";
-import {
-	Clock3,
-	Heart,
-	Layers3,
-	Package,
-	Shield,
-	ShieldAlert,
-	Swords,
-	X,
-	Zap,
-} from "lucide-react";
+import { Clock3, Heart, Layers3, Package, Shield, ShieldAlert, Swords, X, Zap } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -23,7 +13,6 @@ import {
 	useColonySessionSnapshot,
 	useOptimisticColonyMutation,
 } from "@/features/colony-state/hooks";
-import { useAutoResolveOverdueRaid } from "@/features/raids/use-auto-resolve-overdue-raid";
 import { getQueueableBuildActionPresentation } from "@/features/colony-ui/action-state";
 import { ActionButton } from "@/features/colony-ui/components/action-button";
 import { CostPill } from "@/features/colony-ui/components/cost-pill";
@@ -141,11 +130,6 @@ function DefensesRoute() {
 		api.raids.getRaidStatusForColony,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
-	useAutoResolveOverdueRaid({
-		activeRaid: raidStatus?.activeRaid ?? null,
-		colonyId: colonyIdAsId,
-		enabled: isAuthenticated,
-	});
 	const devConsoleState = useQuery(
 		api.devConsole.getDevConsoleState,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
@@ -836,9 +820,7 @@ function DefenseCard(props: {
 		<article
 			className={`
      group relative overflow-hidden rounded-xl border
-     ${isLocked ? `border-white/8 opacity-60 grayscale` : `
-     border-white/10
-   `}
+     ${isLocked ? `border-white/8 opacity-60 grayscale` : `border-white/10`}
      bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
      text-[13px]
    `}
@@ -1077,7 +1059,9 @@ function PowerSplitBar(props: { totalAttack: number; totalHull: number; totalShi
      `} key={seg.label} style={{ width: `${seg.pct}%` }}>
 						{seg.icon}
 						<span className="tracking-wider uppercase">{seg.label}</span>
-						<span className="font-(family-name:--nv-font-mono) font-bold text-white/70">
+						<span className="
+        font-(family-name:--nv-font-mono) font-bold text-white/70
+      ">
 							{seg.value.toLocaleString()}
 						</span>
 						<span className="font-(family-name:--nv-font-mono) text-white/30">
@@ -1147,7 +1131,9 @@ function DefenseQueuePanel(props: {
      bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
    "
 		>
-			<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
+			<div className="
+     flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
+   ">
 				<Clock3 className="size-5 text-rose-300" />
 				<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Defense Queue</h2>
 				{queueItemsCount > 0 ? (
@@ -1171,7 +1157,9 @@ function DefenseQueuePanel(props: {
 						>
 							Active
 						</p>
-						<div className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3">
+						<div className="
+        rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3
+      ">
 							<div className="flex items-start justify-between gap-2">
 								<div className="flex items-center gap-2.5">
 									<img
@@ -1267,7 +1255,9 @@ function DefenseQueuePanel(props: {
 								/>
 							</div>
 							<div className="mt-1 flex items-center justify-between">
-								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/25">
+								<span className="
+          font-(family-name:--nv-font-mono) text-[9px] text-white/25
+        ">
 									{Math.round(activeUpgradeProgress)}%
 								</span>
 								<span
@@ -1329,8 +1319,7 @@ function DefenseQueuePanel(props: {
               font-(family-name:--nv-font-mono) text-[9px] text-white/30
             "
 											>
-												{item.total} units •{" "}
-												{formatColonyDuration(item.timeLeftSeconds, "seconds")}
+												{item.total} units • {formatColonyDuration(item.timeLeftSeconds, "seconds")}
 											</p>
 										</div>
 									</div>

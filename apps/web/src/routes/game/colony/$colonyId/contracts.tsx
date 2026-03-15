@@ -6,7 +6,6 @@ import {
 	getFleetSlowestSpeed,
 	normalizeShipCounts,
 	selectShipCatalog,
-	type HostileFactionKey,
 	type ResourceBucket,
 	type ShipKey,
 } from "@nullvector/game-logic";
@@ -15,6 +14,7 @@ import { ChevronDown, Layers3, MapPin, Package, RotateCcw, Ship, Swords, X } fro
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { formatColonyDuration } from "@/features/colony-ui/time";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { ActivityTimelinePanel, splitActivityLabel } from "./active-activity-panel";
@@ -31,7 +31,6 @@ import {
 	ContractsSkeleton,
 	RecommendedSection,
 } from "./contracts-screen-view";
-import { formatColonyDuration } from "@/features/colony-ui/time";
 
 export const Route = createFileRoute("/game/colony/$colonyId/contracts")({
 	component: ContractsRoute,
@@ -191,8 +190,16 @@ function ContractsRoute() {
 	}, [colonyIdAsId]);
 
 	useEffect(() => {
-		const needsRebuild =
-			recommendedResult?.needsRebuild === true;
+		if (
+			recommendedResult &&
+			recommendedResult.needsRebuild === false &&
+			rebuildAttemptedForColony === colonyIdAsId
+		) {
+			setRebuildAttemptedForColony(null);
+			return;
+		}
+
+		const needsRebuild = recommendedResult?.needsRebuild === true;
 		if (
 			!isAuthenticated ||
 			!recommendedResult ||
@@ -241,26 +248,13 @@ function ContractsRoute() {
 		!isAuthLoading &&
 		isAuthenticated &&
 		!isRebuildingDiscovery &&
-		Boolean(
-			recommendedResult &&
-			progression &&
-			historySummary &&
-			garrison &&
-			operations,
-		);
+		Boolean(recommendedResult && progression && historySummary && garrison && operations);
 
 	if (isAuthLoading || (isAuthenticated && !ready)) {
 		return <ContractsSkeleton />;
 	}
 
-	if (
-		!ready ||
-		!progression ||
-		!historySummary ||
-		!garrison ||
-		!operations ||
-		!recommendedResult
-	) {
+	if (!ready || !progression || !historySummary || !garrison || !operations || !recommendedResult) {
 		return (
 			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
 				Unable to load contracts. Please sign in again.
@@ -432,8 +426,9 @@ function ContractsRoute() {
 						<button
 							type="button"
 							className="
-								flex w-full items-center gap-3 text-left transition-colors hover:text-white/90
-							"
+         flex w-full items-center gap-3 text-left transition-colors
+         hover:text-white/90
+       "
 							onClick={() => setHistoryExpanded((current) => !current)}
 						>
 							<div className="flex min-w-0 flex-1 items-center gap-2">
@@ -447,19 +442,17 @@ function ContractsRoute() {
 									</div>
 								</div>
 							</div>
-							<ChevronDown
-								className={`
-									size-4 shrink-0 text-white/35 transition-transform
-									${historyExpanded ? "rotate-180" : ""}
-								`}
-							/>
+							<ChevronDown className={`
+         size-4 shrink-0 text-white/35 transition-transform
+         ${historyExpanded ? "rotate-180" : ""}
+       `} />
 						</button>
 
 						<div
 							className="
-								grid transition-[grid-template-rows] duration-300
-								ease-[cubic-bezier(0.25,0.8,0.25,1)]
-							"
+         grid transition-[grid-template-rows] duration-300
+         ease-[cubic-bezier(0.25,0.8,0.25,1)]
+       "
 							style={{ gridTemplateRows: historyExpanded ? "1fr" : "0fr" }}
 						>
 							<div className="overflow-hidden">
@@ -471,9 +464,7 @@ function ContractsRoute() {
 										<ContractHistory contracts={history.contracts as ContractView[]} />
 									) : null}
 									{historyExpanded && history && history.contracts.length === 0 ? (
-										<div className="text-xs text-white/45">
-											No resolved missions yet.
-										</div>
+										<div className="text-xs text-white/45">No resolved missions yet.</div>
 									) : null}
 								</div>
 							</div>

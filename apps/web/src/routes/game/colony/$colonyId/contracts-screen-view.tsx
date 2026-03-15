@@ -10,16 +10,9 @@ import {
 	type CombatMissionTypeKey,
 	type ShipKey,
 } from "@nullvector/game-logic";
-import {
-	Clock3,
-	Crosshair,
-	Layers3,
-	Lock,
-	Shield,
-	Ship,
-	Sparkles,
-	Swords,
-} from "lucide-react";
+import { Clock3, Crosshair, Layers3, Lock, Shield, Ship, Sparkles, Swords } from "lucide-react";
+
+import { formatColonyDuration } from "@/features/colony-ui/time";
 
 import {
 	buildContractForecast,
@@ -39,7 +32,6 @@ import {
 	type ShipAssignment,
 } from "./contracts-screen-shared";
 import { ShipAssignmentList } from "./ship-assignment-list";
-import { formatColonyDuration } from "@/features/colony-ui/time";
 
 export function RecommendedSection(props: {
 	contracts: RecommendedContractView[] | null;
@@ -238,21 +230,17 @@ export function ContractDetailPanel(props: {
 						<div className="relative flex size-12 items-center justify-center">
 							<div
 								className="
-           absolute inset-0 rounded-full border border-dashed border-white/8
-           animate-[spin_12s_linear_infinite]
-         "
+          absolute inset-0 animate-[spin_12s_linear_infinite] rounded-full
+          border border-dashed border-white/8
+        "
 							/>
 							<div
-								className="
-           absolute inset-1.5 rounded-full border border-white/6
-         "
+								className="absolute inset-1.5 rounded-full border border-white/6"
 							/>
 							<Crosshair className="size-5 text-white/20" />
 						</div>
 						<div className="text-center">
-							<p className="text-xs text-white/35">
-								Select a contract to view mission details.
-							</p>
+							<p className="text-xs text-white/35">Select a contract to view mission details.</p>
 							<p className="mt-0.5 text-[9px] text-white/15">
 								Choose from available contracts on the left.
 							</p>
@@ -283,23 +271,29 @@ export function ContractDetailPanel(props: {
 
 				<div className="space-y-4 p-5">
 					<div className={`
-        flex items-center gap-3 rounded-xl border p-3
-        ${factionClasses.border} ${factionClasses.bg}
-      `}>
+       flex items-center gap-3 rounded-xl border p-3
+       ${factionClasses.border}
+       ${factionClasses.bg}
+     `}>
 						<img alt={faction.displayName} className={`
         size-11 shrink-0 rounded-lg border
         ${factionClasses.border}
-        bg-black/40 object-cover p-0.5
-        shadow-[0_0_12px_rgba(0,0,0,0.4)]
+        bg-black/40 object-cover p-0.5 shadow-[0_0_12px_rgba(0,0,0,0.4)]
       `} src={factionIconSrc(factionKey)} />
 						<div className="min-w-0 flex-1">
-							<p className="font-(family-name:--nv-font-display) text-sm font-bold tracking-wide">
+							<p className="
+         font-(family-name:--nv-font-display) text-sm font-bold tracking-wide
+       ">
 								{missionName}
 							</p>
 							<p className="mt-0.5 truncate text-[10px] text-white/45">
 								{props.planet?.displayName} · {props.planet?.addressLabel}
 							</p>
-							<p className={`mt-0.5 text-[9px] font-medium ${factionClasses.text} opacity-70`}>
+							<p className={`
+         mt-0.5 text-[9px] font-medium
+         ${factionClasses.text}
+         opacity-70
+       `}>
 								{faction.displayName}
 							</p>
 						</div>
@@ -350,9 +344,9 @@ export function ContractDetailPanel(props: {
 					>
 						<div
 							className="
-          pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r
-          from-transparent via-white/10 to-transparent
-        "
+         pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r
+         from-transparent via-white/10 to-transparent
+       "
 						/>
 						<MissionMetric
 							label="Distance"
@@ -367,9 +361,7 @@ export function ContractDetailPanel(props: {
 						<MissionMetric
 							label="Travel"
 							value={
-								props.travelSeconds > 0
-									? formatColonyDuration(props.travelSeconds, "seconds")
-									: "—"
+								props.travelSeconds > 0 ? formatColonyDuration(props.travelSeconds, "seconds") : "—"
 							}
 						/>
 					</div>
@@ -418,7 +410,10 @@ function EnemyForcesSection(props: { contract: ContractView }): ReactNode {
 			<div className="mt-1.5 space-y-2.5">
 				<div className="flex items-center gap-3">
 					<div className="flex-1">
-						<div className="flex items-center justify-between text-[8px] font-semibold tracking-wider text-white/35 uppercase">
+						<div className="
+        flex items-center justify-between text-[8px] font-semibold
+        tracking-wider text-white/35 uppercase
+      ">
 							<span className="flex items-center gap-1">
 								<Ship className="size-2.5" /> Fleet {fleetPct}%
 							</span>
@@ -427,10 +422,7 @@ function EnemyForcesSection(props: { contract: ContractView }): ReactNode {
 							</span>
 						</div>
 						<div className="mt-1 flex h-1 overflow-hidden rounded-full bg-white/5">
-							<div
-								className="rounded-full bg-rose-400/40"
-								style={{ width: `${fleetPct}%` }}
-							/>
+							<div className="rounded-full bg-rose-400/40" style={{ width: `${fleetPct}%` }} />
 							<div
 								className="ml-px rounded-full bg-cyan-400/30"
 								style={{ width: `${defensePct}%` }}
@@ -439,9 +431,9 @@ function EnemyForcesSection(props: { contract: ContractView }): ReactNode {
 					</div>
 					<span
 						className="
-          shrink-0 rounded-md border border-white/10 bg-white/4 px-2 py-0.5
-          font-(family-name:--nv-font-mono) text-[9px] font-bold text-white/50
-        "
+        shrink-0 rounded-md border border-white/10 bg-white/4 px-2 py-0.5
+        font-(family-name:--nv-font-mono) text-[9px] font-bold text-white/50
+      "
 					>
 						{getEnemyWeightLabel(template.fleetWeight)}
 					</span>
@@ -449,7 +441,10 @@ function EnemyForcesSection(props: { contract: ContractView }): ReactNode {
 
 				{visibleFleet.length > 0 ? (
 					<div>
-						<p className="mb-1.5 flex items-center gap-1.5 text-[8px] font-semibold tracking-wider text-white/30 uppercase">
+						<p className="
+        mb-1.5 flex items-center gap-1.5 text-[8px] font-semibold tracking-wider
+        text-white/30 uppercase
+      ">
 							<Ship className="size-2.5" /> Hostile Fleet
 						</p>
 						<div className="flex flex-wrap gap-1.5">
@@ -467,7 +462,10 @@ function EnemyForcesSection(props: { contract: ContractView }): ReactNode {
 
 				{visibleDefenses.length > 0 ? (
 					<div>
-						<p className="mb-1.5 flex items-center gap-1.5 text-[8px] font-semibold tracking-wider text-white/30 uppercase">
+						<p className="
+        mb-1.5 flex items-center gap-1.5 text-[8px] font-semibold tracking-wider
+        text-white/30 uppercase
+      ">
 							<Shield className="size-2.5" /> Defenses
 						</p>
 						<div className="flex flex-wrap gap-1.5">
@@ -679,16 +677,14 @@ function RewardCard(props: {
 function UnitChip(props: { iconSrc: string; label: string; value: number }): ReactNode {
 	return (
 		<div
-			className="
-     flex items-center gap-1.5 rounded-md bg-white/4 px-2 py-1.5
-   "
+			className="flex items-center gap-1.5 rounded-md bg-white/4 px-2 py-1.5"
 		>
 			<img alt={props.label} className="size-4 object-contain" src={props.iconSrc} />
 			<span className="text-[10px] text-white/55">{props.label}</span>
 			<span
 				className="
-       font-(family-name:--nv-font-mono) text-[11px] font-bold text-white/85
-     "
+      font-(family-name:--nv-font-mono) text-[11px] font-bold text-white/85
+    "
 			>
 				{props.value.toLocaleString()}
 			</span>
@@ -725,7 +721,9 @@ export function ContractHistory(props: { contracts: ContractView[] }): ReactNode
          ${isSuccess ? "text-emerald-200/60" : `text-rose-200/60`}
        `}>{isSuccess ? "Success" : "Failed"}</span>
 							{contract.resolvedAt ? (
-								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/20">
+								<span className="
+          font-(family-name:--nv-font-mono) text-[9px] text-white/20
+        ">
 									{new Date(contract.resolvedAt).toLocaleDateString()}
 								</span>
 							) : null}
@@ -797,9 +795,9 @@ function BriefingHeader(): ReactNode {
 			<div className="relative flex items-center gap-2.5">
 				<div
 					className="
-        flex size-7 items-center justify-center rounded-md border
-        border-rose-300/20 bg-rose-400/10 shadow-[0_0_8px_rgba(244,63,94,0.1)]
-      "
+       flex size-7 items-center justify-center rounded-md border
+       border-rose-300/20 bg-rose-400/10 shadow-[0_0_8px_rgba(244,63,94,0.1)]
+     "
 				>
 					<Swords className="size-3.5 text-rose-300" />
 				</div>
@@ -807,9 +805,7 @@ function BriefingHeader(): ReactNode {
 					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 						Mission Briefing
 					</h2>
-					<p className="text-[8px] tracking-[0.16em] text-white/25 uppercase">
-						Tactical Overview
-					</p>
+					<p className="text-[8px] tracking-[0.16em] text-white/25 uppercase">Tactical Overview</p>
 				</div>
 			</div>
 		</div>
@@ -819,10 +815,22 @@ function BriefingHeader(): ReactNode {
 function BriefingCornerAccents(): ReactNode {
 	return (
 		<>
-			<div className="pointer-events-none absolute top-0 left-0 size-3.5 rounded-tl-2xl border-t-2 border-l-2 border-rose-400/15" />
-			<div className="pointer-events-none absolute top-0 right-0 size-3.5 rounded-tr-2xl border-t-2 border-r-2 border-rose-400/15" />
-			<div className="pointer-events-none absolute bottom-0 left-0 size-3.5 rounded-bl-2xl border-b-2 border-l-2 border-rose-400/15" />
-			<div className="pointer-events-none absolute bottom-0 right-0 size-3.5 rounded-br-2xl border-b-2 border-r-2 border-rose-400/15" />
+			<div className="
+     pointer-events-none absolute top-0 left-0 size-3.5 rounded-tl-2xl
+     border-t-2 border-l-2 border-rose-400/15
+   " />
+			<div className="
+     pointer-events-none absolute top-0 right-0 size-3.5 rounded-tr-2xl
+     border-t-2 border-r-2 border-rose-400/15
+   " />
+			<div className="
+     pointer-events-none absolute bottom-0 left-0 size-3.5 rounded-bl-2xl
+     border-b-2 border-l-2 border-rose-400/15
+   " />
+			<div className="
+     pointer-events-none absolute right-0 bottom-0 size-3.5 rounded-br-2xl
+     border-r-2 border-b-2 border-rose-400/15
+   " />
 		</>
 	);
 }
@@ -832,9 +840,9 @@ function SectionLabel(props: { children: ReactNode }): ReactNode {
 		<div className="flex items-center gap-2.5">
 			<p
 				className="
-       shrink-0 text-[10px] font-semibold tracking-[0.14em] text-white/45
-       uppercase
-     "
+      shrink-0 text-[10px] font-semibold tracking-[0.14em] text-white/45
+      uppercase
+    "
 			>
 				{props.children}
 			</p>

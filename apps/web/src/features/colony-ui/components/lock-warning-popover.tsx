@@ -13,10 +13,11 @@ export function LockWarningPopover({ message }: { message: string }) {
 				openOnHover
 				render={
 					<button
+						aria-label="Show lock warning"
 						className="
-							rounded-full border border-amber-100/35 bg-amber-300/20 p-1
-							text-amber-100
-						"
+        rounded-full border border-amber-100/35 bg-amber-300/20 p-1
+        text-amber-100
+      "
 						type="button"
 					>
 						<AlertTriangle className="size-3.5" />

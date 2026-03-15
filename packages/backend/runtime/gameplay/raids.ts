@@ -303,6 +303,19 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 		.query("playerProgression")
 		.withIndex("by_player_id", (q) => q.eq("playerId", args.colony.playerId))
 		.unique();
+	if ((progression?.rank ?? 1) < 5) {
+		await setNextNpcRaidAtForColony({
+			colony: args.colony,
+			ctx: args.ctx,
+			hostileSource: null,
+			now,
+		});
+		return {
+			colonyId: args.colony._id,
+			raidOperationId: undefined,
+			stale: false,
+		};
+	}
 	const difficultyTier = Math.min(
 		MAX_RAID_DIFFICULTY_TIER,
 		getDifficultyTierForRank(progression?.rank ?? 1),

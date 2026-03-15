@@ -27,10 +27,7 @@ import {
 	durationMsForFleet,
 	euclideanDistance,
 } from "./fleetV2";
-import {
-	ensureUniverseHostilitySeeded,
-	getPlanetHostility,
-} from "./hostility";
+import { ensureUniverseHostilitySeeded, getPlanetHostility } from "./hostility";
 import { ensurePlayerProgression } from "./progression";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
@@ -142,7 +139,9 @@ function hashString(seed: string) {
 	return hash >>> 0;
 }
 
-function contractAddressLabel(planet: Pick<Doc<"planets">, "galaxyIndex" | "sectorIndex" | "systemIndex" | "planetIndex">) {
+function contractAddressLabel(
+	planet: Pick<Doc<"planets">, "galaxyIndex" | "sectorIndex" | "systemIndex" | "planetIndex">,
+) {
 	return `G${planet.galaxyIndex}:S${planet.sectorIndex}:SYS${planet.systemIndex}:P${planet.planetIndex}`;
 }
 
@@ -150,7 +149,9 @@ function sectorAddressLabel(sector: Pick<Doc<"sectors">, "galaxyIndex" | "sector
 	return `G${sector.galaxyIndex}:S${sector.sectorIndex}`;
 }
 
-function systemAddressLabel(system: Pick<Doc<"systems">, "galaxyIndex" | "sectorIndex" | "systemIndex">) {
+function systemAddressLabel(
+	system: Pick<Doc<"systems">, "galaxyIndex" | "sectorIndex" | "systemIndex">,
+) {
 	return `G${system.galaxyIndex}:S${system.sectorIndex}:SYS${system.systemIndex}`;
 }
 
@@ -176,10 +177,7 @@ async function getDocsByIds<TableName extends keyof CandidateDocMap>(args: {
 	return map;
 }
 
-async function getOwnedColonyBase(args: {
-	ctx: MutationCtx | QueryCtx;
-	colonyId: Id<"colonies">;
-}) {
+async function getOwnedColonyBase(args: { ctx: MutationCtx | QueryCtx; colonyId: Id<"colonies"> }) {
 	const playerResult = await resolveCurrentPlayer(args.ctx);
 	if (!playerResult?.player) {
 		throw new ConvexError("Authentication required");
@@ -199,10 +197,7 @@ async function getOwnedColonyBase(args: {
 	};
 }
 
-async function getColonyBaseById(args: {
-	ctx: MutationCtx;
-	colonyId: Id<"colonies">;
-}) {
+async function getColonyBaseById(args: { ctx: MutationCtx; colonyId: Id<"colonies"> }) {
 	const colony = await args.ctx.db.get(args.colonyId);
 	if (!colony) {
 		throw new ConvexError("Colony not found");
@@ -276,9 +271,7 @@ async function listRecentResolvedContracts(args: {
 
 	return args.ctx.db
 		.query("contracts")
-		.withIndex("by_p_st_res", (q) =>
-			q.eq("playerId", args.playerId).eq("status", args.status),
-		)
+		.withIndex("by_p_st_res", (q) => q.eq("playerId", args.playerId).eq("status", args.status))
 		.order("desc")
 		.take(args.limit);
 }
@@ -360,7 +353,9 @@ async function listInProgressContractsForPlanet(args: {
 			q.eq("playerId", args.playerId).eq("planetId", args.planetId).eq("status", "inProgress"),
 		)
 		.collect();
-	return rows.filter((row) => row.originColonyId === undefined || row.originColonyId === args.colonyId);
+	return rows.filter(
+		(row) => row.originColonyId === undefined || row.originColonyId === args.colonyId,
+	);
 }
 
 function sequenceForSlot(slotSequences: number[], slot: number) {
@@ -514,7 +509,8 @@ async function computeContractCandidates(args: {
 		return leftDistance - rightDistance;
 	})) {
 		sectorsToScan.push(sectorHostility);
-		queuedHostilePlanetCount += sectorHostility.hostilePlanetCount - sectorHostility.clearedPlanetCount;
+		queuedHostilePlanetCount +=
+			sectorHostility.hostilePlanetCount - sectorHostility.clearedPlanetCount;
 		if (
 			sectorsToScan.length >= MAX_DISCOVERY_SECTORS ||
 			queuedHostilePlanetCount >= MAX_DISCOVERY_PLANETS
@@ -564,13 +560,19 @@ async function computeContractCandidates(args: {
 				}),
 				hostileFactionKey: planetHostility.hostileFactionKey as "spacePirates" | "rogueAi",
 				planetAddressLabel: contractAddressLabel(planet),
-				planetDisplayName: displayNameFromStoredOrGenerated(contractAddressLabel(planet), planet.name),
+				planetDisplayName: displayNameFromStoredOrGenerated(
+					contractAddressLabel(planet),
+					planet.name,
+				),
 				planetHostilityId: planetHostility._id,
 				planetId: planet._id,
 				planetSeed: planet.seed,
 				playerId: args.playerId,
 				sectorAddressLabel: sectorAddressLabel(sector),
-				sectorDisplayName: displayNameFromStoredOrGenerated(sectorAddressLabel(sector), sector.name),
+				sectorDisplayName: displayNameFromStoredOrGenerated(
+					sectorAddressLabel(sector),
+					sector.name,
+				),
 				sectorId: sector._id,
 				sortOrder: 0,
 				systemDisplayName: displayNameFromStoredOrGenerated(
@@ -594,10 +596,7 @@ async function computeContractCandidates(args: {
 		}));
 }
 
-async function loadCandidateRows(args: {
-	ctx: MutationCtx | QueryCtx;
-	colony: Doc<"colonies">;
-}) {
+async function loadCandidateRows(args: { ctx: MutationCtx | QueryCtx; colony: Doc<"colonies"> }) {
 	return args.ctx.db
 		.query("colonyContractCandidates")
 		.withIndex("by_colony_sort", (q) => q.eq("colonyId", args.colony._id))
@@ -745,11 +744,7 @@ async function enrichCandidateRowsWithHostility(args: {
 	});
 }
 
-function pickRecommendedOrdinals(args: {
-	count: number;
-	limit: number;
-	seed: string;
-}) {
+function pickRecommendedOrdinals(args: { count: number; limit: number; seed: string }) {
 	if (args.count <= 0 || args.limit <= 0) {
 		return [] as number[];
 	}
@@ -797,7 +792,7 @@ async function deriveRecommendedContractsByOrdinal(args: {
 			.collect(),
 	]);
 	if (!discoveryState || discoveryState.hostileCount <= 0) {
-		return [] as typeof recommendedContractViewValidator.type[];
+		return [] as (typeof recommendedContractViewValidator.type)[];
 	}
 
 	const ordinals = pickRecommendedOrdinals({
@@ -818,7 +813,7 @@ async function deriveRecommendedContractsByOrdinal(args: {
 		)
 	).filter((row): row is Doc<"colonyContractCandidates"> => row !== null);
 	if (candidateRows.length === 0) {
-		return [] as typeof recommendedContractViewValidator.type[];
+		return [] as (typeof recommendedContractViewValidator.type)[];
 	}
 
 	const [hydratedCandidates, hostilities] = await Promise.all([
@@ -890,7 +885,8 @@ async function deriveRecommendedContractsByOrdinal(args: {
 				planetDisplayName: candidate.planetDisplayName,
 				planetAddressLabel: candidate.planetAddressLabel,
 				sectorDisplayName: candidate.sectorDisplayName,
-				hostileFactionKey: (candidateByPlanetId.get(candidate.planetId) ?? candidate).hostileFactionKey,
+				hostileFactionKey: (candidateByPlanetId.get(candidate.planetId) ?? candidate)
+					.hostileFactionKey,
 				distance: candidate.distance,
 			});
 		}

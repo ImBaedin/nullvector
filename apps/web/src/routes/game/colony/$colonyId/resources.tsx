@@ -326,11 +326,7 @@ function ResourcesRoute() {
 
 	const totalBuildings = view?.buildings.length ?? 0;
 	const activeUpgradeProgress = activeLaneQueueItem
-		? getQueueProgress(
-				nowMs,
-				(activeLaneQueueItem as Record<string, unknown>).startsAt as number | undefined,
-				activeLaneQueueItem.completesAt,
-			).percent
+		? getQueueProgress(nowMs, activeLaneQueueItem.startsAt, activeLaneQueueItem.completesAt).percent
 		: 0;
 	const commitResourceEdit = useCallback(async () => {
 		if (!canShowDevUi || !editingResourceKey || !devConsoleState?.canUseDevConsole) {
@@ -643,7 +639,9 @@ function ResourcesRoute() {
 									<div className="flex items-center gap-2.5">
 										<span className="text-white/50">{groupVisual.icon}</span>
 										<div>
-											<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
+											<h2 className="
+             font-(family-name:--nv-font-display) text-sm font-bold
+           ">
 												{groupVisual.label}
 											</h2>
 											<p className="mt-0.5 text-[10px] text-white/35">{groupVisual.description}</p>
@@ -829,12 +827,12 @@ function ResourcesRoute() {
 							canShowDevUi ? (
 								<button
 									className="
-										inline-flex items-center gap-1 rounded-md border
-										border-cyan-300/30 bg-cyan-400/10 px-2 py-1 text-[10px]
-										font-medium text-cyan-100 transition
-										hover:border-cyan-200/55 hover:bg-cyan-400/16
-										disabled:cursor-not-allowed disabled:opacity-50
-									"
+           inline-flex items-center gap-1 rounded-md border border-cyan-300/30
+           bg-cyan-400/10 px-2 py-1 text-[10px] font-medium text-cyan-100
+           transition
+           hover:border-cyan-200/55 hover:bg-cyan-400/16
+           disabled:cursor-not-allowed disabled:opacity-50
+         "
 									disabled={isCompletingQueueItem || !devConsoleState?.canUseDevConsole}
 									onClick={() => {
 										void completeActiveQueue();
@@ -852,8 +850,7 @@ function ResourcesRoute() {
 							id: `${item.kind}-${item.completesAt}-${item.payload.toLevel}`,
 							isActive: false,
 							remainingLabel: formatColonyDuration(
-								item.completesAt -
-									(((item as Record<string, unknown>).startsAt as number | undefined) ?? nowMs),
+								item.completesAt - (item.startsAt ?? nowMs),
 								"milliseconds",
 							),
 							subtitle: `Lv ${item.payload.fromLevel} → ${item.payload.toLevel}`,

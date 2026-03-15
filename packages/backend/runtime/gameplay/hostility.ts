@@ -421,6 +421,36 @@ export function buildHostilePlanetDetailView(args: {
 	} satisfies HostilePlanetDetail;
 }
 
+async function buildSectorHostileDetails(args: {
+	ctx: MutationCtx | QueryCtx;
+	planetHostilities: Doc<"planetHostility">[];
+}) {
+	const planetById = await getDocsByIds({
+		ctx: args.ctx,
+		ids: args.planetHostilities.map((planetHostility) => planetHostility.planetId),
+	});
+	const systemById = await getDocsByIds({
+		ctx: args.ctx,
+		ids: Array.from(new Set(Array.from(planetById.values()).map((planet) => planet.systemId))),
+	});
+
+	return args.planetHostilities
+		.map((planetHostility) => {
+			const planet = planetById.get(planetHostility.planetId);
+			const system = planet ? systemById.get(planet.systemId) : null;
+			if (!planet || !system) {
+				return null;
+			}
+			return buildHostilePlanetDetailView({
+				planet,
+				planetHostility,
+				system,
+			});
+		})
+		.filter((planet): planet is HostilePlanetDetail => planet !== null)
+		.sort(compareHostilePlanetDetails);
+}
+
 export const getHostileSectorsForUniverse = query({
 	args: {
 		colonyId: v.id("colonies"),
@@ -489,30 +519,10 @@ export const getHostileSectorDetail = query({
 			.query("planetHostility")
 			.withIndex("by_sector_status", (q) => q.eq("sectorId", args.sectorId))
 			.collect();
-		const planetById = await getDocsByIds({
+		const planets = await buildSectorHostileDetails({
 			ctx,
-			ids: planetHostilities.map((planetHostility) => planetHostility.planetId),
+			planetHostilities,
 		});
-		const systemById = await getDocsByIds({
-			ctx,
-			ids: Array.from(new Set(Array.from(planetById.values()).map((planet) => planet.systemId))),
-		});
-
-		const planets = planetHostilities
-			.map((planetHostility) => {
-				const planet = planetById.get(planetHostility.planetId);
-				const system = planet ? systemById.get(planet.systemId) : null;
-				if (!planet || !system) {
-					return null;
-				}
-				return buildHostilePlanetDetailView({
-					planet,
-					planetHostility,
-					system,
-				});
-			})
-			.filter((planet): planet is HostilePlanetDetail => planet !== null)
-			.sort(compareHostilePlanetDetails);
 
 		return {
 			sectorId: args.sectorId,
@@ -552,34 +562,13 @@ export const getHostileSectorDetails = query({
 					.query("planetHostility")
 					.withIndex("by_sector_status", (q) => q.eq("sectorId", sectorId))
 					.collect();
-				const planetById = await getDocsByIds({
-					ctx,
-					ids: planetHostilities.map((planetHostility) => planetHostility.planetId),
-				});
-				const systemById = await getDocsByIds({
-					ctx,
-					ids: Array.from(
-						new Set(Array.from(planetById.values()).map((planet) => planet.systemId)),
-					),
-				});
 
 				return {
 					sectorId,
-					planets: planetHostilities
-						.map((planetHostility) => {
-							const planet = planetById.get(planetHostility.planetId);
-							const system = planet ? systemById.get(planet.systemId) : null;
-							if (!planet || !system) {
-								return null;
-							}
-							return buildHostilePlanetDetailView({
-								planet,
-								planetHostility,
-								system,
-							});
-						})
-						.filter((planet): planet is HostilePlanetDetail => planet !== null)
-						.sort(compareHostilePlanetDetails),
+					planets: await buildSectorHostileDetails({
+						ctx,
+						planetHostilities,
+					}),
 				};
 			}),
 		);

@@ -55,7 +55,11 @@ type UpgradeActionArgs = {
 	lockMessage?: string;
 };
 
-function canAfford(cost: ResourceCost, availableResources: ResourceBucket | null, quantity = 1): boolean {
+function canAfford(
+	cost: ResourceCost,
+	availableResources: ResourceBucket | null,
+	quantity = 1,
+): boolean {
 	if (!availableResources) {
 		return false;
 	}
@@ -70,9 +74,12 @@ function canAfford(cost: ResourceCost, availableResources: ResourceBucket | null
 export function getQueueableBuildActionPresentation(
 	args: QueueableBuildActionArgs,
 ): ColonyActionPresentation {
+	const normalizedQuantity = Math.max(1, Math.floor(args.actionQuantity));
+
 	if (args.isBusy) {
 		return {
-			badgeLabel: args.queuedCount && args.queuedCount > 0 ? `${args.queuedCount} Queued` : "Queued",
+			badgeLabel:
+				args.queuedCount && args.queuedCount > 0 ? `${args.queuedCount} Queued` : "Queued",
 			badgeTone: "info",
 			buttonLabel: "Queueing...",
 			isActionEnabled: false,
@@ -103,7 +110,7 @@ export function getQueueableBuildActionPresentation(
 		};
 	}
 
-	const hasRequiredResources = canAfford(args.cost, args.availableResources, args.actionQuantity);
+	const hasRequiredResources = canAfford(args.cost, args.availableResources, normalizedQuantity);
 	if (!hasRequiredResources) {
 		return {
 			badgeLabel: "Need Resources",
@@ -119,7 +126,7 @@ export function getQueueableBuildActionPresentation(
 		return {
 			badgeLabel: `${args.queuedCount.toLocaleString()} Queued`,
 			badgeTone: "info",
-			buttonLabel: `Queue ${args.actionQuantity}`,
+			buttonLabel: `Queue ${normalizedQuantity}`,
 			isActionEnabled: true,
 			lockMessage: args.lockMessage,
 			state: "queued",
@@ -129,7 +136,7 @@ export function getQueueableBuildActionPresentation(
 	return {
 		badgeLabel: "Available",
 		badgeTone: "success",
-		buttonLabel: `Queue ${args.actionQuantity}`,
+		buttonLabel: `Queue ${normalizedQuantity}`,
 		isActionEnabled: true,
 		lockMessage: args.lockMessage,
 		state: "available",
@@ -181,18 +188,6 @@ export function getUpgradeActionPresentation(args: UpgradeActionArgs): ColonyAct
 		};
 	}
 
-	const hasRequiredResources = canAfford(args.cost, args.availableResources);
-	if (!hasRequiredResources) {
-		return {
-			badgeLabel: "Need Resources",
-			badgeTone: "warning",
-			buttonLabel: "Need Resources",
-			isActionEnabled: false,
-			lockMessage: args.lockMessage,
-			state: "insufficient",
-		};
-	}
-
 	if (args.isActive) {
 		return {
 			badgeLabel: "Upgrading",
@@ -212,6 +207,18 @@ export function getUpgradeActionPresentation(args: UpgradeActionArgs): ColonyAct
 			isActionEnabled: true,
 			lockMessage: args.lockMessage,
 			state: "queued",
+		};
+	}
+
+	const hasRequiredResources = canAfford(args.cost, args.availableResources);
+	if (!hasRequiredResources) {
+		return {
+			badgeLabel: "Need Resources",
+			badgeTone: "warning",
+			buttonLabel: "Need Resources",
+			isActionEnabled: false,
+			lockMessage: args.lockMessage,
+			state: "insufficient",
 		};
 	}
 

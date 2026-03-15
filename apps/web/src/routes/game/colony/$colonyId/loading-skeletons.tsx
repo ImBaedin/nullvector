@@ -15,9 +15,13 @@ function Sweep({ className }: SweepProps) {
 }
 
 function ColonyPageSkeletonFrame({ children }: { children: ReactNode }) {
-	return <div className="
-   mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white
- ">{children}</div>;
+	return (
+		<div
+			className="mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white"
+		>
+			{children}
+		</div>
+	);
 }
 
 function ColonyTwoColumnSkeleton(args: { left: ReactNode; right: ReactNode }) {

@@ -1,7 +1,7 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import { selectShipCatalog, type ShipKey } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
+import { selectShipCatalog, type ShipKey } from "@nullvector/game-logic";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -132,6 +132,7 @@ function ShipyardRoute() {
 				id: item.id,
 				isActive: item.status === "active",
 				remaining: Math.max(0, item.payload.quantity - item.payload.completedQuantity),
+				shipKey: item.payload.shipKey,
 				shipName: ship?.name ?? item.payload.shipKey,
 				timeLeftSeconds: Math.max(0, Math.ceil((item.completesAt - nowMs) / 1_000)),
 				total: item.payload.quantity,

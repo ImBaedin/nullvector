@@ -288,7 +288,7 @@ function IndexRoute() {
 							{BOOT_LINES.map(({ tag, text }, i) => (
 								<div
 									key={`${tag}-${text}`}
-									className="nv-mono text-sm/relaxed "
+									className="nv-mono text-sm/relaxed"
 									style={{
 										animation: `nv-colony-row-in 350ms var(--nv-ease-emphasis) ${i * 100}ms both`,
 									}}
@@ -344,7 +344,7 @@ function IndexRoute() {
 											placeholder="commander name"
 											autoComplete="name"
 											className="
-             rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)]
+             rounded-none! border-0 border-b border-b-(--nv-glass-stroke)
              bg-transparent!
            "
 										/>
@@ -370,7 +370,7 @@ function IndexRoute() {
 										placeholder="commander@fleet.nv"
 										autoComplete="email"
 										className="
-            rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)]
+            rounded-none! border-0 border-b border-b-(--nv-glass-stroke)
             bg-transparent!
           "
 									/>
@@ -395,7 +395,7 @@ function IndexRoute() {
 										placeholder="••••••••"
 										autoComplete={mode === "signIn" ? "current-password" : "new-password"}
 										className="
-            rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)]
+            rounded-none! border-0 border-b border-b-(--nv-glass-stroke)
             bg-transparent!
           "
 									/>
@@ -417,7 +417,7 @@ function IndexRoute() {
 											placeholder="••••••••"
 											autoComplete="new-password"
 											className="
-             rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)]
+             rounded-none! border-0 border-b border-b-(--nv-glass-stroke)
              bg-transparent!
            "
 										/>
@@ -490,7 +490,7 @@ function IndexRoute() {
 							{SYSTEM_LOG.map(({ tag, text }, i) => (
 								<div
 									key={`${tag}-${text}`}
-									className="nv-mono text-xs/relaxed "
+									className="nv-mono text-xs/relaxed"
 									style={{
 										opacity: 0.45,
 										animation: `nv-colony-row-in 350ms var(--nv-ease-emphasis) ${logDelay + i * 80}ms both`,
