@@ -29,13 +29,14 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { formatColonyDuration } from "@/features/colony-ui/time";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { ActivityTimelinePanel, splitActivityLabel } from "./active-activity-panel";
 import { FleetRouteSkeleton } from "./loading-skeletons";
 import { ShipAssignmentList } from "./ship-assignment-list";
-import { formatDuration, getShipImagePath, SHIP_GROUPS } from "./shipyard-mock-shared";
+import { getShipImagePath, SHIP_GROUPS } from "./shipyard-shared";
 import { useColonyStarMapPicker, type FleetMissionKind } from "./star-map-picker-context";
 
 export const Route = createFileRoute("/game/colony/$colonyId/fleet")({
@@ -297,13 +298,7 @@ function FleetRoute() {
 		return <FleetRouteSkeleton />;
 	}
 
-	if (
-		!ready ||
-		!garrison ||
-		!operations ||
-		!colonyNav ||
-		!colonyResources.projected
-	) {
+	if (!ready || !garrison || !operations || !colonyNav || !colonyResources.projected) {
 		return (
 			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
 				Unable to load fleet. Please sign in again.
@@ -705,7 +700,7 @@ function ActiveOperationsPanel(props: {
 				) : null,
 			].filter(Boolean),
 			dotClassName: accent.dot,
-			etaLabel: formatDuration(etaSeconds),
+			etaLabel: formatColonyDuration(etaSeconds, "seconds"),
 			id: operation.id,
 			kindBadgeClassName: accent.badge,
 			kindLabel: accent.kindLabel,
@@ -743,10 +738,10 @@ function ActiveOperationsPanel(props: {
      size-3
      ${accent.iconText}
    `} /> : <Ship className={`
-      size-3
-      ${isReturning ? "rotate-180" : ""}
-      ${accent.iconText}
-    `} />,
+     size-3
+     ${isReturning ? "rotate-180" : ""}
+     ${accent.iconText}
+   `} />,
 			transitIconBorderClassName: accent.iconBorder,
 			transitIconFillClassName: accent.iconFill,
 			transitLineClassName: accent.line,
@@ -839,7 +834,7 @@ function FleetSummaryStrip(props: {
 										<div className={`
             relative overflow-hidden rounded-xl border p-2.5 transition-colors
             ${hasAny ? "border-white/10 bg-white/[0.035]" : `
-              border-white/6 bg-white/[0.015] opacity-50
+              border-white/6 bg-white/1.5 opacity-50
             `}
           `} key={ship.key}>
 											<div className="flex items-center gap-2">
@@ -1215,7 +1210,10 @@ function MissionPlannerPanel(props: {
 									label="Distance"
 									value={props.distance > 0 ? props.distance.toFixed(1) : "—"}
 								/>
-								<MetricCard label="One Way" value={formatDuration(props.oneWaySeconds)} />
+								<MetricCard
+									label="One Way"
+									value={formatColonyDuration(props.oneWaySeconds, "seconds")}
+								/>
 								<MetricCard
 									label={props.roundTrip ? "Travel Fuel" : "One Way Fuel"}
 									value={props.travelFuelCost.toLocaleString()}

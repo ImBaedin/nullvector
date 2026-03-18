@@ -1,15 +1,17 @@
 import {
 	getContractHistory,
 	getContractHistorySummary,
-	getPlanetContracts,
 	getRecommendedContracts,
 	launchContract,
+	rebuildContractDiscovery,
+	rebuildContractDiscoveryForColony,
 } from "../runtime/gameplay/contracts";
 
 export {
 	getContractHistory,
 	getContractHistorySummary,
-	getPlanetContracts,
 	getRecommendedContracts,
 	launchContract,
+	rebuildContractDiscovery,
+	rebuildContractDiscoveryForColony,
 };

@@ -115,6 +115,18 @@ describe("notification helpers", () => {
 		expect(severityForNotificationKind({ kind: "raidIncoming" })).toBe("danger");
 		expect(
 			severityForNotificationKind({
+				kind: "raidResolved",
+				success: true,
+			}),
+		).toBe("danger");
+		expect(
+			severityForNotificationKind({
+				kind: "raidResolved",
+				success: false,
+			}),
+		).toBe("warning");
+		expect(
+			severityForNotificationKind({
 				kind: "contractResolved",
 				success: false,
 			}),

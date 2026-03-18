@@ -198,9 +198,11 @@ function IndexRoute() {
 	}
 
 	return (
-		<div className="
-    game-theme-neon-dockyard relative flex h-svh min-h-0 overflow-hidden
-  ">
+		<div
+			className="
+     game-theme-neon-dockyard relative flex h-svh min-h-0 overflow-hidden
+   "
+		>
 			<div
 				className="absolute inset-0 bg-cover bg-center bg-no-repeat"
 				style={{ backgroundImage: "url('/login/login-bg.png')" }}
@@ -228,10 +230,12 @@ function IndexRoute() {
 				}}
 			/>
 
-			<div className="
-     relative ml-auto flex w-full max-w-xl flex-col p-3
-     lg:p-4
-   ">
+			<div
+				className="
+      relative ml-auto flex w-full max-w-xl flex-col p-3
+      lg:p-4
+    "
+			>
 				<div
 					className="absolute inset-0"
 					style={{
@@ -288,7 +292,7 @@ function IndexRoute() {
 							{BOOT_LINES.map(({ tag, text }, i) => (
 								<div
 									key={`${tag}-${text}`}
-									className="nv-mono text-sm/relaxed "
+									className="nv-mono text-sm/relaxed"
 									style={{
 										animation: `nv-colony-row-in 350ms var(--nv-ease-emphasis) ${i * 100}ms both`,
 									}}
@@ -344,7 +348,7 @@ function IndexRoute() {
 											placeholder="commander name"
 											autoComplete="name"
 											className="
-             rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)]
+             rounded-none! border-0 border-b border-b-(--nv-glass-stroke)
              bg-transparent!
            "
 										/>
@@ -370,7 +374,7 @@ function IndexRoute() {
 										placeholder="commander@fleet.nv"
 										autoComplete="email"
 										className="
-            rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)]
+            rounded-none! border-0 border-b border-b-(--nv-glass-stroke)
             bg-transparent!
           "
 									/>
@@ -395,7 +399,7 @@ function IndexRoute() {
 										placeholder="••••••••"
 										autoComplete={mode === "signIn" ? "current-password" : "new-password"}
 										className="
-            rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)]
+            rounded-none! border-0 border-b border-b-(--nv-glass-stroke)
             bg-transparent!
           "
 									/>
@@ -417,7 +421,7 @@ function IndexRoute() {
 											placeholder="••••••••"
 											autoComplete="new-password"
 											className="
-             rounded-none! border-0 border-b border-b-[var(--nv-glass-stroke)]
+             rounded-none! border-0 border-b border-b-(--nv-glass-stroke)
              bg-transparent!
            "
 										/>
@@ -490,7 +494,7 @@ function IndexRoute() {
 							{SYSTEM_LOG.map(({ tag, text }, i) => (
 								<div
 									key={`${tag}-${text}`}
-									className="nv-mono text-xs/relaxed "
+									className="nv-mono text-xs/relaxed"
 									style={{
 										opacity: 0.45,
 										animation: `nv-colony-row-in 350ms var(--nv-ease-emphasis) ${logDelay + i * 80}ms both`,

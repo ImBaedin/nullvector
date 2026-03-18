@@ -9,6 +9,9 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { useColonySelectors, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
+import { QueuePanel } from "@/features/colony-ui/components/queue-panel";
+import { getQueueProgress } from "@/features/colony-ui/queue-state";
+import { formatColonyDuration } from "@/features/colony-ui/time";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { formatResourceValue } from "@/lib/colony-resource-simulation";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
@@ -72,23 +75,6 @@ const EMPTY_BUILDING_LEVELS: Record<BuildingKey, number> = {
 type GeneratorGroupId = keyof typeof GROUP_VISUALS;
 type ResourceKey = "alloy" | "crystal" | "fuel";
 const DEV_RESOURCE_KEYS = ["alloy", "crystal", "fuel"] as const satisfies ResourceKey[];
-
-function formatDuration(ms: number) {
-	const totalSeconds = Math.max(0, Math.floor(ms / 1_000));
-	const hours = Math.floor(totalSeconds / 3_600);
-	const minutes = Math.floor((totalSeconds % 3_600) / 60);
-	const seconds = totalSeconds % 60;
-
-	if (hours > 0) {
-		return `${hours}h ${minutes}m ${seconds}s`;
-	}
-
-	if (minutes > 0) {
-		return `${minutes}m ${seconds}s`;
-	}
-
-	return `${seconds}s`;
-}
 
 function resolveGroupIdForBuilding(building: {
 	group: string;
@@ -282,7 +268,7 @@ function ResourcesRoute() {
 		isBuildingQueueItemPayload,
 	) as LaneQueueItem[];
 	const remainingTimeLabel = activeQueueItem
-		? formatDuration(Math.max(0, activeQueueItem.completesAt - nowMs))
+		? formatColonyDuration(Math.max(0, activeQueueItem.completesAt - nowMs), "milliseconds")
 		: null;
 	const groupedBuildings = useMemo(() => {
 		const groups = new Map<
@@ -339,25 +325,9 @@ function ResourcesRoute() {
 	}, [view?.buildings]);
 
 	const totalBuildings = view?.buildings.length ?? 0;
-	const activeItemStartsAt = (activeLaneQueueItem as Record<string, unknown> | null)?.startsAt as
-		| number
-		| undefined;
-	const activeItemDurationMs =
-		activeLaneQueueItem && activeItemStartsAt
-			? activeLaneQueueItem.completesAt - activeItemStartsAt
-			: 0;
-	const activeUpgradeProgress =
-		activeLaneQueueItem && activeItemDurationMs > 0
-			? Math.min(
-					100,
-					Math.max(
-						0,
-						((nowMs - (activeLaneQueueItem.completesAt - activeItemDurationMs)) /
-							activeItemDurationMs) *
-							100,
-					),
-				)
-			: 0;
+	const activeUpgradeProgress = activeLaneQueueItem
+		? getQueueProgress(nowMs, activeLaneQueueItem.startsAt, activeLaneQueueItem.completesAt).percent
+		: 0;
 	const commitResourceEdit = useCallback(async () => {
 		if (!canShowDevUi || !editingResourceKey || !devConsoleState?.canUseDevConsole) {
 			return;
@@ -669,7 +639,9 @@ function ResourcesRoute() {
 									<div className="flex items-center gap-2.5">
 										<span className="text-white/50">{groupVisual.icon}</span>
 										<div>
-											<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
+											<h2
+												className="font-(family-name:--nv-font-display) text-sm font-bold"
+											>
 												{groupVisual.label}
 											</h2>
 											<p className="mt-0.5 text-[10px] text-white/35">{groupVisual.description}</p>
@@ -833,219 +805,63 @@ function ResourcesRoute() {
 
 				{/* ══ Right Column: Building Queue Panel ══ */}
 				<div className="lg:sticky lg:top-4 lg:self-start">
-					<div
-						className="
-        rounded-2xl border border-white/12
-        bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
-      "
-					>
-						{/* Queue header */}
-						<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
-							<Clock3 className="size-5 text-cyan-300" />
-							<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
-								Building Queue
-							</h2>
-							{activeLaneQueueItem || pendingLaneQueueItems.length > 0 ? (
-								<span
+					<QueuePanel
+						activeItem={
+							activeLaneQueueItem
+								? {
+										id: `${activeLaneQueueItem.kind}-${activeLaneQueueItem.completesAt}`,
+										isActive: true,
+										remainingLabel: remainingTimeLabel ?? undefined,
+										subtitle: `Lv ${activeLaneQueueItem.payload.fromLevel} → ${activeLaneQueueItem.payload.toLevel}`,
+										title:
+											activeLaneQueueItem.kind === "buildingUpgrade"
+												? (BUILDING_KEY_LABELS[activeLaneQueueItem.payload.buildingKey] ??
+													activeLaneQueueItem.payload.buildingKey)
+												: (FACILITY_KEY_LABELS[activeLaneQueueItem.payload.facilityKey] ??
+													activeLaneQueueItem.payload.facilityKey),
+									}
+								: null
+						}
+						activeProgressPercent={activeUpgradeProgress}
+						completeAction={
+							canShowDevUi ? (
+								<button
 									className="
-           ml-auto font-(family-name:--nv-font-mono) text-[9px] text-white/30
+           inline-flex items-center gap-1 rounded-md border border-cyan-300/30
+           bg-cyan-400/10 px-2 py-1 text-[10px] font-medium text-cyan-100
+           transition
+           hover:border-cyan-200/55 hover:bg-cyan-400/16
+           disabled:cursor-not-allowed disabled:opacity-50
          "
+									disabled={isCompletingQueueItem || !devConsoleState?.canUseDevConsole}
+									onClick={() => {
+										void completeActiveQueue();
+									}}
+									type="button"
 								>
-									{(activeLaneQueueItem ? 1 : 0) + pendingLaneQueueItems.length} item
-									{(activeLaneQueueItem ? 1 : 0) + pendingLaneQueueItems.length !== 1 ? "s" : ""}
-								</span>
-							) : null}
-						</div>
-
-						<div className="p-5">
-							{/* Active Upgrade */}
-							{activeLaneQueueItem ? (
-								<div className="space-y-3">
-									<p
-										className="
-            text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
-          "
-									>
-										Active
-									</p>
-									<div
-										className="
-            rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3
-          "
-									>
-										<div className="flex items-center justify-between">
-											<div>
-												<p className="text-xs font-semibold">
-													{activeLaneQueueItem.kind === "buildingUpgrade"
-														? (BUILDING_KEY_LABELS[activeLaneQueueItem.payload.buildingKey] ??
-															activeLaneQueueItem.payload.buildingKey)
-														: (FACILITY_KEY_LABELS[activeLaneQueueItem.payload.facilityKey] ??
-															activeLaneQueueItem.payload.facilityKey)}
-												</p>
-												<p
-													className="
-               mt-0.5 font-(family-name:--nv-font-mono) text-[10px]
-               text-white/40
-             "
-												>
-													Lv {activeLaneQueueItem.payload.fromLevel} →{" "}
-													{activeLaneQueueItem.payload.toLevel}
-												</p>
-											</div>
-											<div className="text-right">
-												<p
-													className="
-               font-(family-name:--nv-font-mono) text-xs font-bold
-               text-emerald-200
-             "
-												>
-													{remainingTimeLabel ?? "—"}
-												</p>
-												<p
-													className="
-               font-(family-name:--nv-font-mono) text-[8px] tracking-widest
-               text-emerald-200/45 uppercase
-             "
-												>
-													remaining
-												</p>
-											</div>
-										</div>
-										<div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/8">
-											<div
-												className="
-              h-full rounded-full bg-linear-to-r from-emerald-400/60
-              to-emerald-300/40 transition-all
-            "
-												style={{ width: `${activeUpgradeProgress}%` }}
-											/>
-										</div>
-										<div className="mt-1 flex items-center justify-between">
-											<span
-												className="
-              font-(family-name:--nv-font-mono) text-[9px] text-white/25
-            "
-											>
-												{Math.round(activeUpgradeProgress)}%
-											</span>
-											<span
-												className="
-              inline-flex items-center gap-1 text-[9px] text-emerald-300/60
-            "
-											>
-												<span
-													className="inline-block size-1.5 rounded-full bg-emerald-400"
-													style={{ animation: "nv-queue-pulse 2s ease-in-out infinite" }}
-												/>
-												In progress
-											</span>
-										</div>
-										{canShowDevUi ? (
-											<button
-												className="
-              mt-2 inline-flex items-center gap-1 rounded-md border
-              border-cyan-300/30 bg-cyan-400/10 px-2 py-1 text-[10px]
-              font-medium text-cyan-100 transition
-              hover:border-cyan-200/55 hover:bg-cyan-400/16
-              disabled:cursor-not-allowed disabled:opacity-50
-            "
-												disabled={isCompletingQueueItem || !devConsoleState?.canUseDevConsole}
-												onClick={() => {
-													void completeActiveQueue();
-												}}
-												type="button"
-											>
-												{isCompletingQueueItem ? "Completing..." : "Complete"}
-											</button>
-										) : null}
-									</div>
-								</div>
-							) : null}
-
-							{/* Pending Queue Items */}
-							{pendingLaneQueueItems.length > 0 ? (
-								<div className={activeLaneQueueItem ? "mt-4" : ""}>
-									<p
-										className="
-            text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
-          "
-									>
-										Pending ({pendingLaneQueueItems.length})
-									</p>
-									<div className="mt-2 space-y-1">
-										{pendingLaneQueueItems.map((item, i) => (
-											<div
-												className="
-              flex items-center justify-between rounded-lg border border-white/6
-              bg-white/2 px-3 py-2
-            "
-												key={`pending-${item.kind}-${item.completesAt}-${item.payload.toLevel}`}
-											>
-												<div className="flex items-center gap-2">
-													<span
-														className="
-                flex size-5 items-center justify-center rounded-sm
-                font-(family-name:--nv-font-mono) text-[9px] font-bold
-                text-white/25
-              "
-													>
-														{i + 1}
-													</span>
-													<div>
-														<p className="text-[11px] font-semibold text-white/80">
-															{item.kind === "buildingUpgrade"
-																? (BUILDING_KEY_LABELS[item.payload.buildingKey] ??
-																	item.payload.buildingKey)
-																: (FACILITY_KEY_LABELS[item.payload.facilityKey] ??
-																	item.payload.facilityKey)}
-														</p>
-														<p
-															className="
-                 font-(family-name:--nv-font-mono) text-[9px] text-white/30
-               "
-														>
-															Lv {item.payload.fromLevel} → {item.payload.toLevel}
-														</p>
-													</div>
-												</div>
-												<div className="text-right">
-													<p
-														className="
-                font-(family-name:--nv-font-mono) text-[10px] text-white/35
-              "
-													>
-														{formatDuration(
-															item.completesAt -
-																(((item as Record<string, unknown>).startsAt as number) ??
-																	item.completesAt),
-														)}
-													</p>
-												</div>
-											</div>
-										))}
-									</div>
-								</div>
-							) : null}
-
-							{/* Empty state */}
-							{!activeLaneQueueItem && pendingLaneQueueItems.length === 0 ? (
-								<div className="flex flex-col items-center py-8 text-center">
-									<div
-										className="
-            flex size-12 items-center justify-center rounded-full border
-            border-white/8 bg-white/3
-          "
-									>
-										<Clock3 className="size-5 text-white/20" />
-									</div>
-									<p className="mt-3 text-xs font-medium text-white/30">No upgrades in progress</p>
-									<p className="mt-1 text-[10px] text-white/18">
-										Select a building to begin upgrading
-									</p>
-								</div>
-							) : null}
-						</div>
-					</div>
+									{isCompletingQueueItem ? "Completing..." : "Complete"}
+								</button>
+							) : null
+						}
+						emptyDescription="Select a building to begin upgrading"
+						emptyTitle="No upgrades in progress"
+						headerIcon={<Clock3 className="size-5 text-cyan-300" />}
+						pendingItems={pendingLaneQueueItems.map((item) => ({
+							id: `${item.kind}-${item.completesAt}-${item.payload.toLevel}`,
+							isActive: false,
+							remainingLabel: formatColonyDuration(
+								Math.max(0, item.completesAt - nowMs),
+								"milliseconds",
+							),
+							subtitle: `Lv ${item.payload.fromLevel} → ${item.payload.toLevel}`,
+							title:
+								item.kind === "buildingUpgrade"
+									? (BUILDING_KEY_LABELS[item.payload.buildingKey] ?? item.payload.buildingKey)
+									: (FACILITY_KEY_LABELS[item.payload.facilityKey] ?? item.payload.facilityKey),
+						}))}
+						theme="resource"
+						title="Building Queue"
+					/>
 				</div>
 			</div>
 		</div>

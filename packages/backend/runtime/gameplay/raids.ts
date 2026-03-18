@@ -6,7 +6,6 @@ import {
 	normalizeDefenseCounts,
 	normalizeShipCounts,
 	simulateCombat,
-	type DefenseCounts,
 	type ResourceBucket,
 	type ShipCounts,
 	type ShipKey,
@@ -18,6 +17,7 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { internal } from "../../convex/_generated/api";
 import {
 	internalMutation,
+	mutation,
 	query,
 	type MutationCtx,
 	type QueryCtx,
@@ -46,6 +46,7 @@ const RESOURCE_KEYS = ["alloy", "crystal", "fuel"] as const;
 const MAX_RAID_DIFFICULTY_TIER = 10;
 const DEFENSE_SALVAGE_FACTOR = 0.35;
 const RAID_FAILURE_RANK_XP_PER_TIER = 25;
+const RAID_RECONCILE_BATCH_SIZE = 64;
 
 function scaledUnits(unscaledUnits: number) {
 	return Math.round(Math.max(0, unscaledUnits) * RESOURCE_SCALE);
@@ -58,25 +59,6 @@ function hashString(seed: string) {
 		hash = Math.imul(hash, 16777619);
 	}
 	return hash >>> 0;
-}
-
-async function systemCoordsForPlanet(args: {
-	ctx: QueryCtx | MutationCtx;
-	planetId: Id<"planets">;
-}) {
-	const planet = await args.ctx.db.get(args.planetId);
-	if (!planet) {
-		throw new ConvexError("Planet not found");
-	}
-	const system = await args.ctx.db.get(planet.systemId);
-	if (!system) {
-		throw new ConvexError("System not found for planet");
-	}
-	return {
-		planet,
-		x: system.x,
-		y: system.y,
-	};
 }
 
 async function readColonyShipCounts(args: {
@@ -119,66 +101,215 @@ async function replaceColonyShipCounts(args: {
 	}
 }
 
-async function getNearestHostilePlanetForColony(args: {
-	colony: Doc<"colonies">;
-	ctx: QueryCtx | MutationCtx;
+type HostileSource = {
+	distance: number;
+	hostileFactionKey: Doc<"planetHostility">["hostileFactionKey"];
+	planetId: Id<"planets">;
+};
+
+type HostileSourceWithCoords = Omit<HostileSource, "distance"> & {
+	x: number;
+	y: number;
+};
+
+function findNearestHostileSource(args: {
+	hostileSources: HostileSourceWithCoords[];
+	originCoords: { x: number; y: number };
 }) {
-	const hostileRows = await args.ctx.db
-		.query("planetHostility")
-		.withIndex("by_universe_status", (q) =>
-			q.eq("universeId", args.colony.universeId).eq("status", "hostile"),
-		)
-		.collect();
-	if (hostileRows.length === 0) {
-		return null;
-	}
-
-	const originCoords = await colonySystemCoords({
-		colonyId: args.colony._id,
-		ctx: args.ctx,
-	});
-
-	let best: {
-		distance: number;
-		hostileFactionKey: Doc<"planetHostility">["hostileFactionKey"];
-		planetId: Id<"planets">;
-	} | null = null;
-
-	for (const row of hostileRows) {
-		const target = await systemCoordsForPlanet({
-			ctx: args.ctx,
-			planetId: row.planetId,
-		});
+	let best: HostileSource | null = null;
+	for (const hostileSource of args.hostileSources) {
 		const distance = euclideanDistance({
-			x1: originCoords.x,
-			y1: originCoords.y,
-			x2: target.x,
-			y2: target.y,
+			x1: args.originCoords.x,
+			y1: args.originCoords.y,
+			x2: hostileSource.x,
+			y2: hostileSource.y,
 		});
 		if (!best || distance < best.distance) {
 			best = {
 				distance,
-				hostileFactionKey: row.hostileFactionKey,
-				planetId: row.planetId,
+				hostileFactionKey: hostileSource.hostileFactionKey,
+				planetId: hostileSource.planetId,
 			};
 		}
 	}
-
 	return best;
+}
+
+async function loadHostileSourcesForUniverse(args: {
+	ctx: QueryCtx | MutationCtx;
+	universeId: Id<"universes">;
+}): Promise<HostileSourceWithCoords[]> {
+	const hostileRows = await args.ctx.db
+		.query("planetHostility")
+		.withIndex("by_universe_status", (q) =>
+			q.eq("universeId", args.universeId).eq("status", "hostile"),
+		)
+		.collect();
+	if (hostileRows.length === 0) {
+		return [];
+	}
+
+	const planets = await Promise.all(hostileRows.map((row) => args.ctx.db.get(row.planetId)));
+	const systems = await Promise.all(
+		planets.map((planet) => (planet ? args.ctx.db.get(planet.systemId) : Promise.resolve(null))),
+	);
+
+	return hostileRows.flatMap((row, index) => {
+		const system = systems[index];
+		if (!system) {
+			return [];
+		}
+		return [
+			{
+				hostileFactionKey: row.hostileFactionKey,
+				planetId: row.planetId,
+				x: system.x,
+				y: system.y,
+			},
+		];
+	});
+}
+
+async function loadColonySystemCoordsBatch(args: {
+	colonies: Doc<"colonies">[];
+	ctx: QueryCtx | MutationCtx;
+}) {
+	const planets = await Promise.all(args.colonies.map((colony) => args.ctx.db.get(colony.planetId)));
+	const systemIds = [...new Set(planets.flatMap((planet) => (planet ? [planet.systemId] : [])))];
+	const systems = await Promise.all(systemIds.map((systemId) => args.ctx.db.get(systemId)));
+	const systemById = new Map(
+		systems.flatMap((system, index) => (system ? [[systemIds[index]!, system] as const] : [])),
+	);
+	return new Map(
+		args.colonies.flatMap((colony, index) => {
+			const planet = planets[index];
+			const system = planet ? systemById.get(planet.systemId) : null;
+			if (!planet || !system) {
+				return [];
+			}
+			return [[colony._id, { x: system.x, y: system.y }] as const];
+		}),
+	);
+}
+
+async function getNearestHostilePlanetForColony(args: {
+	colony: Doc<"colonies">;
+	ctx: QueryCtx | MutationCtx;
+	hostileSources?: HostileSourceWithCoords[];
+}) {
+	const originCoords = await colonySystemCoords({
+		colonyId: args.colony._id,
+		ctx: args.ctx,
+	});
+	const hostileSources =
+		args.hostileSources ??
+		(await loadHostileSourcesForUniverse({
+			ctx: args.ctx,
+			universeId: args.colony.universeId,
+		}));
+	if (hostileSources.length === 0) {
+		return null;
+	}
+
+	return findNearestHostileSource({
+		hostileSources,
+		originCoords,
+	});
 }
 
 function nextRaidIntervalMs() {
 	return 12 * 60 * 60 * 1_000;
 }
 
-async function cancelScheduledJobIfPresent(args: {
-	ctx: MutationCtx;
-	jobId: Id<"_scheduled_functions"> | undefined;
+function nextRaidJitterMs(args: { colonyId: Id<"colonies">; sourcePlanetId: Id<"planets"> }) {
+	return hashString(`${args.colonyId}:${args.sourcePlanetId}`) % (30 * 60 * 1_000);
+}
+
+function computeNextRaidAt(args: {
+	anchorAt: number;
+	colonyId: Id<"colonies">;
+	sourcePlanetId: Id<"planets">;
 }) {
-	if (!args.jobId) {
-		return;
+	return args.anchorAt + nextRaidIntervalMs() + nextRaidJitterMs(args);
+}
+
+async function findActiveRaidForColony(args: {
+	colonyId: Id<"colonies">;
+	ctx: QueryCtx | MutationCtx;
+}) {
+	return args.ctx.db
+		.query("npcRaidOperations")
+		.withIndex("by_target_status_event", (q) =>
+			q.eq("targetColonyId", args.colonyId).eq("status", RAID_STATUS_IN_TRANSIT),
+		)
+		.first();
+}
+
+async function setNextNpcRaidAtForColony(args: {
+	colony: Doc<"colonies">;
+	ctx: MutationCtx;
+	hostileSource: {
+		planetId: Id<"planets">;
+	} | null;
+	now: number;
+	scheduledAt?: number;
+}) {
+	const nextNpcRaidAt = args.hostileSource
+		? computeNextRaidAt({
+				anchorAt: args.scheduledAt ?? args.now,
+				colonyId: args.colony._id,
+				sourcePlanetId: args.hostileSource.planetId,
+			})
+		: undefined;
+	await args.ctx.db.patch(args.colony._id, {
+		nextNpcRaidAt,
+		updatedAt: args.now,
+	});
+	return nextNpcRaidAt ?? null;
+}
+
+async function reconcileNpcRaidScheduleForColony(args: {
+	colony: Doc<"colonies">;
+	ctx: MutationCtx;
+	hostileSource?: HostileSource | null;
+}) {
+	const progression = await args.ctx.db
+		.query("playerProgression")
+		.withIndex("by_player_id", (q) => q.eq("playerId", args.colony.playerId))
+		.unique();
+	const now = Date.now();
+	if ((progression?.rank ?? 1) < 5) {
+		await args.ctx.db.patch(args.colony._id, {
+			nextNpcRaidAt: undefined,
+			updatedAt: now,
+		});
+		return null;
 	}
-	await args.ctx.scheduler.cancel(args.jobId);
+
+	const hostileSource =
+		args.hostileSource ??
+		(await getNearestHostilePlanetForColony({
+			colony: args.colony,
+			ctx: args.ctx,
+		}));
+	if (!hostileSource) {
+		await args.ctx.db.patch(args.colony._id, {
+			nextNpcRaidAt: undefined,
+			updatedAt: now,
+		});
+		return null;
+	}
+
+	if (args.colony.nextNpcRaidAt !== undefined) {
+		return args.colony.nextNpcRaidAt;
+	}
+
+	return setNextNpcRaidAtForColony({
+		colony: args.colony,
+		ctx: args.ctx,
+		hostileSource,
+		now,
+	});
 }
 
 async function scheduleRaidResolution(args: { ctx: MutationCtx; raid: Doc<"npcRaidOperations"> }) {
@@ -202,21 +333,18 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 	ctx: MutationCtx;
 	scheduledAt: number;
 }) {
-	await cancelScheduledJobIfPresent({
-		ctx: args.ctx,
-		jobId: args.colony.npcRaidSchedulingJobId,
-	});
-	await args.ctx.db.patch(args.colony._id, {
-		nextNpcRaidAt: undefined,
-		npcRaidSchedulingJobId: undefined,
-		updatedAt: Date.now(),
-	});
-
+	const now = Date.now();
 	const hostileSource = await getNearestHostilePlanetForColony({
 		colony: args.colony,
 		ctx: args.ctx,
 	});
 	if (!hostileSource) {
+		await setNextNpcRaidAtForColony({
+			colony: args.colony,
+			ctx: args.ctx,
+			hostileSource: null,
+			now,
+		});
 		return {
 			colonyId: args.colony._id,
 			raidOperationId: undefined,
@@ -228,6 +356,19 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 		.query("playerProgression")
 		.withIndex("by_player_id", (q) => q.eq("playerId", args.colony.playerId))
 		.unique();
+	if ((progression?.rank ?? 1) < 5) {
+		await setNextNpcRaidAtForColony({
+			colony: args.colony,
+			ctx: args.ctx,
+			hostileSource: null,
+			now,
+		});
+		return {
+			colonyId: args.colony._id,
+			raidOperationId: undefined,
+			stale: false,
+		};
+	}
 	const difficultyTier = Math.min(
 		MAX_RAID_DIFFICULTY_TIER,
 		getDifficultyTierForRank(progression?.rank ?? 1),
@@ -241,7 +382,6 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 		distance: hostileSource.distance,
 		shipCounts: snapshot.attackerFleet,
 	});
-	const now = Date.now();
 	const raidOperationId = await args.ctx.db.insert("npcRaidOperations", {
 		universeId: args.colony.universeId,
 		targetColonyId: args.colony._id,
@@ -279,8 +419,12 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 		targetColonyId: raid.targetColonyId,
 		universeId: raid.universeId,
 	});
-	await args.ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
-		colonyId: args.colony._id,
+	await setNextNpcRaidAtForColony({
+		colony: args.colony,
+		ctx: args.ctx,
+		hostileSource,
+		now,
+		scheduledAt: args.scheduledAt,
 	});
 	return {
 		colonyId: args.colony._id,
@@ -398,12 +542,10 @@ export const getRaidStatusForColony = query({
 			ctx,
 			colonyId: args.colonyId,
 		});
-		const activeRaid = await ctx.db
-			.query("npcRaidOperations")
-			.withIndex("by_target_status_event", (q) =>
-				q.eq("targetColonyId", colony._id).eq("status", RAID_STATUS_IN_TRANSIT),
-			)
-			.first();
+		const activeRaid = await findActiveRaidForColony({
+			colonyId: colony._id,
+			ctx,
+		});
 		const activeRaidView = activeRaid
 			? {
 					id: activeRaid._id,
@@ -480,6 +622,56 @@ export const getRaidHistoryForColony = query({
 	},
 });
 
+export const resolveOverdueRaidForColony = mutation({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: v.object({
+		colonyId: v.id("colonies"),
+		raidOperationId: v.optional(v.id("npcRaidOperations")),
+		resolved: v.boolean(),
+		stale: v.boolean(),
+	}),
+	handler: async (ctx, args) => {
+		const { colony } = await getOwnedColony({
+			ctx,
+			colonyId: args.colonyId,
+		});
+		const activeRaid = await findActiveRaidForColony({
+			colonyId: colony._id,
+			ctx,
+		});
+		if (!activeRaid) {
+			return {
+				colonyId: colony._id,
+				raidOperationId: undefined,
+				resolved: false,
+				stale: false,
+			};
+		}
+		if (activeRaid.arriveAt > Date.now()) {
+			return {
+				colonyId: colony._id,
+				raidOperationId: activeRaid._id,
+				resolved: false,
+				stale: false,
+			};
+		}
+
+		const result = await resolveNpcRaidNow({
+			ctx,
+			raidOperationId: activeRaid._id,
+			scheduledAt: activeRaid.nextEventAt,
+		});
+		return {
+			colonyId: colony._id,
+			raidOperationId: activeRaid._id,
+			resolved: !result.stale,
+			stale: result.stale,
+		};
+	},
+});
+
 export const reconcileNpcRaidSchedule = internalMutation({
 	args: {
 		colonyId: v.id("colonies"),
@@ -496,97 +688,149 @@ export const reconcileNpcRaidSchedule = internalMutation({
 				nextNpcRaidAt: null,
 			};
 		}
-		const progression = await ctx.db
-			.query("playerProgression")
-			.withIndex("by_player_id", (q) => q.eq("playerId", colony.playerId))
-			.unique();
-		if ((progression?.rank ?? 1) < 5) {
-			await cancelScheduledJobIfPresent({
-				ctx,
-				jobId: colony.npcRaidSchedulingJobId,
-			});
-			await ctx.db.patch(colony._id, {
-				nextNpcRaidAt: undefined,
-				npcRaidSchedulingJobId: undefined,
-				updatedAt: Date.now(),
-			});
-			return {
-				colonyId: colony._id,
-				nextNpcRaidAt: null,
-			};
-		}
-
-		const hostileSource = await getNearestHostilePlanetForColony({
+		const nextNpcRaidAt = await reconcileNpcRaidScheduleForColony({
 			colony,
 			ctx,
 		});
-		if (!hostileSource) {
-			await cancelScheduledJobIfPresent({
-				ctx,
-				jobId: colony.npcRaidSchedulingJobId,
-			});
-			await ctx.db.patch(colony._id, {
-				nextNpcRaidAt: undefined,
-				npcRaidSchedulingJobId: undefined,
-				updatedAt: Date.now(),
-			});
-			return {
-				colonyId: colony._id,
-				nextNpcRaidAt: null,
-			};
-		}
-
-		const jitterMs = hashString(`${colony._id}:${hostileSource.planetId}`) % (30 * 60 * 1_000);
-		const nextNpcRaidAt = Date.now() + nextRaidIntervalMs() + jitterMs;
-
-		await cancelScheduledJobIfPresent({
-			ctx,
-			jobId: colony.npcRaidSchedulingJobId,
-		});
-		const jobId = await ctx.scheduler.runAt(
-			Math.max(Date.now(), nextNpcRaidAt),
-			internal.raids.spawnNpcRaidForColony,
-			{
-				colonyId: colony._id,
-				scheduledAt: nextNpcRaidAt,
-			},
-		);
-		await ctx.db.patch(colony._id, {
-			nextNpcRaidAt,
-			npcRaidSchedulingJobId: jobId,
-			updatedAt: Date.now(),
-		});
 		return {
 			colonyId: colony._id,
-			nextNpcRaidAt,
+			nextNpcRaidAt: nextNpcRaidAt ?? null,
 		};
 	},
 });
 
-export const spawnNpcRaidForColony = internalMutation({
+export const reconcileAllNpcRaidSchedules = internalMutation({
 	args: {
-		colonyId: v.id("colonies"),
-		scheduledAt: v.number(),
+		cursor: v.optional(v.string()),
 	},
 	returns: v.object({
-		colonyId: v.id("colonies"),
-		raidOperationId: v.optional(v.id("npcRaidOperations")),
-		stale: v.boolean(),
+		processed: v.number(),
+		scheduled: v.number(),
+		cleared: v.number(),
+		continueCursor: v.union(v.string(), v.null()),
+		hasMore: v.boolean(),
+		runAt: v.number(),
 	}),
 	handler: async (ctx, args) => {
-		const colony = await ctx.db.get(args.colonyId);
-		if (!colony || colony.nextNpcRaidAt !== args.scheduledAt) {
-			return {
-				colonyId: args.colonyId,
-				raidOperationId: undefined,
-				stale: true,
-			};
-		}
-		return spawnNpcRaidImmediatelyForColony({
-			colony,
-			ctx,
-			scheduledAt: args.scheduledAt,
+		let scheduled = 0;
+		let cleared = 0;
+		const batch = await ctx.db.query("colonies").paginate({
+			numItems: RAID_RECONCILE_BATCH_SIZE,
+			cursor: args.cursor ?? null,
 		});
+
+		const hostileSourcesByUniverse = new Map<Id<"universes">, HostileSourceWithCoords[]>();
+		for (const universeId of new Set(batch.page.map((colony) => colony.universeId))) {
+			hostileSourcesByUniverse.set(
+				universeId,
+				await loadHostileSourcesForUniverse({
+					ctx,
+					universeId,
+				}),
+			);
+		}
+
+		const coordsByColonyId = await loadColonySystemCoordsBatch({
+			colonies: batch.page,
+			ctx,
+		});
+
+		for (const colony of batch.page) {
+			const originCoords = coordsByColonyId.get(colony._id);
+			const nextNpcRaidAt = await reconcileNpcRaidScheduleForColony({
+				colony,
+				ctx,
+				hostileSource: originCoords
+					? findNearestHostileSource({
+							hostileSources: hostileSourcesByUniverse.get(colony.universeId) ?? [],
+							originCoords,
+						})
+					: null,
+			});
+			if (nextNpcRaidAt === null) {
+				cleared += 1;
+			} else {
+				scheduled += 1;
+			}
+		}
+
+		if (!batch.isDone) {
+			await ctx.scheduler.runAfter(0, internal.raids.reconcileAllNpcRaidSchedules, {
+				cursor: batch.continueCursor,
+			});
+		}
+		return {
+			processed: batch.page.length,
+			scheduled,
+			cleared,
+			continueCursor: batch.isDone ? null : batch.continueCursor,
+			hasMore: !batch.isDone,
+			runAt: Date.now(),
+		};
+	},
+});
+
+export const reconcileDueNpcRaids = internalMutation({
+	args: {},
+	returns: v.object({
+		processed: v.number(),
+		spawned: v.number(),
+		runAt: v.number(),
+	}),
+	handler: async (ctx) => {
+		const now = Date.now();
+		const dueColonies = await ctx.db
+			.query("colonies")
+			.withIndex("by_next_npc_raid_at", (q) => q.lte("nextNpcRaidAt", now))
+			.take(RAID_RECONCILE_BATCH_SIZE);
+		let spawned = 0;
+		for (const colony of dueColonies) {
+			if (colony.nextNpcRaidAt === undefined || colony.nextNpcRaidAt > now) {
+				continue;
+			}
+			const activeRaid = await findActiveRaidForColony({
+				colonyId: colony._id,
+				ctx,
+			});
+			if (activeRaid) {
+				if (activeRaid.status === RAID_STATUS_IN_TRANSIT && activeRaid.arriveAt <= now) {
+					await resolveNpcRaidNow({
+						ctx,
+						raidOperationId: activeRaid._id,
+						scheduledAt: activeRaid.nextEventAt,
+					});
+				}
+				const hostileSource = await getNearestHostilePlanetForColony({
+					colony,
+					ctx,
+				});
+				const progression = await ctx.db
+					.query("playerProgression")
+					.withIndex("by_player_id", (q) => q.eq("playerId", colony.playerId))
+					.unique();
+				await setNextNpcRaidAtForColony({
+					colony,
+					ctx,
+					hostileSource: (progression?.rank ?? 1) >= 5 ? hostileSource : null,
+					now,
+					scheduledAt: colony.nextNpcRaidAt,
+				});
+				continue;
+			}
+			const result = await spawnNpcRaidImmediatelyForColony({
+				colony,
+				ctx,
+				scheduledAt: colony.nextNpcRaidAt,
+			});
+			if (result.raidOperationId) {
+				spawned += 1;
+			}
+		}
+		return {
+			processed: dueColonies.length,
+			spawned,
+			runAt: now,
+		};
 	},
 });
 

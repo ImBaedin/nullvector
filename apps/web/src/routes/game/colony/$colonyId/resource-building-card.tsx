@@ -20,7 +20,9 @@ import { Clock3, Gauge, Info, Layers3, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 
-import { UpgradeButton } from "@/features/ui-mockups/components/upgrade-button";
+import { getUpgradeActionPresentation } from "@/features/colony-ui/action-state";
+import { ActionButton } from "@/features/colony-ui/components/action-button";
+import { formatColonyDuration } from "@/features/colony-ui/time";
 
 type DeltaResourceKey = "alloy" | "crystal" | "fuel" | "energy";
 type CardStatus = "Running" | "Shortage" | "Overflow" | "Paused";
@@ -110,19 +112,7 @@ function formatUpgradeTime(seconds?: number) {
 		return "N/A";
 	}
 
-	const hours = Math.floor(seconds / 3_600);
-	const minutes = Math.floor((seconds % 3_600) / 60);
-	const remainingSeconds = seconds % 60;
-
-	if (hours > 0) {
-		return `${hours}h ${minutes}m`;
-	}
-
-	if (minutes > 0) {
-		return `${minutes}m ${remainingSeconds}s`;
-	}
-
-	return `${remainingSeconds}s`;
+	return formatColonyDuration(seconds, "seconds");
 }
 
 function formatSignedDelta(value: number, suffix: string) {
@@ -617,6 +607,8 @@ export function ResourceBuildingCard(props: {
 				: building.key === "fuelRefineryLevel"
 					? resourcesStored.fuel
 					: 0;
+	const nextUpgradeCost = building.nextUpgradeCost;
+	const nextUpgradeDurationSeconds = building.nextUpgradeDurationSeconds;
 	const resourceStorageCap =
 		building.key === "alloyMineLevel"
 			? storageCaps.alloy
@@ -631,14 +623,25 @@ export function ResourceBuildingCard(props: {
 		resourceStorageCap > 0 &&
 		resourceStored >= resourceStorageCap;
 	const hasRequiredResources =
-		resourcesStored.alloy >= building.nextUpgradeCost.alloy &&
-		resourcesStored.crystal >= building.nextUpgradeCost.crystal &&
-		resourcesStored.fuel >= building.nextUpgradeCost.fuel;
+		resourcesStored.alloy >= nextUpgradeCost.alloy &&
+		resourcesStored.crystal >= nextUpgradeCost.crystal &&
+		resourcesStored.fuel >= nextUpgradeCost.fuel;
 	const canStartUpgrade =
 		hasRequiredResources &&
 		!buildingQueueIsFull &&
 		!isBusy &&
-		building.nextUpgradeDurationSeconds !== undefined;
+		nextUpgradeDurationSeconds !== undefined;
+	const actionPresentation = getUpgradeActionPresentation({
+		actionLabel: building.currentLevel <= 0 ? "Build" : "Upgrade",
+		availableResources: resourcesStored,
+		cost: nextUpgradeCost,
+		hasQueuedItem: Boolean(queuedForBuilding),
+		isActive: isActiveUpgradeTarget,
+		isBusy,
+		isLocked: false,
+		isMaxLevel: nextUpgradeDurationSeconds === undefined,
+		isQueueFull: buildingQueueIsFull,
+	});
 	const cardStatus = statusFromBuilding({
 		energyRatio,
 		isProduction: isProductionBuilding,
@@ -1089,28 +1092,24 @@ export function ResourceBuildingCard(props: {
 						<Popover.Trigger
 							closeDelay={90}
 							delay={60}
+							nativeButton={false}
 							openOnHover
 							render={
-								<UpgradeButton
-									actionDurationText={formatUpgradeTime(building.nextUpgradeDurationSeconds)}
-									disabled={!canStartUpgrade}
-									icon="arrow"
-									label={
-										isBusy
-											? "Queueing..."
-											: buildingQueueIsFull
-												? "Queue Full"
-												: hasRequiredResources
-													? "Upgrade"
-													: "Need Resources"
-									}
-									onClick={() => {
-										if (!canStartUpgrade) {
-											return;
-										}
-										onUpgrade();
-									}}
-								/>
+								<div>
+									<ActionButton
+										disabled={!actionPresentation.isActionEnabled}
+										durationLabel={formatUpgradeTime(nextUpgradeDurationSeconds)}
+										label={actionPresentation.buttonLabel}
+										loading={isBusy}
+										onClick={() => {
+											if (!canStartUpgrade) {
+												return;
+											}
+											onUpgrade();
+										}}
+										tone="resource"
+									/>
+								</div>
 							}
 						/>
 						<Popover.Portal>
@@ -1136,17 +1135,17 @@ export function ResourceBuildingCard(props: {
 									</p>
 									<div className="mt-2 flex flex-wrap items-center gap-1.5">
 										<CostPill
-											amount={building.nextUpgradeCost.alloy}
+											amount={nextUpgradeCost.alloy}
 											icon="/game-icons/alloy.png"
 											label="Alloy"
 										/>
 										<CostPill
-											amount={building.nextUpgradeCost.crystal}
+											amount={nextUpgradeCost.crystal}
 											icon="/game-icons/crystal.png"
 											label="Crystal"
 										/>
 										<CostPill
-											amount={building.nextUpgradeCost.fuel}
+											amount={nextUpgradeCost.fuel}
 											icon="/game-icons/deuterium.png"
 											label="Fuel"
 										/>

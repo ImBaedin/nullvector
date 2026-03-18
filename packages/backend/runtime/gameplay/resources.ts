@@ -1,7 +1,10 @@
-import { getUpgradeCost, getUpgradeDurationSeconds } from "@nullvector/game-logic";
+import {
+	getBuildingUpgradeCost,
+	getBuildingUpgradeDurationSeconds,
+	getUpgradeCost,
+	getUpgradeDurationSeconds,
+} from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
-
-import type { StorageBuildingKey } from "./shared";
 
 import { mutation } from "../../convex/_generated/server";
 import { rescheduleColonyQueueResolution } from "./scheduling";
@@ -14,14 +17,11 @@ import {
 	getBuildingLaneCapacity,
 	getOwnedColony,
 	isBuildingUpgradeQueueItem,
-	isStorageBuildingKey,
 	listOpenLaneQueueItems,
 	queueLaneValidator,
 	queueItemStatusValidator,
 	resourceMapToScaledBucket,
 	settleColonyAndPersist,
-	storageUpgradeCost,
-	storageUpgradeDurationSeconds,
 	upsertColonyCompanionRows,
 	upsertQueuePayloadRow,
 } from "./shared";
@@ -95,10 +95,7 @@ export const enqueueBuildingUpgrade = mutation({
 					getUpgradeCost(getGeneratorOrThrow(config.generatorId), fromLevel),
 				);
 			}
-			if (!isStorageBuildingKey(args.buildingKey)) {
-				throw new ConvexError("Storage upgrade key mismatch");
-			}
-			return resourceMapToScaledBucket(storageUpgradeCost(args.buildingKey, fromLevel));
+			return resourceMapToScaledBucket(getBuildingUpgradeCost(args.buildingKey, fromLevel));
 		})();
 
 		for (const key of RESOURCE_KEYS) {
@@ -116,10 +113,7 @@ export const enqueueBuildingUpgrade = mutation({
 			if (config.kind === "generator") {
 				return getUpgradeDurationSeconds(getGeneratorOrThrow(config.generatorId), fromLevel);
 			}
-			if (!isStorageBuildingKey(args.buildingKey)) {
-				throw new ConvexError("Storage upgrade key mismatch");
-			}
-			return storageUpgradeDurationSeconds(args.buildingKey, fromLevel);
+			return getBuildingUpgradeDurationSeconds(args.buildingKey, fromLevel);
 		})();
 		const laneTail = queueRows[queueRows.length - 1];
 		const startsAt = laneTail ? laneTail.completesAt : now;

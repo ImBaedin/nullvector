@@ -105,21 +105,25 @@ export function useOptimisticColonyMutation<TArgs extends { colonyId: Id<"coloni
 		if (!sessionSnapshot) {
 			return;
 		}
-		localStore.setQuery(api.colony.getColonySessionSnapshot, { colonyId: mutationArgs.colonyId }, {
-			...sessionSnapshot,
-			colonies: sessionSnapshot.colonies.map((colony) =>
-				colony.id === mutationArgs.colonyId
-					? {
-							...colony,
-							name: nextSnapshot.name,
-							status: deriveColonySessionStatus(nextSnapshot),
-						}
-					: colony,
-			),
-			title:
-				sessionSnapshot.activeColonyId === mutationArgs.colonyId
-					? `${nextSnapshot.name} Resources`
-					: sessionSnapshot.title,
-		});
+		localStore.setQuery(
+			api.colony.getColonySessionSnapshot,
+			{ colonyId: mutationArgs.colonyId },
+			{
+				...sessionSnapshot,
+				colonies: sessionSnapshot.colonies.map((colony) =>
+					colony.id === mutationArgs.colonyId
+						? {
+								...colony,
+								name: nextSnapshot.name,
+								status: deriveColonySessionStatus(nextSnapshot),
+							}
+						: colony,
+				),
+				title:
+					sessionSnapshot.activeColonyId === mutationArgs.colonyId
+						? `${nextSnapshot.name} Resources`
+						: sessionSnapshot.title,
+			},
+		);
 	});
 }

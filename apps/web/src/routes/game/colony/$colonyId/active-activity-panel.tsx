@@ -90,8 +90,8 @@ export function ActivityTimelinePanel(props: ActivityTimelinePanelProps) {
 								{item.relationLabel ? <span className={`
           shrink-0 rounded-sm px-1.5 py-0.5 text-[9px] font-semibold uppercase
           ${item.relationBadgeClassName ?? `
-              border border-white/10 bg-white/3 text-white/70
-            `}
+            border border-white/10 bg-white/3 text-white/70
+          `}
         `}>{item.relationLabel}</span> : null}
 
 								<div

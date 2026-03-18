@@ -2,7 +2,7 @@ import type { ShipKey } from "@nullvector/game-logic";
 
 import { Minus, Plus } from "lucide-react";
 
-import { getShipImagePath, SHIP_GROUPS } from "./shipyard-mock-shared";
+import { getShipImagePath, SHIP_GROUPS } from "./shipyard-shared";
 
 type ShipAssignmentShip = {
 	available: number;

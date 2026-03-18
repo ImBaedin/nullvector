@@ -1,23 +1,11 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import { selectDefenseCatalog, type DefenseKey } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
+import { selectDefenseCatalog, type DefenseKey } from "@nullvector/game-logic";
 import { HOSTILE_FACTIONS } from "@nullvector/game-logic";
 import { createFileRoute } from "@tanstack/react-router";
-import {
-	Clock3,
-	Heart,
-	Layers3,
-	Minus,
-	Package,
-	Plus,
-	Shield,
-	ShieldAlert,
-	Swords,
-	X,
-	Zap,
-} from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Clock3, Heart, Layers3, Package, Shield, ShieldAlert, Swords, X, Zap } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -25,12 +13,19 @@ import {
 	useColonySessionSnapshot,
 	useOptimisticColonyMutation,
 } from "@/features/colony-state/hooks";
+import { getQueueableBuildActionPresentation } from "@/features/colony-ui/action-state";
+import { ActionButton } from "@/features/colony-ui/components/action-button";
+import { CostPill } from "@/features/colony-ui/components/cost-pill";
+import { LockWarningPopover } from "@/features/colony-ui/components/lock-warning-popover";
+import { QuantityStepper } from "@/features/colony-ui/components/quantity-stepper";
+import { StatusBadge } from "@/features/colony-ui/components/status-badge";
+import { getQueueProgress } from "@/features/colony-ui/queue-state";
+import { formatColonyDuration } from "@/features/colony-ui/time";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { ActivityTimelinePanel, type ActivityTimelineItem } from "./active-activity-panel";
 import { DefensesRouteSkeleton } from "./loading-skeletons";
-import { CostPill, formatDuration, LockWarningPopover } from "./shipyard-mock-shared";
 
 export const Route = createFileRoute("/game/colony/$colonyId/defenses")({
 	component: DefensesRoute,
@@ -123,18 +118,6 @@ function isDefenseBuildQueueRow(item: {
 	);
 }
 
-function canAffordDefense(args: {
-	availableResources: { alloy: number; crystal: number; fuel: number };
-	cost: DefenseDisplay["cost"];
-	quantity: number;
-}) {
-	return (
-		args.availableResources.alloy >= args.cost.alloy * args.quantity &&
-		args.availableResources.crystal >= args.cost.crystal * args.quantity &&
-		args.availableResources.fuel >= args.cost.fuel * args.quantity
-	);
-}
-
 function DefensesRoute() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
@@ -177,7 +160,6 @@ function DefensesRoute() {
 		api.devConsole.completeActiveRaidAtCurrentColony,
 	);
 
-	const [nowMs, setNowMs] = useState(() => Date.now());
 	const [quantities, setQuantities] = useState<Partial<Record<DefenseKey, number>>>({});
 	const [quantityInputs, setQuantityInputs] = useState<Partial<Record<DefenseKey, string>>>({});
 	const [queueingDefenseKey, setQueueingDefenseKey] = useState<DefenseKey | null>(null);
@@ -194,19 +176,7 @@ function DefensesRoute() {
 	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
 	const canUseDevConsole = devConsoleState?.canUseDevConsole === true;
 
-	useEffect(() => {
-		if (!isAuthenticated) {
-			return;
-		}
-
-		const tick = window.setInterval(() => {
-			setNowMs(Date.now());
-		}, 1_000);
-
-		return () => {
-			window.clearInterval(tick);
-		};
-	}, [isAuthenticated]);
+	const nowMs = colonyResources.nowMs;
 
 	const view = useMemo(() => {
 		if (!colonySelectors) {
@@ -284,20 +254,9 @@ function DefensesRoute() {
 		view?.lane.activeItem && isDefenseBuildQueueRow(view.lane.activeItem)
 			? view.lane.activeItem
 			: null;
-	const activeItemStartsAt = activeRawItem?.startsAt;
-	const activeItemDurationMs =
-		activeRawItem && activeItemStartsAt ? activeRawItem.completesAt - activeItemStartsAt : 0;
-	const activeUpgradeProgress =
-		activeRawItem && activeItemDurationMs > 0
-			? Math.min(
-					100,
-					Math.max(
-						0,
-						((nowMs - (activeRawItem.completesAt - activeItemDurationMs)) / activeItemDurationMs) *
-							100,
-					),
-				)
-			: 0;
+	const activeUpgradeProgress = activeRawItem
+		? getQueueProgress(nowMs, activeRawItem.startsAt, activeRawItem.completesAt).percent
+		: 0;
 
 	const availableResources = colonyResources.projected?.stored;
 	const totalOwned = view?.defenses.reduce((sum, defense) => sum + defense.owned, 0) ?? 0;
@@ -393,7 +352,7 @@ function DefensesRoute() {
 					) : null,
 				].filter(Boolean),
 				dotClassName: "bg-rose-400",
-				etaLabel: formatDuration(etaSeconds),
+				etaLabel: formatColonyDuration(etaSeconds, "seconds"),
 				id: activeRaid.id,
 				kindBadgeClassName: "bg-rose-400/12 text-rose-200/80",
 				kindLabel: "Raid",
@@ -771,7 +730,7 @@ function DefensesRoute() {
 					<IncomingRaidPanel
 						emptyMessage={
 							nextRaidEtaSeconds != null
-								? `No active raid. Next threat window in ${formatDuration(nextRaidEtaSeconds)}.`
+								? `No active raid. Next threat window in ${formatColonyDuration(nextRaidEtaSeconds, "seconds")}.`
 								: "No incoming raids detected."
 						}
 						expandedRaidId={expandedRaidId}
@@ -846,39 +805,22 @@ function DefenseCard(props: {
 		quantityInput,
 	} = props;
 	const isLocked = !defense.isUnlocked;
-	const canAffordSelectedQuantity = canAffordDefense({
+	const availability = getQueueableBuildActionPresentation({
+		actionQuantity: quantity,
 		availableResources,
 		cost: defense.cost,
-		quantity,
+		isBusy: isQueueing,
+		isLocked,
+		isQueueFull,
+		lockMessage: `Requires Defense Grid Level ${defense.requiredLevel}.`,
+		queuedCount: defense.queued,
 	});
-	const isStructurallyAvailable = !isLocked && !isQueueFull && canAffordSelectedQuantity;
-
-	const badgeClassName = isLocked
-		? "border-amber-300/35 bg-amber-400/10 text-amber-200/80"
-		: defense.queued > 0
-			? "border-rose-300/30 bg-rose-400/8 text-rose-200/80"
-			: isQueueFull
-				? "border-white/20 bg-white/6 text-white/70"
-				: canAffordSelectedQuantity
-					? "border-emerald-300/30 bg-emerald-400/8 text-emerald-200/80"
-					: "border-amber-300/35 bg-amber-400/10 text-amber-200/80";
-	const badgeLabel = isLocked
-		? "Locked"
-		: defense.queued > 0
-			? `${defense.queued} Queued`
-			: isQueueFull
-				? "Queue Full"
-				: canAffordSelectedQuantity
-					? "Available"
-					: "Insufficient";
 
 	return (
 		<article
 			className={`
      group relative overflow-hidden rounded-xl border
-     ${isLocked ? `border-white/8 opacity-60 grayscale` : `
-     border-white/10
-   `}
+     ${isLocked ? `border-white/8 opacity-60 grayscale` : `border-white/10`}
      bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
      text-[13px]
    `}
@@ -914,15 +856,9 @@ function DefenseCard(props: {
 							<h3 className="font-(family-name:--nv-font-display) text-sm font-bold">
 								{defense.name}
 							</h3>
-							<span className={`
-         inline-flex items-center rounded-md border px-1.5 py-0.5 text-[8px]
-         font-semibold whitespace-nowrap uppercase
-         ${badgeClassName}
-       `}>{badgeLabel}</span>
-							{isLocked ? (
-								<LockWarningPopover
-									message={`Requires Defense Grid Level ${defense.requiredLevel}.`}
-								/>
+							<StatusBadge compact label={availability.badgeLabel} tone={availability.badgeTone} />
+							{availability.lockMessage ? (
+								<LockWarningPopover message={availability.lockMessage} />
 							) : null}
 						</div>
 						<p className="mt-0.5 text-[11px] leading-snug text-white/40">{defense.description}</p>
@@ -1007,7 +943,7 @@ function DefenseCard(props: {
 						<ColorStatMini
 							color="text-white/75"
 							label="Build"
-							value={formatDuration(defense.buildSeconds)}
+							value={formatColonyDuration(defense.buildSeconds, "seconds")}
 						/>
 					</div>
 
@@ -1020,78 +956,37 @@ function DefenseCard(props: {
 					</div>
 
 					<div className="ml-auto flex items-center gap-2">
-						<div
-							className="
-         flex items-center rounded-lg border border-white/12 bg-black/25
-       "
-						>
-							<button
-								className="
-          flex size-7 items-center justify-center text-white/60
-          disabled:opacity-25
-        "
-								disabled={isLocked || isQueueing}
-								onClick={() => {
-									onDecrementQuantity(defense.key, quantity);
-								}}
-								type="button"
-							>
-								<Minus className="size-3" />
-							</button>
-							<input
-								className="
-          w-10 [appearance:textfield] bg-transparent px-0.5 text-center
-          font-(family-name:--nv-font-mono) text-xs font-bold text-white
-          outline-none
-          disabled:opacity-50
-          [&::-webkit-inner-spin-button]:appearance-none
-          [&::-webkit-outer-spin-button]:appearance-none
-        "
-								disabled={isLocked || isQueueing}
-								onBlur={() => {
-									onQuantityBlur(defense.key, quantity);
-								}}
-								onChange={(event) => {
-									onQuantityInputChange(defense.key, event.target.value);
-								}}
-								type="number"
-								value={quantityInput}
-							/>
-							<button
-								className="
-          flex size-7 items-center justify-center text-white/60
-          disabled:opacity-25
-        "
-								disabled={isLocked || isQueueing}
-								onClick={() => {
-									onIncrementQuantity(defense.key, quantity);
-								}}
-								type="button"
-							>
-								<Plus className="size-3" />
-							</button>
-						</div>
+						<QuantityStepper
+							canEdit={!isLocked && !isQueueing}
+							max={10_000}
+							min={1}
+							onBlur={() => {
+								onQuantityBlur(defense.key, quantity);
+							}}
+							onChange={(value) => {
+								onQuantityInputChange(defense.key, value);
+							}}
+							onDecrement={() => {
+								onDecrementQuantity(defense.key, quantity);
+							}}
+							onIncrement={() => {
+								onIncrementQuantity(defense.key, quantity);
+							}}
+							quantity={quantity}
+							value={quantityInput}
+						/>
 
-						<button
-							className="
-         flex items-center gap-1.5 rounded-lg border border-rose-200/50
-         bg-linear-to-b from-rose-400/25 to-rose-400/10 px-3 py-1.5
-         font-(family-name:--nv-font-display) text-[11px] font-bold
-         tracking-[0.06em] text-rose-50 uppercase
-         shadow-[0_0_16px_rgba(251,113,133,0.10)] transition-all
-         hover:border-rose-100/70 hover:shadow-[0_0_24px_rgba(251,113,133,0.2)]
-         disabled:border-white/10 disabled:bg-white/5 disabled:text-white/30
-         disabled:shadow-none
-       "
-							disabled={!isStructurallyAvailable || isQueueing}
+						<ActionButton
+							className="px-3 py-1.5 text-[11px]"
+							disabled={!availability.isActionEnabled}
+							label={availability.buttonLabel}
+							leadingIcon={<Zap className="size-3" />}
+							loading={isQueueing}
 							onClick={() => {
 								onQueueDefense(defense, quantity);
 							}}
-							type="button"
-						>
-							<Zap className="size-3" />
-							{isQueueing ? "Queueing..." : `Queue ${quantity}`}
-						</button>
+							tone="defense"
+						/>
 					</div>
 				</div>
 			</div>
@@ -1164,7 +1059,9 @@ function PowerSplitBar(props: { totalAttack: number; totalHull: number; totalShi
      `} key={seg.label} style={{ width: `${seg.pct}%` }}>
 						{seg.icon}
 						<span className="tracking-wider uppercase">{seg.label}</span>
-						<span className="font-(family-name:--nv-font-mono) font-bold text-white/70">
+						<span
+							className="font-(family-name:--nv-font-mono) font-bold text-white/70"
+						>
 							{seg.value.toLocaleString()}
 						</span>
 						<span className="font-(family-name:--nv-font-mono) text-white/30">
@@ -1234,7 +1131,9 @@ function DefenseQueuePanel(props: {
      bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
    "
 		>
-			<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
+			<div
+				className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
+			>
 				<Clock3 className="size-5 text-rose-300" />
 				<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Defense Queue</h2>
 				{queueItemsCount > 0 ? (
@@ -1258,7 +1157,9 @@ function DefenseQueuePanel(props: {
 						>
 							Active
 						</p>
-						<div className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3">
+						<div
+							className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3"
+						>
 							<div className="flex items-start justify-between gap-2">
 								<div className="flex items-center gap-2.5">
 									<img
@@ -1331,7 +1232,7 @@ function DefenseQueuePanel(props: {
             font-(family-name:--nv-font-mono) text-xs font-bold text-emerald-200
           "
 									>
-										{formatDuration(activeQueueItem.timeLeftSeconds)}
+										{formatColonyDuration(activeQueueItem.timeLeftSeconds, "seconds")}
 									</p>
 									<p
 										className="
@@ -1354,7 +1255,9 @@ function DefenseQueuePanel(props: {
 								/>
 							</div>
 							<div className="mt-1 flex items-center justify-between">
-								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/25">
+								<span
+									className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
+								>
 									{Math.round(activeUpgradeProgress)}%
 								</span>
 								<span
@@ -1416,7 +1319,7 @@ function DefenseQueuePanel(props: {
               font-(family-name:--nv-font-mono) text-[9px] text-white/30
             "
 											>
-												{item.total} units • {formatDuration(item.timeLeftSeconds)}
+												{item.total} units • {formatColonyDuration(item.timeLeftSeconds, "seconds")}
 											</p>
 										</div>
 									</div>

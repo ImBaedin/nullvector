@@ -22,7 +22,7 @@ import {
 	type QueryCtx,
 } from "../../convex/_generated/server";
 import { RESOURCE_SCALE } from "../../convex/schema";
-import { reconcilePlanetContracts } from "./contracts";
+import { advanceContractBoardSlot, maybeRebuildContractDiscoveryAfterClear } from "./contracts";
 import { applyPlanetControlReduction, isPlanetCurrentlyColonizable } from "./hostility";
 import {
 	emitContractResolvedNotification,
@@ -730,6 +730,9 @@ async function settleColonizeAtTarget(args: {
 	await args.ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
 		colonyId,
 	});
+	await args.ctx.scheduler.runAfter(0, internal.contracts.rebuildContractDiscoveryForColony, {
+		colonyId,
+	});
 
 	const createdColonyBase = await args.ctx.db.get(colonyId);
 	if (!createdColonyBase) {
@@ -978,13 +981,22 @@ async function settleContractAtTarget(args: {
 		universeId: args.operation.universeId,
 	});
 
-	await reconcilePlanetContracts({
+	const originColonyId = contract.originColonyId ?? args.operation.originColonyId;
+	await advanceContractBoardSlot({
 		ctx: args.ctx,
+		colonyId: originColonyId,
 		now: args.now,
 		planetId: contract.planetId,
 		playerId: contract.playerId,
-		universeId: contract.universeId,
+		slot: contract.slot,
 	});
+	if (controlReductionApplied > 0) {
+		await maybeRebuildContractDiscoveryAfterClear({
+			ctx: args.ctx,
+			colonyId: originColonyId,
+			now: args.now,
+		});
+	}
 }
 
 async function settleOperationReturn(args: {
@@ -2434,6 +2446,14 @@ export const cancelOperation = mutation({
 			throw new ConvexError("Operation has already reached the target");
 		}
 
+		const linkedContract =
+			operation.kind === "contract"
+				? await ctx.db
+						.query("contracts")
+						.withIndex("by_operation_id", (q) => q.eq("operationId", operation._id))
+						.unique()
+				: null;
+
 		const totalDuration = Math.max(1, operation.arriveAt - operation.departAt);
 		const elapsed = Math.max(0, Math.min(totalDuration, now - operation.departAt));
 		const elapsedRatio = elapsed / totalDuration;
@@ -2515,6 +2535,21 @@ export const cancelOperation = mutation({
 			ownerPlayerId: operation.ownerPlayerId,
 			universeId: operation.universeId,
 		});
+		if (linkedContract && linkedContract.status === "inProgress") {
+			await ctx.db.patch(linkedContract._id, {
+				status: "failed",
+				resolvedAt: now,
+				updatedAt: now,
+			});
+			await advanceContractBoardSlot({
+				ctx,
+				colonyId: linkedContract.originColonyId ?? operation.originColonyId,
+				now,
+				planetId: linkedContract.planetId,
+				playerId: linkedContract.playerId,
+				slot: linkedContract.slot,
+			});
+		}
 		await reconcileFleetOperationSchedule({
 			ctx,
 			operationId: operation._id,

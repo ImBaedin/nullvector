@@ -149,10 +149,8 @@ function NotificationRow({
       mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border
       transition-colors
     `, notification.severity === "danger" ? `border-rose-400/25 bg-rose-400/10` : notification.severity === "warning" ? `
-        border-amber-400/25 bg-amber-400/10
-      ` : `
-        border-white/10 bg-white/5
-      `)}>
+      border-amber-400/25 bg-amber-400/10
+    ` : `border-white/10 bg-white/5`)}>
 					<span className={config.color}>{config.icon}</span>
 				</div>
 
@@ -329,7 +327,7 @@ function AuthenticatedNotificationList({
 					{Array.from({ length: 4 }).map((_, index) => (
 						<div
 							className="
-         h-24 animate-pulse rounded-lg border border-white/6 bg-white/[0.03]
+         h-24 animate-pulse rounded-lg border border-white/6 bg-white/3
        "
 							key={index}
 						/>
@@ -364,9 +362,7 @@ function AuthenticatedNotificationList({
 					) : null}
 				</div>
 			) : (
-				<div
-					className="flex flex-col items-center justify-center py-16 text-center"
-				>
+				<div className="flex flex-col items-center justify-center py-16 text-center">
 					<div
 						className="
         mb-3 flex size-12 items-center justify-center rounded-xl border
@@ -618,19 +614,20 @@ export function NotificationsModal({
 										<Select.Trigger
 											className="
              nv-transition group flex h-8 items-center gap-2 rounded-lg border
-             border-white/10 bg-white/[0.04] px-3 text-xs font-medium
+             border-white/10 bg-white/4 px-3 text-xs font-medium
              text-(--nv-text-secondary)
              hover:border-white/16 hover:bg-white/[0.07]
              focus-visible:ring-2 focus-visible:ring-(--nv-focus-ring)
              focus-visible:outline-none
-             data-popup-open:border-cyan-400/30
-             data-popup-open:bg-cyan-400/[0.06]
+             data-popup-open:border-cyan-400/30 data-popup-open:bg-cyan-400/6
            "
 										>
-											<Globe className="
-             size-3.5 text-(--nv-text-muted)
-             group-data-popup-open:text-cyan-400/70
-           " />
+											<Globe
+												className="
+              size-3.5 text-(--nv-text-muted)
+              group-data-popup-open:text-cyan-400/70
+            "
+											/>
 											<Select.Value className="min-w-0 truncate" placeholder="All Colonies">
 												{selectedColonyLabel}
 											</Select.Value>
@@ -646,10 +643,9 @@ export function NotificationsModal({
 											<Select.Positioner align="start" className="z-200" sideOffset={6}>
 												<Select.Popup
 													className="
-               origin-[var(--transform-origin)] rounded-xl border
-               border-white/12 bg-[rgba(8,14,26,0.96)] p-1
-               shadow-[0_16px_48px_rgba(0,0,0,0.5)] backdrop-blur-xl
-               transition-[transform,opacity] duration-200
+               origin-(--transform-origin) rounded-xl border border-white/12
+               bg-[rgba(8,14,26,0.96)] p-1 shadow-[0_16px_48px_rgba(0,0,0,0.5)]
+               backdrop-blur-xl transition-[transform,opacity] duration-200
                data-ending-style:scale-95 data-ending-style:opacity-0
                data-starting-style:scale-95 data-starting-style:opacity-0
              "
@@ -684,26 +680,16 @@ export function NotificationsModal({
 
 									<div className="flex items-center gap-1">
 										{STATUS_FILTERS.map((filter) => (
-											<button
-												className={cn(
-													`
-               nv-transition rounded-md px-2.5 py-1 text-[11px] font-semibold
-               tracking-wide uppercase
-             `,
-													statusFilter === filter.id
-														? `
-                bg-cyan-400/12 text-cyan-200
-                shadow-[inset_0_0_0_1px_rgba(61,217,255,0.18)]
-              `
-														: `
-                text-(--nv-text-muted)
-                hover:bg-white/[0.05] hover:text-(--nv-text-secondary)
-              `,
-												)}
-												key={filter.id}
-												onClick={() => setStatusFilter(filter.id)}
-												type="button"
-											>
+											<button className={cn(`
+             nv-transition rounded-md px-2.5 py-1 text-[11px] font-semibold
+             tracking-wide uppercase
+           `, statusFilter === filter.id ? `
+             bg-cyan-400/12 text-cyan-200
+             shadow-[inset_0_0_0_1px_rgba(61,217,255,0.18)]
+           ` : `
+               text-(--nv-text-muted)
+               hover:bg-white/5 hover:text-(--nv-text-secondary)
+             `)} key={filter.id} onClick={() => setStatusFilter(filter.id)} type="button">
 												{filter.label}
 											</button>
 										))}
@@ -712,24 +698,16 @@ export function NotificationsModal({
 
 								<div className="flex items-center gap-1">
 									{CATEGORY_FILTERS.map((filter) => (
-										<button
-											className={cn(
-												`
-              nv-transition flex items-center gap-1.5 rounded-lg border px-2.5
-              py-1.5 text-[11px] font-medium
-            `,
-												categoryFilter === filter.id
-													? "border-cyan-400/20 bg-cyan-400/10 text-cyan-200"
-													: `
-               border-transparent text-(--nv-text-muted)
-               hover:border-white/8 hover:bg-white/[0.04]
-               hover:text-(--nv-text-secondary)
-             `,
-											)}
-											key={filter.id}
-											onClick={() => setCategoryFilter(filter.id)}
-											type="button"
-										>
+										<button className={cn(`
+            nv-transition flex items-center gap-1.5 rounded-lg border px-2.5
+            py-1.5 text-[11px] font-medium
+          `, categoryFilter === filter.id ? `
+            border-cyan-400/20 bg-cyan-400/10 text-cyan-200
+          ` : `
+              border-transparent text-(--nv-text-muted)
+              hover:border-white/8 hover:bg-white/4
+              hover:text-(--nv-text-secondary)
+            `)} key={filter.id} onClick={() => setCategoryFilter(filter.id)} type="button">
 											{filter.id === "combat" && <Swords className="size-3" />}
 											{filter.id === "fleet" && <Bell className="size-3" />}
 											{filter.id === "colony" && <Globe className="size-3" />}
@@ -746,8 +724,7 @@ export function NotificationsModal({
 										{Array.from({ length: 4 }).map((_, index) => (
 											<div
 												className="
-              h-24 animate-pulse rounded-lg border border-white/6
-              bg-white/[0.03]
+              h-24 animate-pulse rounded-lg border border-white/6 bg-white/3
             "
 												key={index}
 											/>
