@@ -10,6 +10,8 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "../../convex/_generated/server";
 import { getOwnedColony, resolveUniverse } from "./shared";
 
+const MAX_HOSTILE_SECTOR_DETAILS = 6;
+
 function clamp(value: number, min: number, max: number) {
 	return Math.min(max, Math.max(min, value));
 }
@@ -542,7 +544,7 @@ export const getHostileSectorDetails = query({
 			ctx,
 			colonyId: args.colonyId,
 		});
-		const sectorIds = Array.from(new Set(args.sectorIds)).slice(0, 6);
+		const sectorIds = Array.from(new Set(args.sectorIds)).slice(0, MAX_HOSTILE_SECTOR_DETAILS);
 		const sectors = await Promise.all(
 			sectorIds.map(async (sectorId) => {
 				const sector = await ctx.db.get(sectorId);

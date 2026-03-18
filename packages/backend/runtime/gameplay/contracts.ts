@@ -40,6 +40,12 @@ import {
 	upsertColonyCompanionRows,
 } from "./shared";
 
+function assertIntegerArg(value: number, fieldName: string) {
+	if (!Number.isInteger(value)) {
+		throw new ConvexError(`${fieldName} must be an integer`);
+	}
+}
+
 const contractStatusValidator = v.union(
 	v.literal("available"),
 	v.literal("inProgress"),
@@ -1043,6 +1049,9 @@ export const launchContract = mutation({
 		distance: v.number(),
 	}),
 	handler: async (ctx, args) => {
+		assertIntegerArg(args.slot, "slot");
+		assertIntegerArg(args.offerSequence, "offerSequence");
+
 		const { colony, player } = await getOwnedColony({
 			ctx,
 			colonyId: args.originColonyId,
@@ -1353,7 +1362,14 @@ export async function maybeRebuildContractDiscoveryAfterClear(args: {
 		return true;
 	}
 
-	const hostileCount = rows.filter((row) => row.status === "hostile").length;
+	const hostileCount = (
+		await Promise.all(
+			rows.map(async (row) => {
+				const hostility = await args.ctx.db.get(row.planetHostilityId);
+				return hostility?.status === "hostile";
+			}),
+		)
+	).filter(Boolean).length;
 	if (hostileCount >= REBUILD_MIN_HOSTILE_CANDIDATES) {
 		return false;
 	}

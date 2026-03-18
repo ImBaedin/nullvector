@@ -42,30 +42,22 @@ export const ActionButton = forwardRef<HTMLButtonElement, ActionButtonProps>(fun
 	ref,
 ) {
 	return (
-		<button
-			{...props}
-			className={cn(
-				`
-      flex items-center justify-center gap-2 rounded-xl border bg-linear-to-b
-      px-4 py-2.5 font-(family-name:--nv-font-display) text-xs font-bold
-      tracking-[0.08em] uppercase transition-all
-      disabled:translate-y-0 disabled:border-white/10 disabled:bg-white/5
-      disabled:text-white/30 disabled:shadow-none
-    `,
-				TONE_CLASSNAMES[tone],
-				className,
-			)}
-			disabled={disabled}
-			ref={ref}
-			type={type}
-		>
+		<button {...props} className={cn(`
+    flex items-center justify-center gap-2 rounded-xl border bg-linear-to-b px-4
+    py-2.5 font-(family-name:--nv-font-display) text-xs font-bold
+    tracking-[0.08em] uppercase transition-all
+    disabled:translate-y-0 disabled:border-white/10 disabled:bg-white/5
+    disabled:text-white/30 disabled:shadow-none
+  `, TONE_CLASSNAMES[tone], className)} disabled={disabled} ref={ref} type={type}>
 			{leadingIcon}
 			<span>{loading ? "Queueing..." : label}</span>
 			{durationLabel ? (
-				<span className="
-      font-(family-name:--nv-font-mono) text-[10px] tracking-normal normal-case
-      opacity-80
-    ">
+				<span
+					className="
+       font-(family-name:--nv-font-mono) text-[10px] tracking-normal normal-case
+       opacity-80
+     "
+				>
 					{durationLabel}
 				</span>
 			) : null}

@@ -234,9 +234,7 @@ export function ContractDetailPanel(props: {
           border border-dashed border-white/8
         "
 							/>
-							<div
-								className="absolute inset-1.5 rounded-full border border-white/6"
-							/>
+							<div className="absolute inset-1.5 rounded-full border border-white/6" />
 							<Crosshair className="size-5 text-white/20" />
 						</div>
 						<div className="text-center">
@@ -281,9 +279,11 @@ export function ContractDetailPanel(props: {
         bg-black/40 object-cover p-0.5 shadow-[0_0_12px_rgba(0,0,0,0.4)]
       `} src={factionIconSrc(factionKey)} />
 						<div className="min-w-0 flex-1">
-							<p className="
+							<p
+								className="
          font-(family-name:--nv-font-display) text-sm font-bold tracking-wide
-       ">
+       "
+							>
 								{missionName}
 							</p>
 							<p className="mt-0.5 truncate text-[10px] text-white/45">
@@ -293,9 +293,7 @@ export function ContractDetailPanel(props: {
          mt-0.5 text-[9px] font-medium
          ${factionClasses.text}
          opacity-70
-       `}>
-								{faction.displayName}
-							</p>
+       `}>{faction.displayName}</p>
 						</div>
 					</div>
 
@@ -410,10 +408,12 @@ function EnemyForcesSection(props: { contract: ContractView }): ReactNode {
 			<div className="mt-1.5 space-y-2.5">
 				<div className="flex items-center gap-3">
 					<div className="flex-1">
-						<div className="
+						<div
+							className="
         flex items-center justify-between text-[8px] font-semibold
         tracking-wider text-white/35 uppercase
-      ">
+      "
+						>
 							<span className="flex items-center gap-1">
 								<Ship className="size-2.5" /> Fleet {fleetPct}%
 							</span>
@@ -441,10 +441,12 @@ function EnemyForcesSection(props: { contract: ContractView }): ReactNode {
 
 				{visibleFleet.length > 0 ? (
 					<div>
-						<p className="
+						<p
+							className="
         mb-1.5 flex items-center gap-1.5 text-[8px] font-semibold tracking-wider
         text-white/30 uppercase
-      ">
+      "
+						>
 							<Ship className="size-2.5" /> Hostile Fleet
 						</p>
 						<div className="flex flex-wrap gap-1.5">
@@ -462,10 +464,12 @@ function EnemyForcesSection(props: { contract: ContractView }): ReactNode {
 
 				{visibleDefenses.length > 0 ? (
 					<div>
-						<p className="
+						<p
+							className="
         mb-1.5 flex items-center gap-1.5 text-[8px] font-semibold tracking-wider
         text-white/30 uppercase
-      ">
+      "
+						>
 							<Shield className="size-2.5" /> Defenses
 						</p>
 						<div className="flex flex-wrap gap-1.5">
@@ -676,9 +680,7 @@ function RewardCard(props: {
 
 function UnitChip(props: { iconSrc: string; label: string; value: number }): ReactNode {
 	return (
-		<div
-			className="flex items-center gap-1.5 rounded-md bg-white/4 px-2 py-1.5"
-		>
+		<div className="flex items-center gap-1.5 rounded-md bg-white/4 px-2 py-1.5">
 			<img alt={props.label} className="size-4 object-contain" src={props.iconSrc} />
 			<span className="text-[10px] text-white/55">{props.label}</span>
 			<span
@@ -721,9 +723,11 @@ export function ContractHistory(props: { contracts: ContractView[] }): ReactNode
          ${isSuccess ? "text-emerald-200/60" : `text-rose-200/60`}
        `}>{isSuccess ? "Success" : "Failed"}</span>
 							{contract.resolvedAt ? (
-								<span className="
+								<span
+									className="
           font-(family-name:--nv-font-mono) text-[9px] text-white/20
-        ">
+        "
+								>
 									{new Date(contract.resolvedAt).toLocaleDateString()}
 								</span>
 							) : null}
@@ -815,22 +819,30 @@ function BriefingHeader(): ReactNode {
 function BriefingCornerAccents(): ReactNode {
 	return (
 		<>
-			<div className="
+			<div
+				className="
      pointer-events-none absolute top-0 left-0 size-3.5 rounded-tl-2xl
      border-t-2 border-l-2 border-rose-400/15
-   " />
-			<div className="
+   "
+			/>
+			<div
+				className="
      pointer-events-none absolute top-0 right-0 size-3.5 rounded-tr-2xl
      border-t-2 border-r-2 border-rose-400/15
-   " />
-			<div className="
+   "
+			/>
+			<div
+				className="
      pointer-events-none absolute bottom-0 left-0 size-3.5 rounded-bl-2xl
      border-b-2 border-l-2 border-rose-400/15
-   " />
-			<div className="
+   "
+			/>
+			<div
+				className="
      pointer-events-none absolute right-0 bottom-0 size-3.5 rounded-br-2xl
      border-r-2 border-b-2 border-rose-400/15
-   " />
+   "
+			/>
 		</>
 	);
 }

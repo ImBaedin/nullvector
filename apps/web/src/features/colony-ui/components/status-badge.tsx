@@ -16,21 +16,10 @@ export function StatusBadge(props: {
 	label: string;
 	tone: ColonyActionTone;
 }) {
-	return (
-		<span
-			className={cn(
-				`
-      inline-flex items-center rounded-md border font-semibold whitespace-nowrap
-      uppercase
-    `,
-				props.compact ? "px-1.5 py-0.5 text-[8px]" : `
+	return <span className={cn(`
+   inline-flex items-center rounded-md border font-semibold whitespace-nowrap
+   uppercase
+ `, props.compact ? "px-1.5 py-0.5 text-[8px]" : `
       gap-1 px-1.5 py-0.5 text-[9px]
-    `,
-				TONE_CLASSNAMES[props.tone],
-				props.className,
-			)}
-		>
-			{props.label}
-		</span>
-	);
+    `, TONE_CLASSNAMES[props.tone], props.className)}>{props.label}</span>;
 }

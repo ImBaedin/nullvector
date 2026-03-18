@@ -639,9 +639,9 @@ function ResourcesRoute() {
 									<div className="flex items-center gap-2.5">
 										<span className="text-white/50">{groupVisual.icon}</span>
 										<div>
-											<h2 className="
-             font-(family-name:--nv-font-display) text-sm font-bold
-           ">
+											<h2
+												className="font-(family-name:--nv-font-display) text-sm font-bold"
+											>
 												{groupVisual.label}
 											</h2>
 											<p className="mt-0.5 text-[10px] text-white/35">{groupVisual.description}</p>
@@ -850,7 +850,7 @@ function ResourcesRoute() {
 							id: `${item.kind}-${item.completesAt}-${item.payload.toLevel}`,
 							isActive: false,
 							remainingLabel: formatColonyDuration(
-								item.completesAt - (item.startsAt ?? nowMs),
+								Math.max(0, item.completesAt - nowMs),
 								"milliseconds",
 							),
 							subtitle: `Lv ${item.payload.fromLevel} → ${item.payload.toLevel}`,

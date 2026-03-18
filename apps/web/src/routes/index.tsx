@@ -198,9 +198,11 @@ function IndexRoute() {
 	}
 
 	return (
-		<div className="
-    game-theme-neon-dockyard relative flex h-svh min-h-0 overflow-hidden
-  ">
+		<div
+			className="
+     game-theme-neon-dockyard relative flex h-svh min-h-0 overflow-hidden
+   "
+		>
 			<div
 				className="absolute inset-0 bg-cover bg-center bg-no-repeat"
 				style={{ backgroundImage: "url('/login/login-bg.png')" }}
@@ -228,10 +230,12 @@ function IndexRoute() {
 				}}
 			/>
 
-			<div className="
-     relative ml-auto flex w-full max-w-xl flex-col p-3
-     lg:p-4
-   ">
+			<div
+				className="
+      relative ml-auto flex w-full max-w-xl flex-col p-3
+      lg:p-4
+    "
+			>
 				<div
 					className="absolute inset-0"
 					style={{

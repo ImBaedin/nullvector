@@ -480,9 +480,9 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
             "
 												src={visual.image}
 											/>
-											<h3 className="
-             font-(family-name:--nv-font-display) text-sm font-bold
-           ">
+											<h3
+												className="font-(family-name:--nv-font-display) text-sm font-bold"
+											>
 												{facility.name}
 											</h3>
 										</div>
@@ -680,10 +680,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 	const pendingItems = props.pendingLaneItems.map((item) => ({
 		id: `${item.kind}-${item.completesAt}-${item.payload.toLevel}`,
 		isActive: false,
-		remainingLabel: formatColonyDuration(
-			item.completesAt - (item.startsAt ?? props.nowMs),
-			"milliseconds",
-		),
+		remainingLabel: formatColonyDuration(item.completesAt - props.nowMs, "milliseconds"),
 		subtitle: `Lv ${item.payload.fromLevel} → ${item.payload.toLevel}`,
 		title: laneItemLabel(item),
 	}));

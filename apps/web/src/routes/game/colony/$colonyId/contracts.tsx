@@ -216,6 +216,7 @@ function ContractsRoute() {
 		void rebuildContractDiscovery({ colonyId: colonyIdAsId })
 			.catch((error) => {
 				if (!cancelled) {
+					setRebuildAttemptedForColony(null);
 					const message =
 						error instanceof Error ? error.message : "Failed to rebuild nearby contracts.";
 					toast.error(message);

@@ -623,9 +623,9 @@ export function AppHeader({
        "
 						>
 							{playerProfile ? (
-								<div className="
-          mr-1 flex items-center gap-2 border-r border-white/8 pr-3
-        ">
+								<div
+									className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3"
+								>
 									<div className="flex items-center gap-2">
 										<div
 											className="

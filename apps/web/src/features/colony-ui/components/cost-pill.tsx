@@ -1,4 +1,4 @@
-type CostKind = "alloy" | "crystal" | "fuel";
+export type CostKind = "alloy" | "crystal" | "fuel";
 
 function resourceIcon(kind: CostKind): string {
 	if (kind === "alloy") {
@@ -7,6 +7,7 @@ function resourceIcon(kind: CostKind): string {
 	if (kind === "crystal") {
 		return "/game-icons/crystal.png";
 	}
+	// "Fuel" in UI terminology uses the deuterium asset.
 	return "/game-icons/deuterium.png";
 }
 

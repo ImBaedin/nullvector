@@ -46,6 +46,7 @@ const RESOURCE_KEYS = ["alloy", "crystal", "fuel"] as const;
 const MAX_RAID_DIFFICULTY_TIER = 10;
 const DEFENSE_SALVAGE_FACTOR = 0.35;
 const RAID_FAILURE_RANK_XP_PER_TIER = 25;
+const RAID_RECONCILE_BATCH_SIZE = 64;
 
 function scaledUnits(unscaledUnits: number) {
 	return Math.round(Math.max(0, unscaledUnits) * RESOURCE_SCALE);
@@ -58,25 +59,6 @@ function hashString(seed: string) {
 		hash = Math.imul(hash, 16777619);
 	}
 	return hash >>> 0;
-}
-
-async function systemCoordsForPlanet(args: {
-	ctx: QueryCtx | MutationCtx;
-	planetId: Id<"planets">;
-}) {
-	const planet = await args.ctx.db.get(args.planetId);
-	if (!planet) {
-		throw new ConvexError("Planet not found");
-	}
-	const system = await args.ctx.db.get(planet.systemId);
-	if (!system) {
-		throw new ConvexError("System not found for planet");
-	}
-	return {
-		planet,
-		x: system.x,
-		y: system.y,
-	};
 }
 
 async function readColonyShipCounts(args: {
@@ -119,52 +101,98 @@ async function replaceColonyShipCounts(args: {
 	}
 }
 
-async function getNearestHostilePlanetForColony(args: {
-	colony: Doc<"colonies">;
-	ctx: QueryCtx | MutationCtx;
+type HostileSource = {
+	distance: number;
+	hostileFactionKey: Doc<"planetHostility">["hostileFactionKey"];
+	planetId: Id<"planets">;
+};
+
+type HostileSourceWithCoords = Omit<HostileSource, "distance"> & {
+	x: number;
+	y: number;
+};
+
+function findNearestHostileSource(args: {
+	hostileSources: HostileSourceWithCoords[];
+	originCoords: { x: number; y: number };
 }) {
-	const hostileRows = await args.ctx.db
-		.query("planetHostility")
-		.withIndex("by_universe_status", (q) =>
-			q.eq("universeId", args.colony.universeId).eq("status", "hostile"),
-		)
-		.collect();
-	if (hostileRows.length === 0) {
-		return null;
-	}
-
-	const originCoords = await colonySystemCoords({
-		colonyId: args.colony._id,
-		ctx: args.ctx,
-	});
-
-	let best: {
-		distance: number;
-		hostileFactionKey: Doc<"planetHostility">["hostileFactionKey"];
-		planetId: Id<"planets">;
-	} | null = null;
-
-	for (const row of hostileRows) {
-		const target = await systemCoordsForPlanet({
-			ctx: args.ctx,
-			planetId: row.planetId,
-		});
+	let best: HostileSource | null = null;
+	for (const hostileSource of args.hostileSources) {
 		const distance = euclideanDistance({
-			x1: originCoords.x,
-			y1: originCoords.y,
-			x2: target.x,
-			y2: target.y,
+			x1: args.originCoords.x,
+			y1: args.originCoords.y,
+			x2: hostileSource.x,
+			y2: hostileSource.y,
 		});
 		if (!best || distance < best.distance) {
 			best = {
 				distance,
-				hostileFactionKey: row.hostileFactionKey,
-				planetId: row.planetId,
+				hostileFactionKey: hostileSource.hostileFactionKey,
+				planetId: hostileSource.planetId,
 			};
 		}
 	}
-
 	return best;
+}
+
+async function loadHostileSourcesForUniverse(args: {
+	ctx: QueryCtx | MutationCtx;
+	universeId: Id<"universes">;
+}): Promise<HostileSourceWithCoords[]> {
+	const hostileRows = await args.ctx.db
+		.query("planetHostility")
+		.withIndex("by_universe_status", (q) =>
+			q.eq("universeId", args.universeId).eq("status", "hostile"),
+		)
+		.collect();
+	if (hostileRows.length === 0) {
+		return [];
+	}
+
+	const planets = await Promise.all(hostileRows.map((row) => args.ctx.db.get(row.planetId)));
+	const systems = await Promise.all(
+		planets.map((planet) => (planet ? args.ctx.db.get(planet.systemId) : Promise.resolve(null))),
+	);
+
+	return hostileRows.flatMap((row, index) => {
+		const system = systems[index];
+		if (!system) {
+			return [];
+		}
+		return [
+			{
+				hostileFactionKey: row.hostileFactionKey,
+				planetId: row.planetId,
+				x: system.x,
+				y: system.y,
+			},
+		];
+	});
+}
+
+async function getNearestHostilePlanetForColony(args: {
+	colony: Doc<"colonies">;
+	ctx: QueryCtx | MutationCtx;
+	hostileSources?: HostileSourceWithCoords[];
+}) {
+	const originCoords = await colonySystemCoords({
+		colonyId: args.colony._id,
+		ctx: args.ctx,
+	});
+	const hostileSources =
+		args.hostileSources ??
+		(await loadHostileSourcesForUniverse({
+			ctx: args.ctx,
+			universeId: args.colony.universeId,
+		}));
+	if (hostileSources.length === 0) {
+		return null;
+	}
+
+	return findNearestHostileSource({
+		hostileSources,
+		originCoords,
+	});
 }
 
 function nextRaidIntervalMs() {
@@ -221,6 +249,7 @@ async function setNextNpcRaidAtForColony(args: {
 async function reconcileNpcRaidScheduleForColony(args: {
 	colony: Doc<"colonies">;
 	ctx: MutationCtx;
+	hostileSource?: HostileSource | null;
 }) {
 	const progression = await args.ctx.db
 		.query("playerProgression")
@@ -235,10 +264,12 @@ async function reconcileNpcRaidScheduleForColony(args: {
 		return null;
 	}
 
-	const hostileSource = await getNearestHostilePlanetForColony({
-		colony: args.colony,
-		ctx: args.ctx,
-	});
+	const hostileSource =
+		args.hostileSource ??
+		(await getNearestHostilePlanetForColony({
+			colony: args.colony,
+			ctx: args.ctx,
+		}));
 	if (!hostileSource) {
 		await args.ctx.db.patch(args.colony._id, {
 			nextNpcRaidAt: undefined,
@@ -655,22 +686,52 @@ export const reconcileAllNpcRaidSchedules = internalMutation({
 		runAt: v.number(),
 	}),
 	handler: async (ctx) => {
-		const colonies = await ctx.db.query("colonies").collect();
+		let cursor: string | null = null;
+		let isDone = false;
+		let processed = 0;
 		let scheduled = 0;
 		let cleared = 0;
-		for (const colony of colonies) {
-			const nextNpcRaidAt = await reconcileNpcRaidScheduleForColony({
-				colony,
-				ctx,
+		do {
+			const batch = await ctx.db.query("colonies").paginate({
+				numItems: RAID_RECONCILE_BATCH_SIZE,
+				cursor,
 			});
-			if (nextNpcRaidAt === null) {
-				cleared += 1;
-			} else {
-				scheduled += 1;
+			cursor = batch.continueCursor;
+			isDone = batch.isDone;
+			processed += batch.page.length;
+
+			const hostileSourcesByUniverse = new Map<Id<"universes">, HostileSourceWithCoords[]>();
+			for (const universeId of new Set(batch.page.map((colony) => colony.universeId))) {
+				hostileSourcesByUniverse.set(
+					universeId,
+					await loadHostileSourcesForUniverse({
+						ctx,
+						universeId,
+					}),
+				);
 			}
-		}
+
+			for (const colony of batch.page) {
+				const nextNpcRaidAt = await reconcileNpcRaidScheduleForColony({
+					colony,
+					ctx,
+					hostileSource: findNearestHostileSource({
+						hostileSources: hostileSourcesByUniverse.get(colony.universeId) ?? [],
+						originCoords: await colonySystemCoords({
+							colonyId: colony._id,
+							ctx,
+						}),
+					}),
+				});
+				if (nextNpcRaidAt === null) {
+					cleared += 1;
+				} else {
+					scheduled += 1;
+				}
+			}
+		} while (!isDone);
 		return {
-			processed: colonies.length,
+			processed,
 			scheduled,
 			cleared,
 			runAt: Date.now(),
@@ -701,6 +762,13 @@ export const reconcileDueNpcRaids = internalMutation({
 				ctx,
 			});
 			if (activeRaid) {
+				if (activeRaid.status === RAID_STATUS_IN_TRANSIT && activeRaid.arriveAt <= now) {
+					await resolveNpcRaidNow({
+						ctx,
+						raidOperationId: activeRaid._id,
+						scheduledAt: activeRaid.nextEventAt,
+					});
+				}
 				const hostileSource = await getNearestHostilePlanetForColony({
 					colony,
 					ctx,

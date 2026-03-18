@@ -619,8 +619,7 @@ export function NotificationsModal({
              hover:border-white/16 hover:bg-white/[0.07]
              focus-visible:ring-2 focus-visible:ring-(--nv-focus-ring)
              focus-visible:outline-none
-             data-popup-open:border-cyan-400/30
-             data-popup-open:bg-cyan-400/6
+             data-popup-open:border-cyan-400/30 data-popup-open:bg-cyan-400/6
            "
 										>
 											<Globe
@@ -644,10 +643,9 @@ export function NotificationsModal({
 											<Select.Positioner align="start" className="z-200" sideOffset={6}>
 												<Select.Popup
 													className="
-               origin-(--transform-origin) rounded-xl border
-               border-white/12 bg-[rgba(8,14,26,0.96)] p-1
-               shadow-[0_16px_48px_rgba(0,0,0,0.5)] backdrop-blur-xl
-               transition-[transform,opacity] duration-200
+               origin-(--transform-origin) rounded-xl border border-white/12
+               bg-[rgba(8,14,26,0.96)] p-1 shadow-[0_16px_48px_rgba(0,0,0,0.5)]
+               backdrop-blur-xl transition-[transform,opacity] duration-200
                data-ending-style:scale-95 data-ending-style:opacity-0
                data-starting-style:scale-95 data-starting-style:opacity-0
              "
@@ -665,9 +663,9 @@ export function NotificationsModal({
 															key={option.value}
 															value={option.value}
 														>
-															<Select.ItemIndicator
-																className="flex size-4 items-center justify-center"
-															>
+															<Select.ItemIndicator className="
+                 flex size-4 items-center justify-center
+               ">
 																<Check className="size-3 text-cyan-400" />
 															</Select.ItemIndicator>
 															<Select.ItemText>{option.label}</Select.ItemText>
@@ -686,12 +684,12 @@ export function NotificationsModal({
              nv-transition rounded-md px-2.5 py-1 text-[11px] font-semibold
              tracking-wide uppercase
            `, statusFilter === filter.id ? `
-               bg-cyan-400/12 text-cyan-200
-               shadow-[inset_0_0_0_1px_rgba(61,217,255,0.18)]
-             ` : `
-                text-(--nv-text-muted)
-                hover:bg-white/5 hover:text-(--nv-text-secondary)
-              `)} key={filter.id} onClick={() => setStatusFilter(filter.id)} type="button">
+             bg-cyan-400/12 text-cyan-200
+             shadow-[inset_0_0_0_1px_rgba(61,217,255,0.18)]
+           ` : `
+               text-(--nv-text-muted)
+               hover:bg-white/5 hover:text-(--nv-text-secondary)
+             `)} key={filter.id} onClick={() => setStatusFilter(filter.id)} type="button">
 												{filter.label}
 											</button>
 										))}
@@ -704,10 +702,10 @@ export function NotificationsModal({
             nv-transition flex items-center gap-1.5 rounded-lg border px-2.5
             py-1.5 text-[11px] font-medium
           `, categoryFilter === filter.id ? `
-              border-cyan-400/20 bg-cyan-400/10 text-cyan-200
-            ` : `
+            border-cyan-400/20 bg-cyan-400/10 text-cyan-200
+          ` : `
               border-transparent text-(--nv-text-muted)
-              hover:border-white/8 hover:bg-white/[0.04]
+              hover:border-white/8 hover:bg-white/4
               hover:text-(--nv-text-secondary)
             `)} key={filter.id} onClick={() => setCategoryFilter(filter.id)} type="button">
 											{filter.id === "combat" && <Swords className="size-3" />}
@@ -726,8 +724,7 @@ export function NotificationsModal({
 										{Array.from({ length: 4 }).map((_, index) => (
 											<div
 												className="
-              h-24 animate-pulse rounded-lg border border-white/6
-              bg-white/3
+              h-24 animate-pulse rounded-lg border border-white/6 bg-white/3
             "
 												key={index}
 											/>
