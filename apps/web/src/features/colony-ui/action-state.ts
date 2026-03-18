@@ -83,7 +83,6 @@ export function getQueueableBuildActionPresentation(
 			badgeTone: "info",
 			buttonLabel: "Queueing...",
 			isActionEnabled: false,
-			lockMessage: args.lockMessage,
 			state: "busy",
 		};
 	}
@@ -105,7 +104,6 @@ export function getQueueableBuildActionPresentation(
 			badgeTone: "danger",
 			buttonLabel: "Queue Full",
 			isActionEnabled: false,
-			lockMessage: args.lockMessage,
 			state: "queueFull",
 		};
 	}
@@ -117,7 +115,6 @@ export function getQueueableBuildActionPresentation(
 			badgeTone: "warning",
 			buttonLabel: "Need Resources",
 			isActionEnabled: false,
-			lockMessage: args.lockMessage,
 			state: "insufficient",
 		};
 	}
@@ -128,7 +125,6 @@ export function getQueueableBuildActionPresentation(
 			badgeTone: "info",
 			buttonLabel: `Queue ${normalizedQuantity}`,
 			isActionEnabled: true,
-			lockMessage: args.lockMessage,
 			state: "queued",
 		};
 	}
@@ -138,7 +134,6 @@ export function getQueueableBuildActionPresentation(
 		badgeTone: "success",
 		buttonLabel: `Queue ${normalizedQuantity}`,
 		isActionEnabled: true,
-		lockMessage: args.lockMessage,
 		state: "available",
 	};
 }
@@ -150,7 +145,6 @@ export function getUpgradeActionPresentation(args: UpgradeActionArgs): ColonyAct
 			badgeTone: args.isActive ? "success" : args.hasQueuedItem ? "info" : "success",
 			buttonLabel: "Queueing...",
 			isActionEnabled: false,
-			lockMessage: args.lockMessage,
 			state: "busy",
 		};
 	}
@@ -172,7 +166,6 @@ export function getUpgradeActionPresentation(args: UpgradeActionArgs): ColonyAct
 			badgeTone: "neutral",
 			buttonLabel: "Max Level",
 			isActionEnabled: false,
-			lockMessage: args.lockMessage,
 			state: "maxLevel",
 		};
 	}
@@ -183,7 +176,6 @@ export function getUpgradeActionPresentation(args: UpgradeActionArgs): ColonyAct
 			badgeTone: "danger",
 			buttonLabel: "Queue Full",
 			isActionEnabled: false,
-			lockMessage: args.lockMessage,
 			state: "queueFull",
 		};
 	}
@@ -194,7 +186,6 @@ export function getUpgradeActionPresentation(args: UpgradeActionArgs): ColonyAct
 			badgeTone: "success",
 			buttonLabel: args.actionLabel,
 			isActionEnabled: true,
-			lockMessage: args.lockMessage,
 			state: "active",
 		};
 	}
@@ -205,7 +196,6 @@ export function getUpgradeActionPresentation(args: UpgradeActionArgs): ColonyAct
 			badgeTone: "info",
 			buttonLabel: args.actionLabel,
 			isActionEnabled: true,
-			lockMessage: args.lockMessage,
 			state: "queued",
 		};
 	}
@@ -217,7 +207,6 @@ export function getUpgradeActionPresentation(args: UpgradeActionArgs): ColonyAct
 			badgeTone: "warning",
 			buttonLabel: "Need Resources",
 			isActionEnabled: false,
-			lockMessage: args.lockMessage,
 			state: "insufficient",
 		};
 	}
@@ -227,7 +216,6 @@ export function getUpgradeActionPresentation(args: UpgradeActionArgs): ColonyAct
 		badgeTone: "success",
 		buttonLabel: args.actionLabel,
 		isActionEnabled: true,
-		lockMessage: args.lockMessage,
 		state: "available",
 	};
 }
