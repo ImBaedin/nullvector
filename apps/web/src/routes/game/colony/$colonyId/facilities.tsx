@@ -680,9 +680,9 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 	const pendingItems = props.pendingLaneItems.map((item) => ({
 		id: `${item.kind}-${item.completesAt}-${item.payload.toLevel}`,
 		isActive: false,
-		remainingLabel: formatColonyDuration(
-			Math.max(0, item.completesAt - props.nowMs),
-			"milliseconds",
+		remainingLabel: formatQueueRemainingLabel(
+			props.nowMs,
+			Math.max(props.nowMs, item.completesAt),
 		),
 		subtitle: `Lv ${item.payload.fromLevel} → ${item.payload.toLevel}`,
 		title: laneItemLabel(item),
@@ -696,14 +696,18 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 				completeAction={
 					props.canShowDevUi ? (
 						<button
-							className="
+						className="
          inline-flex items-center gap-1 rounded-md border border-cyan-300/30
          bg-cyan-400/10 px-2 py-1 text-[10px] font-medium text-cyan-100
          transition
          hover:border-cyan-200/55 hover:bg-cyan-400/16
          disabled:cursor-not-allowed disabled:opacity-50
        "
-							disabled={props.isCompletingQueueItem || !props.canUseDevConsole}
+							disabled={
+								!props.activeLaneItem ||
+								props.isCompletingQueueItem ||
+								!props.canUseDevConsole
+							}
 							onClick={props.onCompleteActiveQueue}
 							type="button"
 						>

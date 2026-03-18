@@ -170,6 +170,7 @@ function ContractsRoute() {
 		null,
 	);
 	const isUnmountedRef = useRef(false);
+	const currentRebuildTokenRef = useRef<symbol | null>(null);
 	const recommended = useMemo(() => {
 		if (!recommendedResult) {
 			return null;
@@ -195,6 +196,7 @@ function ContractsRoute() {
 	useEffect(() => {
 		setRebuildAttemptedForColony(null);
 		setIsRebuildingDiscovery(false);
+		currentRebuildTokenRef.current = null;
 	}, [colonyIdAsId]);
 
 	useEffect(() => {
@@ -218,11 +220,13 @@ function ContractsRoute() {
 			return;
 		}
 
+		const token = Symbol("rebuild-contract-discovery");
+		currentRebuildTokenRef.current = token;
 		setIsRebuildingDiscovery(true);
 		setRebuildAttemptedForColony(colonyIdAsId);
 		void rebuildContractDiscovery({ colonyId: colonyIdAsId })
 			.catch((error) => {
-				if (!isUnmountedRef.current) {
+				if (!isUnmountedRef.current && currentRebuildTokenRef.current === token) {
 					setRebuildAttemptedForColony(null);
 					const message =
 						error instanceof Error ? error.message : "Failed to rebuild nearby contracts.";
@@ -230,7 +234,8 @@ function ContractsRoute() {
 				}
 			})
 			.finally(() => {
-				if (!isUnmountedRef.current) {
+				if (!isUnmountedRef.current && currentRebuildTokenRef.current === token) {
+					currentRebuildTokenRef.current = null;
 					setIsRebuildingDiscovery(false);
 				}
 			});

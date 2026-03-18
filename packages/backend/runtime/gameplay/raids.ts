@@ -170,6 +170,28 @@ async function loadHostileSourcesForUniverse(args: {
 	});
 }
 
+async function loadColonySystemCoordsBatch(args: {
+	colonies: Doc<"colonies">[];
+	ctx: QueryCtx | MutationCtx;
+}) {
+	const planets = await Promise.all(args.colonies.map((colony) => args.ctx.db.get(colony.planetId)));
+	const systemIds = [...new Set(planets.flatMap((planet) => (planet ? [planet.systemId] : [])))];
+	const systems = await Promise.all(systemIds.map((systemId) => args.ctx.db.get(systemId)));
+	const systemById = new Map(
+		systems.flatMap((system, index) => (system ? [[systemIds[index]!, system] as const] : [])),
+	);
+	return new Map(
+		args.colonies.flatMap((colony, index) => {
+			const planet = planets[index];
+			const system = planet ? systemById.get(planet.systemId) : null;
+			if (!planet || !system) {
+				return [];
+			}
+			return [[colony._id, { x: system.x, y: system.y }] as const];
+		}),
+	);
+}
+
 async function getNearestHostilePlanetForColony(args: {
 	colony: Doc<"colonies">;
 	ctx: QueryCtx | MutationCtx;
@@ -678,62 +700,71 @@ export const reconcileNpcRaidSchedule = internalMutation({
 });
 
 export const reconcileAllNpcRaidSchedules = internalMutation({
-	args: {},
+	args: {
+		cursor: v.optional(v.string()),
+	},
 	returns: v.object({
 		processed: v.number(),
 		scheduled: v.number(),
 		cleared: v.number(),
+		continueCursor: v.union(v.string(), v.null()),
+		hasMore: v.boolean(),
 		runAt: v.number(),
 	}),
-	handler: async (ctx) => {
-		let cursor: string | null = null;
-		let isDone = false;
-		let processed = 0;
+	handler: async (ctx, args) => {
 		let scheduled = 0;
 		let cleared = 0;
-		do {
-			const batch = await ctx.db.query("colonies").paginate({
-				numItems: RAID_RECONCILE_BATCH_SIZE,
-				cursor,
-			});
-			cursor = batch.continueCursor;
-			isDone = batch.isDone;
-			processed += batch.page.length;
+		const batch = await ctx.db.query("colonies").paginate({
+			numItems: RAID_RECONCILE_BATCH_SIZE,
+			cursor: args.cursor ?? null,
+		});
 
-			const hostileSourcesByUniverse = new Map<Id<"universes">, HostileSourceWithCoords[]>();
-			for (const universeId of new Set(batch.page.map((colony) => colony.universeId))) {
-				hostileSourcesByUniverse.set(
-					universeId,
-					await loadHostileSourcesForUniverse({
-						ctx,
-						universeId,
-					}),
-				);
-			}
-
-			for (const colony of batch.page) {
-				const nextNpcRaidAt = await reconcileNpcRaidScheduleForColony({
-					colony,
+		const hostileSourcesByUniverse = new Map<Id<"universes">, HostileSourceWithCoords[]>();
+		for (const universeId of new Set(batch.page.map((colony) => colony.universeId))) {
+			hostileSourcesByUniverse.set(
+				universeId,
+				await loadHostileSourcesForUniverse({
 					ctx,
-					hostileSource: findNearestHostileSource({
-						hostileSources: hostileSourcesByUniverse.get(colony.universeId) ?? [],
-						originCoords: await colonySystemCoords({
-							colonyId: colony._id,
-							ctx,
-						}),
-					}),
-				});
-				if (nextNpcRaidAt === null) {
-					cleared += 1;
-				} else {
-					scheduled += 1;
-				}
+					universeId,
+				}),
+			);
+		}
+
+		const coordsByColonyId = await loadColonySystemCoordsBatch({
+			colonies: batch.page,
+			ctx,
+		});
+
+		for (const colony of batch.page) {
+			const originCoords = coordsByColonyId.get(colony._id);
+			const nextNpcRaidAt = await reconcileNpcRaidScheduleForColony({
+				colony,
+				ctx,
+				hostileSource: originCoords
+					? findNearestHostileSource({
+							hostileSources: hostileSourcesByUniverse.get(colony.universeId) ?? [],
+							originCoords,
+						})
+					: null,
+			});
+			if (nextNpcRaidAt === null) {
+				cleared += 1;
+			} else {
+				scheduled += 1;
 			}
-		} while (!isDone);
+		}
+
+		if (!batch.isDone) {
+			await ctx.scheduler.runAfter(0, internal.raids.reconcileAllNpcRaidSchedules, {
+				cursor: batch.continueCursor,
+			});
+		}
 		return {
-			processed,
+			processed: batch.page.length,
 			scheduled,
 			cleared,
+			continueCursor: batch.isDone ? null : batch.continueCursor,
+			hasMore: !batch.isDone,
 			runAt: Date.now(),
 		};
 	},
