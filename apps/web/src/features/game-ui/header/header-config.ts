@@ -49,6 +49,7 @@ const PLACEHOLDER_TAB_ICON_SRC: Record<ContextNavItem["id"], string> = {
 };
 
 function buildPlaceholderTabs(basePaths: {
+	overview: string;
 	contracts: string;
 	defenses: string;
 	facilities: string;
@@ -57,6 +58,7 @@ function buildPlaceholderTabs(basePaths: {
 	shipyard: string;
 }): ContextNavItem[] {
 	const routeMap: Record<string, string> = {
+		overview: basePaths.overview,
 		resources: basePaths.resources,
 		facilities: basePaths.facilities,
 		defenses: basePaths.defenses,
@@ -73,7 +75,6 @@ function buildPlaceholderTabs(basePaths: {
 			className: "size-5 shrink-0 object-contain",
 			src: PLACEHOLDER_TAB_ICON_SRC[id],
 		}),
-		isDisabled: id === "overview",
 	}));
 }
 
@@ -124,6 +125,7 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
 	}
 
 	const encodedColonyId = encodeURIComponent(colonyId);
+	const overviewPath = `/game/colony/${encodedColonyId}`;
 	const resourcesPath = `/game/colony/${encodedColonyId}/resources`;
 	const facilitiesPath = `/game/colony/${encodedColonyId}/facilities`;
 	const defensesPath = `/game/colony/${encodedColonyId}/defenses`;
@@ -152,6 +154,7 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
 							: "overview";
 
 	const tabPaths = {
+		overview: overviewPath,
 		contracts: contractsPath,
 		defenses: defensesPath,
 		facilities: facilitiesPath,

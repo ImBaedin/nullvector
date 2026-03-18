@@ -14,6 +14,7 @@ import { Route as StyleLabRouteImport } from './routes/style-lab'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthCompleteRouteImport } from './routes/auth/complete'
 import { Route as GameColonyColonyIdRouteImport } from './routes/game/colony/$colonyId'
+import { Route as GameColonyColonyIdIndexRouteImport } from './routes/game/colony/$colonyId/index'
 import { Route as GameColonyColonyIdShipyardRouteImport } from './routes/game/colony/$colonyId/shipyard'
 import { Route as GameColonyColonyIdResourcesRouteImport } from './routes/game/colony/$colonyId/resources'
 import { Route as GameColonyColonyIdFleetRouteImport } from './routes/game/colony/$colonyId/fleet'
@@ -46,6 +47,11 @@ const GameColonyColonyIdRoute = GameColonyColonyIdRouteImport.update({
   id: '/game/colony/$colonyId',
   path: '/game/colony/$colonyId',
   getParentRoute: () => rootRouteImport,
+} as any)
+const GameColonyColonyIdIndexRoute = GameColonyColonyIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => GameColonyColonyIdRoute,
 } as any)
 const GameColonyColonyIdShipyardRoute =
   GameColonyColonyIdShipyardRouteImport.update({
@@ -95,19 +101,20 @@ export interface FileRoutesByFullPath {
   '/game/colony/$colonyId/fleet': typeof GameColonyColonyIdFleetRoute
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
   '/game/colony/$colonyId/shipyard': typeof GameColonyColonyIdShipyardRoute
+  '/game/colony/$colonyId/': typeof GameColonyColonyIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/style-lab': typeof StyleLabRoute
   '/universe-explorer-realdata': typeof UniverseExplorerRealdataRoute
   '/auth/complete': typeof AuthCompleteRoute
-  '/game/colony/$colonyId': typeof GameColonyColonyIdRouteWithChildren
   '/game/colony/$colonyId/contracts': typeof GameColonyColonyIdContractsRoute
   '/game/colony/$colonyId/defenses': typeof GameColonyColonyIdDefensesRoute
   '/game/colony/$colonyId/facilities': typeof GameColonyColonyIdFacilitiesRoute
   '/game/colony/$colonyId/fleet': typeof GameColonyColonyIdFleetRoute
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
   '/game/colony/$colonyId/shipyard': typeof GameColonyColonyIdShipyardRoute
+  '/game/colony/$colonyId': typeof GameColonyColonyIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -122,6 +129,7 @@ export interface FileRoutesById {
   '/game/colony/$colonyId/fleet': typeof GameColonyColonyIdFleetRoute
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
   '/game/colony/$colonyId/shipyard': typeof GameColonyColonyIdShipyardRoute
+  '/game/colony/$colonyId/': typeof GameColonyColonyIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -137,19 +145,20 @@ export interface FileRouteTypes {
     | '/game/colony/$colonyId/fleet'
     | '/game/colony/$colonyId/resources'
     | '/game/colony/$colonyId/shipyard'
+    | '/game/colony/$colonyId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/style-lab'
     | '/universe-explorer-realdata'
     | '/auth/complete'
-    | '/game/colony/$colonyId'
     | '/game/colony/$colonyId/contracts'
     | '/game/colony/$colonyId/defenses'
     | '/game/colony/$colonyId/facilities'
     | '/game/colony/$colonyId/fleet'
     | '/game/colony/$colonyId/resources'
     | '/game/colony/$colonyId/shipyard'
+    | '/game/colony/$colonyId'
   id:
     | '__root__'
     | '/'
@@ -163,6 +172,7 @@ export interface FileRouteTypes {
     | '/game/colony/$colonyId/fleet'
     | '/game/colony/$colonyId/resources'
     | '/game/colony/$colonyId/shipyard'
+    | '/game/colony/$colonyId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -209,6 +219,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/game/colony/$colonyId'
       preLoaderRoute: typeof GameColonyColonyIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/game/colony/$colonyId/': {
+      id: '/game/colony/$colonyId/'
+      path: '/'
+      fullPath: '/game/colony/$colonyId/'
+      preLoaderRoute: typeof GameColonyColonyIdIndexRouteImport
+      parentRoute: typeof GameColonyColonyIdRoute
     }
     '/game/colony/$colonyId/shipyard': {
       id: '/game/colony/$colonyId/shipyard'
@@ -262,6 +279,7 @@ interface GameColonyColonyIdRouteChildren {
   GameColonyColonyIdFleetRoute: typeof GameColonyColonyIdFleetRoute
   GameColonyColonyIdResourcesRoute: typeof GameColonyColonyIdResourcesRoute
   GameColonyColonyIdShipyardRoute: typeof GameColonyColonyIdShipyardRoute
+  GameColonyColonyIdIndexRoute: typeof GameColonyColonyIdIndexRoute
 }
 
 const GameColonyColonyIdRouteChildren: GameColonyColonyIdRouteChildren = {
@@ -271,6 +289,7 @@ const GameColonyColonyIdRouteChildren: GameColonyColonyIdRouteChildren = {
   GameColonyColonyIdFleetRoute: GameColonyColonyIdFleetRoute,
   GameColonyColonyIdResourcesRoute: GameColonyColonyIdResourcesRoute,
   GameColonyColonyIdShipyardRoute: GameColonyColonyIdShipyardRoute,
+  GameColonyColonyIdIndexRoute: GameColonyColonyIdIndexRoute,
 }
 
 const GameColonyColonyIdRouteWithChildren =
