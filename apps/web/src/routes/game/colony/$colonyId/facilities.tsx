@@ -680,7 +680,10 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 	const pendingItems = props.pendingLaneItems.map((item) => ({
 		id: `${item.kind}-${item.completesAt}-${item.payload.toLevel}`,
 		isActive: false,
-		remainingLabel: formatColonyDuration(item.completesAt - props.nowMs, "milliseconds"),
+		remainingLabel: formatColonyDuration(
+			Math.max(0, item.completesAt - props.nowMs),
+			"milliseconds",
+		),
 		subtitle: `Lv ${item.payload.fromLevel} → ${item.payload.toLevel}`,
 		title: laneItemLabel(item),
 	}));

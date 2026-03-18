@@ -540,11 +540,16 @@ export const getHostileSectorDetails = query({
 	},
 	returns: hostileSectorDetailsValidator,
 	handler: async (ctx, args) => {
+		if (args.sectorIds.length > MAX_HOSTILE_SECTOR_DETAILS) {
+			throw new ConvexError(
+				`Too many sectors requested; maximum is ${MAX_HOSTILE_SECTOR_DETAILS}.`,
+			);
+		}
 		const { colony } = await getOwnedColony({
 			ctx,
 			colonyId: args.colonyId,
 		});
-		const sectorIds = Array.from(new Set(args.sectorIds)).slice(0, MAX_HOSTILE_SECTOR_DETAILS);
+		const sectorIds = Array.from(new Set(args.sectorIds));
 		const sectors = await Promise.all(
 			sectorIds.map(async (sectorId) => {
 				const sector = await ctx.db.get(sectorId);

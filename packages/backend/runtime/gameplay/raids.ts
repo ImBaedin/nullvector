@@ -751,7 +751,7 @@ export const reconcileDueNpcRaids = internalMutation({
 		const dueColonies = await ctx.db
 			.query("colonies")
 			.withIndex("by_next_npc_raid_at", (q) => q.lte("nextNpcRaidAt", now))
-			.take(64);
+			.take(RAID_RECONCILE_BATCH_SIZE);
 		let spawned = 0;
 		for (const colony of dueColonies) {
 			if (colony.nextNpcRaidAt === undefined || colony.nextNpcRaidAt > now) {
@@ -773,10 +773,14 @@ export const reconcileDueNpcRaids = internalMutation({
 					colony,
 					ctx,
 				});
+				const progression = await ctx.db
+					.query("playerProgression")
+					.withIndex("by_player_id", (q) => q.eq("playerId", colony.playerId))
+					.unique();
 				await setNextNpcRaidAtForColony({
 					colony,
 					ctx,
-					hostileSource,
+					hostileSource: (progression?.rank ?? 1) >= 5 ? hostileSource : null,
 					now,
 					scheduledAt: colony.nextNpcRaidAt,
 				});

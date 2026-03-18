@@ -11,7 +11,7 @@ import {
 } from "@nullvector/game-logic";
 import { createFileRoute } from "@tanstack/react-router";
 import { ChevronDown, Layers3, MapPin, Package, RotateCcw, Ship, Swords, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { formatColonyDuration } from "@/features/colony-ui/time";
@@ -169,6 +169,7 @@ function ContractsRoute() {
 	const [rebuildAttemptedForColony, setRebuildAttemptedForColony] = useState<Id<"colonies"> | null>(
 		null,
 	);
+	const isUnmountedRef = useRef(false);
 	const recommended = useMemo(() => {
 		if (!recommendedResult) {
 			return null;
@@ -183,6 +184,13 @@ function ContractsRoute() {
 		const tick = window.setInterval(() => setNowMs(Date.now()), 1_000);
 		return () => window.clearInterval(tick);
 	}, [isAuthenticated]);
+
+	useEffect(() => {
+		isUnmountedRef.current = false;
+		return () => {
+			isUnmountedRef.current = true;
+		};
+	}, []);
 
 	useEffect(() => {
 		setRebuildAttemptedForColony(null);
@@ -210,12 +218,11 @@ function ContractsRoute() {
 			return;
 		}
 
-		let cancelled = false;
 		setIsRebuildingDiscovery(true);
 		setRebuildAttemptedForColony(colonyIdAsId);
 		void rebuildContractDiscovery({ colonyId: colonyIdAsId })
 			.catch((error) => {
-				if (!cancelled) {
+				if (!isUnmountedRef.current) {
 					setRebuildAttemptedForColony(null);
 					const message =
 						error instanceof Error ? error.message : "Failed to rebuild nearby contracts.";
@@ -223,18 +230,13 @@ function ContractsRoute() {
 				}
 			})
 			.finally(() => {
-				if (!cancelled) {
+				if (!isUnmountedRef.current) {
 					setIsRebuildingDiscovery(false);
 				}
 			});
-
-		return () => {
-			cancelled = true;
-		};
 	}, [
 		colonyIdAsId,
 		isAuthenticated,
-		isRebuildingDiscovery,
 		recommendedResult,
 		rebuildAttemptedForColony,
 		rebuildContractDiscovery,
