@@ -110,6 +110,10 @@ export function AppHeader({
 	const colonySession = useColonySessionSnapshot(
 		colonyIdAsId && isAuthenticated ? colonyIdAsId : null,
 	);
+	const publicOverview = useQuery(
+		api.colonyOverview.getColonyOverview,
+		colonyIdAsId ? { colonyId: colonyIdAsId } : "skip",
+	);
 	const raidStatus = useQuery(
 		api.raids.getRaidStatusForColony,
 		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
@@ -158,12 +162,11 @@ export function AppHeader({
 		if (!config.contextTabs) {
 			return undefined;
 		}
-		if (!raidStatus?.activeRaid) {
-			return config.contextTabs;
-		}
-
-		return config.contextTabs.map((tab) => {
+		const baseTabs = config.contextTabs.map((tab) => {
 			if (tab.id !== "defenses") {
+				return tab;
+			}
+			if (!raidStatus?.activeRaid) {
 				return tab;
 			}
 
@@ -193,7 +196,14 @@ export function AppHeader({
 				),
 			};
 		});
-	}, [config.contextTabs, raidStatus?.activeRaid]);
+		if (publicOverview?.viewerRelation === "owner") {
+			return baseTabs;
+		}
+		return baseTabs.map((tab) => ({
+			...tab,
+			isDisabled: tab.id !== "overview",
+		}));
+	}, [config.contextTabs, publicOverview?.viewerRelation, raidStatus?.activeRaid]);
 	const drawerConfig = useMemo(
 		() => ({
 			...config,
@@ -216,24 +226,15 @@ export function AppHeader({
 		if (activeColony?.name) {
 			return activeColony.name;
 		}
+		if (publicOverview?.header.name) {
+			return publicOverview.header.name;
+		}
 		return (config.title ?? "Colony Operations").replace(/ Resources$/, "");
-	}, [activeColony?.name, config.title]);
+	}, [activeColony?.name, config.title, publicOverview?.header.name]);
 	const handleStarMapToggle = onToggleStarMap ?? config.onOpenStarMap;
 	const handleColonyChange = (nextColonyId: string) => {
-		const targetPath =
-			config.activeTabId === "shipyard"
-				? "/game/colony/$colonyId/shipyard"
-				: config.activeTabId === "defenses"
-					? "/game/colony/$colonyId/defenses"
-					: config.activeTabId === "fleet"
-						? "/game/colony/$colonyId/fleet"
-						: config.activeTabId === "contracts"
-							? "/game/colony/$colonyId/contracts"
-							: config.activeTabId === "facilities"
-								? "/game/colony/$colonyId/facilities"
-								: "/game/colony/$colonyId/resources";
 		navigate({
-			to: targetPath,
+			to: "/game/colony/$colonyId",
 			params: { colonyId: nextColonyId },
 		});
 	};

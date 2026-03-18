@@ -20,6 +20,26 @@ function ColonyPageSkeletonFrame({ children }: { children: ReactNode }) {
  ">{children}</div>;
 }
 
+export function OverviewRouteSkeleton() {
+	return (
+		<ColonyPageSkeletonFrame>
+			<div className="mx-auto w-full max-w-[920px] px-4 pt-2 pb-16">
+				<Sweep className="h-8 w-44 rounded-t-lg rounded-b-none border-b-0" />
+				<div className="rounded-b-xl rounded-tr-xl border border-white/10 bg-white/2 p-5">
+					<div className="space-y-5">
+						<Sweep className="h-24 rounded-xl" />
+						<Sweep className="h-44 rounded-xl" />
+						<Sweep className="h-36 rounded-xl" />
+						<Sweep className="h-44 rounded-xl" />
+						<Sweep className="h-36 rounded-xl" />
+						<Sweep className="h-52 rounded-xl" />
+					</div>
+				</div>
+			</div>
+		</ColonyPageSkeletonFrame>
+	);
+}
+
 function ColonyTwoColumnSkeleton(args: { left: ReactNode; right: ReactNode }) {
 	return (
 		<ColonyPageSkeletonFrame>
