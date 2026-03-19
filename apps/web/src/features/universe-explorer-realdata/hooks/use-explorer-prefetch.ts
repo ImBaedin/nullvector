@@ -21,6 +21,33 @@ function rememberPrefetchedId(cache: Map<string, number>, id: string) {
 	}
 }
 
+function prefetchBatch<TId extends string>(args: {
+	ids: TId[];
+	limit: number;
+	prefetchedMap: Map<string, number>;
+	queriesProvider: (id: TId) => Promise<unknown>[];
+}) {
+	const idsToPrefetch = args.ids
+		.filter((id) => !args.prefetchedMap.has(id))
+		.slice(0, args.limit);
+
+	if (idsToPrefetch.length === 0) {
+		return;
+	}
+
+	void Promise.allSettled(
+		idsToPrefetch.map(async (id) => {
+			rememberPrefetchedId(args.prefetchedMap, id);
+			try {
+				await Promise.all(args.queriesProvider(id));
+			} catch (error) {
+				args.prefetchedMap.delete(id);
+				throw error;
+			}
+		}),
+	);
+}
+
 export function useExplorerPrefetch(args: {
 	level: ExplorerLevel;
 	overview?: {
@@ -55,58 +82,28 @@ export function useExplorerPrefetch(args: {
 	useEffect(() => {
 		// Depend on stable id signatures so we don't re-prefetch when callers hand us fresh array instances.
 		if (args.level === "universe") {
-			const prefetchedGalaxyIds = prefetchedIdsRef.current.galaxy;
-			const galaxyIdsToPrefetch = (args.overview?.galaxies ?? [])
-				.map((galaxy) => galaxy.id)
-				.filter((id) => !prefetchedGalaxyIds.has(id))
-				.slice(0, NEXT_LEVEL_PREFETCH_LIMIT);
-
-			if (galaxyIdsToPrefetch.length === 0) {
-				return;
-			}
-
-			void Promise.allSettled(
-				galaxyIdsToPrefetch.map(async (galaxyId) => {
-					rememberPrefetchedId(prefetchedGalaxyIds, galaxyId);
-					try {
-						await Promise.all([
-							convex.query(api.universeExplorer.getGalaxyHeader, { galaxyId }),
-							convex.query(api.universeExplorer.getGalaxySectorList, { galaxyId }),
-						]);
-					} catch (error) {
-						prefetchedGalaxyIds.delete(galaxyId);
-						throw error;
-					}
-				}),
-			);
+			prefetchBatch({
+				ids: (args.overview?.galaxies ?? []).map((galaxy) => galaxy.id),
+				limit: NEXT_LEVEL_PREFETCH_LIMIT,
+				prefetchedMap: prefetchedIdsRef.current.galaxy,
+				queriesProvider: (galaxyId) => [
+					convex.query(api.universeExplorer.getGalaxyHeader, { galaxyId }),
+					convex.query(api.universeExplorer.getGalaxySectorList, { galaxyId }),
+				],
+			});
 			return;
 		}
 
 		if (args.level === "galaxy") {
-			const prefetchedSectorIds = prefetchedIdsRef.current.sector;
-			const sectorIdsToPrefetch = (args.galaxyData?.sectors ?? [])
-				.map((sector) => sector.id)
-				.filter((id) => !prefetchedSectorIds.has(id))
-				.slice(0, NEXT_LEVEL_PREFETCH_LIMIT);
-
-			if (sectorIdsToPrefetch.length === 0) {
-				return;
-			}
-
-			void Promise.allSettled(
-				sectorIdsToPrefetch.map(async (sectorId) => {
-					rememberPrefetchedId(prefetchedSectorIds, sectorId);
-					try {
-						await Promise.all([
-							convex.query(api.universeExplorer.getSectorHeader, { sectorId }),
-							convex.query(api.universeExplorer.getSectorSystemList, { sectorId }),
-						]);
-					} catch (error) {
-						prefetchedSectorIds.delete(sectorId);
-						throw error;
-					}
-				}),
-			);
+			prefetchBatch({
+				ids: (args.galaxyData?.sectors ?? []).map((sector) => sector.id),
+				limit: NEXT_LEVEL_PREFETCH_LIMIT,
+				prefetchedMap: prefetchedIdsRef.current.sector,
+				queriesProvider: (sectorId) => [
+					convex.query(api.universeExplorer.getSectorHeader, { sectorId }),
+					convex.query(api.universeExplorer.getSectorSystemList, { sectorId }),
+				],
+			});
 			return;
 		}
 
@@ -114,31 +111,16 @@ export function useExplorerPrefetch(args: {
 			return;
 		}
 
-		const prefetchedSystemIds = prefetchedIdsRef.current.system;
-		const systemIdsToPrefetch = (args.sectorData?.systems ?? [])
-			.map((system) => system.id)
-			.filter((id) => !prefetchedSystemIds.has(id))
-			.slice(0, NEXT_LEVEL_PREFETCH_LIMIT);
-
-		if (systemIdsToPrefetch.length === 0) {
-			return;
-		}
-
-		void Promise.allSettled(
-			systemIdsToPrefetch.map(async (systemId) => {
-				rememberPrefetchedId(prefetchedSystemIds, systemId);
-				try {
-					await Promise.all([
-						convex.query(api.universeExplorer.getSystemPlanetsStatic, { systemId }),
-						convex.query(api.universeExplorer.getSystemPlanetsOwnership, { systemId }),
-						convex.query(api.universeExplorer.getSystemPlanetsActiveOps, { systemId }),
-					]);
-				} catch (error) {
-					prefetchedSystemIds.delete(systemId);
-					throw error;
-				}
-			}),
-		);
+		prefetchBatch({
+			ids: (args.sectorData?.systems ?? []).map((system) => system.id),
+			limit: NEXT_LEVEL_PREFETCH_LIMIT,
+			prefetchedMap: prefetchedIdsRef.current.system,
+			queriesProvider: (systemId) => [
+				convex.query(api.universeExplorer.getSystemPlanetsStatic, { systemId }),
+				convex.query(api.universeExplorer.getSystemPlanetsOwnership, { systemId }),
+				convex.query(api.universeExplorer.getSystemPlanetsActiveOps, { systemId }),
+			],
+		});
 	}, [
 		args.level,
 		convex,

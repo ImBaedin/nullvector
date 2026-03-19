@@ -150,7 +150,6 @@ function ContractsRoute() {
 		void launchContractMission({
 			onSuccess: resetSelection,
 			offerSequence: selectedContract.offerSequence,
-			originColonyId: colonyIdAsId,
 			planetId: selectedContract.planetId,
 			shipCounts: selectedShipValues,
 			slot: selectedContract.slot,

@@ -210,6 +210,10 @@ function FleetRoute() {
 					onCoordsChange={setCoords}
 					onLaunch={launch}
 					onMissionTypeChange={(nextMissionType) => {
+						if (nextMissionType === missionType) {
+							return;
+						}
+
 						setMissionType(nextMissionType);
 						setSelectedColonyId(null);
 						if (nextMissionType === "colonize") {

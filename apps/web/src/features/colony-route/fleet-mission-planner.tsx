@@ -18,6 +18,15 @@ import type { FleetMissionKind } from "./star-map-picker-context";
 
 import { ShipAssignmentList } from "./ship-assignment-list";
 
+type PlannerCoordsKey = keyof PlannerCoords;
+
+const COORD_FIELD_LABELS = {
+	g: "Galaxy",
+	p: "Planet",
+	s: "Sector",
+	ss: "System",
+} as const satisfies Record<PlannerCoordsKey, string>;
+
 type MissionPlannerPanelProps = {
 	availableResources: ResourceBucket;
 	canLaunch: boolean;
@@ -208,7 +217,7 @@ function DestinationSection(props: {
 
 			<div className={`
       mt-1.5 grid grid-cols-4 gap-1.5 transition-opacity
-      ${props.selectedColonyId ? "pointer-events-none opacity-35" : ""}
+      ${props.selectedColonyId ? "opacity-35" : ""}
     `}>
 				{(["g", "s", "ss", "p"] as const).map((field, index) => (
 					<div key={field}>
@@ -216,6 +225,7 @@ function DestinationSection(props: {
 							{["Gal", "Sec", "Sys", "Pla"][index]}
 						</span>
 						<input
+							aria-label={COORD_FIELD_LABELS[field]}
 							className="
          w-full rounded-md border border-white/12 bg-black/35 px-1 py-1.5
          text-center font-(family-name:--nv-font-mono) text-sm text-white
@@ -305,6 +315,19 @@ function DestinationSection(props: {
 								</button>
 							))}
 						</div>
+					) : null}
+
+					{props.selectedColonyId ? (
+						<button
+							className="
+        mt-1 inline-flex items-center gap-1 text-[10px] text-cyan-200/70
+        transition-colors hover:text-cyan-100
+      "
+							onClick={() => props.onSetSelectedColonyId(null)}
+							type="button"
+						>
+							Clear selected colony
+						</button>
 					) : null}
 				</div>
 			) : null}
@@ -453,6 +476,7 @@ function CargoSection(props: {
 						/>
 						<span className="w-12 text-[10px] text-white/45 capitalize">{resourceKey}</span>
 						<input
+							aria-label={`${resourceKey[0]!.toUpperCase()}${resourceKey.slice(1)} cargo`}
 							className="
          flex-1 [appearance:textfield] rounded-md border border-white/10
          bg-black/25 px-2 py-1 text-right font-(family-name:--nv-font-mono)

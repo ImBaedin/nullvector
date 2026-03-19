@@ -395,7 +395,7 @@ function InlineLevelEditor(props: {
 				if (event.key === "Enter") {
 					event.preventDefault();
 					void commitEditing("level", async ({ value }) => {
-						await props.onCommit(Math.max(0, Math.floor(value || 0)));
+						await props.onCommit(value ?? 0);
 					});
 				}
 			}}

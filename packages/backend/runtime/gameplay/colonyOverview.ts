@@ -221,6 +221,17 @@ type FleetActivityOperation = Pick<
 	"_id" | "arriveAt" | "nextEventAt" | "originColonyId" | "ownerPlayerId" | "status" | "target"
 >;
 
+function isInboundOperationForColony(args: {
+	colonyId: Id<"colonies">;
+	operation: FleetActivityOperation;
+}) {
+	return (
+		(args.operation.target.colonyId === args.colonyId &&
+			args.operation.originColonyId !== args.colonyId) ||
+		(args.operation.status === "returning" && args.operation.originColonyId === args.colonyId)
+	);
+}
+
 function formatElapsedLabel(args: { now: number; occurredAt: number }) {
 	const deltaMs = Math.max(0, args.now - args.occurredAt);
 	const totalSeconds = Math.max(0, Math.floor(deltaMs / 1_000));
@@ -419,8 +430,10 @@ function buildActivityFeed(args: {
 	}
 
 	for (const operation of args.operations) {
-		const isInbound =
-			operation.target.colonyId === args.colony._id && operation.originColonyId !== args.colony._id;
+		const isInbound = isInboundOperationForColony({
+			colonyId: args.colony._id,
+			operation,
+		});
 		const isHostile = operation.ownerPlayerId !== args.colony.playerId;
 		const severity: ActivitySeverity = isInbound ? (isHostile ? "warning" : "info") : "neutral";
 		const relationLabel = isInbound
@@ -617,18 +630,27 @@ export const getColonyOverview = query({
 		const operations = uniqueOperations([...originOps, ...inboundOps]);
 		const inboundFriendlyCount = operations.filter(
 			(operation) =>
-				operation.target.colonyId === publicColony.colony._id &&
-				operation.originColonyId !== publicColony.colony._id &&
+				isInboundOperationForColony({
+					colonyId: publicColony.colony._id,
+					operation,
+				}) &&
 				operation.ownerPlayerId === publicColony.player._id,
 		).length;
 		const inboundHostileCount = operations.filter(
 			(operation) =>
-				operation.target.colonyId === publicColony.colony._id &&
-				operation.originColonyId !== publicColony.colony._id &&
+				isInboundOperationForColony({
+					colonyId: publicColony.colony._id,
+					operation,
+				}) &&
 				operation.ownerPlayerId !== publicColony.player._id,
 		).length;
 		const outboundCount = operations.filter(
-			(operation) => operation.originColonyId === publicColony.colony._id,
+			(operation) =>
+				operation.originColonyId === publicColony.colony._id &&
+				!isInboundOperationForColony({
+					colonyId: publicColony.colony._id,
+					operation,
+				}),
 		).length;
 		const status = deriveOverviewStatus({
 			activeRaid,

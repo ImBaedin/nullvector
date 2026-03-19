@@ -302,16 +302,19 @@ export function useContractMissionActions(args: {
 
 	async function launchContractMission(next: {
 		onSuccess?: () => void;
-		originColonyId: Id<"colonies">;
 		offerSequence: number;
 		planetId: Id<"planets">;
 		shipCounts: Record<ShipKey, number>;
 		slot: number;
 	}) {
+		if (isLaunching) {
+			return;
+		}
+
 		setIsLaunching(true);
 		try {
 			await launchContract({
-				originColonyId: next.originColonyId,
+				originColonyId: args.colonyId,
 				planetId: next.planetId,
 				slot: next.slot,
 				offerSequence: next.offerSequence,
@@ -327,6 +330,10 @@ export function useContractMissionActions(args: {
 	}
 
 	async function cancelMissionOperation(operationId: Id<"fleetOperations">) {
+		if (cancelingOperationId === operationId) {
+			return;
+		}
+
 		setCancelingOperationId(operationId);
 		try {
 			await cancelOperation({ operationId });
@@ -339,6 +346,10 @@ export function useContractMissionActions(args: {
 	}
 
 	async function completeMission(operationId: Id<"fleetOperations">) {
+		if (completingOperationId === operationId) {
+			return;
+		}
+
 		setCompletingOperationId(operationId);
 		try {
 			await args.completeActiveMission({
