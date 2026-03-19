@@ -132,6 +132,10 @@ export function useFleetRouteData(colonyId: Id<"colonies">) {
 			deployedByShip.smallCargo += operation.shipCounts.smallCargo;
 			deployedByShip.largeCargo += operation.shipCounts.largeCargo;
 			deployedByShip.colonyShip += operation.shipCounts.colonyShip;
+			deployedByShip.cruiser += operation.shipCounts.cruiser;
+			deployedByShip.bomber += operation.shipCounts.bomber;
+			deployedByShip.frigate += operation.shipCounts.frigate;
+			deployedByShip.interceptor += operation.shipCounts.interceptor;
 		}
 
 		return shipCatalog.map((ship) => {

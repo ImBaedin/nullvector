@@ -85,7 +85,14 @@ export function useContractsRouteData(args: {
 	const ready =
 		!isAuthLoading &&
 		isAuthenticated &&
-		Boolean(recommendedResult && progression && historySummary && garrison && operations);
+		Boolean(
+			recommendedResult &&
+				progression &&
+				historySummary &&
+				garrison &&
+				operations &&
+				(!args.historyExpanded || history !== undefined),
+		);
 
 	return {
 		activeContractOperations,

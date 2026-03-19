@@ -25,6 +25,13 @@ export function useColonyDevConsole(colonyId: Id<"colonies"> | null) {
 	const setFacilityLevels = useMutation(api.devConsole.setFacilityLevels);
 	const setShipCounts = useMutation(api.devConsole.setShipCounts);
 	const triggerNpcRaidAtCurrentColony = useMutation(api.devConsole.triggerNpcRaidAtCurrentColony);
+	const requireColonyId = () => {
+		if (!colonyId) {
+			throw new Error("Colony is required for this dev console action");
+		}
+
+		return colonyId;
+	};
 
 	return {
 		canShowDevUi: state?.showDevConsoleUi === true,
@@ -32,59 +39,32 @@ export function useColonyDevConsole(colonyId: Id<"colonies"> | null) {
 		state,
 		actions: {
 			completeMission: (operationId: Id<"fleetOperations">) => {
-				if (!colonyId) {
-					throw new Error("Colony is required to complete a mission");
-				}
-				return completeActiveMission({ colonyId, operationId });
+				return completeActiveMission({ colonyId: requireColonyId(), operationId });
 			},
 			completeQueue: (lane: "building" | "defense" | "shipyard") => {
-				if (!colonyId) {
-					throw new Error("Colony is required to complete a queue item");
-				}
-				return completeActiveQueueItem({ colonyId, lane });
+				return completeActiveQueueItem({ colonyId: requireColonyId(), lane });
 			},
 			completeRaid: () => {
-				if (!colonyId) {
-					throw new Error("Colony is required to complete a raid");
-				}
-				return completeActiveRaidAtCurrentColony({ colonyId });
+				return completeActiveRaidAtCurrentColony({ colonyId: requireColonyId() });
 			},
 			setBuildingLevels: (buildingLevels: Partial<Record<BuildingKey, number>>) => {
-				if (!colonyId) {
-					throw new Error("Colony is required to edit building levels");
-				}
-				return setBuildingLevels({ buildingLevels, colonyId });
+				return setBuildingLevels({ buildingLevels, colonyId: requireColonyId() });
 			},
 			setDefenseCounts: (defenseCounts: Partial<Record<DefenseKey, number>>) => {
-				if (!colonyId) {
-					throw new Error("Colony is required to edit defense counts");
-				}
-				return setDefenseCounts({ colonyId, defenseCounts });
+				return setDefenseCounts({ colonyId: requireColonyId(), defenseCounts });
 			},
 			setFacilityLevels: (facilityLevels: Partial<Record<FacilityKey, number>>) => {
-				if (!colonyId) {
-					throw new Error("Colony is required to edit facility levels");
-				}
-				return setFacilityLevels({ colonyId, facilityLevels });
+				return setFacilityLevels({ colonyId: requireColonyId(), facilityLevels });
 			},
 			setResources: (resources: Partial<ResourceBucket>) => {
-				if (!colonyId) {
-					throw new Error("Colony is required to edit resources");
-				}
-				return setColonyResources({ colonyId, resources });
+				return setColonyResources({ colonyId: requireColonyId(), resources });
 			},
 			setShipCounts: (shipCounts: Partial<Record<ShipKey, number>>) => {
-				if (!colonyId) {
-					throw new Error("Colony is required to edit ship counts");
-				}
-				return setShipCounts({ colonyId, shipCounts });
+				return setShipCounts({ colonyId: requireColonyId(), shipCounts });
 			},
 			setUiEnabled: (enabled: boolean) => setDevConsoleUiEnabled({ enabled }),
 			triggerRaid: () => {
-				if (!colonyId) {
-					throw new Error("Colony is required to trigger a raid");
-				}
-				return triggerNpcRaidAtCurrentColony({ colonyId });
+				return triggerNpcRaidAtCurrentColony({ colonyId: requireColonyId() });
 			},
 		},
 	};

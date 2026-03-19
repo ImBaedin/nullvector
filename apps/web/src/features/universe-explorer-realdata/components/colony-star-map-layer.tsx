@@ -446,6 +446,10 @@ export function ColonyStarMapLayer(props: {
 	);
 
 	useEffect(() => {
+		if (!isOpen) {
+			return;
+		}
+
 		onHeaderNavigationChange({
 			pathItems: headerPathItems,
 			entityItems: headerEntityItems,
@@ -464,13 +468,22 @@ export function ColonyStarMapLayer(props: {
 		onClose,
 		qualityPreset,
 		setQualityPreset,
+		isOpen,
 	]);
 
 	useEffect(() => {
+		if (!isOpen) {
+			return;
+		}
+
 		return () => {
 			onHeaderNavigationChange(null);
 		};
-	}, [onHeaderNavigationChange]);
+	}, [isOpen, onHeaderNavigationChange]);
+
+	if (!isOpen) {
+		return null;
+	}
 
 	return (
 		<>

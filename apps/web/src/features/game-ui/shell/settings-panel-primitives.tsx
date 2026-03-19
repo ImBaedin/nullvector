@@ -3,23 +3,44 @@ import { Switch } from "@base-ui/react/switch";
 import { NvDivider } from "@/features/game-ui/primitives";
 import { cn } from "@/lib/utils";
 
+type NvSwitchProps =
+	| {
+			ariaLabel: string;
+			ariaLabelledBy?: never;
+			checked: boolean;
+			disabled?: boolean;
+			onCheckedChange: (checked: boolean) => void;
+	  }
+	| {
+			ariaLabel?: never;
+			ariaLabelledBy: string;
+			checked: boolean;
+			disabled?: boolean;
+			onCheckedChange: (checked: boolean) => void;
+	  };
+
 export function NvSwitch({
+	ariaLabel,
+	ariaLabelledBy,
 	checked,
 	onCheckedChange,
 	disabled,
-}: {
-	checked: boolean;
-	onCheckedChange: (checked: boolean) => void;
-	disabled?: boolean;
-}) {
+}: NvSwitchProps) {
 	return (
-		<Switch.Root checked={checked} className={cn(`
+		<Switch.Root
+			aria-label={ariaLabel}
+			aria-labelledby={ariaLabelledBy}
+			checked={checked}
+			className={cn(`
       relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center
       rounded-full border transition-colors
       focus-visible:ring-2 focus-visible:ring-(--nv-focus-ring)
       focus-visible:outline-none
       disabled:cursor-not-allowed disabled:opacity-40
-    `, checked ? "border-cyan-400/40 bg-cyan-400/24" : `border-white/16 bg-white/8`)} disabled={disabled} onCheckedChange={onCheckedChange}>
+    `, checked ? "border-cyan-400/40 bg-cyan-400/24" : `border-white/16 bg-white/8`)}
+			disabled={disabled}
+			onCheckedChange={onCheckedChange}
+		>
 			<Switch.Thumb className={cn(`
        pointer-events-none block size-3.5 rounded-full shadow-sm
        transition-transform

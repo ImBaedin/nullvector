@@ -12,7 +12,7 @@ import { useColonyView, useOptimisticColonyMutation } from "@/features/colony-st
 import { getUpgradeActionPresentation } from "@/features/colony-ui/action-state";
 import { ActionButton } from "@/features/colony-ui/components/action-button";
 import { CostPill } from "@/features/colony-ui/components/cost-pill";
-import { DevLevelInput } from "@/features/colony-ui/components/dev-number-input";
+import { DevNumberInput } from "@/features/colony-ui/components/dev-number-input";
 import { QueuePanel } from "@/features/colony-ui/components/queue-panel";
 import { StatusBadge } from "@/features/colony-ui/components/status-badge";
 import { useColonyDevConsole } from "@/features/colony-ui/hooks/use-colony-dev-console";
@@ -98,17 +98,11 @@ function FacilitiesRoute(): ReactElement {
 
 	const activeFacilityItem =
 		allActiveItem && isFacilityQueueRow(allActiveItem) ? allActiveItem : null;
-	const pendingFacilityItems: FacilityQueueRow[] = allPendingItems.filter(
-		isFacilityQueueRow,
-	) as FacilityQueueRow[];
+	const pendingFacilityItems: FacilityQueueRow[] = allPendingItems.filter(isFacilityQueueRow);
 
 	const activeLaneItem: BuildingLaneQueueRow | null =
-		allActiveItem && isBuildingLaneQueueRow(allActiveItem)
-			? (allActiveItem as BuildingLaneQueueRow)
-			: null;
-	const pendingLaneItems: BuildingLaneQueueRow[] = allPendingItems.filter(
-		isBuildingLaneQueueRow,
-	) as BuildingLaneQueueRow[];
+		allActiveItem && isBuildingLaneQueueRow(allActiveItem) ? allActiveItem : null;
+	const pendingLaneItems: BuildingLaneQueueRow[] = allPendingItems.filter(isBuildingLaneQueueRow);
 
 	const activeUpgradeProgress = activeLaneItem
 		? getQueueProgress(nowMs, activeLaneItem.startsAt, activeLaneItem.completesAt).percent
@@ -390,7 +384,7 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 										</div>
 										<div className="flex items-center gap-1.5">
 											{props.canShowDevUi && props.editingFacilityKey === facility.key ? (
-												<DevLevelInput
+												<DevNumberInput
 													autoFocus
 													onBlur={props.onFacilityDraftCancel}
 													onCancel={props.onFacilityDraftCancel}
@@ -564,7 +558,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 	const pendingItems = props.pendingLaneItems.map((item) => ({
 		id: `${item.kind}-${item.completesAt}-${item.payload.toLevel}`,
 		isActive: false,
-		remainingLabel: formatQueueRemainingLabel(props.nowMs, Math.max(props.nowMs, item.completesAt)),
+		remainingLabel: formatQueueRemainingLabel(props.nowMs, item.completesAt),
 		subtitle: `Lv ${item.payload.fromLevel} → ${item.payload.toLevel}`,
 		title: laneItemLabel(item),
 	}));

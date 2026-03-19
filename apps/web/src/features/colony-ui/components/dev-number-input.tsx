@@ -11,7 +11,7 @@ type DevNumberInputProps = {
 	value: string;
 };
 
-function BaseDevNumberInput(props: DevNumberInputProps) {
+export function DevNumberInput(props: DevNumberInputProps) {
 	return (
 		<NvInput
 			autoFocus={props.autoFocus}
@@ -37,16 +37,4 @@ function BaseDevNumberInput(props: DevNumberInputProps) {
 			value={props.value}
 		/>
 	);
-}
-
-export function DevLevelInput(props: DevNumberInputProps) {
-	return <BaseDevNumberInput {...props} />;
-}
-
-export function DevCountInput(props: DevNumberInputProps) {
-	return <BaseDevNumberInput {...props} />;
-}
-
-export function DevResourceInput(props: DevNumberInputProps) {
-	return <BaseDevNumberInput {...props} />;
 }

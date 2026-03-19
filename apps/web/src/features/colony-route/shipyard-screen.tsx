@@ -801,6 +801,7 @@ function ActiveQueueCard(props: {
 							</button>
 						) : null}
 						<button
+							aria-label={`Cancel ${activeQueueItem.shipName || "queue item"}`}
 							className="
          rounded-md border border-rose-300/20 bg-rose-400/8 px-2 py-1
          text-[10px] font-medium text-rose-200/80 transition-colors

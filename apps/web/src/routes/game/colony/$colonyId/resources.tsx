@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { ResourcesRouteSkeleton } from "@/features/colony-route/loading-skeletons";
 import { ResourceBuildingCard } from "@/features/colony-route/resource-building-card";
 import { useColonyView, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
-import { DevResourceInput } from "@/features/colony-ui/components/dev-number-input";
+import { DevNumberInput } from "@/features/colony-ui/components/dev-number-input";
 import { QueuePanel } from "@/features/colony-ui/components/queue-panel";
 import { useColonyDevConsole } from "@/features/colony-ui/hooks/use-colony-dev-console";
 import { useInlineNumberEditor } from "@/features/colony-ui/hooks/use-inline-number-editor";
@@ -188,19 +188,12 @@ function ResourcesRoute() {
 	const activeQueueItem = buildingQueue?.activeItem;
 	const pendingQueueItems = buildingQueue?.pendingItems ?? [];
 	const activeLaneQueueItem: BuildingLaneQueueRow | null =
-		activeQueueItem && isBuildingLaneQueueRow(activeQueueItem)
-			? (activeQueueItem as BuildingLaneQueueRow)
-			: null;
-	const pendingLaneQueueItems: BuildingLaneQueueRow[] = pendingQueueItems.filter(
-		isBuildingLaneQueueRow,
-	) as BuildingLaneQueueRow[];
+		activeQueueItem && isBuildingLaneQueueRow(activeQueueItem) ? activeQueueItem : null;
+	const pendingLaneQueueItems: BuildingLaneQueueRow[] =
+		pendingQueueItems.filter(isBuildingLaneQueueRow);
 	const activeBuildingQueueItem: LaneQueueItem | null =
-		activeQueueItem && isBuildingQueueRow(activeQueueItem)
-			? (activeQueueItem as LaneQueueItem)
-			: null;
-	const pendingBuildingQueueItems: LaneQueueItem[] = pendingQueueItems.filter(
-		isBuildingQueueRow,
-	) as LaneQueueItem[];
+		activeQueueItem && isBuildingQueueRow(activeQueueItem) ? activeQueueItem : null;
+	const pendingBuildingQueueItems: LaneQueueItem[] = pendingQueueItems.filter(isBuildingQueueRow);
 	const remainingTimeLabel = activeQueueItem
 		? formatColonyDuration(Math.max(0, activeQueueItem.completesAt - nowMs), "milliseconds")
 		: null;
@@ -395,7 +388,7 @@ function ResourcesRoute() {
 											<p className="text-xs font-semibold">{res.label}</p>
 											<div className="mt-0.5 flex items-baseline gap-1.5">
 												{canShowDevUi && resourceEditor.isEditing(res.key) ? (
-													<DevResourceInput
+													<DevNumberInput
 														autoFocus
 														onBlur={resourceEditor.cancelEditing}
 														onCancel={resourceEditor.cancelEditing}

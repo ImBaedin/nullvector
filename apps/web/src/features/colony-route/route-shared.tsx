@@ -110,7 +110,7 @@ export function getOperationAccent(args: {
 			iconBorder: "border-rose-300",
 			iconFill: "bg-rose-400/20 shadow-rose-400/30",
 			iconText: "text-rose-300",
-			kindLabel: "Contract",
+			kindLabel: args.kind === "combat" ? "Combat" : "Contract",
 			line: "bg-linear-to-r from-rose-400/60 to-rose-400/20",
 			progress: "bg-rose-400/50",
 			targetBorder: "border-rose-300/25",

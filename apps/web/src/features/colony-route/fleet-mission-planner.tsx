@@ -487,6 +487,13 @@ function LaunchSummarySection(props: {
 	cargo: ResourceBucket;
 	travelFuelCost: number;
 }) {
+	const remainingAlloy = Math.max(0, props.availableResources.alloy - props.cargo.alloy);
+	const remainingCrystal = Math.max(0, props.availableResources.crystal - props.cargo.crystal);
+	const remainingFuel = Math.max(
+		0,
+		props.availableResources.fuel - (props.cargo.fuel + props.travelFuelCost),
+	);
+
 	return (
 		<div
 			className="
@@ -495,9 +502,8 @@ function LaunchSummarySection(props: {
   "
 		>
 			<p>
-				Resources after launch: Alloy {props.availableResources.alloy.toLocaleString()} / Crystal{" "}
-				{props.availableResources.crystal.toLocaleString()} / Fuel{" "}
-				{props.availableResources.fuel.toLocaleString()}
+				Resources after launch: Alloy {remainingAlloy.toLocaleString()} / Crystal{" "}
+				{remainingCrystal.toLocaleString()} / Fuel {remainingFuel.toLocaleString()}
 			</p>
 			<p className="mt-1 text-white/35">
 				Required now: Alloy {props.cargo.alloy.toLocaleString()} / Crystal{" "}

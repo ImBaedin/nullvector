@@ -196,9 +196,18 @@ function ProfileDisplayNameField(props: {
 		<div className="flex items-center gap-2">
 			<NvInput
 				className="w-48"
+				disabled={props.disabled || props.isSaving}
 				maxLength={32}
-				onChange={(event) => setDraftDisplayName(event.target.value)}
+				onChange={(event) => {
+					if (props.isSaving) {
+						return;
+					}
+					setDraftDisplayName(event.target.value);
+				}}
 				onKeyDown={(event) => {
+					if (props.isSaving) {
+						return;
+					}
 					if (event.key === "Enter") {
 						event.preventDefault();
 						void props.onSave(draftDisplayName);
@@ -222,6 +231,9 @@ function ProfileDisplayNameField(props: {
 					draftDisplayName.trim() === props.currentDisplayName
 				}
 				onClick={() => {
+					if (props.isSaving) {
+						return;
+					}
 					void props.onSave(draftDisplayName);
 				}}
 				type="button"
@@ -255,23 +267,39 @@ function PrivacyPanel() {
 					/>
 				</SettingsRow>
 				<SettingsRow label="Online Status" description="Show when you're active in-game">
-					<NvSwitch checked={showOnlineStatus} onCheckedChange={setShowOnlineStatus} />
+					<NvSwitch
+						ariaLabel="Show online status"
+						checked={showOnlineStatus}
+						onCheckedChange={setShowOnlineStatus}
+					/>
 				</SettingsRow>
 				<SettingsRow
 					label="Colony Coordinates"
 					description="Reveal colony locations on the star map"
 				>
-					<NvSwitch checked={showColonyCoords} onCheckedChange={setShowColonyCoords} />
+					<NvSwitch
+						ariaLabel="Show colony coordinates"
+						checked={showColonyCoords}
+						onCheckedChange={setShowColonyCoords}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 			<SettingsSection title="Communication">
 				<SettingsRow label="Direct Messages" description="Allow other players to message you">
-					<NvSwitch checked={allowMessages} onCheckedChange={setAllowMessages} />
+					<NvSwitch
+						ariaLabel="Allow direct messages"
+						checked={allowMessages}
+						onCheckedChange={setAllowMessages}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 			<SettingsSection title="Security">
 				<SettingsRow label="Two-Factor Authentication" description="Protect your account with 2FA">
-					<NvSwitch checked={twoFactor} onCheckedChange={setTwoFactor} />
+					<NvSwitch
+						ariaLabel="Enable two-factor authentication"
+						checked={twoFactor}
+						onCheckedChange={setTwoFactor}
+					/>
 				</SettingsRow>
 				<SettingsRow label="Active Sessions" description="Manage devices signed into your account">
 					<button
@@ -346,6 +374,7 @@ function NotificationsPanel() {
 					<div className="flex items-center gap-2 text-(--nv-text-muted)">
 						<Lock className="size-3.5" />
 						<NvSwitch
+							ariaLabel="Incoming raids notifications"
 							checked={preferences?.settings.raidIncoming.enabled ?? true}
 							disabled
 							onCheckedChange={() => {}}
@@ -361,6 +390,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Raid results notifications"
 							checked={preferences?.settings.raidResolved.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -375,6 +405,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Contract results notifications"
 							checked={preferences?.settings.contractResolved.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -395,6 +426,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Transport incoming notifications"
 							checked={preferences?.settings.transportIncoming.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -412,6 +444,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Transport delivered notifications"
 							checked={preferences?.settings.transportDelivered.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -429,6 +462,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Transport received notifications"
 							checked={preferences?.settings.transportReceived.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -446,6 +480,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Transport returned notifications"
 							checked={preferences?.settings.transportReturned.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -463,6 +498,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Operation failures notifications"
 							checked={preferences?.settings.operationFailed.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -508,12 +544,20 @@ function DisplayPanel() {
 					/>
 				</SettingsRow>
 				<SettingsRow label="Animated Backgrounds" description="Decorative background effects">
-					<NvSwitch checked={animatedBg} onCheckedChange={setAnimatedBg} />
+					<NvSwitch
+						ariaLabel="Animated backgrounds"
+						checked={animatedBg}
+						onCheckedChange={setAnimatedBg}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 			<SettingsSection title="Layout">
 				<SettingsRow label="Compact Mode" description="Reduce spacing for smaller screens">
-					<NvSwitch checked={compactMode} onCheckedChange={setCompactMode} />
+					<NvSwitch
+						ariaLabel="Compact mode"
+						checked={compactMode}
+						onCheckedChange={setCompactMode}
+					/>
 				</SettingsRow>
 				<SettingsRow label="UI Scale" description="Adjust the overall interface size">
 					<NvSelect
@@ -532,7 +576,11 @@ function DisplayPanel() {
 					label="Resource Delta"
 					description="Show per-minute production rates in the header"
 				>
-					<NvSwitch checked={showResourceDelta} onCheckedChange={setShowResourceDelta} />
+					<NvSwitch
+						ariaLabel="Show resource delta"
+						checked={showResourceDelta}
+						onCheckedChange={setShowResourceDelta}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 		</>
@@ -632,7 +680,11 @@ function AudioPanel() {
 			</SettingsSection>
 			<SettingsSection title="Ambient">
 				<SettingsRow label="Ambient Sounds" description="Background colony and space sounds">
-					<NvSwitch checked={ambientSounds} onCheckedChange={setAmbientSounds} />
+					<NvSwitch
+						ariaLabel="Ambient sounds"
+						checked={ambientSounds}
+						onCheckedChange={setAmbientSounds}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 		</>
@@ -652,7 +704,11 @@ function GameplayPanel() {
 					label="Auto-Queue Builds"
 					description="Automatically re-queue completed builds"
 				>
-					<NvSwitch checked={autoQueue} onCheckedChange={setAutoQueue} />
+					<NvSwitch
+						ariaLabel="Auto-queue builds"
+						checked={autoQueue}
+						onCheckedChange={setAutoQueue}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 			<SettingsSection title="Confirmation">
@@ -660,7 +716,11 @@ function GameplayPanel() {
 					label="Confirm Destructive Actions"
 					description="Require confirmation for fleet attacks, demolitions, etc."
 				>
-					<NvSwitch checked={confirmActions} onCheckedChange={setConfirmActions} />
+					<NvSwitch
+						ariaLabel="Confirm destructive actions"
+						checked={confirmActions}
+						onCheckedChange={setConfirmActions}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 			<SettingsSection title="Fleet">
@@ -679,7 +739,11 @@ function GameplayPanel() {
 			</SettingsSection>
 			<SettingsSection title="Help">
 				<SettingsRow label="Tutorial Hints" description="Show contextual tips for new features">
-					<NvSwitch checked={tutorialHints} onCheckedChange={setTutorialHints} />
+					<NvSwitch
+						ariaLabel="Tutorial hints"
+						checked={tutorialHints}
+						onCheckedChange={setTutorialHints}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 		</>

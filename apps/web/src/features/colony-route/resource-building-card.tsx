@@ -11,16 +11,19 @@ import { Dialog } from "@base-ui/react/dialog";
 import { Popover } from "@base-ui/react/popover";
 import {
 	DEFAULT_GENERATOR_REGISTRY,
+	getBuildingUpgradeCost,
+	getBuildingUpgradeDurationSeconds,
 	getGeneratorConsumptionPerMinute,
 	getGeneratorProductionPerMinute,
 	getUpgradeCost,
 	getUpgradeDurationSeconds,
 } from "@nullvector/game-logic";
 import { Clock3, Gauge, Info, Layers3, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { getUpgradeActionPresentation } from "@/features/colony-ui/action-state";
 import { ActionButton } from "@/features/colony-ui/components/action-button";
+import { useInlineNumberEditor } from "@/features/colony-ui/hooks/use-inline-number-editor";
 import { formatColonyDuration } from "@/features/colony-ui/time";
 
 type DeltaResourceKey = "alloy" | "crystal" | "fuel" | "energy";
@@ -194,35 +197,6 @@ const STORAGE_BUILDING_MAX_LEVEL = 25;
 const STORAGE_CAP_BASE_UNITS = 10_000;
 const STORAGE_CAP_GROWTH = 1.7;
 
-const STORAGE_UPGRADE_CONFIG: Record<
-	"alloyStorageLevel" | "crystalStorageLevel" | "fuelStorageLevel",
-	{
-		costBase: ResourceBucket;
-		costGrowth: number;
-		durationBaseSeconds: number;
-		durationGrowth: number;
-	}
-> = {
-	alloyStorageLevel: {
-		costBase: { alloy: 160, crystal: 60, fuel: 0 },
-		costGrowth: 1.58,
-		durationBaseSeconds: 110,
-		durationGrowth: 1.2,
-	},
-	crystalStorageLevel: {
-		costBase: { alloy: 130, crystal: 95, fuel: 0 },
-		costGrowth: 1.58,
-		durationBaseSeconds: 118,
-		durationGrowth: 1.2,
-	},
-	fuelStorageLevel: {
-		costBase: { alloy: 210, crystal: 90, fuel: 0 },
-		costGrowth: 1.6,
-		durationBaseSeconds: 126,
-		durationGrowth: 1.21,
-	},
-};
-
 function toWholeUnitBucket(resourceMap: Partial<Record<string, number>>): ResourceBucket {
 	return {
 		alloy: Math.max(0, Math.round(resourceMap.alloy ?? 0)),
@@ -307,26 +281,6 @@ function productionRatesPerMinute(args: {
 	};
 }
 
-function storageUpgradeCost(
-	buildingKey: "alloyStorageLevel" | "crystalStorageLevel" | "fuelStorageLevel",
-	currentLevel: number,
-): ResourceBucket {
-	const config = STORAGE_UPGRADE_CONFIG[buildingKey];
-	return {
-		alloy: Math.round(config.costBase.alloy * Math.pow(config.costGrowth, currentLevel)),
-		crystal: Math.round(config.costBase.crystal * Math.pow(config.costGrowth, currentLevel)),
-		fuel: Math.round(config.costBase.fuel * Math.pow(config.costGrowth, currentLevel)),
-	};
-}
-
-function storageUpgradeDurationSeconds(
-	buildingKey: "alloyStorageLevel" | "crystalStorageLevel" | "fuelStorageLevel",
-	currentLevel: number,
-) {
-	const config = STORAGE_UPGRADE_CONFIG[buildingKey];
-	return Math.round(config.durationBaseSeconds * Math.pow(config.durationGrowth, currentLevel));
-}
-
 function buildLevelTable(args: {
 	building: ResourceBuildingCardData;
 	buildingLevels: BuildingLevelSnapshot;
@@ -373,11 +327,11 @@ function buildLevelTable(args: {
 		let durationSeconds = 0;
 		if (level < maxLevel) {
 			if (isStorage) {
-				cost = storageUpgradeCost(
+				cost = getBuildingUpgradeCost(
 					building.key as "alloyStorageLevel" | "crystalStorageLevel" | "fuelStorageLevel",
 					level,
 				);
-				durationSeconds = storageUpgradeDurationSeconds(
+				durationSeconds = getBuildingUpgradeDurationSeconds(
 					building.key as "alloyStorageLevel" | "crystalStorageLevel" | "fuelStorageLevel",
 					level,
 				);
@@ -408,7 +362,13 @@ function InlineLevelEditor(props: {
 	onCancel: () => void;
 	onCommit: (nextLevel: number) => Promise<void> | void;
 }) {
-	const [draftLevel, setDraftLevel] = useState(() => String(props.currentLevel));
+	const { commitEditing, draftValue, setDraftValue, startEditing } = useInlineNumberEditor<"level">({
+		min: 0,
+	});
+
+	useEffect(() => {
+		startEditing("level", props.currentLevel);
+	}, [props.currentLevel, startEditing]);
 
 	return (
 		<input
@@ -424,7 +384,7 @@ function InlineLevelEditor(props: {
 			inputMode="numeric"
 			onBlur={props.onCancel}
 			onChange={(event) => {
-				setDraftLevel(event.target.value.replace(/[^\d]/g, ""));
+				setDraftValue(event.target.value);
 			}}
 			onKeyDown={(event) => {
 				if (event.key === "Escape") {
@@ -433,11 +393,30 @@ function InlineLevelEditor(props: {
 				}
 				if (event.key === "Enter") {
 					event.preventDefault();
-					void props.onCommit(Math.max(0, Math.floor(Number(draftLevel) || 0)));
+					void commitEditing("level", async ({ value }) => {
+						await props.onCommit(Math.max(0, Math.floor(value || 0)));
+					});
 				}
 			}}
-			value={draftLevel}
+			value={draftValue}
 		/>
+	);
+}
+
+function isBuildingUpgradeQueueItem(
+	item: LaneQueueItem | null | undefined,
+): item is LaneQueueItem & {
+	payload: {
+		buildingKey: BuildingKey;
+		fromLevel: number;
+		toLevel: number;
+	};
+} {
+	return (
+		item?.kind === "buildingUpgrade" &&
+		typeof item.payload === "object" &&
+		item.payload !== null &&
+		"buildingKey" in item.payload
 	);
 }
 
@@ -482,10 +461,16 @@ export function ResourceBuildingCard(props: {
 		onUpgrade,
 	} = props;
 	const [isEditingLevel, setIsEditingLevel] = useState(false);
+	const activeBuildingPayload = isBuildingUpgradeQueueItem(activeQueueItem)
+		? activeQueueItem.payload
+		: null;
+	const queuedBuildingPayload = isBuildingUpgradeQueueItem(queuedForBuilding)
+		? queuedForBuilding.payload
+		: null;
 
 	const isStorageBuilding = isStorageBuildingKey(building.key);
 	const isProductionBuilding = isProductionBuildingKey(building.key);
-	const isActiveUpgradeTarget = activeQueueItem?.payload.buildingKey === building.key;
+	const isActiveUpgradeTarget = activeBuildingPayload?.buildingKey === building.key;
 	const levelTable = useMemo(
 		() =>
 			buildLevelTable({
@@ -542,7 +527,7 @@ export function ResourceBuildingCard(props: {
 		actionLabel: building.currentLevel <= 0 ? "Build" : "Upgrade",
 		availableResources: resourcesStored,
 		cost: nextUpgradeCost,
-		hasQueuedItem: Boolean(queuedForBuilding),
+		hasQueuedItem: Boolean(queuedBuildingPayload),
 		isActive: isActiveUpgradeTarget,
 		isBusy,
 		isLocked: false,
@@ -566,7 +551,7 @@ export function ResourceBuildingCard(props: {
 	const nextLevelDeltas: Array<{ key: DeltaResourceKey; value: number }> = [];
 	const showOverflowBadgePopover =
 		!isActiveUpgradeTarget &&
-		!queuedForBuilding &&
+		!queuedBuildingPayload &&
 		isProductionBuilding &&
 		cardStatus === "Overflow" &&
 		resourceOverflow > 0;
@@ -689,11 +674,11 @@ export function ResourceBuildingCard(props: {
 									{isActiveUpgradeTarget ? (
 										<>
 											<Clock3 className="size-3" />
-											Upgrading to Lv {activeQueueItem.payload.toLevel}
+											Upgrading to Lv {activeBuildingPayload?.toLevel}
 											{remainingTimeLabel ? ` (${remainingTimeLabel})` : ""}
 										</>
-									) : queuedForBuilding ? (
-										<>Queued for Lv {queuedForBuilding.payload.toLevel}</>
+									) : queuedBuildingPayload ? (
+										<>Queued for Lv {queuedBuildingPayload.toLevel}</>
 									) : (
 										statusBadgeLabel
 									)}

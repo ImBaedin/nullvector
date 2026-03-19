@@ -1,23 +1,19 @@
 import type {
 	BuildingKey,
 	BuildingUpgradeQueuePayload,
+	ColonyQueueViewItem,
 	DefenseBuildQueuePayload,
 	DefenseKey,
 	FacilityKey,
 	FacilityUpgradeQueuePayload,
-	QueueItemStatus,
 	ResourceBucket,
 	ShipBuildQueuePayload,
 	ShipKey,
 } from "@nullvector/game-logic";
 
-export type QueueRow<TKind extends string, TPayload> = {
-	completesAt: number;
-	id?: string;
+export type QueueRow<TKind extends string, TPayload> = ColonyQueueViewItem & {
 	kind: TKind;
 	payload: TPayload;
-	startsAt?: number;
-	status?: QueueItemStatus;
 };
 
 export type BuildingQueueRow = QueueRow<"buildingUpgrade", BuildingUpgradeQueuePayload>;

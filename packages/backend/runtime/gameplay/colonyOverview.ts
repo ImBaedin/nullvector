@@ -555,7 +555,7 @@ export const getColonyOverview = query({
 			originOps,
 			inboundOps,
 			activeRaid,
-			raidResults,
+			lastRaidResult,
 		] = await Promise.all([
 			listOpenColonyQueueItems({
 				colonyId: publicColony.colony._id,
@@ -605,8 +605,11 @@ export const getColonyOverview = query({
 				.first(),
 			ctx.db
 				.query("npcRaidResults")
-				.withIndex("by_target_colony_id", (q) => q.eq("targetColonyId", publicColony.colony._id))
-				.collect(),
+				.withIndex("by_target_colony_created_at", (q) =>
+					q.eq("targetColonyId", publicColony.colony._id),
+				)
+				.order("desc")
+				.first(),
 		]);
 
 		const viewerRelation: "anonymous" | "otherPlayer" | "owner" =
@@ -640,8 +643,6 @@ export const getColonyOverview = query({
 			inboundFriendlyCount,
 			outboundCount,
 		});
-		const lastRaidResult =
-			raidResults.sort((left, right) => right.createdAt - left.createdAt)[0] ?? null;
 		const defenseFirepower = estimateColonyDefensePower({
 			defenses: defenseCounts,
 			ships: dockedShips,

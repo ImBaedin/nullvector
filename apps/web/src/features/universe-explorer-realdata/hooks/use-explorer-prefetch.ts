@@ -2,7 +2,7 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { useConvex } from "convex/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 type ExplorerLevel = "universe" | "galaxy" | "sector" | "system" | "planet";
 
@@ -26,8 +26,21 @@ export function useExplorerPrefetch(args: {
 		sector: new Set<string>(),
 		system: new Set<string>(),
 	});
+	const galaxyIdsKey = useMemo(
+		() => (args.overview?.galaxies ?? []).map((galaxy) => galaxy.id).join(","),
+		[args.overview?.galaxies],
+	);
+	const sectorIdsKey = useMemo(
+		() => (args.galaxyData?.sectors ?? []).map((sector) => sector.id).join(","),
+		[args.galaxyData?.sectors],
+	);
+	const systemIdsKey = useMemo(
+		() => (args.sectorData?.systems ?? []).map((system) => system.id).join(","),
+		[args.sectorData?.systems],
+	);
 
 	useEffect(() => {
+		// Depend on stable id signatures so we don't re-prefetch when callers hand us fresh array instances.
 		if (args.level === "universe") {
 			const prefetchedGalaxyIds = prefetchedIdsRef.current.galaxy;
 			const galaxyIdsToPrefetch = (args.overview?.galaxies ?? [])
@@ -41,11 +54,16 @@ export function useExplorerPrefetch(args: {
 
 			void Promise.allSettled(
 				galaxyIdsToPrefetch.map(async (galaxyId) => {
-					await Promise.all([
-						convex.query(api.universeExplorer.getGalaxyHeader, { galaxyId }),
-						convex.query(api.universeExplorer.getGalaxySectorList, { galaxyId }),
-					]);
 					prefetchedGalaxyIds.add(galaxyId);
+					try {
+						await Promise.all([
+							convex.query(api.universeExplorer.getGalaxyHeader, { galaxyId }),
+							convex.query(api.universeExplorer.getGalaxySectorList, { galaxyId }),
+						]);
+					} catch (error) {
+						prefetchedGalaxyIds.delete(galaxyId);
+						throw error;
+					}
 				}),
 			);
 			return;
@@ -64,11 +82,16 @@ export function useExplorerPrefetch(args: {
 
 			void Promise.allSettled(
 				sectorIdsToPrefetch.map(async (sectorId) => {
-					await Promise.all([
-						convex.query(api.universeExplorer.getSectorHeader, { sectorId }),
-						convex.query(api.universeExplorer.getSectorSystemList, { sectorId }),
-					]);
 					prefetchedSectorIds.add(sectorId);
+					try {
+						await Promise.all([
+							convex.query(api.universeExplorer.getSectorHeader, { sectorId }),
+							convex.query(api.universeExplorer.getSectorSystemList, { sectorId }),
+						]);
+					} catch (error) {
+						prefetchedSectorIds.delete(sectorId);
+						throw error;
+					}
 				}),
 			);
 			return;
@@ -90,19 +113,24 @@ export function useExplorerPrefetch(args: {
 
 		void Promise.allSettled(
 			systemIdsToPrefetch.map(async (systemId) => {
-				await Promise.all([
-					convex.query(api.universeExplorer.getSystemPlanetsStatic, { systemId }),
-					convex.query(api.universeExplorer.getSystemPlanetsOwnership, { systemId }),
-					convex.query(api.universeExplorer.getSystemPlanetsActiveOps, { systemId }),
-				]);
 				prefetchedSystemIds.add(systemId);
+				try {
+					await Promise.all([
+						convex.query(api.universeExplorer.getSystemPlanetsStatic, { systemId }),
+						convex.query(api.universeExplorer.getSystemPlanetsOwnership, { systemId }),
+						convex.query(api.universeExplorer.getSystemPlanetsActiveOps, { systemId }),
+					]);
+				} catch (error) {
+					prefetchedSystemIds.delete(systemId);
+					throw error;
+				}
 			}),
 		);
 	}, [
-		args.galaxyData?.sectors,
 		args.level,
-		args.overview?.galaxies,
-		args.sectorData?.systems,
 		convex,
+		galaxyIdsKey,
+		sectorIdsKey,
+		systemIdsKey,
 	]);
 }

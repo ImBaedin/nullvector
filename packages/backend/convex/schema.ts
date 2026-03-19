@@ -666,6 +666,7 @@ export default defineSchema({
 	})
 		.index("by_raid_operation_id", ["raidOperationId"])
 		.index("by_target_colony_id", ["targetColonyId"])
+		.index("by_target_colony_created_at", ["targetColonyId", "createdAt"])
 		.index("by_target_player_id", ["targetPlayerId"]),
 
 	contracts: defineTable({

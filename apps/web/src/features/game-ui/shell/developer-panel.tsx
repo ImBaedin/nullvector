@@ -56,6 +56,7 @@ export function DeveloperPanel({ activeColonyId }: { activeColonyId: Id<"colonie
 					description="Show developer console controls in colony screens for this player."
 				>
 					<NvSwitch
+						ariaLabel="Enable developer console UI"
 						checked={devConsoleState?.showDevConsoleUi === true}
 						disabled={!canToggleDevConsoleUi || !canUseDevConsole}
 						onCheckedChange={(checked) => {

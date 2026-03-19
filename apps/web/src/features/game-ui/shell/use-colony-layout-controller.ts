@@ -19,13 +19,24 @@ function isSameHeaderNavigation(
 	if (current.levelLabel !== next.levelLabel || current.qualityPreset !== next.qualityPreset) {
 		return false;
 	}
+	if (
+		current.onExit !== next.onExit ||
+		current.onSelectEntity !== next.onSelectEntity ||
+		current.onQualityPresetChange !== next.onQualityPresetChange
+	) {
+		return false;
+	}
 	if (current.pathItems.length !== next.pathItems.length) {
 		return false;
 	}
 	for (let i = 0; i < current.pathItems.length; i += 1) {
 		const currentItem = current.pathItems[i];
 		const nextItem = next.pathItems[i];
-		if (currentItem.id !== nextItem.id || currentItem.label !== nextItem.label) {
+		if (
+			currentItem.id !== nextItem.id ||
+			currentItem.label !== nextItem.label ||
+			currentItem.onSelect !== nextItem.onSelect
+		) {
 			return false;
 		}
 	}

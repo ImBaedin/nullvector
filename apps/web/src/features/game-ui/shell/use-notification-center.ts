@@ -92,7 +92,7 @@ export function useNotificationCenter(args: {
 	);
 
 	const handleNavigate = useCallback(
-		(notification: NotificationFeedItem) => {
+		async (notification: NotificationFeedItem) => {
 			const destinationPath = resolveNotificationDestinationPath(notification.destination);
 			if (!destinationPath) {
 				handleOpenDetails(notification);
@@ -102,11 +102,11 @@ export function useNotificationCenter(args: {
 			void markReadIfUnread(notification).catch((error) => {
 				toast.error(error instanceof Error ? error.message : "Failed to update notification");
 			});
-			args.onOpenChange(false);
-			setSelectedNotification(null);
 
 			try {
-				void navigate({ to: destinationPath });
+				await navigate({ to: destinationPath });
+				args.onOpenChange(false);
+				setSelectedNotification(null);
 			} catch (error) {
 				toast.error(error instanceof Error ? error.message : "Unable to open notification");
 			}

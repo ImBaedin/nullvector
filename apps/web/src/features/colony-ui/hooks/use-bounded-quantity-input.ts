@@ -7,14 +7,22 @@ export function useBoundedQuantityInput<TKey extends string>(args?: {
 }) {
 	const min = args?.min ?? 1;
 	const max = args?.max ?? 10_000;
-	const defaultValue = args?.defaultValue ?? min;
+	const clampValue = useCallback(
+		(value: number) => Math.max(min, Math.min(max, value)),
+		[max, min],
+	);
+	const defaultValue = clampValue(args?.defaultValue ?? min);
 	const [values, setValues] = useState<Partial<Record<TKey, number>>>({});
 	const [inputs, setInputs] = useState<Partial<Record<TKey, string>>>({});
 
-	const updateValue = useCallback((key: TKey, value: number) => {
-		setValues((current) => ({ ...current, [key]: value }));
-		setInputs((current) => ({ ...current, [key]: String(value) }));
-	}, []);
+	const updateValue = useCallback(
+		(key: TKey, value: number) => {
+			const normalizedValue = clampValue(value);
+			setValues((current) => ({ ...current, [key]: normalizedValue }));
+			setInputs((current) => ({ ...current, [key]: String(normalizedValue) }));
+		},
+		[clampValue],
+	);
 
 	const decrement = useCallback(
 		(key: TKey, currentValue: number) => {
@@ -48,10 +56,10 @@ export function useBoundedQuantityInput<TKey extends string>(args?: {
 
 			setValues((current) => ({
 				...current,
-				[key]: Math.max(min, Math.min(max, parsed)),
+				[key]: clampValue(parsed),
 			}));
 		},
-		[max, min],
+		[clampValue],
 	);
 
 	const commitInput = useCallback(
@@ -59,10 +67,10 @@ export function useBoundedQuantityInput<TKey extends string>(args?: {
 			const rawValue = inputs[key];
 			const parsed = Number(rawValue);
 			const normalized =
-				rawValue && Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : currentValue;
+				rawValue && Number.isFinite(parsed) ? clampValue(parsed) : clampValue(currentValue);
 			updateValue(key, normalized);
 		},
-		[inputs, max, min, updateValue],
+		[clampValue, inputs, updateValue],
 	);
 
 	return {

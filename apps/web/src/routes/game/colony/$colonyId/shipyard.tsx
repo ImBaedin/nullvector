@@ -194,17 +194,16 @@ function ShipyardRoute() {
 				return;
 			}
 
-			await devConsole.actions
-				.setShipCounts({
-					[shipKey]: Math.max(0, Math.floor(Number(shipEditor.draftValue) || 0)),
-				})
-				.then(() => {
-					toast.success("Ship count updated");
-					shipEditor.cancelEditing();
-				})
-				.catch((error) => {
-					toast.error(error instanceof Error ? error.message : "Failed to update ship count");
+			try {
+				await shipEditor.commitEditing(shipKey, async ({ key, value }) => {
+					await devConsole.actions.setShipCounts({
+						[key]: value,
+					});
 				});
+				toast.success("Ship count updated");
+			} catch (error) {
+				toast.error(error instanceof Error ? error.message : "Failed to update ship count");
+			}
 		},
 		[canShowDevUi, canUseDevConsole, devConsole.actions, shipEditor],
 	);

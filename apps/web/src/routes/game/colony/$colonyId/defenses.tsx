@@ -21,7 +21,7 @@ import {
 import { getQueueableBuildActionPresentation } from "@/features/colony-ui/action-state";
 import { ActionButton } from "@/features/colony-ui/components/action-button";
 import { CostPill } from "@/features/colony-ui/components/cost-pill";
-import { DevCountInput } from "@/features/colony-ui/components/dev-number-input";
+import { DevNumberInput } from "@/features/colony-ui/components/dev-number-input";
 import { LockWarningPopover } from "@/features/colony-ui/components/lock-warning-popover";
 import { QuantityStepper } from "@/features/colony-ui/components/quantity-stepper";
 import { StatusBadge } from "@/features/colony-ui/components/status-badge";
@@ -31,7 +31,6 @@ import { useInlineNumberEditor } from "@/features/colony-ui/hooks/use-inline-num
 import {
 	getQueueBuildResourceLabel,
 	isDefenseBuildQueueRow,
-	type DefenseBuildQueueRow,
 } from "@/features/colony-ui/queue-items";
 import { getQueueProgress } from "@/features/colony-ui/queue-state";
 import { formatColonyDuration } from "@/features/colony-ui/time";
@@ -230,7 +229,7 @@ function DefensesRoute() {
 		? getQueueProgress(nowMs, activeRawItem.startsAt, activeRawItem.completesAt).percent
 		: 0;
 
-	const availableResources = colonyView?.projected.resources;
+	const availableResources = colonyView?.projected?.resources;
 	const totalOwned = view?.defenses.reduce((sum, defense) => sum + defense.owned, 0) ?? 0;
 	const totalQueued = view?.defenses.reduce((sum, defense) => sum + defense.queued, 0) ?? 0;
 	const totalAttack =
@@ -468,12 +467,16 @@ function DefensesRoute() {
 		return <DefensesRouteSkeleton />;
 	}
 
-	if (!view || !availableResources) {
+	if (!view) {
 		return (
 			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
 				Unable to load defenses. Please sign in again.
 			</div>
 		);
+	}
+
+	if (!availableResources) {
+		return <DefensesRouteSkeleton />;
 	}
 
 	return (
@@ -793,7 +796,7 @@ function DefenseCard(props: {
 						<p className="mt-0.5 text-[11px] leading-snug text-white/40">{defense.description}</p>
 					</div>
 					{canShowDevUi && editingDefenseKey === defense.key ? (
-						<DevCountInput
+						<DevNumberInput
 							onBlur={onDefenseDraftCancel}
 							onCancel={onDefenseDraftCancel}
 							onChange={onDefenseDraftChange}
