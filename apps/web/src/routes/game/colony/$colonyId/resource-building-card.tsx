@@ -17,7 +17,6 @@ import {
 	getUpgradeDurationSeconds,
 } from "@nullvector/game-logic";
 import { Clock3, Gauge, Info, Layers3, X } from "lucide-react";
-import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 
 import { getUpgradeActionPresentation } from "@/features/colony-ui/action-state";
@@ -39,42 +38,50 @@ const BUILDING_VISUALS: Record<
 		accent: string;
 		glowColor: string;
 		imageUrl: string;
+		portraitUrl: string;
 	}
 > = {
 	alloyMineLevel: {
 		accent: "rgba(74, 233, 255, 0.65)",
 		glowColor: "rgba(74, 233, 255, 0.12)",
 		imageUrl: "/game-icons/alloy.png",
+		portraitUrl: "/game-icons/generators/alloy-mine.png",
 	},
 	crystalMineLevel: {
 		accent: "rgba(122, 181, 255, 0.62)",
 		glowColor: "rgba(122, 181, 255, 0.12)",
 		imageUrl: "/game-icons/crystal.png",
+		portraitUrl: "/game-icons/generators/crystal-mine.png",
 	},
 	fuelRefineryLevel: {
 		accent: "rgba(255, 170, 106, 0.7)",
 		glowColor: "rgba(255, 170, 106, 0.10)",
 		imageUrl: "/game-icons/deuterium.png",
+		portraitUrl: "/game-icons/generators/fuel-refinery.png",
 	},
 	powerPlantLevel: {
 		accent: "rgba(255, 125, 167, 0.66)",
 		glowColor: "rgba(255, 125, 167, 0.10)",
 		imageUrl: "/game-icons/energy.png",
+		portraitUrl: "/game-icons/generators/power-plant.png",
 	},
 	alloyStorageLevel: {
 		accent: "rgba(83, 205, 235, 0.54)",
 		glowColor: "rgba(83, 205, 235, 0.10)",
 		imageUrl: "/game-icons/alloy.png",
+		portraitUrl: "/game-icons/storages/alloy-depot.png",
 	},
 	crystalStorageLevel: {
 		accent: "rgba(133, 164, 255, 0.52)",
 		glowColor: "rgba(133, 164, 255, 0.10)",
 		imageUrl: "/game-icons/crystal.png",
+		portraitUrl: "/game-icons/storages/crystal-vault.png",
 	},
 	fuelStorageLevel: {
 		accent: "rgba(255, 182, 122, 0.56)",
 		glowColor: "rgba(255, 182, 122, 0.10)",
 		imageUrl: "/game-icons/deuterium.png",
+		portraitUrl: "/game-icons/storages/fuel-silo.png",
 	},
 };
 
@@ -173,144 +180,6 @@ function outputResourceKeyForBuilding(key: BuildingKey): DeltaResourceKey {
 		return "fuel";
 	}
 	return "energy";
-}
-
-function generationCycleMs(outputPerMinute: number) {
-	if (outputPerMinute <= 0) {
-		return null;
-	}
-	const rawMs = 60_000 / outputPerMinute;
-	return Math.max(350, Math.min(5_000, rawMs));
-}
-
-function OutputPulseIcon(props: {
-	icon: string;
-	label: string;
-	outputLabel: string;
-	outputPerMinute: number;
-}) {
-	const { icon, label, outputLabel, outputPerMinute } = props;
-	const cycleMs = useMemo(() => generationCycleMs(outputPerMinute), [outputPerMinute]);
-	const [fill, setFill] = useState(0);
-	const [hitCount, setHitCount] = useState(0);
-
-	useEffect(() => {
-		if (!cycleMs) {
-			setFill(0);
-			return;
-		}
-
-		let rafId: number | null = null;
-		let timeoutId: number | null = null;
-		let cycleStart = performance.now();
-
-		const updateFill = (now: number) => {
-			const elapsed = now - cycleStart;
-			setFill(Math.max(0, Math.min(1, elapsed / cycleMs)));
-			rafId = window.requestAnimationFrame(updateFill);
-		};
-
-		const scheduleHit = () => {
-			timeoutId = window.setTimeout(() => {
-				setHitCount((prev) => prev + 1);
-				cycleStart = performance.now();
-				scheduleHit();
-			}, cycleMs);
-		};
-
-		rafId = window.requestAnimationFrame(updateFill);
-		scheduleHit();
-
-		return () => {
-			if (rafId !== null) {
-				window.cancelAnimationFrame(rafId);
-			}
-			if (timeoutId !== null) {
-				window.clearTimeout(timeoutId);
-			}
-		};
-	}, [cycleMs]);
-
-	const revealMask = `conic-gradient(from 0deg, #000 0deg, #000 ${
-		fill * 360
-	}deg, transparent ${fill * 360}deg, transparent 360deg)`;
-	const rateText = `${Math.round(outputPerMinute).toLocaleString()}/m`;
-	const hitMotion = useMemo(() => {
-		const hitTilt = 7 + Math.random() * 7;
-		const reboundTilt = 3 + Math.random() * 6;
-		const squash = 0.86 + Math.random() * 0.08;
-		const overshoot = 1.05 + Math.random() * 0.08;
-		const settle = 0.97 + Math.random() * 0.03;
-		const duration = 0.38 + Math.random() * 0.24;
-
-		return {
-			duration,
-			rotate: [0, -hitTilt, reboundTilt, -reboundTilt * 0.35, 0],
-			scale: [1, squash, overshoot, settle, 1],
-		};
-	}, [hitCount]);
-
-	return (
-		<div className="flex items-center justify-center">
-			<motion.div
-				aria-label={`${label} output: ${outputPerMinute.toLocaleString()} ${outputLabel}`}
-				animate={{ rotate: hitMotion.rotate, scale: hitMotion.scale }}
-				className="
-      relative size-16 rounded-full border border-white/15 bg-black/30 p-1.5
-      shadow-[0_6px_14px_rgba(0,0,0,0.35)]
-    "
-				key={hitCount}
-				role="img"
-				title={`${outputPerMinute.toLocaleString()} ${outputLabel}`}
-				transition={{ duration: hitMotion.duration, ease: "easeOut" }}
-			>
-				<img
-					alt={`${label} output icon`}
-					className="
-       size-full object-contain opacity-80
-       filter-[grayscale(1)_contrast(1.1)_brightness(0.95)]
-     "
-					draggable={false}
-					src={icon}
-				/>
-				<span
-					className="pointer-events-none absolute inset-2 block"
-					style={{
-						WebkitMaskImage: revealMask,
-						WebkitMaskPosition: "center",
-						WebkitMaskRepeat: "no-repeat",
-						WebkitMaskSize: "contain",
-						maskImage: revealMask,
-						maskPosition: "center",
-						maskRepeat: "no-repeat",
-						maskSize: "contain",
-					}}
-				>
-					<img
-						alt=""
-						aria-hidden
-						className="size-full object-contain"
-						draggable={false}
-						src={icon}
-					/>
-				</span>
-				<span
-					className="
-       pointer-events-none absolute inset-0 grid place-items-center text-center
-     "
-				>
-					<span
-						className="
-        rounded-md bg-black/60 px-1.5 py-0.5 font-(family-name:--nv-font-mono)
-        text-[9px] font-bold text-white/80
-      "
-					>
-						{rateText}
-					</span>
-				</span>
-			</motion.div>
-		</div>
-	);
 }
 
 export function isStorageBuildingKey(key: BuildingKey) {
@@ -663,7 +532,7 @@ export function ResourceBuildingCard(props: {
 		isProductionBuilding &&
 		cardStatus === "Overflow" &&
 		resourceOverflow > 0;
-	const outputPerMinuteForAnimation = isPausedByStorageFull ? 0 : building.outputPerMinute;
+	const effectiveOutputPerMinute = isPausedByStorageFull ? 0 : building.outputPerMinute;
 	const statusBadgeLabel = isPausedByStorageFull
 		? "Paused (Storage Full)"
 		: cardStatus === "Overflow" && resourceOverflow > 0
@@ -699,7 +568,7 @@ export function ResourceBuildingCard(props: {
 
 	return (
 		<article className={`
-    group relative overflow-hidden rounded-xl border
+    group relative h-full overflow-hidden rounded-xl border
     ${statusStyle.card}
     bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
     text-[13px]
@@ -715,379 +584,412 @@ export function ResourceBuildingCard(props: {
 				style={{ background: visual.glowColor }}
 			/>
 
-			<div className="relative z-10 p-4">
-				<div className="flex items-start justify-between gap-3">
-					<div className="flex items-center gap-2.5">
-						<img
-							alt={building.name}
-							className="
-         size-8 rounded-lg border border-white/8 bg-black/30 object-contain p-1
+			{/* ── Portrait + Identity Header ── */}
+			<div className="relative z-10 flex h-full items-stretch gap-0">
+				<div
+					className="
+        relative flex w-24 shrink-0 items-center justify-center
+        overflow-hidden border-r border-white/6 bg-black/20
+      "
+				>
+					<img
+						alt={building.name}
+						className="
+         h-full w-full object-cover opacity-90
+         transition-transform duration-300
+         group-hover:scale-105
        "
-							src={visual.imageUrl}
-						/>
-						<h3 className="font-(family-name:--nv-font-display) text-sm font-bold">
-							{building.name}
-						</h3>
-					</div>
-					<div className="flex items-center gap-1.5">
-						{devInlineLevelEditor?.enabled ? (
-							isEditingLevel ? (
-								<input
-									autoFocus
-									className="
-           inline-flex h-6 w-14 items-center justify-center rounded-md border
-           border-cyan-300/35 bg-black/45 px-1 text-center
-           font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
-           outline-none
-           focus:border-cyan-200/60
-         "
-									inputMode="numeric"
-									onBlur={() => {
-										setIsEditingLevel(false);
-										setDraftLevel(String(building.currentLevel));
-									}}
-									onChange={(event) => {
-										setDraftLevel(event.target.value.replace(/[^\d]/g, ""));
-									}}
-									onKeyDown={(event) => {
-										if (event.key === "Escape") {
+						draggable={false}
+						src={visual.portraitUrl}
+					/>
+					<div
+						className="pointer-events-none absolute inset-0"
+						style={{
+							background: `linear-gradient(to right, transparent 60%, rgba(6,10,16,0.95))`,
+						}}
+					/>
+				</div>
+
+				<div className="flex min-w-0 flex-1 flex-col p-3.5">
+					{/* Name + Level + Actions */}
+					<div className="flex items-start justify-between gap-2">
+						<div className="min-w-0">
+							<h3 className="font-(family-name:--nv-font-display) text-sm font-bold leading-tight">
+								{building.name}
+							</h3>
+							{showOverflowBadgePopover ? (
+								<Popover.Root>
+									<Popover.Trigger
+										closeDelay={120}
+										delay={80}
+										openOnHover
+										render={
+											<button className={`
+              mt-1.5 inline-flex cursor-help items-center gap-1 rounded-md border
+              px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap uppercase
+              ${statusStyle.badge}
+            `} type="button">
+												{statusBadgeLabel}
+											</button>
+										}
+									/>
+									<Popover.Portal>
+										<Popover.Positioner align="start" className="z-90" sideOffset={8}>
+											<Popover.Popup
+												className="
+               max-w-[300px] rounded-xl border border-amber-200/35
+               bg-[rgba(35,24,8,0.86)] p-3 text-xs text-amber-100
+               shadow-[0_20px_45px_rgba(0,0,0,0.5)] backdrop-blur-md
+               transition-[transform,scale,opacity] duration-200 outline-none
+               data-ending-style:scale-90 data-ending-style:opacity-0
+               data-starting-style:scale-90 data-starting-style:opacity-0
+             "
+											>
+												Overflow stockpile: {resourceOverflow.toLocaleString()}{" "}
+												{resourceNameForBuilding(building.key)}. Production resumes automatically when
+												overflow reaches zero.
+											</Popover.Popup>
+										</Popover.Positioner>
+									</Popover.Portal>
+								</Popover.Root>
+							) : (
+								<p className={`
+           mt-1.5 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5
+           text-[9px] font-semibold whitespace-nowrap uppercase
+           ${statusStyle.badge}
+         `}>
+									{isActiveUpgradeTarget ? (
+										<>
+											<Clock3 className="size-3" />
+											Upgrading to Lv {activeQueueItem.payload.toLevel}
+											{remainingTimeLabel ? ` (${remainingTimeLabel})` : ""}
+										</>
+									) : queuedForBuilding ? (
+										<>Queued for Lv {queuedForBuilding.payload.toLevel}</>
+									) : (
+										statusBadgeLabel
+									)}
+								</p>
+							)}
+						</div>
+						<div className="flex shrink-0 items-center gap-1.5">
+							{devInlineLevelEditor?.enabled ? (
+								isEditingLevel ? (
+									<input
+										autoFocus
+										className="
+             inline-flex h-6 w-14 items-center justify-center rounded-md border
+             border-cyan-300/35 bg-black/45 px-1 text-center
+             font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
+             outline-none
+             focus:border-cyan-200/60
+           "
+										inputMode="numeric"
+										onBlur={() => {
 											setIsEditingLevel(false);
 											setDraftLevel(String(building.currentLevel));
-											return;
-										}
-										if (event.key === "Enter") {
-											event.preventDefault();
-											void handleCommitInlineLevel();
-										}
-									}}
-									value={draftLevel}
-								/>
+										}}
+										onChange={(event) => {
+											setDraftLevel(event.target.value.replace(/[^\d]/g, ""));
+										}}
+										onKeyDown={(event) => {
+											if (event.key === "Escape") {
+												setIsEditingLevel(false);
+												setDraftLevel(String(building.currentLevel));
+												return;
+											}
+											if (event.key === "Enter") {
+												event.preventDefault();
+												void handleCommitInlineLevel();
+											}
+										}}
+										value={draftLevel}
+									/>
+								) : (
+									<button
+										aria-label={`Level ${building.currentLevel}`}
+										className="
+             inline-flex h-6 min-w-9 items-center justify-center rounded-md border
+             border-cyan-300/20 bg-cyan-400/8 px-1.5
+             font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
+             transition
+             hover:border-cyan-200/45 hover:bg-cyan-400/14
+             disabled:cursor-not-allowed disabled:opacity-50
+           "
+										disabled={devInlineLevelEditor.isSaving}
+										onClick={() => {
+											setDraftLevel(String(building.currentLevel));
+											setIsEditingLevel(true);
+										}}
+										title={`Level ${building.currentLevel}`}
+										type="button"
+									>
+										{building.currentLevel}
+									</button>
+								)
 							) : (
-								<button
+								<span
 									aria-label={`Level ${building.currentLevel}`}
 									className="
-           inline-flex h-6 min-w-9 items-center justify-center rounded-md border
-           border-cyan-300/20 bg-cyan-400/8 px-1.5
-           font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
-           transition
-           hover:border-cyan-200/45 hover:bg-cyan-400/14
-           disabled:cursor-not-allowed disabled:opacity-50
-         "
-									disabled={devInlineLevelEditor.isSaving}
-									onClick={() => {
-										setDraftLevel(String(building.currentLevel));
-										setIsEditingLevel(true);
-									}}
+            inline-flex size-6 items-center justify-center rounded-md border
+            border-white/15 bg-black/25 font-(family-name:--nv-font-mono)
+            text-[10px] font-bold text-white/80
+          "
 									title={`Level ${building.currentLevel}`}
-									type="button"
 								>
 									{building.currentLevel}
-								</button>
-							)
-						) : (
-							<span
-								aria-label={`Level ${building.currentLevel}`}
-								className="
-          inline-flex size-6 items-center justify-center rounded-md border
-          border-white/15 bg-black/25 font-(family-name:--nv-font-mono)
-          text-[10px] font-bold text-white/80
-        "
-								title={`Level ${building.currentLevel}`}
-							>
-								{building.currentLevel}
-							</span>
-						)}
-						{!isStorageBuilding ? (
-							<GeneratorInfoPopover
-								details={
-									<div className="grid gap-1.5 text-[10px]">
-										<p className="text-white/50">
-											Efficiency:{" "}
-											<span
-												className="
-              font-(family-name:--nv-font-mono) font-semibold text-white
-            "
-											>
-												{efficiencyLabel(cardStatus, energyRatio)}
-											</span>
-										</p>
-										<p className="text-white/50">
-											Output:{" "}
-											<span
-												className="
-              font-(family-name:--nv-font-mono) font-semibold text-white
-            "
-											>
-												{outputPerMinuteForAnimation.toLocaleString()} {building.outputLabel}
-											</span>
-										</p>
-										<p className="text-white/50">
-											Energy Draw:{" "}
-											<span
-												className="
-              font-(family-name:--nv-font-mono) font-semibold text-white
-            "
-											>
-												{building.energyUsePerMinute.toLocaleString()} MW
-											</span>
-										</p>
-										{resourceOverflow > 0 ? (
+								</span>
+							)}
+							{!isStorageBuilding ? (
+								<GeneratorInfoPopover
+									details={
+										<div className="grid gap-1.5 text-[10px]">
 											<p className="text-white/50">
-												Overflow:{" "}
+												Efficiency:{" "}
 												<span
 													className="
-               font-(family-name:--nv-font-mono) font-semibold text-amber-200
-             "
+                font-(family-name:--nv-font-mono) font-semibold text-white
+              "
 												>
-													{resourceOverflow.toLocaleString()}{" "}
-													{resourceNameForBuilding(building.key)}
+													{efficiencyLabel(cardStatus, energyRatio)}
 												</span>
 											</p>
-										) : null}
-										{isProductionBuilding && resourceOverflow > 0 ? (
-											<p className="text-amber-100/90">
-												Production is paused while overflow is above zero.
-											</p>
-										) : isPausedByStorageFull ? (
-											<p className="text-rose-100/90">
-												Production is paused while storage is full.
-											</p>
-										) : (
 											<p className="text-white/50">
-												Overflow:{" "}
-												<span className="font-semibold text-white">
-													{isProductionBuilding ? "None" : "N/A"}
+												Output:{" "}
+												<span
+													className="
+                font-(family-name:--nv-font-mono) font-semibold text-white
+              "
+												>
+													{effectiveOutputPerMinute.toLocaleString()} {building.outputLabel}
 												</span>
 											</p>
-										)}
-									</div>
-								}
-							/>
-						) : null}
-						<Dialog.Root onOpenChange={onTableOpenChange} open={isTableOpen}>
-							<Dialog.Trigger
-								className="
-          rounded-md border border-white/12 bg-white/3 px-2 py-1 text-[10px]
-          font-semibold text-white/50 transition
-          hover:bg-white/6 hover:text-white/80
-        "
-							>
-								<span className="inline-flex items-center gap-1">
-									<Layers3 className="size-3" />
-									Levels
-								</span>
-							</Dialog.Trigger>
-							<Dialog.Portal>
-								<Dialog.Backdrop
-									className="
-           fixed inset-0 z-95 bg-[rgba(3,6,12,0.72)] backdrop-blur-sm
-           transition-all duration-200
-           data-ending-style:opacity-0
-           data-starting-style:opacity-0
-         "
-								/>
-								<Dialog.Popup
-									className="
-           fixed top-1/2 left-1/2 z-100 max-h-[85vh] w-[min(96vw,860px)]
-           -translate-1/2 overflow-y-auto rounded-2xl border border-white/12
-           bg-[linear-gradient(170deg,rgba(12,20,36,0.98),rgba(6,10,18,0.99))]
-           shadow-[0_24px_56px_rgba(0,0,0,0.55)] transition-all duration-200
-           outline-none
-           data-ending-style:scale-95 data-ending-style:opacity-0
-           data-starting-style:scale-95 data-starting-style:opacity-0
-         "
-								>
-									<div
-										className="
-            p-3.5
-            sm:p-5
-          "
-									>
-										<div className="mb-3 flex items-center justify-between gap-2">
-											<Dialog.Title
-												className="
-              inline-flex items-center gap-2
-              font-(family-name:--nv-font-display) text-sm font-bold text-white
-            "
-											>
-												<Layers3 className="size-4 text-cyan-300/60" />
-												Level Planner: {building.name}
-											</Dialog.Title>
-											<Dialog.Description className="sr-only">
-												Review level progression, upgrade costs, and timing for {building.name}.
-											</Dialog.Description>
-											<Dialog.Close
-												className="
-              rounded-md border border-white/12 bg-white/3 p-1.5 text-white/50
-              transition
-              hover:bg-white/6 hover:text-white/80
-            "
-											>
-												<X className="size-3.5" strokeWidth={2.4} />
-											</Dialog.Close>
+											<p className="text-white/50">
+												Energy Draw:{" "}
+												<span
+													className="
+                font-(family-name:--nv-font-mono) font-semibold text-white
+              "
+												>
+													{building.energyUsePerMinute.toLocaleString()} MW
+												</span>
+											</p>
+											{resourceOverflow > 0 ? (
+												<p className="text-white/50">
+													Overflow:{" "}
+													<span
+														className="
+                 font-(family-name:--nv-font-mono) font-semibold text-amber-200
+               "
+													>
+														{resourceOverflow.toLocaleString()}{" "}
+														{resourceNameForBuilding(building.key)}
+													</span>
+												</p>
+											) : null}
+											{isProductionBuilding && resourceOverflow > 0 ? (
+												<p className="text-amber-100/90">
+													Production is paused while overflow is above zero.
+												</p>
+											) : isPausedByStorageFull ? (
+												<p className="text-rose-100/90">
+													Production is paused while storage is full.
+												</p>
+											) : (
+												<p className="text-white/50">
+													Overflow:{" "}
+													<span className="font-semibold text-white">
+														{isProductionBuilding ? "None" : "N/A"}
+													</span>
+												</p>
+											)}
 										</div>
+									}
+								/>
+							) : null}
+							<Dialog.Root onOpenChange={onTableOpenChange} open={isTableOpen}>
+								<Dialog.Trigger
+									className="
+            rounded-md border border-white/12 bg-white/3 px-2 py-1 text-[10px]
+            font-semibold text-white/50 transition
+            hover:bg-white/6 hover:text-white/80
+          "
+								>
+									<span className="inline-flex items-center gap-1">
+										<Layers3 className="size-3" />
+										Levels
+									</span>
+								</Dialog.Trigger>
+								<Dialog.Portal>
+									<Dialog.Backdrop
+										className="
+             fixed inset-0 z-95 bg-[rgba(3,6,12,0.72)] backdrop-blur-sm
+             transition-all duration-200
+             data-ending-style:opacity-0
+             data-starting-style:opacity-0
+           "
+									/>
+									<Dialog.Popup
+										className="
+             fixed top-1/2 left-1/2 z-100 max-h-[85vh] w-[min(96vw,860px)]
+             -translate-1/2 overflow-y-auto rounded-2xl border border-white/12
+             bg-[linear-gradient(170deg,rgba(12,20,36,0.98),rgba(6,10,18,0.99))]
+             shadow-[0_24px_56px_rgba(0,0,0,0.55)] transition-all duration-200
+             outline-none
+             data-ending-style:scale-95 data-ending-style:opacity-0
+             data-starting-style:scale-95 data-starting-style:opacity-0
+           "
+									>
 										<div
 											className="
-             overflow-hidden rounded-lg border border-white/8 bg-black/20
-           "
-										>
-											<table
-												className="
-              w-full text-left font-(family-name:--nv-font-mono) text-[10px]
+              p-3.5
+              sm:p-5
             "
-											>
-												<thead
+										>
+											<div className="mb-3 flex items-center justify-between gap-2">
+												<Dialog.Title
 													className="
-               bg-white/4 text-[9px] tracking-widest text-white/40 uppercase
-             "
+                inline-flex items-center gap-2
+                font-(family-name:--nv-font-display) text-sm font-bold text-white
+              "
 												>
-													<tr>
-														<th className="px-2.5 py-2 font-semibold">Lv</th>
-														<th className="px-2.5 py-2 font-semibold">{outputColumnLabel}</th>
-														<th className="px-2.5 py-2 font-semibold">Energy</th>
-														<th className="px-2.5 py-2 font-semibold">Cost</th>
-														<th className="px-2.5 py-2 font-semibold">Time</th>
-													</tr>
-												</thead>
-												<tbody>
-													{levelTable.map((row) => (
-														<tr
-															className={
-																row.level === building.currentLevel
-																	? "bg-cyan-400/8 text-cyan-100"
-																	: `
-                   text-white/70
-                   hover:bg-white/2
-                 `
-															}
-															key={`${building.key}-${row.level}`}
-														>
-															<td className="px-2.5 py-1.5 font-bold">{row.level}</td>
-															<td className="px-2.5 py-1.5">
-																{row.outputPerMinute.toLocaleString()}{" "}
-																<span
-																	className={
-																		row.deltaOutputPerMinute >= 0
-																			? "text-emerald-300/60"
-																			: "text-rose-300/60"
-																	}
-																>
-																	({row.deltaOutputPerMinute >= 0 ? "+" : ""}
-																	{row.deltaOutputPerMinute.toLocaleString()})
-																</span>
-															</td>
-															<td className="px-2.5 py-1.5">
-																{row.energyUsePerMinute.toLocaleString()}{" "}
-																<span className="text-white/30">
-																	({row.deltaEnergyPerMinute >= 0 ? "+" : ""}
-																	{row.deltaEnergyPerMinute.toLocaleString()})
-																</span>
-															</td>
-															<td className="px-2.5 py-1.5">
-																A {row.cost.alloy.toLocaleString()} / C{" "}
-																{row.cost.crystal.toLocaleString()} / F{" "}
-																{row.cost.fuel.toLocaleString()}
-															</td>
-															<td className="px-2.5 py-1.5">
-																{formatUpgradeTime(row.durationSeconds)}
-															</td>
+													<Layers3 className="size-4 text-cyan-300/60" />
+													Level Planner: {building.name}
+												</Dialog.Title>
+												<Dialog.Description className="sr-only">
+													Review level progression, upgrade costs, and timing for {building.name}.
+												</Dialog.Description>
+												<Dialog.Close
+													className="
+                rounded-md border border-white/12 bg-white/3 p-1.5 text-white/50
+                transition
+                hover:bg-white/6 hover:text-white/80
+              "
+												>
+													<X className="size-3.5" strokeWidth={2.4} />
+												</Dialog.Close>
+											</div>
+											<div
+												className="
+               overflow-hidden rounded-lg border border-white/8 bg-black/20
+             "
+											>
+												<table
+													className="
+                w-full text-left font-(family-name:--nv-font-mono) text-[10px]
+              "
+												>
+													<thead
+														className="
+                 bg-white/4 text-[9px] tracking-widest text-white/40 uppercase
+               "
+													>
+														<tr>
+															<th className="px-2.5 py-2 font-semibold">Lv</th>
+															<th className="px-2.5 py-2 font-semibold">{outputColumnLabel}</th>
+															<th className="px-2.5 py-2 font-semibold">Energy</th>
+															<th className="px-2.5 py-2 font-semibold">Cost</th>
+															<th className="px-2.5 py-2 font-semibold">Time</th>
 														</tr>
-													))}
-												</tbody>
-											</table>
+													</thead>
+													<tbody>
+														{levelTable.map((row) => (
+															<tr
+																className={
+																	row.level === building.currentLevel
+																		? "bg-cyan-400/8 text-cyan-100"
+																		: `
+                     text-white/70
+                     hover:bg-white/2
+                   `
+																}
+																key={`${building.key}-${row.level}`}
+															>
+																<td className="px-2.5 py-1.5 font-bold">{row.level}</td>
+																<td className="px-2.5 py-1.5">
+																	{row.outputPerMinute.toLocaleString()}{" "}
+																	<span
+																		className={
+																			row.deltaOutputPerMinute >= 0
+																				? "text-emerald-300/60"
+																				: "text-rose-300/60"
+																		}
+																	>
+																		({row.deltaOutputPerMinute >= 0 ? "+" : ""}
+																		{row.deltaOutputPerMinute.toLocaleString()})
+																	</span>
+																</td>
+																<td className="px-2.5 py-1.5">
+																	{row.energyUsePerMinute.toLocaleString()}{" "}
+																	<span className="text-white/30">
+																		({row.deltaEnergyPerMinute >= 0 ? "+" : ""}
+																		{row.deltaEnergyPerMinute.toLocaleString()})
+																	</span>
+																</td>
+																<td className="px-2.5 py-1.5">
+																	A {row.cost.alloy.toLocaleString()} / C{" "}
+																	{row.cost.crystal.toLocaleString()} / F{" "}
+																	{row.cost.fuel.toLocaleString()}
+																</td>
+																<td className="px-2.5 py-1.5">
+																	{formatUpgradeTime(row.durationSeconds)}
+																</td>
+															</tr>
+														))}
+													</tbody>
+												</table>
+											</div>
 										</div>
-									</div>
-								</Dialog.Popup>
-							</Dialog.Portal>
-						</Dialog.Root>
+									</Dialog.Popup>
+								</Dialog.Portal>
+							</Dialog.Root>
+						</div>
 					</div>
-				</div>
-				{showOverflowBadgePopover ? (
-					<Popover.Root>
-						<Popover.Trigger
-							closeDelay={120}
-							delay={80}
-							openOnHover
-							render={
-								<button className={`
-          mt-2 inline-flex cursor-help items-center gap-1 rounded-md border
-          px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap uppercase
-          ${statusStyle.badge}
-        `} type="button">
-									{statusBadgeLabel}
-								</button>
-							}
-						/>
-						<Popover.Portal>
-							<Popover.Positioner align="start" className="z-90" sideOffset={8}>
-								<Popover.Popup
+
+					{/* ── Production Rate + Energy ── */}
+					{!isStorageBuilding ? (
+						<div className="mt-2.5 flex items-center gap-2">
+							<div
+								className="
+          flex items-center gap-1.5 rounded-lg border border-white/6
+          bg-black/20 px-2.5 py-1.5
+        "
+							>
+								<img
+									alt={DELTA_RESOURCE_META[outputResourceKey].label}
+									className="size-3.5 rounded-[2px] border border-white/15 object-cover"
+									src={DELTA_RESOURCE_META[outputResourceKey].icon}
+								/>
+								<span
 									className="
-           max-w-[300px] rounded-xl border border-amber-200/35
-           bg-[rgba(35,24,8,0.86)] p-3 text-xs text-amber-100
-           shadow-[0_20px_45px_rgba(0,0,0,0.5)] backdrop-blur-md
-           transition-[transform,scale,opacity] duration-200 outline-none
-           data-ending-style:scale-90 data-ending-style:opacity-0
-           data-starting-style:scale-90 data-starting-style:opacity-0
+            font-(family-name:--nv-font-mono) text-[10px] font-semibold text-white/80
+          "
+								>
+									{effectiveOutputPerMinute.toLocaleString()}
+								</span>
+								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/35">
+									/m
+								</span>
+							</div>
+							<div
+								className="
+          flex items-center gap-1.5 rounded-lg border border-white/6
+          bg-black/20 px-2.5 py-1.5 text-[10px] text-white/50
+        "
+							>
+								<Gauge className="size-3 text-cyan-300/50" />
+								<span
+									className="
+           font-(family-name:--nv-font-mono) font-semibold text-white/70
          "
 								>
-									Overflow stockpile: {resourceOverflow.toLocaleString()}{" "}
-									{resourceNameForBuilding(building.key)}. Production resumes automatically when
-									overflow reaches zero.
-								</Popover.Popup>
-							</Popover.Positioner>
-						</Popover.Portal>
-					</Popover.Root>
-				) : (
-					<p className={`
-       mt-2 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5
-       text-[9px] font-semibold whitespace-nowrap uppercase
-       ${statusStyle.badge}
-     `}>
-						{isActiveUpgradeTarget ? (
-							<>
-								<Clock3 className="size-3" />
-								Upgrading to Lv {activeQueueItem.payload.toLevel}
-								{remainingTimeLabel ? ` (${remainingTimeLabel})` : ""}
-							</>
-						) : queuedForBuilding ? (
-							<>Queued for Lv {queuedForBuilding.payload.toLevel}</>
-						) : (
-							statusBadgeLabel
-						)}
-					</p>
-				)}
+									{building.energyUsePerMinute.toLocaleString()} MW
+								</span>
+							</div>
+						</div>
+					) : null}
 
-				{!isStorageBuilding ? (
-					<div className="mt-2">
-						<OutputPulseIcon
-							icon={DELTA_RESOURCE_META[outputResourceKey].icon}
-							label={DELTA_RESOURCE_META[outputResourceKey].label}
-							outputLabel={building.outputLabel}
-							outputPerMinute={outputPerMinuteForAnimation}
-						/>
-					</div>
-				) : null}
-
-				{!isStorageBuilding ? (
-					<div
-						className="
-        mt-2.5 flex items-center gap-1.5 rounded-lg border border-white/6
-        bg-black/20 px-2.5 py-1.5 text-[10px] text-white/50
-      "
-					>
-						<Gauge className="size-3 text-cyan-300/50" />
-						<span>Energy</span>
-						<span
-							className="
-         ml-auto font-(family-name:--nv-font-mono) font-semibold text-white/70
-       "
-						>
-							{building.energyUsePerMinute.toLocaleString()} MW
-						</span>
-					</div>
-				) : null}
-
-				<div className="mt-3 flex justify-center">
+					<div className="mt-auto flex pt-3">
 					<Popover.Root>
 						<Popover.Trigger
 							closeDelay={90}
@@ -1181,6 +1083,7 @@ export function ResourceBuildingCard(props: {
 							</Popover.Positioner>
 						</Popover.Portal>
 					</Popover.Root>
+					</div>
 				</div>
 			</div>
 		</article>

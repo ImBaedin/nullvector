@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { createFileRoute } from "@tanstack/react-router";
-import { BatteryCharging, Clock3, Factory, Layers3, Pickaxe, Radar } from "lucide-react";
+import { BatteryCharging, Clock3, Droplets, Factory, Gem, Pickaxe, Radar } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -17,7 +17,7 @@ import { formatResourceValue } from "@/lib/colony-resource-simulation";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { ResourcesRouteSkeleton } from "./loading-skeletons";
-import { isStorageBuildingKey, ResourceBuildingCard } from "./resource-building-card";
+import { ResourceBuildingCard } from "./resource-building-card";
 
 export const Route = createFileRoute("/game/colony/$colonyId/resources")({
 	component: ResourcesRoute,
@@ -32,12 +32,26 @@ type GroupVisual = {
 };
 
 const GROUP_VISUALS = {
-	resource: {
+	alloy: {
 		accentBorder: "border-l-cyan-400/50",
 		accentDot: "bg-cyan-400",
-		description: "Raw material extraction and refining network.",
+		description: "Alloy extraction, refining, and storage.",
 		icon: <Pickaxe className="size-4" strokeWidth={2.2} />,
-		label: "Material Yards",
+		label: "Alloy Operations",
+	},
+	crystal: {
+		accentBorder: "border-l-indigo-400/50",
+		accentDot: "bg-indigo-400",
+		description: "Crystal mining, processing, and storage.",
+		icon: <Gem className="size-4" strokeWidth={2.2} />,
+		label: "Crystal Operations",
+	},
+	fuel: {
+		accentBorder: "border-l-orange-400/50",
+		accentDot: "bg-orange-400",
+		description: "Fuel refinement, synthesis, and storage.",
+		icon: <Droplets className="size-4" strokeWidth={2.2} />,
+		label: "Fuel Operations",
 	},
 	power: {
 		accentBorder: "border-l-amber-400/50",
@@ -45,13 +59,6 @@ const GROUP_VISUALS = {
 		description: "Planetary grid generation and voltage control.",
 		icon: <BatteryCharging className="size-4" strokeWidth={2.2} />,
 		label: "Power Grid",
-	},
-	storage: {
-		accentBorder: "border-l-sky-400/50",
-		accentDot: "bg-sky-400",
-		description: "Bulk containment arrays expanding resource reserves.",
-		icon: <Layers3 className="size-4" strokeWidth={2.2} />,
-		label: "Storage Ring",
 	},
 	special: {
 		accentBorder: "border-l-violet-400/50",
@@ -80,38 +87,19 @@ function resolveGroupIdForBuilding(building: {
 	group: string;
 	key: BuildingKey;
 }): GeneratorGroupId {
-	const normalizedGroup = building.group.toLowerCase();
-
-	if (building.key === "powerPlantLevel" || normalizedGroup.includes("power")) {
+	if (building.key === "alloyMineLevel" || building.key === "alloyStorageLevel") {
+		return "alloy";
+	}
+	if (building.key === "crystalMineLevel" || building.key === "crystalStorageLevel") {
+		return "crystal";
+	}
+	if (building.key === "fuelRefineryLevel" || building.key === "fuelStorageLevel") {
+		return "fuel";
+	}
+	if (building.key === "powerPlantLevel") {
 		return "power";
 	}
-
-	if (isStorageBuildingKey(building.key) || normalizedGroup.includes("storage")) {
-		return "storage";
-	}
-
-	if (
-		normalizedGroup.includes("resource") ||
-		normalizedGroup.includes("mine") ||
-		normalizedGroup.includes("extract")
-	) {
-		return "resource";
-	}
-
 	return "special";
-}
-
-function storageKeyForProduction(key: BuildingKey): BuildingKey | null {
-	if (key === "alloyMineLevel") {
-		return "alloyStorageLevel";
-	}
-	if (key === "crystalMineLevel") {
-		return "crystalStorageLevel";
-	}
-	if (key === "fuelRefineryLevel") {
-		return "fuelStorageLevel";
-	}
-	return null;
 }
 
 function isBuildingQueueItemPayload(item: { kind: string; payload: unknown }): item is {
@@ -298,24 +286,6 @@ function ResourcesRoute() {
 
 		return [...groups.values()];
 	}, [view?.buildings]);
-	const buildingsByKey = useMemo(() => {
-		return new Map((view?.buildings ?? []).map((building) => [building.key, building]));
-	}, [view?.buildings]);
-	const pairedStorageKeys = useMemo(() => {
-		const keys = new Set<BuildingKey>();
-
-		for (const building of view?.buildings ?? []) {
-			const storageKey = storageKeyForProduction(building.key);
-			if (!storageKey) {
-				continue;
-			}
-			if (buildingsByKey.has(storageKey)) {
-				keys.add(storageKey);
-			}
-		}
-
-		return keys;
-	}, [buildingsByKey, view?.buildings]);
 	const buildingLevels = useMemo(() => {
 		const levels = { ...EMPTY_BUILDING_LEVELS };
 		for (const building of view?.buildings ?? []) {
@@ -581,28 +551,10 @@ function ResourcesRoute() {
 
 					{/* Building Group Sections */}
 					{groupedBuildings.map((group, groupIdx) => {
-						const baseGroupBuildings =
-							group.groupId === "storage"
-								? group.buildings.filter((building) => !pairedStorageKeys.has(building.key))
-								: group.buildings;
-						const pairedStorageInGroup =
-							group.groupId !== "storage"
-								? baseGroupBuildings
-										.map((building) => storageKeyForProduction(building.key))
-										.filter((key): key is BuildingKey => Boolean(key))
-										.filter((key) => buildingsByKey.has(key))
-								: [];
-						const visibleStructureCount =
-							group.groupId === "storage"
-								? baseGroupBuildings.length
-								: new Set([
-										...baseGroupBuildings.map((building) => building.key),
-										...pairedStorageInGroup,
-									]).size;
-						const visibleStructureKeys = new Set<BuildingKey>([
-							...baseGroupBuildings.map((building) => building.key),
-							...pairedStorageInGroup,
-						]);
+						const visibleStructureCount = group.buildings.length;
+						const visibleStructureKeys = new Set<BuildingKey>(
+							group.buildings.map((building) => building.key),
+						);
 
 						if (visibleStructureCount === 0) {
 							return null;
@@ -691,110 +643,80 @@ function ResourcesRoute() {
 										className="
             grid gap-4
             md:grid-cols-2
-            lg:grid-cols-3
           "
 									>
-										{baseGroupBuildings.map((building) => {
-											const storageKey = storageKeyForProduction(building.key);
-											const storageBuilding = storageKey
-												? (buildingsByKey.get(storageKey) ?? null)
-												: null;
-											const renderCard = (targetBuilding: typeof building) => {
-												const targetTableOpen = activeTableBuildingKey === targetBuilding.key;
-												const targetBusy = upgradingKey === targetBuilding.key;
-												const targetQueued = pendingBuildingQueueItems.find(
-													(item) => item.payload.buildingKey === targetBuilding.key,
-												);
-												const ci = cardIndex++;
+										{group.buildings.map((building) => {
+											const isTableOpen = activeTableBuildingKey === building.key;
+											const isBusy = upgradingKey === building.key;
+											const queuedItem = pendingBuildingQueueItems.find(
+												(item) => item.payload.buildingKey === building.key,
+											);
+											const ci = cardIndex++;
 
-												return (
-													<div
-														key={targetBuilding.key}
-														style={{
-															animation: `nv-resource-card-in 380ms cubic-bezier(0.21,1,0.34,1) both`,
-															animationDelay: `${120 + ci * 60}ms`,
+											return (
+												<div
+													key={building.key}
+													style={{
+														animation: `nv-resource-card-in 380ms cubic-bezier(0.21,1,0.34,1) both`,
+														animationDelay: `${120 + ci * 60}ms`,
+													}}
+												>
+													<ResourceBuildingCard
+														activeQueueItem={activeBuildingQueueItem}
+														building={building}
+														buildingLevels={buildingLevels}
+														buildingQueueIsFull={buildingQueue?.isFull ?? false}
+														energyRatio={
+															projectedResources?.energyRatio ?? view.resources.energyRatio
+														}
+														isBusy={isBusy}
+														isTableOpen={isTableOpen}
+														overflow={projectedResources?.overflow ?? view.resources.overflow}
+														resourcesStored={projectedResources?.stored ?? view.resources.stored}
+														storageCaps={
+															projectedResources?.storageCaps ?? view.resources.storageCaps
+														}
+														planetMultipliers={
+															colonyResources.planetMultipliers ?? view.planetMultipliers
+														}
+														queuedForBuilding={queuedItem ?? null}
+														remainingTimeLabel={remainingTimeLabel}
+														devInlineLevelEditor={{
+															enabled: canShowDevUi,
+															isSaving: savingBuildingLevelKey === building.key,
+															onCommit: async (nextLevel) =>
+																commitBuildingLevel(building.key, nextLevel),
 														}}
-													>
-														<ResourceBuildingCard
-															activeQueueItem={activeBuildingQueueItem}
-															building={targetBuilding}
-															buildingLevels={buildingLevels}
-															buildingQueueIsFull={buildingQueue?.isFull ?? false}
-															energyRatio={
-																projectedResources?.energyRatio ?? view.resources.energyRatio
-															}
-															isBusy={targetBusy}
-															isTableOpen={targetTableOpen}
-															overflow={projectedResources?.overflow ?? view.resources.overflow}
-															resourcesStored={projectedResources?.stored ?? view.resources.stored}
-															storageCaps={
-																projectedResources?.storageCaps ?? view.resources.storageCaps
-															}
-															planetMultipliers={
-																colonyResources.planetMultipliers ?? view.planetMultipliers
-															}
-															queuedForBuilding={targetQueued ?? null}
-															remainingTimeLabel={remainingTimeLabel}
-															devInlineLevelEditor={{
-																enabled: canShowDevUi,
-																isSaving: savingBuildingLevelKey === targetBuilding.key,
-																onCommit: async (nextLevel) =>
-																	commitBuildingLevel(targetBuilding.key, nextLevel),
-															}}
-															onTableOpenChange={(open) =>
-																setActiveTableBuildingKey(open ? targetBuilding.key : null)
-															}
-															onUpgrade={() => {
-																setUpgradingKey(targetBuilding.key);
-																enqueueBuildingUpgrade({
-																	colonyId: colonyIdAsId,
-																	buildingKey: targetBuilding.key,
+														onTableOpenChange={(open) =>
+															setActiveTableBuildingKey(open ? building.key : null)
+														}
+														onUpgrade={() => {
+															setUpgradingKey(building.key);
+															enqueueBuildingUpgrade({
+																colonyId: colonyIdAsId,
+																buildingKey: building.key,
+															})
+																.then((result) => {
+																	if (result.status === "active") {
+																		toast.success(`${building.name} upgrade started`);
+																	} else {
+																		toast.success(`${building.name} upgrade queued`);
+																	}
 																})
-																	.then((result) => {
-																		if (result.status === "active") {
-																			toast.success(`${targetBuilding.name} upgrade started`);
-																		} else {
-																			toast.success(`${targetBuilding.name} upgrade queued`);
-																		}
-																	})
-																	.catch((error) => {
-																		toast.error(
-																			error instanceof Error
-																				? error.message
-																				: "Failed to queue upgrade",
-																		);
-																	})
-																	.finally(() => {
-																		setUpgradingKey(null);
-																	});
-															}}
-														/>
-													</div>
-												);
-											};
-
-											if (
-												group.groupId !== "storage" &&
-												isStorageBuildingKey(building.key) &&
-												pairedStorageKeys.has(building.key)
-											) {
-												return null;
-											}
-
-											if (
-												group.groupId !== "storage" &&
-												storageBuilding &&
-												!isStorageBuildingKey(building.key)
-											) {
-												return (
-													<div className="flex flex-col gap-3" key={building.key}>
-														{renderCard(building)}
-														{storageBuilding ? renderCard(storageBuilding) : null}
-													</div>
-												);
-											}
-
-											return renderCard(building);
+																.catch((error) => {
+																	toast.error(
+																		error instanceof Error
+																			? error.message
+																			: "Failed to queue upgrade",
+																	);
+																})
+																.finally(() => {
+																	setUpgradingKey(null);
+																});
+														}}
+													/>
+												</div>
+											);
 										})}
 									</div>
 								</div>
