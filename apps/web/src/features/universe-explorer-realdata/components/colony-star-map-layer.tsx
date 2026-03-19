@@ -447,6 +447,8 @@ export function ColonyStarMapLayer(props: {
 
 	useEffect(() => {
 		if (!isOpen) {
+			onHeaderNavigationChange(null);
+			clearHover();
 			return;
 		}
 
@@ -481,13 +483,9 @@ export function ColonyStarMapLayer(props: {
 		};
 	}, [isOpen, onHeaderNavigationChange]);
 
-	if (!isOpen) {
-		return null;
-	}
-
 	return (
 		<>
-			<div className="fixed inset-0 z-0">
+			<div className={cn("fixed inset-0 z-0", isOpen ? "pointer-events-auto" : "pointer-events-none")}>
 				<ExplorerCanvas
 					antialias={antialiasEnabled}
 					dpr={canvasDpr}
@@ -561,7 +559,7 @@ export function ColonyStarMapLayer(props: {
 				)}
 			/>
 
-			<HoverPanel hover={hover} />
+			{isOpen ? <HoverPanel hover={hover} /> : null}
 		</>
 	);
 }

@@ -14,6 +14,7 @@ import {
 	type SelectedContractContext,
 	type ShipAssignment,
 } from "./contracts-screen-shared";
+import { useSelfHealingFleetOperations } from "./fleet-operations-query";
 import { useColonyDevConsole, useNowMs } from "./route-shared";
 
 const MAX_DISCOVERY_REBUILD_ATTEMPTS = 3;
@@ -38,10 +39,10 @@ export function useContractsRouteData(args: {
 		api.fleetV2.getFleetGarrison,
 		isAuthenticated ? { colonyId: args.colonyId } : "skip",
 	);
-	const operations = useQuery(
-		api.fleetV2.getFleetOperationsForColony,
-		isAuthenticated ? { colonyId: args.colonyId } : "skip",
-	);
+	const operations = useSelfHealingFleetOperations({
+		colonyId: args.colonyId,
+		isAuthenticated,
+	});
 	const historySummary = useQuery(
 		api.contracts.getContractHistorySummary,
 		isAuthenticated ? {} : "skip",
