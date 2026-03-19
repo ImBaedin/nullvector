@@ -1,54 +1,34 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
-import { projectColonyEconomy, selectHudResources } from "@nullvector/game-logic";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
-import { useColonySnapshot } from "@/features/colony-state/hooks";
+import { useColonyView } from "@/features/colony-state/hooks";
 
 export function useColonyResources(colonyId: Id<"colonies"> | null) {
-	const snapshot = useColonySnapshot(colonyId);
-	const [nowMs, setNowMs] = useState(() => Date.now());
-
-	useEffect(() => {
-		const tick = window.setInterval(() => {
-			setNowMs(Date.now());
-		}, 1_000);
-
-		return () => {
-			window.clearInterval(tick);
-		};
-	}, []);
-
+	const view = useColonyView(colonyId);
 	const projected = useMemo(() => {
-		if (!snapshot) {
+		if (!view?.projected) {
 			return null;
 		}
-		const projectedState = projectColonyEconomy(snapshot, nowMs);
-		return {
-			energyConsumed: projectedState.energyConsumed,
-			energyProduced: projectedState.energyProduced,
-			energyRatio: projectedState.energyRatio,
-			overflow: projectedState.overflow,
-			ratesPerMinute: projectedState.ratesPerMinute,
-			storageCaps: projectedState.storageCaps,
-			stored: projectedState.resources,
-		};
-	}, [nowMs, snapshot]);
 
-	const hudResources = useMemo(() => {
-		if (!snapshot || !projected) {
-			return snapshot ? selectHudResources(snapshot, nowMs) : undefined;
-		}
-		return selectHudResources(snapshot, nowMs);
-	}, [nowMs, projected, snapshot]);
+		return {
+			energyConsumed: view.projected.energyConsumed,
+			energyProduced: view.projected.energyProduced,
+			energyRatio: view.projected.energyRatio,
+			overflow: view.projected.overflow,
+			ratesPerMinute: view.projected.ratesPerMinute,
+			storageCaps: view.projected.storageCaps,
+			stored: view.projected.resources,
+		};
+	}, [view?.projected]);
 
 	return {
-		hudResources,
-		isLoading: colonyId !== null && snapshot === undefined,
-		lastAccruedAt: snapshot?.lastAccruedAt,
-		nowMs,
-		planetMultipliers: snapshot?.planetMultipliers,
+		hudResources: view?.hudResources,
+		isLoading: colonyId !== null && view === undefined,
+		lastAccruedAt: view?.snapshot.lastAccruedAt,
+		nowMs: view?.nowMs ?? Date.now(),
+		planetMultipliers: view?.snapshot.planetMultipliers,
 		projected,
-		snapshot,
+		snapshot: view?.snapshot,
 	};
 }

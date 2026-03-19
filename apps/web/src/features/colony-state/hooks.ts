@@ -4,6 +4,7 @@ import type { FunctionReference } from "convex/server";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import {
 	applyColonyIntent,
+	projectColonyEconomy,
 	selectBuildingCards,
 	selectDefenseView,
 	selectFacilityCards,
@@ -37,7 +38,7 @@ export function useColonySessionSnapshot(colonyId: Id<"colonies"> | null) {
 	return useQuery(api.colony.getColonySessionSnapshot, colonyId ? { colonyId } : "skip");
 }
 
-export function useColonySelectors(colonyId: Id<"colonies"> | null) {
+export function useColonyView(colonyId: Id<"colonies"> | null) {
 	const snapshot = useColonySnapshot(colonyId);
 	const [nowMs, setNowMs] = useState(() => snapshot?.serverNowMs ?? Date.now());
 
@@ -60,17 +61,37 @@ export function useColonySelectors(colonyId: Id<"colonies"> | null) {
 		if (!snapshot) {
 			return undefined;
 		}
+		const projected = projectColonyEconomy(snapshot, nowMs);
 		return {
 			buildingCards: selectBuildingCards(snapshot, nowMs),
 			defenseState: selectDefenseView(snapshot, nowMs),
 			facilities: selectFacilityCards(snapshot, nowMs),
 			hudResources: selectHudResources(snapshot, nowMs),
 			nowMs,
+			projected,
 			queueLanes: selectQueueLanes(snapshot, nowMs),
 			shipyardState: selectShipyardView(snapshot, nowMs),
 			snapshot,
 		};
 	}, [nowMs, snapshot]);
+}
+
+export function useColonySelectors(colonyId: Id<"colonies"> | null) {
+	const view = useColonyView(colonyId);
+	if (!view) {
+		return undefined;
+	}
+
+	return {
+		buildingCards: view.buildingCards,
+		defenseState: view.defenseState,
+		facilities: view.facilities,
+		hudResources: view.hudResources,
+		nowMs: view.nowMs,
+		queueLanes: view.queueLanes,
+		shipyardState: view.shipyardState,
+		snapshot: view.snapshot,
+	};
 }
 
 export function useOptimisticColonyMutation<TArgs extends { colonyId: Id<"colonies"> }>(args: {

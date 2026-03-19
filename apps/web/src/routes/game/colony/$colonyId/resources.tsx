@@ -8,16 +8,25 @@ import { BatteryCharging, Clock3, Droplets, Factory, Gem, Pickaxe, Radar } from 
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { useColonySelectors, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
+import { useColonyView, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
+import { DevResourceInput } from "@/features/colony-ui/components/dev-number-input";
+import { useColonyDevConsole } from "@/features/colony-ui/hooks/use-colony-dev-console";
+import { useInlineNumberEditor } from "@/features/colony-ui/hooks/use-inline-number-editor";
+import {
+	BUILDING_KEY_LABELS,
+	FACILITY_KEY_LABELS,
+	isBuildingLaneQueueRow,
+	isBuildingQueueRow,
+	type BuildingLaneQueueRow,
+} from "@/features/colony-ui/queue-items";
 import { QueuePanel } from "@/features/colony-ui/components/queue-panel";
 import { getQueueProgress } from "@/features/colony-ui/queue-state";
 import { formatColonyDuration } from "@/features/colony-ui/time";
-import { useColonyResources } from "@/hooks/use-colony-resources";
 import { formatResourceValue } from "@/lib/colony-resource-simulation";
-import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
+import { useConvexAuth } from "@/lib/convex-hooks";
 
-import { ResourcesRouteSkeleton } from "./loading-skeletons";
-import { ResourceBuildingCard } from "./resource-building-card";
+import { ResourcesRouteSkeleton } from "@/features/colony-route/loading-skeletons";
+import { ResourceBuildingCard } from "@/features/colony-route/resource-building-card";
 
 export const Route = createFileRoute("/game/colony/$colonyId/resources")({
 	component: ResourcesRoute,
@@ -102,22 +111,6 @@ function resolveGroupIdForBuilding(building: {
 	return "special";
 }
 
-function isBuildingQueueItemPayload(item: { kind: string; payload: unknown }): item is {
-	kind: "buildingUpgrade";
-	payload: {
-		buildingKey: BuildingKey;
-		fromLevel: number;
-		toLevel: number;
-	};
-} {
-	return (
-		item.kind === "buildingUpgrade" &&
-		typeof item.payload === "object" &&
-		item.payload !== null &&
-		"buildingKey" in item.payload
-	);
-}
-
 function isFacilityQueueItemPayload(item: { kind: string; payload: unknown }): item is {
 	kind: "facilityUpgrade";
 	payload: {
@@ -134,88 +127,38 @@ function isFacilityQueueItemPayload(item: { kind: string; payload: unknown }): i
 	);
 }
 
-type BuildingLaneQueueItem =
-	| {
-			kind: "buildingUpgrade";
-			payload: {
-				buildingKey: BuildingKey;
-				fromLevel: number;
-				toLevel: number;
-			};
-			startsAt: number;
-			completesAt: number;
-	  }
-	| {
-			kind: "facilityUpgrade";
-			payload: {
-				facilityKey: FacilityKey;
-				fromLevel: number;
-				toLevel: number;
-			};
-			startsAt: number;
-			completesAt: number;
-	  };
-
-function isBuildingLaneQueueItem(item: {
-	kind: string;
-	payload: unknown;
-}): item is BuildingLaneQueueItem {
-	return isBuildingQueueItemPayload(item) || isFacilityQueueItemPayload(item);
-}
-
-const BUILDING_KEY_LABELS: Record<BuildingKey, string> = {
-	alloyMineLevel: "Alloy Mine",
-	crystalMineLevel: "Crystal Mine",
-	fuelRefineryLevel: "Fuel Refinery",
-	powerPlantLevel: "Power Plant",
-	alloyStorageLevel: "Alloy Storage",
-	crystalStorageLevel: "Crystal Storage",
-	fuelStorageLevel: "Fuel Storage",
-};
-
-const FACILITY_KEY_LABELS: Record<FacilityKey, string> = {
-	robotics_hub: "Robotics Hub",
-	shipyard: "Shipyard",
-	defense_grid: "Defense Grid",
-};
-
 function ResourcesRoute() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
-	const colonySelectors = useColonySelectors(isAuthenticated ? colonyIdAsId : null);
-	const devConsoleState = useQuery(
-		api.devConsole.getDevConsoleState,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
-	const colonyResources = useColonyResources(isAuthenticated ? colonyIdAsId : null);
+	const colonyView = useColonyView(isAuthenticated ? colonyIdAsId : null);
+	const devConsole = useColonyDevConsole(isAuthenticated ? colonyIdAsId : null);
 	const view = useMemo(() => {
-		if (!colonyResources.snapshot || !colonySelectors) {
+		if (!colonyView) {
 			return undefined;
 		}
-		const projected = colonyResources.projected;
 		return {
-			queues: colonySelectors.queueLanes,
-			buildings: colonySelectors.buildingCards,
+			queues: colonyView.queueLanes,
+			buildings: colonyView.buildingCards,
 			colony: {
-				id: colonyResources.snapshot.colonyId,
-				name: colonyResources.snapshot.name,
-				addressLabel: colonyResources.snapshot.addressLabel,
-				lastAccruedAt: colonyResources.snapshot.lastAccruedAt,
+				addressLabel: colonyView.snapshot.addressLabel,
+				id: colonyView.snapshot.colonyId,
+				lastAccruedAt: colonyView.snapshot.lastAccruedAt,
+				name: colonyView.snapshot.name,
 			},
-			planetMultipliers: colonyResources.snapshot.planetMultipliers,
+			planetMultipliers: colonyView.snapshot.planetMultipliers,
 			resources: {
-				energyConsumed: projected?.energyConsumed ?? 0,
-				energyProduced: projected?.energyProduced ?? 0,
-				energyRatio: projected?.energyRatio ?? 1,
-				overflow: colonyResources.snapshot.overflow,
-				ratesPerMinute: projected?.ratesPerMinute ?? { alloy: 0, crystal: 0, fuel: 0 },
-				storageCaps: colonyResources.snapshot.storageCaps,
-				stored: colonyResources.snapshot.resources,
+				energyConsumed: colonyView.projected.energyConsumed,
+				energyProduced: colonyView.projected.energyProduced,
+				energyRatio: colonyView.projected.energyRatio,
+				overflow: colonyView.snapshot.overflow,
+				ratesPerMinute: colonyView.projected.ratesPerMinute,
+				storageCaps: colonyView.snapshot.storageCaps,
+				stored: colonyView.snapshot.resources,
 			},
 		};
-	}, [colonyResources.projected, colonyResources.snapshot, colonySelectors]);
+	}, [colonyView]);
 	const enqueueBuildingUpgrade = useOptimisticColonyMutation({
 		intentFromArgs: (args: { buildingKey: BuildingKey; colonyId: Id<"colonies"> }) => ({
 			buildingKey: args.buildingKey,
@@ -223,37 +166,41 @@ function ResourcesRoute() {
 		}),
 		mutation: api.resources.enqueueBuildingUpgrade,
 	});
-	const setColonyResources = useMutation(api.devConsole.setColonyResources);
-	const setBuildingLevels = useMutation(api.devConsole.setBuildingLevels);
-	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
 
 	const [activeTableBuildingKey, setActiveTableBuildingKey] = useState<BuildingKey | null>(null);
 	const [upgradingKey, setUpgradingKey] = useState<BuildingKey | null>(null);
-	const [editingResourceKey, setEditingResourceKey] = useState<ResourceKey | null>(null);
-	const [resourceDraftValue, setResourceDraftValue] = useState("");
-	const [savingResourceKey, setSavingResourceKey] = useState<ResourceKey | null>(null);
 	const [savingBuildingLevelKey, setSavingBuildingLevelKey] = useState<BuildingKey | null>(null);
 	const [isCompletingQueueItem, setIsCompletingQueueItem] = useState(false);
-	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
-	const nowMs = colonyResources.nowMs;
-	const projectedResources = colonyResources.projected;
+	const resourceEditor = useInlineNumberEditor<ResourceKey>();
+	const canShowDevUi = devConsole.canShowDevUi;
+	const canUseDevConsole = devConsole.canUseDevConsole;
+	const nowMs = colonyView?.nowMs ?? Date.now();
+	const projectedResources = colonyView
+		? {
+				energyRatio: colonyView.projected.energyRatio,
+				overflow: colonyView.projected.overflow,
+				ratesPerMinute: colonyView.projected.ratesPerMinute,
+				storageCaps: colonyView.projected.storageCaps,
+				stored: colonyView.projected.resources,
+			}
+		: null;
 
 	const buildingQueue = view?.queues.lanes.building;
 	const activeQueueItem = buildingQueue?.activeItem;
 	const pendingQueueItems = buildingQueue?.pendingItems ?? [];
-	const activeLaneQueueItem: BuildingLaneQueueItem | null =
-		activeQueueItem && isBuildingLaneQueueItem(activeQueueItem)
-			? (activeQueueItem as BuildingLaneQueueItem)
+	const activeLaneQueueItem: BuildingLaneQueueRow | null =
+		activeQueueItem && isBuildingLaneQueueRow(activeQueueItem)
+			? (activeQueueItem as BuildingLaneQueueRow)
 			: null;
-	const pendingLaneQueueItems: BuildingLaneQueueItem[] = pendingQueueItems.filter(
-		isBuildingLaneQueueItem,
-	) as BuildingLaneQueueItem[];
+	const pendingLaneQueueItems: BuildingLaneQueueRow[] = pendingQueueItems.filter(
+		isBuildingLaneQueueRow,
+	) as BuildingLaneQueueRow[];
 	const activeBuildingQueueItem: LaneQueueItem | null =
-		activeQueueItem && isBuildingQueueItemPayload(activeQueueItem)
+		activeQueueItem && isBuildingQueueRow(activeQueueItem)
 			? (activeQueueItem as LaneQueueItem)
 			: null;
 	const pendingBuildingQueueItems: LaneQueueItem[] = pendingQueueItems.filter(
-		isBuildingQueueItemPayload,
+		isBuildingQueueRow,
 	) as LaneQueueItem[];
 	const remainingTimeLabel = activeQueueItem
 		? formatColonyDuration(Math.max(0, activeQueueItem.completesAt - nowMs), "milliseconds")
@@ -299,39 +246,33 @@ function ResourcesRoute() {
 		? getQueueProgress(nowMs, activeLaneQueueItem.startsAt, activeLaneQueueItem.completesAt).percent
 		: 0;
 	const commitResourceEdit = useCallback(async () => {
-		if (!canShowDevUi || !editingResourceKey || !devConsoleState?.canUseDevConsole) {
+		if (!canShowDevUi || !resourceEditor.editingKey || !canUseDevConsole) {
 			return;
 		}
 
-		const parsed = Math.max(0, Math.floor(Number(resourceDraftValue) || 0));
-		setSavingResourceKey(editingResourceKey);
 		try {
 			const resourcePatch: Partial<Record<ResourceKey, number>> = {
-				[editingResourceKey]: parsed,
+				[resourceEditor.editingKey]: Math.max(
+					0,
+					Math.floor(Number(resourceEditor.draftValue) || 0),
+				),
 			};
-			await setColonyResources({
-				colonyId: colonyIdAsId,
-				resources: resourcePatch,
-			});
-			setEditingResourceKey(null);
+			await devConsole.actions.setResources(resourcePatch);
+			resourceEditor.cancelEditing();
 			toast.success("Resource updated");
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to update resource");
-		} finally {
-			setSavingResourceKey(null);
 		}
 	}, [
 		canShowDevUi,
-		colonyIdAsId,
-		devConsoleState?.canUseDevConsole,
-		editingResourceKey,
-		resourceDraftValue,
-		setColonyResources,
+		canUseDevConsole,
+		devConsole.actions,
+		resourceEditor,
 	]);
 
 	const commitBuildingLevel = useCallback(
 		async (buildingKey: BuildingKey, nextLevel: number) => {
-			if (!canShowDevUi || !devConsoleState?.canUseDevConsole) {
+			if (!canShowDevUi || !canUseDevConsole) {
 				return;
 			}
 			setSavingBuildingLevelKey(buildingKey);
@@ -339,10 +280,7 @@ function ResourcesRoute() {
 				const patch: Partial<Record<BuildingKey, number>> = {
 					[buildingKey]: nextLevel,
 				};
-				await setBuildingLevels({
-					colonyId: colonyIdAsId,
-					buildingLevels: patch,
-				});
+				await devConsole.actions.setBuildingLevels(patch);
 				toast.success("Building level updated");
 			} catch (error) {
 				toast.error(error instanceof Error ? error.message : "Failed to update building level");
@@ -350,19 +288,16 @@ function ResourcesRoute() {
 				setSavingBuildingLevelKey(null);
 			}
 		},
-		[canShowDevUi, colonyIdAsId, devConsoleState?.canUseDevConsole, setBuildingLevels],
+		[canShowDevUi, canUseDevConsole, devConsole.actions],
 	);
 
 	const completeActiveQueue = useCallback(async () => {
-		if (!canShowDevUi || !devConsoleState?.canUseDevConsole || isCompletingQueueItem) {
+		if (!canShowDevUi || !canUseDevConsole || isCompletingQueueItem) {
 			return;
 		}
 		setIsCompletingQueueItem(true);
 		try {
-			await completeActiveQueueItem({
-				colonyId: colonyIdAsId,
-				lane: "building",
-			});
+			await devConsole.actions.completeQueue("building");
 			toast.success("Active queue item completed");
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to complete queue item");
@@ -371,9 +306,8 @@ function ResourcesRoute() {
 		}
 	}, [
 		canShowDevUi,
-		colonyIdAsId,
-		completeActiveQueueItem,
-		devConsoleState?.canUseDevConsole,
+		canUseDevConsole,
+		devConsole.actions,
 		isCompletingQueueItem,
 	]);
 
@@ -471,33 +405,16 @@ function ResourcesRoute() {
 										<div className="min-w-0 flex-1">
 											<p className="text-xs font-semibold">{res.label}</p>
 											<div className="mt-0.5 flex items-baseline gap-1.5">
-												{canShowDevUi && editingResourceKey === res.key ? (
-													<input
+												{canShowDevUi && resourceEditor.isEditing(res.key) ? (
+													<DevResourceInput
 														autoFocus
-														className="
-                h-6 w-24 rounded-md border border-cyan-300/35 bg-black/40 px-1.5
-                text-right font-(family-name:--nv-font-mono) text-[11px]
-                font-semibold text-cyan-100 outline-none
-                focus:border-cyan-200/60
-              "
-														inputMode="numeric"
-														onBlur={() => {
-															setEditingResourceKey(null);
+														onBlur={resourceEditor.cancelEditing}
+														onCancel={resourceEditor.cancelEditing}
+														onChange={resourceEditor.setDraftValue}
+														onCommit={() => {
+															void commitResourceEdit();
 														}}
-														onChange={(event) => {
-															setResourceDraftValue(event.target.value.replace(/[^\d]/g, ""));
-														}}
-														onKeyDown={(event) => {
-															if (event.key === "Escape") {
-																setEditingResourceKey(null);
-																return;
-															}
-															if (event.key === "Enter") {
-																event.preventDefault();
-																void commitResourceEdit();
-															}
-														}}
-														value={resourceDraftValue}
+														value={resourceEditor.draftValue}
 													/>
 												) : (
 													<button
@@ -508,13 +425,12 @@ function ResourcesRoute() {
                 disabled:cursor-default
                 disabled:hover:text-cyan-100
               "
-														disabled={!canShowDevUi || savingResourceKey === res.key}
+														disabled={!canShowDevUi || resourceEditor.isSaving(res.key)}
 														onClick={() => {
 															if (!canShowDevUi) {
 																return;
 															}
-															setEditingResourceKey(res.key);
-															setResourceDraftValue(String(Math.floor(stored)));
+															resourceEditor.startEditing(res.key, Math.floor(stored));
 														}}
 														type="button"
 													>
@@ -677,7 +593,7 @@ function ResourcesRoute() {
 															projectedResources?.storageCaps ?? view.resources.storageCaps
 														}
 														planetMultipliers={
-															colonyResources.planetMultipliers ?? view.planetMultipliers
+															colonyView?.snapshot.planetMultipliers ?? view.planetMultipliers
 														}
 														queuedForBuilding={queuedItem ?? null}
 														remainingTimeLabel={remainingTimeLabel}
@@ -755,7 +671,7 @@ function ResourcesRoute() {
            hover:border-cyan-200/55 hover:bg-cyan-400/16
            disabled:cursor-not-allowed disabled:opacity-50
          "
-									disabled={isCompletingQueueItem || !devConsoleState?.canUseDevConsole}
+									disabled={isCompletingQueueItem || !canUseDevConsole}
 									onClick={() => {
 										void completeActiveQueue();
 									}}

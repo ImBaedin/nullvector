@@ -7,7 +7,6 @@ import type {
 import { Dialog } from "@base-ui/react/dialog";
 import { Select } from "@base-ui/react/select";
 import { api } from "@nullvector/backend/convex/_generated/api";
-import { useNavigate } from "@tanstack/react-router";
 import {
 	Archive,
 	Bell,
@@ -24,11 +23,9 @@ import {
 	Swords,
 	X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { toast } from "sonner";
 
 import { NvBadge, NvButton, NvDivider, NvScrollArea } from "@/features/game-ui/primitives";
-import { useConvexAuth, useMutation, usePaginatedQuery, useQuery } from "@/lib/convex-hooks";
+import { usePaginatedQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
 
 import {
@@ -38,9 +35,11 @@ import {
 	type NotificationFeedItem,
 } from "./notification-renderers";
 import { resolveNotificationDestinationPath } from "./notification-routing";
-
-type StatusFilter = "all" | "unread" | "read" | "archived";
-type CategoryFilter = NotificationCategory | "all";
+import {
+	type NotificationCenterCategoryFilter as CategoryFilter,
+	type NotificationCenterStatusFilter as StatusFilter,
+	useNotificationCenter,
+} from "./use-notification-center";
 type ColonyNameResolver = (colonyId?: Id<"colonies">) => string | null;
 
 const STATUS_FILTERS: Array<{ id: StatusFilter; label: string }> = [
@@ -400,107 +399,33 @@ export function NotificationsModal({
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 }) {
-	const navigate = useNavigate();
-	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
-	const [selectedNotification, setSelectedNotification] = useState<NotificationFeedItem | null>(
-		null,
-	);
-	const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-	const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
-	const [selectedColonyFilter, setSelectedColonyFilter] = useState<string>("all");
-	const [markingAllRead, setMarkingAllRead] = useState(false);
-	const [archivingNotificationId, setArchivingNotificationId] =
-		useState<Id<"notifications"> | null>(null);
-	const markNotificationRead = useMutation(api.notifications.markNotificationRead);
-	const markAllNotificationsRead = useMutation(api.notifications.markAllNotificationsRead);
-	const archiveNotification = useMutation(api.notifications.archiveNotification);
-	const selectedColonyId =
-		selectedColonyFilter === "all" ? undefined : (selectedColonyFilter as Id<"colonies">);
-	const unreadSummary = useQuery(
-		api.notifications.getNotificationUnreadSummary,
-		isAuthenticated ? (selectedColonyId ? { colonyId: selectedColonyId } : {}) : "skip",
-	);
-	const colonyOptions = useMemo(
-		() => [
-			{ label: "All Colonies", value: "all" },
-			...colonies.map((colony) => ({
-				label: colony.id === activeColonyId ? `${colony.name} (Active)` : colony.name,
-				value: colony.id,
-			})),
-		],
-		[activeColonyId, colonies],
-	);
-	const selectedColonyLabel =
-		colonyOptions.find((option) => option.value === selectedColonyFilter)?.label ?? "All Colonies";
-	const getColonyName: ColonyNameResolver = (colonyId) => {
-		if (!colonyId) {
-			return null;
-		}
-		return colonies.find((candidate) => candidate.id === colonyId)?.name ?? null;
-	};
-
-	const markReadIfUnread = async (notification: NotificationFeedItem) => {
-		if (notification.status !== "unread") {
-			return;
-		}
-		await markNotificationRead({
-			notificationId: notification.id,
-		});
-	};
-
-	const handleOpenDetails = (notification: NotificationFeedItem) => {
-		void markReadIfUnread(notification).catch((error) => {
-			toast.error(error instanceof Error ? error.message : "Failed to update notification");
-		});
-		setSelectedNotification(notification);
-	};
-
-	const handleNavigate = (notification: NotificationFeedItem) => {
-		const destinationPath = resolveNotificationDestinationPath(notification.destination);
-		if (!destinationPath) {
-			handleOpenDetails(notification);
-			return;
-		}
-
-		void markReadIfUnread(notification).catch((error) => {
-			toast.error(error instanceof Error ? error.message : "Failed to update notification");
-		});
-		onOpenChange(false);
-		setSelectedNotification(null);
-		try {
-			void navigate({ to: destinationPath });
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Unable to open notification");
-		}
-	};
-
-	const handleMarkAllRead = async () => {
-		setMarkingAllRead(true);
-		try {
-			await markAllNotificationsRead({
-				category: categoryFilter,
-				colonyId: selectedColonyId,
-			});
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Failed to mark notifications read");
-		} finally {
-			setMarkingAllRead(false);
-		}
-	};
-
-	const handleArchive = async (notification: NotificationFeedItem) => {
-		setArchivingNotificationId(notification.id);
-		try {
-			await archiveNotification({
-				notificationId: notification.id,
-			});
-			setSelectedNotification(null);
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Failed to archive notification");
-		} finally {
-			setArchivingNotificationId(null);
-		}
-	};
+	const {
+		archivingNotificationId,
+		categoryFilter,
+		colonyOptions,
+		getColonyName,
+		handleArchive,
+		handleMarkAllRead,
+		handleNavigate,
+		handleOpenDetails,
+		isAuthenticated,
+		isAuthLoading,
+		markingAllRead,
+		selectedColonyFilter,
+		selectedColonyId,
+		selectedColonyLabel,
+		selectedNotification,
+		setCategoryFilter,
+		setSelectedColonyFilter,
+		setSelectedNotification,
+		setStatusFilter,
+		statusFilter,
+		unreadSummary,
+	} = useNotificationCenter({
+		activeColonyId,
+		colonies,
+		onOpenChange,
+	});
 
 	return (
 		<Dialog.Root

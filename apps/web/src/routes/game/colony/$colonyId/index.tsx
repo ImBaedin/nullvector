@@ -47,7 +47,7 @@ import { useColonyResources } from "@/hooks/use-colony-resources";
 import { formatResourceValue } from "@/lib/colony-resource-simulation";
 import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 
-import { OverviewRouteSkeleton } from "./loading-skeletons";
+import { OverviewRouteSkeleton } from "@/features/colony-route/loading-skeletons";
 
 export const Route = createFileRoute("/game/colony/$colonyId/")({
 	component: ColonyOverviewRoute,
