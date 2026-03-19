@@ -62,6 +62,7 @@ function ShipyardRoute() {
 
 	const canShowDevUi = devConsole.canShowDevUi;
 	const canUseDevConsole = devConsole.canUseDevConsole;
+	const projectedResources = colonyView?.projected?.resources ?? { alloy: 0, crystal: 0, fuel: 0 };
 	const view = useMemo(() => {
 		if (!colonyView) {
 			return undefined;
@@ -243,7 +244,7 @@ function ShipyardRoute() {
 		<ShipyardScreen
 			activeQueueItem={activeQueueItem}
 			activeUpgradeProgress={activeUpgradeProgress}
-			availableResources={colonyView!.projected.resources}
+			availableResources={projectedResources}
 			canShowDevUi={canShowDevUi}
 			canUseDevConsole={canUseDevConsole}
 			cancelingQueueItemId={cancelingQueueItemId}

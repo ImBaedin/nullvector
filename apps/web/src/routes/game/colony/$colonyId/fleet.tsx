@@ -7,8 +7,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import {
-	EMPTY_CARGO,
-	EMPTY_SHIP_COUNTS,
 	parseAddressLabel,
 	useFleetOperationsActions,
 	useFleetPlannerDerived,
@@ -62,6 +60,7 @@ function FleetRoute() {
 		setRoundTrip,
 		setSelectedColonyId,
 		setSelectedShips,
+		resetPlannerState,
 	} = useFleetPlannerState({
 		consumedSelection,
 		selectedTarget,
@@ -115,8 +114,12 @@ function FleetRoute() {
 	}
 
 	const launch = async () => {
-		if (!targetResolution?.ok || !targetResolution.target) {
-			toast.error(targetResolution?.reason ?? "Select a valid destination");
+		if (!targetResolution || !targetResolution.ok || !targetResolution.target) {
+			toast.error(
+				targetResolution && !targetResolution.ok
+					? targetResolution.reason
+					: "Select a valid destination",
+			);
 			return;
 		}
 
@@ -128,13 +131,6 @@ function FleetRoute() {
 		await launchOperation({
 			cargoRequested: cargo,
 			kind: missionType,
-			onSuccess: () => {
-				setSelectedShips({ ...EMPTY_SHIP_COUNTS });
-				setCargo({ ...EMPTY_CARGO });
-				if (missionType === "transport") {
-					setRoundTrip(true);
-				}
-			},
 			originColonyId: colonyIdAsId,
 			postDeliveryAction:
 				missionType === "transport"
@@ -142,6 +138,7 @@ function FleetRoute() {
 						? "returnToOrigin"
 						: "stationAtDestination"
 					: undefined,
+			resetPlanner: resetPlannerState,
 			shipCounts: selectedShipCounts,
 			target: targetResolution.target,
 		});

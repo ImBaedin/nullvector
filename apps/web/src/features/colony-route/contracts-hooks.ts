@@ -16,6 +16,9 @@ import {
 } from "./contracts-screen-shared";
 import { useColonyDevConsole, useNowMs } from "./route-shared";
 
+const MAX_DISCOVERY_REBUILD_ATTEMPTS = 3;
+const DISCOVERY_REBUILD_BACKOFF_MS = 2_000;
+
 export function useContractsRouteData(args: {
 	colonyId: Id<"colonies">;
 	historyExpanded: boolean;
@@ -128,15 +131,31 @@ export function useContractDiscoveryRebuild(args: {
 	);
 	const isUnmountedRef = useRef(false);
 	const currentRebuildTokenRef = useRef<symbol | null>(null);
+	const rebuildAttemptedForColonyRef = useRef<Id<"colonies"> | null>(null);
+	const rebuildRetryAttemptRef = useRef(0);
+	const retryTimeoutRef = useRef<number | null>(null);
+
+	useEffect(() => {
+		rebuildAttemptedForColonyRef.current = rebuildAttemptedForColony;
+	}, [rebuildAttemptedForColony]);
 
 	useEffect(() => {
 		isUnmountedRef.current = false;
 		return () => {
 			isUnmountedRef.current = true;
+			if (retryTimeoutRef.current !== null) {
+				window.clearTimeout(retryTimeoutRef.current);
+				retryTimeoutRef.current = null;
+			}
 		};
 	}, []);
 
 	useEffect(() => {
+		if (retryTimeoutRef.current !== null) {
+			window.clearTimeout(retryTimeoutRef.current);
+			retryTimeoutRef.current = null;
+		}
+		rebuildRetryAttemptRef.current = 0;
 		setRebuildAttemptedForColony(null);
 		setIsRebuildingDiscovery(false);
 		currentRebuildTokenRef.current = null;
@@ -148,6 +167,7 @@ export function useContractDiscoveryRebuild(args: {
 			args.recommendedResult.needsRebuild === false &&
 			rebuildAttemptedForColony === args.colonyId
 		) {
+			rebuildRetryAttemptRef.current = 0;
 			setRebuildAttemptedForColony(null);
 			return;
 		}
@@ -173,9 +193,32 @@ export function useContractDiscoveryRebuild(args: {
 					return;
 				}
 
-				setRebuildAttemptedForColony(null);
+				rebuildRetryAttemptRef.current += 1;
+				if (rebuildRetryAttemptRef.current >= MAX_DISCOVERY_REBUILD_ATTEMPTS) {
+					const message =
+						error instanceof Error ? error.message : "Failed to rebuild nearby contracts.";
+					toast.error(message);
+					return;
+				}
+
+				const retryDelayMs =
+					DISCOVERY_REBUILD_BACKOFF_MS * 2 ** (rebuildRetryAttemptRef.current - 1);
+				retryTimeoutRef.current = window.setTimeout(() => {
+					if (
+						isUnmountedRef.current ||
+						rebuildAttemptedForColonyRef.current !== args.colonyId ||
+						currentRebuildTokenRef.current !== null
+					) {
+						return;
+					}
+
+					setRebuildAttemptedForColony(null);
+					retryTimeoutRef.current = null;
+				}, retryDelayMs);
 				const message =
-					error instanceof Error ? error.message : "Failed to rebuild nearby contracts.";
+					error instanceof Error
+						? `${error.message} Retrying nearby contracts rebuild...`
+						: "Failed to rebuild nearby contracts. Retrying...";
 				toast.error(message);
 			})
 			.finally(() => {

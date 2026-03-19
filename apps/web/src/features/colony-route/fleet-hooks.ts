@@ -9,7 +9,7 @@ import {
 	normalizeShipCounts,
 	selectShipCatalog,
 } from "@nullvector/game-logic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useColonyResources } from "@/hooks/use-colony-resources";
@@ -61,6 +61,44 @@ export type FleetDisplayShip = {
 	requiredShipyardLevel: number;
 	speed: number;
 };
+
+type FleetColonyTargetResolution = {
+	ok: true;
+	distance?: number;
+	target: {
+		colonyId: Id<"colonies">;
+		kind: "colony";
+	};
+	targetPreview: {
+		isOwnedByPlayer?: boolean;
+		kind: "colony";
+		label: string;
+	};
+};
+
+type FleetPlanetTargetResolution = {
+	ok: true;
+	distance?: number;
+	target: {
+		kind: "planet";
+		planetId: Id<"planets">;
+	};
+	targetPreview: {
+		kind: "planet";
+		label: string;
+	};
+};
+
+type FleetInvalidTargetResolution = {
+	ok: false;
+	reason: string;
+};
+
+export type FleetTargetResolution =
+	| FleetColonyTargetResolution
+	| FleetPlanetTargetResolution
+	| FleetInvalidTargetResolution
+	| undefined;
 
 export function parseAddressLabel(addressLabel: string): PlannerCoords | null {
 	const match = addressLabel.match(/^G(\d+):S(\d+):SYS(\d+):P(\d+)$/);
@@ -203,6 +241,11 @@ export function useFleetPlannerState(args: {
 	const [selectedShips, setSelectedShips] = useState<Record<ShipKey, number>>(() =>
 		cloneEmptyShipCounts(),
 	);
+	const consumedSelectionRef = useRef(args.consumedSelection);
+
+	useEffect(() => {
+		consumedSelectionRef.current = args.consumedSelection;
+	}, [args.consumedSelection]);
 
 	useEffect(() => {
 		if (!args.selectedTarget) {
@@ -210,7 +253,7 @@ export function useFleetPlannerState(args: {
 		}
 
 		if (args.selectedTarget.missionKind !== missionType) {
-			args.consumedSelection();
+			consumedSelectionRef.current();
 			return;
 		}
 
@@ -228,8 +271,8 @@ export function useFleetPlannerState(args: {
 			setSelectedColonyId(null);
 		}
 
-		args.consumedSelection();
-	}, [args.consumedSelection, args.selectedTarget, missionType]);
+		consumedSelectionRef.current();
+	}, [args.selectedTarget, missionType]);
 
 	function updateCoords(next: PlannerCoords) {
 		setCoords(next);
@@ -253,6 +296,15 @@ export function useFleetPlannerState(args: {
 		}
 	}
 
+	function resetPlannerState() {
+		setCargo(cloneEmptyCargo());
+		setSelectedShips(cloneEmptyShipCounts());
+		setCoords(cloneEmptyCoords());
+		setSelectedColonyId(null);
+		setColonyPickerOpen(false);
+		setRoundTrip(missionType !== "colonize");
+	}
+
 	return {
 		cargo,
 		colonyPickerOpen,
@@ -268,6 +320,7 @@ export function useFleetPlannerState(args: {
 		setRoundTrip,
 		setSelectedColonyId,
 		setSelectedShips,
+		resetPlannerState,
 		updateSelectedShips,
 	};
 }
@@ -310,7 +363,7 @@ export function useFleetPlannerDerived(args: {
 					...parsedCoords,
 				}
 			: "skip",
-	);
+	) as FleetTargetResolution;
 
 	const selectedShipCounts = useMemo(
 		() => normalizeShipCounts(args.selectedShips),
@@ -356,6 +409,8 @@ export function useFleetPlannerDerived(args: {
 		targetResolution.targetPreview.isOwnedByPlayer === true,
 	);
 
+	// Transport missions must keep `selectedShipCounts.colonyShip` at 0, while colonize
+	// missions require exactly 1 colony ship, so `missionShipConstraint` tracks both rules.
 	const missionShipConstraint =
 		args.missionType === "transport"
 			? selectedShipCounts.colonyShip === 0
@@ -443,6 +498,7 @@ export function useFleetOperationsActions(args: {
 		onSuccess?: () => void;
 		originColonyId: Id<"colonies">;
 		postDeliveryAction?: "returnToOrigin" | "stationAtDestination";
+		resetPlanner?: () => void;
 		shipCounts: Record<ShipKey, number>;
 		target: NonNullable<Parameters<typeof createOperation>[0]["target"]>;
 	}) {
@@ -457,6 +513,7 @@ export function useFleetOperationsActions(args: {
 				postDeliveryAction: next.postDeliveryAction,
 			});
 			toast.success("Expedition launched");
+			next.resetPlanner?.();
 			next.onSuccess?.();
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to launch expedition");

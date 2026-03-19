@@ -297,8 +297,8 @@ function buildStrategicTags(args: {
 }) {
 	const tags: string[] = [];
 	if (
-		args.fuelMultiplier >= args.alloyMultiplier &&
-		args.fuelMultiplier >= args.crystalMultiplier
+		args.fuelMultiplier > args.alloyMultiplier &&
+		args.fuelMultiplier > args.crystalMultiplier
 	) {
 		tags.push("Fuel Exporter");
 	}
@@ -588,12 +588,6 @@ export const getColonyOverview = query({
 					.query("fleetOperations")
 					.withIndex("by_tcol_st_evt", (q) =>
 						q.eq("target.colonyId", publicColony.colony._id).eq("status", "inTransit"),
-					)
-					.collect(),
-				ctx.db
-					.query("fleetOperations")
-					.withIndex("by_tcol_st_evt", (q) =>
-						q.eq("target.colonyId", publicColony.colony._id).eq("status", "returning"),
 					)
 					.collect(),
 			]).then((rows) => rows.flat()),

@@ -7,6 +7,19 @@ import { useEffect, useMemo, useRef } from "react";
 type ExplorerLevel = "universe" | "galaxy" | "sector" | "system" | "planet";
 
 const NEXT_LEVEL_PREFETCH_LIMIT = 6;
+const MAX_PREFETCHED_PER_TYPE = 64;
+
+function rememberPrefetchedId(cache: Map<string, number>, id: string) {
+	cache.set(id, Date.now());
+	if (cache.size <= MAX_PREFETCHED_PER_TYPE) {
+		return;
+	}
+
+	const oldestKey = cache.keys().next().value;
+	if (oldestKey) {
+		cache.delete(oldestKey);
+	}
+}
 
 export function useExplorerPrefetch(args: {
 	level: ExplorerLevel;
@@ -22,9 +35,9 @@ export function useExplorerPrefetch(args: {
 }) {
 	const convex = useConvex();
 	const prefetchedIdsRef = useRef({
-		galaxy: new Set<string>(),
-		sector: new Set<string>(),
-		system: new Set<string>(),
+		galaxy: new Map<string, number>(),
+		sector: new Map<string, number>(),
+		system: new Map<string, number>(),
 	});
 	const galaxyIdsKey = useMemo(
 		() => (args.overview?.galaxies ?? []).map((galaxy) => galaxy.id).join(","),
@@ -54,7 +67,7 @@ export function useExplorerPrefetch(args: {
 
 			void Promise.allSettled(
 				galaxyIdsToPrefetch.map(async (galaxyId) => {
-					prefetchedGalaxyIds.add(galaxyId);
+					rememberPrefetchedId(prefetchedGalaxyIds, galaxyId);
 					try {
 						await Promise.all([
 							convex.query(api.universeExplorer.getGalaxyHeader, { galaxyId }),
@@ -82,7 +95,7 @@ export function useExplorerPrefetch(args: {
 
 			void Promise.allSettled(
 				sectorIdsToPrefetch.map(async (sectorId) => {
-					prefetchedSectorIds.add(sectorId);
+					rememberPrefetchedId(prefetchedSectorIds, sectorId);
 					try {
 						await Promise.all([
 							convex.query(api.universeExplorer.getSectorHeader, { sectorId }),
@@ -113,7 +126,7 @@ export function useExplorerPrefetch(args: {
 
 		void Promise.allSettled(
 			systemIdsToPrefetch.map(async (systemId) => {
-				prefetchedSystemIds.add(systemId);
+				rememberPrefetchedId(prefetchedSystemIds, systemId);
 				try {
 					await Promise.all([
 						convex.query(api.universeExplorer.getSystemPlanetsStatic, { systemId }),

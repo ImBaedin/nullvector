@@ -13,22 +13,10 @@ import {
 
 import { formatColonyDuration } from "@/features/colony-ui/time";
 
-import type { PlannerCoords } from "./fleet-hooks";
+import type { FleetTargetResolution, PlannerCoords } from "./fleet-hooks";
 import type { FleetMissionKind } from "./star-map-picker-context";
 
 import { ShipAssignmentList } from "./ship-assignment-list";
-
-type FleetTargetResolution =
-	| {
-			ok: boolean;
-			reason?: string;
-			target?: unknown;
-			targetPreview?: {
-				kind: "colony" | "planet";
-				label: string;
-			};
-	  }
-	| undefined;
 
 type MissionPlannerPanelProps = {
 	availableResources: ResourceBucket;
@@ -360,12 +348,21 @@ function RoundTripSection(props: {
     `} />
 				<span className="text-xs text-white/55">Round Trip</span>
 			</div>
-			<button className={`
+			<button
+				aria-checked={props.roundTrip}
+				aria-disabled={props.missionType === "colonize"}
+				aria-label="Round trip"
+				className={`
       relative h-6 w-10 rounded-full border transition-all
       ${props.roundTrip ? "border-cyan-300/40 bg-cyan-400/20" : `
           border-white/15 bg-white/8
         `}
-    `} disabled={props.missionType === "colonize"} onClick={() => props.onRoundTripChange(!props.roundTrip)} type="button">
+    `}
+				disabled={props.missionType === "colonize"}
+				onClick={() => props.onRoundTripChange(!props.roundTrip)}
+				role="switch"
+				type="button"
+			>
 				<span className={`
       absolute top-1/2 left-[3px] size-4 -translate-y-1/2 rounded-full bg-white
       shadow-sm transition-transform

@@ -153,10 +153,11 @@ export function OperationTimelinePanel(props: {
 	onToggle: (operationId: string) => void;
 }): ReactNode {
 	const items = props.operations.map((operation) => {
+		const effectiveNow = Math.min(operation.arriveAt, Math.max(props.nowMs, operation.departAt));
 		const totalDuration = Math.max(1, operation.arriveAt - operation.departAt);
-		const elapsed = Math.max(0, props.nowMs - operation.departAt);
+		const elapsed = Math.max(0, effectiveNow - operation.departAt);
 		const progress = Math.min(100, (elapsed / totalDuration) * 100);
-		const etaSeconds = Math.max(0, Math.ceil((operation.arriveAt - props.nowMs) / 1_000));
+		const etaSeconds = Math.max(0, Math.ceil((operation.arriveAt - effectiveNow) / 1_000));
 		const totalCargo =
 			operation.cargoRequested.alloy +
 			operation.cargoRequested.crystal +
@@ -280,17 +281,14 @@ export function OperationTimelinePanel(props: {
 				subtitle: targetPreview?.address,
 				title: targetPreview?.name ?? operation.targetPreview.label,
 			},
-			transitIcon: isContract ? <Swords className={`
-      size-3
-      ${accent.iconText}
-    `} /> : <Ship className={`
-      size-3
-      ${isReturning ? "rotate-180" : ""}
-      ${accent.iconText}
-    `} />,
-			transitIconBorderClassName: accent.iconBorder,
-			transitIconFillClassName: accent.iconFill,
-			transitLineClassName: accent.line,
+			transitIcon: isContract ? (
+				<Swords className={`size-3 ${accent.iconText}`} />
+			) : (
+				<Ship className={`size-3 ${isReturning ? "rotate-180" : ""} ${accent.iconText}`} />
+			),
+			transitIconBorderClassName: `${accent.iconBorder}`,
+			transitIconFillClassName: `${accent.iconFill}`,
+			transitLineClassName: `${accent.line}`,
 		};
 	});
 

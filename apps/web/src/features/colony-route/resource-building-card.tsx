@@ -24,6 +24,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getUpgradeActionPresentation } from "@/features/colony-ui/action-state";
 import { ActionButton } from "@/features/colony-ui/components/action-button";
 import { useInlineNumberEditor } from "@/features/colony-ui/hooks/use-inline-number-editor";
+import { isBuildingQueueRow } from "@/features/colony-ui/queue-items";
 import { formatColonyDuration } from "@/features/colony-ui/time";
 
 type DeltaResourceKey = "alloy" | "crystal" | "fuel" | "energy";
@@ -403,23 +404,6 @@ function InlineLevelEditor(props: {
 	);
 }
 
-function isBuildingUpgradeQueueItem(
-	item: LaneQueueItem | null | undefined,
-): item is LaneQueueItem & {
-	payload: {
-		buildingKey: BuildingKey;
-		fromLevel: number;
-		toLevel: number;
-	};
-} {
-	return (
-		item?.kind === "buildingUpgrade" &&
-		typeof item.payload === "object" &&
-		item.payload !== null &&
-		"buildingKey" in item.payload
-	);
-}
-
 export function ResourceBuildingCard(props: {
 	activeQueueItem: LaneQueueItem | null;
 	building: ResourceBuildingCardData;
@@ -461,10 +445,10 @@ export function ResourceBuildingCard(props: {
 		onUpgrade,
 	} = props;
 	const [isEditingLevel, setIsEditingLevel] = useState(false);
-	const activeBuildingPayload = isBuildingUpgradeQueueItem(activeQueueItem)
+	const activeBuildingPayload = activeQueueItem && isBuildingQueueRow(activeQueueItem)
 		? activeQueueItem.payload
 		: null;
-	const queuedBuildingPayload = isBuildingUpgradeQueueItem(queuedForBuilding)
+	const queuedBuildingPayload = queuedForBuilding && isBuildingQueueRow(queuedForBuilding)
 		? queuedForBuilding.payload
 		: null;
 
