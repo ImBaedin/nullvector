@@ -59,20 +59,16 @@ function resolveQuality({
 }
 
 export function useExplorerQuality() {
-	const [qualityPreset, setQualityPresetState] = useState<ExplorerQualityPreset>("auto");
-	const [gpuQualityHint, setGpuQualityHint] = useState<ExplorerResolvedQuality | null>(null);
-	const [viewportVersion, setViewportVersion] = useState(0);
-
-	useEffect(() => {
+	const [qualityPreset, setQualityPresetState] = useState<ExplorerQualityPreset>(() => {
 		if (typeof window === "undefined") {
-			return;
+			return "auto";
 		}
 
 		const savedValue = window.localStorage.getItem(QUALITY_STORAGE_KEY);
-		if (savedValue && isQualityPreset(savedValue)) {
-			setQualityPresetState(savedValue);
-		}
-	}, []);
+		return savedValue && isQualityPreset(savedValue) ? savedValue : "auto";
+	});
+	const [gpuQualityHint, setGpuQualityHint] = useState<ExplorerResolvedQuality | null>(null);
+	const [viewportVersion, setViewportVersion] = useState(0);
 
 	useEffect(() => {
 		if (typeof window === "undefined") {

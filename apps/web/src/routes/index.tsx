@@ -1,6 +1,6 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Navigate, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useConvexAuth } from "convex/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 
@@ -97,15 +97,9 @@ function IndexRoute() {
 	const [errors, setErrors] = useState<FormErrors>({});
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
-	useEffect(() => {
-		if (isAuthLoading || !isAuthenticated) {
-			return;
-		}
-		navigate({
-			to: "/auth/complete",
-			replace: true,
-		});
-	}, [isAuthenticated, isAuthLoading, navigate]);
+	if (!isAuthLoading && isAuthenticated) {
+		return <Navigate to="/auth/complete" replace />;
+	}
 
 	const baseDelay = BOOT_LINES.length * 100 + 200;
 	const logDelay = baseDelay + 500;

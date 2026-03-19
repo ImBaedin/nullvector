@@ -1,30 +1,18 @@
-import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-
 import { Tooltip } from "@base-ui/react/tooltip";
-import { api } from "@nullvector/backend/convex/_generated/api";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Bell, ChevronDown, Earth, Menu, Settings, Trophy } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { useMemo, useRef, useState } from "react";
 
-import type { ContextNavItem, ResourceDatum } from "@/features/game-ui/contracts/navigation";
 import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdata/types";
 
-import {
-	useColonySessionSnapshot,
-	useOptimisticColonyMutation,
-} from "@/features/colony-state/hooks";
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { NotificationsModal } from "@/features/game-ui/shell/notifications-modal";
 import { ResourceStrip } from "@/features/game-ui/shell/resource-strip";
 import { SettingsModal } from "@/features/game-ui/shell/settings-modal";
-import { useColonyResources } from "@/hooks/use-colony-resources";
-import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
 
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";
-import { getHeaderConfig, parseColonyId } from "./header-config";
+import { useHeaderData } from "./use-header-data";
 
 type AppHeaderProps = {
 	collapseContextNav?: boolean;
@@ -62,24 +50,6 @@ const QUALITY_OPTIONS: Array<{
 	{ label: "High", value: "high" },
 ];
 
-function useCompactHeaderMode() {
-	const [isCompact, setIsCompact] = useState(false);
-
-	useEffect(() => {
-		const onScroll = () => {
-			setIsCompact(window.scrollY > 24);
-		};
-
-		onScroll();
-		window.addEventListener("scroll", onScroll, { passive: true });
-		return () => {
-			window.removeEventListener("scroll", onScroll);
-		};
-	}, []);
-
-	return isCompact;
-}
-
 export function AppHeader({
 	collapseContextNav = false,
 	collapseResources = false,
@@ -87,210 +57,41 @@ export function AppHeader({
 	onToggleStarMap,
 	starMapNavigation = null,
 }: AppHeaderProps = {}) {
-	type HeaderHudData = NonNullable<Parameters<typeof getHeaderConfig>[1]>;
-	const navigate = useNavigate();
-	const { isAuthenticated } = useConvexAuth();
+	const header = useHeaderData();
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [notificationsOpen, setNotificationsOpen] = useState(false);
 	const [starMapEntitiesOpen, setStarMapEntitiesOpen] = useState(false);
 	const [starMapQualityOpen, setStarMapQualityOpen] = useState(false);
-	const pathname = useRouterState({
-		select: (state) => state.location.pathname,
-	});
-	const colonyId = parseColonyId(pathname);
-	const colonyIdAsId = colonyId ? (colonyId as Id<"colonies">) : null;
-	const renameColony = useOptimisticColonyMutation({
-		intentFromArgs: (args: { colonyId: Id<"colonies">; name: string }) => ({
-			name: args.name,
-			type: "renameColony",
-		}),
-		mutation: api.colonyNav.renameColony,
-	});
-	const colonySession = useColonySessionSnapshot(
-		colonyIdAsId && isAuthenticated ? colonyIdAsId : null,
-	);
-	const publicOverview = useQuery(
-		api.colonyOverview.getColonyOverview,
-		colonyIdAsId ? { colonyId: colonyIdAsId } : "skip",
-	);
-	const raidStatus = useQuery(
-		api.raids.getRaidStatusForColony,
-		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
-	const colonyResources = useColonyResources(colonyIdAsId && isAuthenticated ? colonyIdAsId : null);
-	const playerProfile = useQuery(
-		api.playerProgression.getPlayerProfile,
-		isAuthenticated ? {} : "skip",
-	);
-	const notificationSummary = useQuery(
-		api.notifications.getNotificationUnreadSummary,
-		isAuthenticated ? {} : "skip",
-	);
-	const hud = useMemo<HeaderHudData | undefined>(() => {
-		if (!colonySession || !colonyResources.hudResources) {
-			return undefined;
-		}
-
-		return {
-			activeColonyId: colonySession.activeColonyId,
-			title: colonySession.title,
-			colonies: colonySession.colonies,
-			resources: colonyResources.hudResources as ResourceDatum[],
-		};
-	}, [colonyResources.hudResources, colonySession]);
-	const [isRenamingColony, setIsRenamingColony] = useState(false);
-	const [isSavingColonyName, setIsSavingColonyName] = useState(false);
-	const [draftColonyName, setDraftColonyName] = useState("");
-	const config = useMemo(
-		() =>
-			getHeaderConfig(
-				pathname,
-				hud
-					? {
-							activeColonyId: hud.activeColonyId,
-							colonies: hud.colonies,
-							resources: hud.resources,
-							title: hud.title,
-						}
-					: undefined,
-			),
-		[hud, pathname],
-	);
-	const liveNotificationsCount = notificationSummary?.total ?? config.notificationsCount ?? 0;
-	const contextTabs = useMemo<ContextNavItem[] | undefined>(() => {
-		if (!config.contextTabs) {
-			return undefined;
-		}
-		const baseTabs = config.contextTabs.map((tab) => {
-			if (tab.id !== "defenses") {
-				return tab;
-			}
-			if (!raidStatus?.activeRaid) {
-				return tab;
-			}
-
-			return {
-				...tab,
-				icon: (
-					<span className="relative inline-flex shrink-0">
-						{tab.icon}
-						<span
-							className="
-         absolute -top-0.5 -right-0.5 flex size-2.5 items-center justify-center
-       "
-						>
-							<span
-								className="
-          absolute inline-flex size-2.5 animate-ping rounded-full bg-rose-400/35
-        "
-							/>
-							<span
-								className="
-          relative inline-flex size-1.5 rounded-full bg-rose-300
-          shadow-[0_0_8px_rgba(253,164,175,0.8)]
-        "
-							/>
-						</span>
-					</span>
-				),
-			};
-		});
-		if (publicOverview?.viewerRelation === "owner") {
-			return baseTabs;
-		}
-		return baseTabs.map((tab) => ({
-			...tab,
-			isDisabled: tab.id !== "overview",
-		}));
-	}, [config.contextTabs, publicOverview?.viewerRelation, raidStatus?.activeRaid]);
+	const {
+		activeColony,
+		beginColonyRename,
+		colonyIdAsId,
+		colonySession,
+		config,
+		commitColonyRename,
+		contextTabs,
+		drawerConfig: headerDrawerConfig,
+		headerTitle,
+		isCompact,
+		isRenamingColony,
+		isSavingColonyName,
+		liveNotificationsCount,
+		playerProfile,
+		handleColonyChange,
+		setIsRenamingColony,
+	} = header;
+	const handleStarMapToggle = onToggleStarMap ?? config.onOpenStarMap ?? (() => {});
 	const drawerConfig = useMemo(
 		() => ({
-			...config,
+			...headerDrawerConfig,
 			contextTabs,
 			notificationsCount: liveNotificationsCount,
 			onOpenNotifications: () => setNotificationsOpen(true),
 			onOpenSettings: () => setSettingsOpen(true),
 		}),
-		[config, contextTabs, liveNotificationsCount],
+		[contextTabs, headerDrawerConfig, liveNotificationsCount],
 	);
-	const isCompact = useCompactHeaderMode();
-	const activeColony = useMemo(
-		() =>
-			config.activeColonyId && config.colonies
-				? (config.colonies.find((candidate) => candidate.id === config.activeColonyId) ?? null)
-				: null,
-		[config.activeColonyId, config.colonies],
-	);
-	const headerTitle = useMemo(() => {
-		if (activeColony?.name) {
-			return activeColony.name;
-		}
-		if (publicOverview?.header.name) {
-			return publicOverview.header.name;
-		}
-		return (config.title ?? "Colony Operations").replace(/ Resources$/, "");
-	}, [activeColony?.name, config.title, publicOverview?.header.name]);
-	const handleStarMapToggle = onToggleStarMap ?? config.onOpenStarMap;
-	const handleColonyChange = (nextColonyId: string) => {
-		navigate({
-			to: "/game/colony/$colonyId",
-			params: { colonyId: nextColonyId },
-		});
-	};
-	const commitColonyRename = async () => {
-		if (!activeColony || isSavingColonyName) {
-			return;
-		}
-
-		const normalizedName = draftColonyName.trim().replace(/\s+/g, " ");
-		if (normalizedName.length < 3) {
-			toast.error("Colony name must be at least 3 characters");
-			return;
-		}
-		if (normalizedName.length > 40) {
-			toast.error("Colony name must be 40 characters or fewer");
-			return;
-		}
-
-		if (normalizedName === activeColony.name) {
-			setIsRenamingColony(false);
-			return;
-		}
-
-		setIsSavingColonyName(true);
-		const error = await renameColony({
-			colonyId: activeColony.id as Id<"colonies">,
-			name: normalizedName,
-		})
-			.then(() => null)
-			.catch((caughtError) => caughtError);
-		setIsSavingColonyName(false);
-		if (error) {
-			toast.error(error instanceof Error ? error.message : "Failed to rename colony");
-		} else {
-			setIsRenamingColony(false);
-			toast.success("Colony renamed");
-		}
-	};
-
-	useEffect(() => {
-		if (!activeColony) {
-			setIsRenamingColony(false);
-			setDraftColonyName("");
-			return;
-		}
-		if (!isRenamingColony) {
-			setDraftColonyName(activeColony.name);
-		}
-	}, [activeColony, isRenamingColony]);
-
-	useEffect(() => {
-		if (!isStarMapOpen || !starMapNavigation) {
-			setStarMapEntitiesOpen(false);
-			setStarMapQualityOpen(false);
-		}
-	}, [isStarMapOpen, starMapNavigation]);
 
 	if (config.mode !== "game") {
 		return null;
@@ -333,32 +134,14 @@ export function AppHeader({
           transition-all
         `, isCompact ? "text-sm" : "text-[15px]")}>
 									{isRenamingColony && activeColony ? (
-										<input
-											autoFocus
-											className="
-             w-[min(48vw,360px)] rounded-md border border-cyan-300/30
-             bg-black/40 px-2 py-0.5 text-inherit outline-none
-           "
-											disabled={isSavingColonyName}
-											maxLength={40}
-											onBlur={() => {
-												void commitColonyRename();
+										<ColonyRenameInput
+											key={`${activeColony.id}:${activeColony.name}`}
+											currentName={activeColony.name}
+											isSaving={isSavingColonyName}
+											onCancel={() => {
+												setIsRenamingColony(false);
 											}}
-											onChange={(event) => {
-												setDraftColonyName(event.target.value);
-											}}
-											onKeyDown={(event) => {
-												if (event.key === "Enter") {
-													event.preventDefault();
-													void commitColonyRename();
-												}
-												if (event.key === "Escape") {
-													event.preventDefault();
-													setDraftColonyName(activeColony.name);
-													setIsRenamingColony(false);
-												}
-											}}
-											value={draftColonyName}
+											onCommit={commitColonyRename}
 										/>
 									) : (
 										<button
@@ -368,11 +151,7 @@ export function AppHeader({
            "
 											disabled={!activeColony}
 											onClick={() => {
-												if (!activeColony) {
-													return;
-												}
-												setDraftColonyName(activeColony.name);
-												setIsRenamingColony(true);
+												beginColonyRename();
 											}}
 											type="button"
 										>
@@ -385,6 +164,7 @@ export function AppHeader({
 
 						{/* Center: star map button / navigation */}
 						<div
+							key={isStarMapOpen && starMapNavigation ? starMapNavigation.levelLabel : "hero"}
 							className={cn(
 								"justify-self-center",
 								isStarMapOpen && starMapNavigation ? "w-full max-w-[min(62vw,780px)]" : null,
@@ -625,7 +405,9 @@ export function AppHeader({
 						>
 							{playerProfile ? (
 								<div
-									className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3"
+									className="
+          mr-1 flex items-center gap-2 border-r border-white/8 pr-3
+        "
 								>
 									<div className="flex items-center gap-2">
 										<div
@@ -782,7 +564,7 @@ export function AppHeader({
 
 			<NotificationsModal
 				activeColonyId={colonyIdAsId}
-				colonies={(hud?.colonies ?? []).map((colony) => ({
+				colonies={(colonySession?.colonies ?? []).map((colony) => ({
 					id: colony.id,
 					name: colony.name,
 				}))}
@@ -796,5 +578,49 @@ export function AppHeader({
 				open={settingsOpen}
 			/>
 		</>
+	);
+}
+
+function ColonyRenameInput(props: {
+	currentName: string;
+	isSaving: boolean;
+	onCancel: () => void;
+	onCommit: (nextName: string) => Promise<void> | void;
+}) {
+	const [draftName, setDraftName] = useState(props.currentName);
+	const cancelBlurRef = useRef(false);
+
+	return (
+		<input
+			autoFocus
+			className="
+     w-[min(48vw,360px)] rounded-md border border-cyan-300/30 bg-black/40 px-2
+     py-0.5 text-inherit outline-none
+   "
+			disabled={props.isSaving}
+			maxLength={40}
+			onBlur={() => {
+				if (cancelBlurRef.current) {
+					cancelBlurRef.current = false;
+					return;
+				}
+				void props.onCommit(draftName);
+			}}
+			onChange={(event) => {
+				setDraftName(event.target.value);
+			}}
+			onKeyDown={(event) => {
+				if (event.key === "Enter") {
+					event.preventDefault();
+					void props.onCommit(draftName);
+				}
+				if (event.key === "Escape") {
+					event.preventDefault();
+					cancelBlurRef.current = true;
+					props.onCancel();
+				}
+			}}
+			value={draftName}
+		/>
 	);
 }

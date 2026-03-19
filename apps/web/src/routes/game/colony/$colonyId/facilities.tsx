@@ -7,18 +7,26 @@ import { Clock3, Wrench, Zap } from "lucide-react";
 import { type ReactElement, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { useColonySelectors, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
+import { FacilitiesRouteSkeleton } from "@/features/colony-route/loading-skeletons";
+import { useColonyView, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
 import { getUpgradeActionPresentation } from "@/features/colony-ui/action-state";
 import { ActionButton } from "@/features/colony-ui/components/action-button";
 import { CostPill } from "@/features/colony-ui/components/cost-pill";
+import { DevNumberInput } from "@/features/colony-ui/components/dev-number-input";
 import { QueuePanel } from "@/features/colony-ui/components/queue-panel";
 import { StatusBadge } from "@/features/colony-ui/components/status-badge";
+import { useColonyDevConsole } from "@/features/colony-ui/hooks/use-colony-dev-console";
+import { useInlineNumberEditor } from "@/features/colony-ui/hooks/use-inline-number-editor";
+import {
+	BUILDING_KEY_LABELS,
+	isBuildingLaneQueueRow,
+	isFacilityQueueRow,
+	type BuildingLaneQueueRow,
+	type FacilityQueueRow,
+} from "@/features/colony-ui/queue-items";
 import { formatQueueRemainingLabel, getQueueProgress } from "@/features/colony-ui/queue-state";
 import { formatColonyDuration } from "@/features/colony-ui/time";
-import { useColonyResources } from "@/hooks/use-colony-resources";
-import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
-
-import { FacilitiesRouteSkeleton } from "./loading-skeletons";
+import { useConvexAuth } from "@/lib/convex-hooks";
 
 export const Route = createFileRoute("/game/colony/$colonyId/facilities")({
 	component: FacilitiesRoute,
@@ -45,80 +53,6 @@ const FACILITY_VISUALS: Record<
 	},
 };
 
-type FacilityQueueItem = {
-	kind: "facilityUpgrade";
-	payload: {
-		facilityKey: FacilityKey;
-		fromLevel: number;
-		toLevel: number;
-	};
-	status: "active" | "queued" | "completed" | "cancelled" | "failed";
-	startsAt: number;
-	completesAt: number;
-};
-
-function isFacilityQueueItemPayload(item: { kind: string; payload: unknown }): item is {
-	kind: "facilityUpgrade";
-	payload: {
-		facilityKey: FacilityKey;
-		fromLevel: number;
-		toLevel: number;
-	};
-} {
-	return (
-		item.kind === "facilityUpgrade" &&
-		typeof item.payload === "object" &&
-		item.payload !== null &&
-		"facilityKey" in item.payload
-	);
-}
-
-function isBuildingQueueItemPayload(item: { kind: string; payload: unknown }): item is {
-	kind: "buildingUpgrade";
-	payload: {
-		buildingKey: BuildingKey;
-		fromLevel: number;
-		toLevel: number;
-	};
-} {
-	return (
-		item.kind === "buildingUpgrade" &&
-		typeof item.payload === "object" &&
-		item.payload !== null &&
-		"buildingKey" in item.payload
-	);
-}
-
-type BuildingLaneQueueItem =
-	| {
-			kind: "buildingUpgrade";
-			payload: {
-				buildingKey: BuildingKey;
-				fromLevel: number;
-				toLevel: number;
-			};
-			startsAt: number;
-			completesAt: number;
-	  }
-	| FacilityQueueItem;
-
-function isBuildingLaneQueueItem(item: {
-	kind: string;
-	payload: unknown;
-}): item is BuildingLaneQueueItem {
-	return isBuildingQueueItemPayload(item) || isFacilityQueueItemPayload(item);
-}
-
-const BUILDING_KEY_LABELS: Record<BuildingKey, string> = {
-	alloyMineLevel: "Alloy Mine",
-	crystalMineLevel: "Crystal Mine",
-	fuelRefineryLevel: "Fuel Refinery",
-	powerPlantLevel: "Power Plant",
-	alloyStorageLevel: "Alloy Storage",
-	crystalStorageLevel: "Crystal Storage",
-	fuelStorageLevel: "Fuel Storage",
-};
-
 const FACILITY_KEY_LABELS: Record<FacilityKey, string> = {
 	robotics_hub: "Robotics Hub",
 	shipyard: "Shipyard",
@@ -130,12 +64,8 @@ function FacilitiesRoute(): ReactElement {
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
-	const colonySelectors = useColonySelectors(isAuthenticated ? colonyIdAsId : null);
-	const devConsoleState = useQuery(
-		api.devConsole.getDevConsoleState,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
-	const colonyResources = useColonyResources(isAuthenticated ? colonyIdAsId : null);
+	const colonyView = useColonyView(isAuthenticated ? colonyIdAsId : null);
+	const devConsole = useColonyDevConsole(isAuthenticated ? colonyIdAsId : null);
 	const enqueueFacilityUpgrade = useOptimisticColonyMutation({
 		intentFromArgs: (args: { colonyId: Id<"colonies">; facilityKey: FacilityKey }) => ({
 			facilityKey: args.facilityKey,
@@ -143,46 +73,36 @@ function FacilitiesRoute(): ReactElement {
 		}),
 		mutation: api.facilities.enqueueFacilityUpgrade,
 	});
-	const setFacilityLevels = useMutation(api.devConsole.setFacilityLevels);
-	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
 
 	const [upgradingKey, setUpgradingKey] = useState<FacilityKey | null>(null);
-	const [editingFacilityKey, setEditingFacilityKey] = useState<FacilityKey | null>(null);
-	const [facilityDraftValue, setFacilityDraftValue] = useState("");
-	const [savingFacilityKey, setSavingFacilityKey] = useState<FacilityKey | null>(null);
 	const [isCompletingQueueItem, setIsCompletingQueueItem] = useState(false);
-	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
-	const canUseDevConsole = devConsoleState?.canUseDevConsole === true;
+	const facilityEditor = useInlineNumberEditor<FacilityKey>();
+	const canShowDevUi = devConsole.canShowDevUi;
+	const canUseDevConsole = devConsole.canUseDevConsole;
 
 	const view = useMemo(() => {
-		if (!colonySelectors) {
+		if (!colonyView) {
 			return undefined;
 		}
 		return {
-			facilities: colonySelectors.facilities,
-			queues: colonySelectors.queueLanes,
+			facilities: colonyView.facilities,
+			queues: colonyView.queueLanes,
 		};
-	}, [colonySelectors]);
+	}, [colonyView]);
 
-	const nowMs = colonyResources.nowMs;
+	const nowMs = colonyView?.nowMs ?? Date.now();
 
 	const buildingLane = view?.queues.lanes.building;
 	const allActiveItem = buildingLane?.activeItem ?? null;
 	const allPendingItems = buildingLane?.pendingItems ?? [];
 
 	const activeFacilityItem =
-		allActiveItem && isFacilityQueueItemPayload(allActiveItem) ? allActiveItem : null;
-	const pendingFacilityItems: FacilityQueueItem[] = allPendingItems.filter(
-		isFacilityQueueItemPayload,
-	) as FacilityQueueItem[];
+		allActiveItem && isFacilityQueueRow(allActiveItem) ? allActiveItem : null;
+	const pendingFacilityItems: FacilityQueueRow[] = allPendingItems.filter(isFacilityQueueRow);
 
-	const activeLaneItem: BuildingLaneQueueItem | null =
-		allActiveItem && isBuildingLaneQueueItem(allActiveItem)
-			? (allActiveItem as BuildingLaneQueueItem)
-			: null;
-	const pendingLaneItems: BuildingLaneQueueItem[] = allPendingItems.filter(
-		isBuildingLaneQueueItem,
-	) as BuildingLaneQueueItem[];
+	const activeLaneItem: BuildingLaneQueueRow | null =
+		allActiveItem && isBuildingLaneQueueRow(allActiveItem) ? allActiveItem : null;
+	const pendingLaneItems: BuildingLaneQueueRow[] = allPendingItems.filter(isBuildingLaneQueueRow);
 
 	const activeUpgradeProgress = activeLaneItem
 		? getQueueProgress(nowMs, activeLaneItem.startsAt, activeLaneItem.completesAt).percent
@@ -197,25 +117,18 @@ function FacilitiesRoute(): ReactElement {
 			if (!canShowDevUi || !canUseDevConsole) {
 				return;
 			}
-			const parsed = Math.max(0, Math.floor(Number(facilityDraftValue) || 0));
-			setSavingFacilityKey(facilityKey);
 			try {
 				const patch: Partial<Record<FacilityKey, number>> = {
-					[facilityKey]: parsed,
+					[facilityKey]: Math.max(0, Math.floor(Number(facilityEditor.draftValue) || 0)),
 				};
-				await setFacilityLevels({
-					colonyId: colonyIdAsId,
-					facilityLevels: patch,
-				});
+				await devConsole.actions.setFacilityLevels(patch);
 				toast.success("Facility level updated");
-				setEditingFacilityKey(null);
+				facilityEditor.cancelEditing();
 			} catch (error) {
 				toast.error(error instanceof Error ? error.message : "Failed to update facility level");
-			} finally {
-				setSavingFacilityKey(null);
 			}
 		},
-		[canShowDevUi, canUseDevConsole, colonyIdAsId, facilityDraftValue, setFacilityLevels],
+		[canShowDevUi, canUseDevConsole, devConsole.actions, facilityEditor],
 	);
 
 	const completeActiveQueue = useCallback(async () => {
@@ -224,28 +137,16 @@ function FacilitiesRoute(): ReactElement {
 		}
 		setIsCompletingQueueItem(true);
 		try {
-			await completeActiveQueueItem({
-				colonyId: colonyIdAsId,
-				lane: "building",
-			});
+			await devConsole.actions.completeQueue("building");
 			toast.success("Active queue item completed");
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to complete queue item");
 		} finally {
 			setIsCompletingQueueItem(false);
 		}
-	}, [
-		canShowDevUi,
-		canUseDevConsole,
-		colonyIdAsId,
-		completeActiveQueueItem,
-		isCompletingQueueItem,
-	]);
+	}, [canShowDevUi, canUseDevConsole, devConsole.actions, isCompletingQueueItem]);
 
-	if (
-		isAuthLoading ||
-		(isAuthenticated && (!view || colonyResources.isLoading || !colonyResources.projected))
-	) {
+	if (isAuthLoading || (isAuthenticated && !view)) {
 		return <FacilitiesRouteSkeleton />;
 	}
 
@@ -270,22 +171,19 @@ function FacilitiesRoute(): ReactElement {
 						buildingLaneIsFull={buildingLane?.isFull ?? false}
 						canShowDevUi={canShowDevUi}
 						canUseDevConsole={canUseDevConsole}
-						availableResources={colonyResources.projected?.stored ?? null}
+						availableResources={colonyView?.projected.resources ?? null}
 						facilities={view.facilities}
 						activeFacilityItem={activeFacilityItem}
-						editingFacilityKey={editingFacilityKey}
-						facilityDraftValue={facilityDraftValue}
+						editingFacilityKey={facilityEditor.editingKey}
+						facilityDraftValue={facilityEditor.draftValue}
 						pendingFacilityItems={pendingFacilityItems}
-						savingFacilityKey={savingFacilityKey}
+						savingFacilityKey={facilityEditor.savingKey}
 						upgradingKey={upgradingKey}
 						onEditFacility={(facilityKey, currentLevel) => {
-							setEditingFacilityKey(facilityKey);
-							setFacilityDraftValue(String(currentLevel));
+							facilityEditor.startEditing(facilityKey, currentLevel);
 						}}
-						onFacilityDraftChange={setFacilityDraftValue}
-						onFacilityDraftCancel={() => {
-							setEditingFacilityKey(null);
-						}}
+						onFacilityDraftChange={facilityEditor.setDraftValue}
+						onFacilityDraftCancel={facilityEditor.cancelEditing}
 						onFacilityDraftCommit={(facilityKey) => {
 							void commitFacilityLevel(facilityKey);
 						}}
@@ -345,7 +243,7 @@ type FacilityCardData = {
 };
 
 type FacilityCatalogSectionProps = {
-	activeFacilityItem: FacilityQueueItem | null;
+	activeFacilityItem: FacilityQueueRow | null;
 	availableResources: ResourceBucket | null;
 	buildingLaneIsFull: boolean;
 	canShowDevUi: boolean;
@@ -353,7 +251,7 @@ type FacilityCatalogSectionProps = {
 	editingFacilityKey: FacilityKey | null;
 	facilityDraftValue: string;
 	facilities: FacilityCardData[];
-	pendingFacilityItems: FacilityQueueItem[];
+	pendingFacilityItems: FacilityQueueRow[];
 	savingFacilityKey: FacilityKey | null;
 	upgradingKey: FacilityKey | null;
 	onEditFacility: (facilityKey: FacilityKey, currentLevel: number) => void;
@@ -480,38 +378,18 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
             "
 												src={visual.image}
 											/>
-											<h3
-												className="font-(family-name:--nv-font-display) text-sm font-bold"
-											>
+											<h3 className="font-(family-name:--nv-font-display) text-sm font-bold">
 												{facility.name}
 											</h3>
 										</div>
 										<div className="flex items-center gap-1.5">
 											{props.canShowDevUi && props.editingFacilityKey === facility.key ? (
-												<input
+												<DevNumberInput
 													autoFocus
-													className="
-               inline-flex h-6 w-14 items-center justify-center rounded-md
-               border border-violet-300/35 bg-black/45 px-1 text-center
-               font-(family-name:--nv-font-mono) text-[10px] font-bold
-               text-violet-100 outline-none
-               focus:border-violet-200/60
-             "
-													inputMode="numeric"
 													onBlur={props.onFacilityDraftCancel}
-													onChange={(event) => {
-														props.onFacilityDraftChange(event.target.value.replace(/[^\d]/g, ""));
-													}}
-													onKeyDown={(event) => {
-														if (event.key === "Escape") {
-															props.onFacilityDraftCancel();
-															return;
-														}
-														if (event.key === "Enter") {
-															event.preventDefault();
-															props.onFacilityDraftCommit(facility.key);
-														}
-													}}
+													onCancel={props.onFacilityDraftCancel}
+													onChange={props.onFacilityDraftChange}
+													onCommit={() => props.onFacilityDraftCommit(facility.key)}
 													value={props.facilityDraftValue}
 												/>
 											) : props.canShowDevUi ? (
@@ -647,7 +525,7 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 }
 
 type FacilityQueuePanelProps = {
-	activeLaneItem: BuildingLaneQueueItem | null;
+	activeLaneItem: BuildingLaneQueueRow | null;
 	activeUpgradeProgress: number;
 	canShowDevUi: boolean;
 	canUseDevConsole: boolean;
@@ -655,11 +533,11 @@ type FacilityQueuePanelProps = {
 	isCompletingQueueItem: boolean;
 	nowMs: number;
 	onCompleteActiveQueue: () => void;
-	pendingLaneItems: BuildingLaneQueueItem[];
+	pendingLaneItems: BuildingLaneQueueRow[];
 	remainingTimeLabel: string | null;
 };
 
-function laneItemLabel(item: BuildingLaneQueueItem): string {
+function laneItemLabel(item: BuildingLaneQueueRow): string {
 	if (item.kind === "buildingUpgrade") {
 		return BUILDING_KEY_LABELS[item.payload.buildingKey] ?? item.payload.buildingKey;
 	}
@@ -680,10 +558,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 	const pendingItems = props.pendingLaneItems.map((item) => ({
 		id: `${item.kind}-${item.completesAt}-${item.payload.toLevel}`,
 		isActive: false,
-		remainingLabel: formatQueueRemainingLabel(
-			props.nowMs,
-			Math.max(props.nowMs, item.completesAt),
-		),
+		remainingLabel: formatQueueRemainingLabel(props.nowMs, item.completesAt),
 		subtitle: `Lv ${item.payload.fromLevel} → ${item.payload.toLevel}`,
 		title: laneItemLabel(item),
 	}));
@@ -696,17 +571,15 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 				completeAction={
 					props.canShowDevUi ? (
 						<button
-						className="
-         inline-flex items-center gap-1 rounded-md border border-cyan-300/30
-         bg-cyan-400/10 px-2 py-1 text-[10px] font-medium text-cyan-100
-         transition
-         hover:border-cyan-200/55 hover:bg-cyan-400/16
-         disabled:cursor-not-allowed disabled:opacity-50
-       "
+							className="
+        inline-flex items-center gap-1 rounded-md border border-cyan-300/30
+        bg-cyan-400/10 px-2 py-1 text-[10px] font-medium text-cyan-100
+        transition
+        hover:border-cyan-200/55 hover:bg-cyan-400/16
+        disabled:cursor-not-allowed disabled:opacity-50
+      "
 							disabled={
-								!props.activeLaneItem ||
-								props.isCompletingQueueItem ||
-								!props.canUseDevConsole
+								!props.activeLaneItem || props.isCompletingQueueItem || !props.canUseDevConsole
 							}
 							onClick={props.onCompleteActiveQueue}
 							type="button"

@@ -11,6 +11,8 @@ import type {
 import {
 	BUILDING_KEYS,
 	DEFAULT_GENERATOR_REGISTRY,
+	getBuildingUpgradeCost,
+	getBuildingUpgradeDurationSeconds,
 	getGeneratorConsumptionPerMinute,
 	getGeneratorProductionPerMinute,
 	normalizeDefenseCounts,
@@ -450,35 +452,6 @@ const STORAGE_BUILDING_MAX_LEVEL = 25;
 const STORAGE_CAP_BASE_UNITS = 10_000;
 const STORAGE_CAP_GROWTH = 1.7;
 
-const STORAGE_UPGRADE_CONFIG: Record<
-	StorageBuildingKey,
-	{
-		costBase: ResourceBucket;
-		costGrowth: number;
-		durationBaseSeconds: number;
-		durationGrowth: number;
-	}
-> = {
-	alloyStorageLevel: {
-		costBase: { alloy: 160, crystal: 60, fuel: 0 },
-		costGrowth: 1.58,
-		durationBaseSeconds: 110,
-		durationGrowth: 1.2,
-	},
-	crystalStorageLevel: {
-		costBase: { alloy: 130, crystal: 95, fuel: 0 },
-		costGrowth: 1.58,
-		durationBaseSeconds: 118,
-		durationGrowth: 1.2,
-	},
-	fuelStorageLevel: {
-		costBase: { alloy: 210, crystal: 90, fuel: 0 },
-		costGrowth: 1.6,
-		durationBaseSeconds: 126,
-		durationGrowth: 1.21,
-	},
-};
-
 type BuildingConfig =
 	| {
 			kind: "generator";
@@ -622,21 +595,6 @@ function isStorageBuildingKey(buildingKey: BuildingKey): buildingKey is StorageB
 		buildingKey === "crystalStorageLevel" ||
 		buildingKey === "fuelStorageLevel"
 	);
-}
-
-function storageUpgradeCost(buildingKey: StorageBuildingKey, currentLevel: number): ResourceBucket {
-	const config = STORAGE_UPGRADE_CONFIG[buildingKey];
-
-	return {
-		alloy: Math.round(config.costBase.alloy * Math.pow(config.costGrowth, currentLevel)),
-		crystal: Math.round(config.costBase.crystal * Math.pow(config.costGrowth, currentLevel)),
-		fuel: Math.round(config.costBase.fuel * Math.pow(config.costGrowth, currentLevel)),
-	};
-}
-
-function storageUpgradeDurationSeconds(buildingKey: StorageBuildingKey, currentLevel: number) {
-	const config = STORAGE_UPGRADE_CONFIG[buildingKey];
-	return Math.round(config.durationBaseSeconds * Math.pow(config.durationGrowth, currentLevel));
 }
 
 function storageCapsFromBuildings(buildings: ColonyState["buildings"]): ResourceBucket {
@@ -1972,8 +1930,6 @@ export {
 	shipDefinitionViewValidator,
 	shipKeyValidator,
 	storageCapsFromBuildings,
-	storageUpgradeCost,
-	storageUpgradeDurationSeconds,
 	toAddressLabel,
 	toQueueViewItem,
 	upsertColonyCompanionRows,

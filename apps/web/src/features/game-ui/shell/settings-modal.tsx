@@ -1,7 +1,6 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import { Dialog } from "@base-ui/react/dialog";
-import { Switch } from "@base-ui/react/switch";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -20,13 +19,16 @@ import {
 	Volume2,
 	X,
 } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
 import { toast } from "sonner";
 
 import { NvDivider, NvInput, NvScrollArea, NvSelect } from "@/features/game-ui/primitives";
 import { authClient } from "@/lib/auth-client";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
+
+import { DeveloperPanel } from "./developer-panel";
+import { NvSwitch, SettingsRow, SettingsSection } from "./settings-panel-primitives";
 
 type SettingsCategory = {
 	id: string;
@@ -46,98 +48,17 @@ const CATEGORIES: SettingsCategory[] = [
 	{ id: "developer", label: "Developer", icon: <Code2 className="size-4" /> },
 ];
 
-function NvSwitch({
-	checked,
-	onCheckedChange,
-	disabled,
-}: {
-	checked: boolean;
-	onCheckedChange: (checked: boolean) => void;
-	disabled?: boolean;
-}) {
-	return (
-		<Switch.Root checked={checked} className={cn(`
-    relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center
-    rounded-full border transition-colors
-    focus-visible:ring-2 focus-visible:ring-(--nv-focus-ring)
-    focus-visible:outline-none
-    disabled:cursor-not-allowed disabled:opacity-40
-  `, checked ? "border-cyan-400/40 bg-cyan-400/24" : `
-    border-white/16 bg-white/8
-  `)} disabled={disabled} onCheckedChange={onCheckedChange}>
-			<Switch.Thumb className={cn(`
-     pointer-events-none block size-3.5 rounded-full shadow-sm
-     transition-transform
-   `, checked ? "translate-x-[18px] bg-cyan-300" : `
-     translate-x-[3px] bg-white/50
-   `)} />
-		</Switch.Root>
-	);
-}
-
-function SettingsRow({
-	label,
-	description,
-	children,
-}: {
-	label: string;
-	description?: string;
-	children: React.ReactNode;
-}) {
-	return (
-		<div className="flex items-center justify-between gap-4 py-3">
-			<div className="min-w-0">
-				<p className="text-sm font-medium text-(--nv-text-primary)">{label}</p>
-				{description ? (
-					<p className="mt-0.5 text-xs text-(--nv-text-muted)">{description}</p>
-				) : null}
-			</div>
-			<div className="shrink-0">{children}</div>
-		</div>
-	);
-}
-
-function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
-	return (
-		<div
-			className="
-     mb-6
-     last:mb-0
-   "
-		>
-			<h3
-				className="
-      mb-1 text-[10px] font-semibold tracking-[0.14em] text-(--nv-text-muted)
-      uppercase
-    "
-			>
-				{title}
-			</h3>
-			<NvDivider className="mb-1" />
-			<div>{children}</div>
-		</div>
-	);
-}
-
 function ProfilePanel({ onClose }: { onClose: () => void }) {
 	const navigate = useNavigate();
 	const { isAuthenticated } = useConvexAuth();
 	const profile = useQuery(api.auth.getCurrentPlayerProfile, isAuthenticated ? {} : "skip");
 	const updateCurrentPlayerDisplayName = useMutation(api.auth.updateCurrentPlayerDisplayName);
-	const [displayName, setDisplayName] = useState("");
 	const [bio, setBio] = useState("");
 	const [isSavingDisplayName, setIsSavingDisplayName] = useState(false);
 	const [isSigningOut, setIsSigningOut] = useState(false);
 
-	useEffect(() => {
-		if (!profile?.displayName) {
-			return;
-		}
-		setDisplayName(profile.displayName);
-	}, [profile?.displayName]);
-
-	const saveDisplayName = async () => {
-		const trimmedDisplayName = displayName.trim();
+	const saveDisplayName = async (nextDisplayName: string) => {
+		const trimmedDisplayName = nextDisplayName.trim();
 		if (trimmedDisplayName.length < 3) {
 			toast.error("Display name must be at least 3 characters");
 			return;
@@ -192,42 +113,13 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 		<>
 			<SettingsSection title="Account">
 				<SettingsRow label="Display Name" description="Visible to other players in-game">
-					<div className="flex items-center gap-2">
-						<NvInput
-							className="w-48"
-							maxLength={32}
-							onChange={(e) => setDisplayName(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") {
-									e.preventDefault();
-									void saveDisplayName();
-								}
-							}}
-							placeholder="Enter name"
-							value={displayName}
-						/>
-						<button
-							className="
-         inline-flex items-center gap-1.5 rounded-md border border-white/12
-         bg-white/4 px-3 py-1.5 text-xs font-medium text-(--nv-text-secondary)
-         transition
-         hover:bg-white/8 hover:text-white
-         disabled:opacity-50
-       "
-							disabled={
-								isSavingDisplayName ||
-								!profile ||
-								displayName.trim().length < 3 ||
-								displayName.trim() === profile.displayName
-							}
-							onClick={() => {
-								void saveDisplayName();
-							}}
-							type="button"
-						>
-							{isSavingDisplayName ? "Saving..." : "Save"}
-						</button>
-					</div>
+					<ProfileDisplayNameField
+						key={`${profile?.email ?? "guest"}:${profile?.displayName ?? ""}`}
+						currentDisplayName={profile?.displayName ?? ""}
+						disabled={!profile}
+						isSaving={isSavingDisplayName}
+						onSave={saveDisplayName}
+					/>
 				</SettingsRow>
 				<SettingsRow label="Email" description="Used for account recovery">
 					<span className="text-sm text-(--nv-text-secondary)">
@@ -292,6 +184,66 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 	);
 }
 
+function ProfileDisplayNameField(props: {
+	currentDisplayName: string;
+	disabled: boolean;
+	isSaving: boolean;
+	onSave: (nextDisplayName: string) => Promise<void> | void;
+}) {
+	const [draftDisplayName, setDraftDisplayName] = useState(props.currentDisplayName);
+
+	return (
+		<div className="flex items-center gap-2">
+			<NvInput
+				className="w-48"
+				disabled={props.disabled || props.isSaving}
+				maxLength={32}
+				onChange={(event) => {
+					if (props.isSaving) {
+						return;
+					}
+					setDraftDisplayName(event.target.value);
+				}}
+				onKeyDown={(event) => {
+					if (props.isSaving) {
+						return;
+					}
+					if (event.key === "Enter") {
+						event.preventDefault();
+						void props.onSave(draftDisplayName);
+					}
+				}}
+				placeholder="Enter name"
+				value={draftDisplayName}
+			/>
+			<button
+				className="
+      inline-flex items-center gap-1.5 rounded-md border border-white/12
+      bg-white/4 px-3 py-1.5 text-xs font-medium text-(--nv-text-secondary)
+      transition
+      hover:bg-white/8 hover:text-white
+      disabled:opacity-50
+    "
+				disabled={
+					props.isSaving ||
+					props.disabled ||
+					draftDisplayName.trim().length < 3 ||
+					draftDisplayName.trim() === props.currentDisplayName
+				}
+				onClick={() => {
+					if (props.isSaving) {
+						return;
+					}
+					void props.onSave(draftDisplayName);
+				}}
+				type="button"
+			>
+				{props.isSaving ? "Saving..." : "Save"}
+			</button>
+		</div>
+	);
+}
+
 function PrivacyPanel() {
 	const [profileVisibility, setProfileVisibility] = useState("friends");
 	const [showOnlineStatus, setShowOnlineStatus] = useState(true);
@@ -315,23 +267,39 @@ function PrivacyPanel() {
 					/>
 				</SettingsRow>
 				<SettingsRow label="Online Status" description="Show when you're active in-game">
-					<NvSwitch checked={showOnlineStatus} onCheckedChange={setShowOnlineStatus} />
+					<NvSwitch
+						ariaLabel="Show online status"
+						checked={showOnlineStatus}
+						onCheckedChange={setShowOnlineStatus}
+					/>
 				</SettingsRow>
 				<SettingsRow
 					label="Colony Coordinates"
 					description="Reveal colony locations on the star map"
 				>
-					<NvSwitch checked={showColonyCoords} onCheckedChange={setShowColonyCoords} />
+					<NvSwitch
+						ariaLabel="Show colony coordinates"
+						checked={showColonyCoords}
+						onCheckedChange={setShowColonyCoords}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 			<SettingsSection title="Communication">
 				<SettingsRow label="Direct Messages" description="Allow other players to message you">
-					<NvSwitch checked={allowMessages} onCheckedChange={setAllowMessages} />
+					<NvSwitch
+						ariaLabel="Allow direct messages"
+						checked={allowMessages}
+						onCheckedChange={setAllowMessages}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 			<SettingsSection title="Security">
 				<SettingsRow label="Two-Factor Authentication" description="Protect your account with 2FA">
-					<NvSwitch checked={twoFactor} onCheckedChange={setTwoFactor} />
+					<NvSwitch
+						ariaLabel="Enable two-factor authentication"
+						checked={twoFactor}
+						onCheckedChange={setTwoFactor}
+					/>
 				</SettingsRow>
 				<SettingsRow label="Active Sessions" description="Manage devices signed into your account">
 					<button
@@ -406,6 +374,7 @@ function NotificationsPanel() {
 					<div className="flex items-center gap-2 text-(--nv-text-muted)">
 						<Lock className="size-3.5" />
 						<NvSwitch
+							ariaLabel="Incoming raids notifications"
 							checked={preferences?.settings.raidIncoming.enabled ?? true}
 							disabled
 							onCheckedChange={() => {}}
@@ -421,6 +390,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Raid results notifications"
 							checked={preferences?.settings.raidResolved.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -435,6 +405,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Contract results notifications"
 							checked={preferences?.settings.contractResolved.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -455,6 +426,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Transport incoming notifications"
 							checked={preferences?.settings.transportIncoming.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -472,6 +444,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Transport delivered notifications"
 							checked={preferences?.settings.transportDelivered.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -489,6 +462,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Transport received notifications"
 							checked={preferences?.settings.transportReceived.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -506,6 +480,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Transport returned notifications"
 							checked={preferences?.settings.transportReturned.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -523,6 +498,7 @@ function NotificationsPanel() {
 							<LoaderCircle className="size-3.5 animate-spin text-(--nv-text-muted)" />
 						) : null}
 						<NvSwitch
+							ariaLabel="Operation failures notifications"
 							checked={preferences?.settings.operationFailed.enabled ?? true}
 							disabled={!preferences || savingKind !== null}
 							onCheckedChange={(checked) => {
@@ -568,12 +544,20 @@ function DisplayPanel() {
 					/>
 				</SettingsRow>
 				<SettingsRow label="Animated Backgrounds" description="Decorative background effects">
-					<NvSwitch checked={animatedBg} onCheckedChange={setAnimatedBg} />
+					<NvSwitch
+						ariaLabel="Animated backgrounds"
+						checked={animatedBg}
+						onCheckedChange={setAnimatedBg}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 			<SettingsSection title="Layout">
 				<SettingsRow label="Compact Mode" description="Reduce spacing for smaller screens">
-					<NvSwitch checked={compactMode} onCheckedChange={setCompactMode} />
+					<NvSwitch
+						ariaLabel="Compact mode"
+						checked={compactMode}
+						onCheckedChange={setCompactMode}
+					/>
 				</SettingsRow>
 				<SettingsRow label="UI Scale" description="Adjust the overall interface size">
 					<NvSelect
@@ -592,7 +576,11 @@ function DisplayPanel() {
 					label="Resource Delta"
 					description="Show per-minute production rates in the header"
 				>
-					<NvSwitch checked={showResourceDelta} onCheckedChange={setShowResourceDelta} />
+					<NvSwitch
+						ariaLabel="Show resource delta"
+						checked={showResourceDelta}
+						onCheckedChange={setShowResourceDelta}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 		</>
@@ -692,7 +680,11 @@ function AudioPanel() {
 			</SettingsSection>
 			<SettingsSection title="Ambient">
 				<SettingsRow label="Ambient Sounds" description="Background colony and space sounds">
-					<NvSwitch checked={ambientSounds} onCheckedChange={setAmbientSounds} />
+					<NvSwitch
+						ariaLabel="Ambient sounds"
+						checked={ambientSounds}
+						onCheckedChange={setAmbientSounds}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 		</>
@@ -712,7 +704,11 @@ function GameplayPanel() {
 					label="Auto-Queue Builds"
 					description="Automatically re-queue completed builds"
 				>
-					<NvSwitch checked={autoQueue} onCheckedChange={setAutoQueue} />
+					<NvSwitch
+						ariaLabel="Auto-queue builds"
+						checked={autoQueue}
+						onCheckedChange={setAutoQueue}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 			<SettingsSection title="Confirmation">
@@ -720,7 +716,11 @@ function GameplayPanel() {
 					label="Confirm Destructive Actions"
 					description="Require confirmation for fleet attacks, demolitions, etc."
 				>
-					<NvSwitch checked={confirmActions} onCheckedChange={setConfirmActions} />
+					<NvSwitch
+						ariaLabel="Confirm destructive actions"
+						checked={confirmActions}
+						onCheckedChange={setConfirmActions}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 			<SettingsSection title="Fleet">
@@ -739,7 +739,11 @@ function GameplayPanel() {
 			</SettingsSection>
 			<SettingsSection title="Help">
 				<SettingsRow label="Tutorial Hints" description="Show contextual tips for new features">
-					<NvSwitch checked={tutorialHints} onCheckedChange={setTutorialHints} />
+					<NvSwitch
+						ariaLabel="Tutorial hints"
+						checked={tutorialHints}
+						onCheckedChange={setTutorialHints}
+					/>
 				</SettingsRow>
 			</SettingsSection>
 		</>
@@ -868,183 +872,6 @@ function LanguagePanel() {
 						]}
 						value={numberFormat}
 					/>
-				</SettingsRow>
-			</SettingsSection>
-		</>
-	);
-}
-
-function DeveloperPanel({ activeColonyId }: { activeColonyId: Id<"colonies"> | null }) {
-	const { isAuthenticated } = useConvexAuth();
-	const [debugOverlays, setDebugOverlays] = useState(false);
-	const [verboseLogging, setVerboseLogging] = useState(false);
-	const [showQueryTiming, setShowQueryTiming] = useState(false);
-	const [simulationSpeed, setSimulationSpeed] = useState("1x");
-	const [bypassCooldowns, setBypassCooldowns] = useState(false);
-	const [showEntityIds, setShowEntityIds] = useState(false);
-	const [isTriggeringRaid, setIsTriggeringRaid] = useState(false);
-	const devConsoleState = useQuery(
-		api.devConsole.getDevConsoleState,
-		activeColonyId && isAuthenticated ? { colonyId: activeColonyId } : "skip",
-	);
-	const setDevConsoleUiEnabled = useMutation(api.devConsole.setDevConsoleUiEnabled);
-	const triggerNpcRaidAtCurrentColony = useMutation(api.devConsole.triggerNpcRaidAtCurrentColony);
-	const devConsoleUiEnabled = devConsoleState?.showDevConsoleUi === true;
-	const canUseDevConsole = devConsoleState?.canUseDevConsole === true;
-	const canToggleDevConsoleUi = activeColonyId !== null && isAuthenticated;
-
-	return (
-		<>
-			<div
-				className="
-      mb-5 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3.5 py-2.5
-    "
-			>
-				<p className="text-xs font-medium text-amber-300/90">
-					These options are for development and testing. They may cause unexpected behaviour and are
-					not available in production.
-				</p>
-			</div>
-
-			<SettingsSection title="Debug">
-				<SettingsRow
-					label="Debug Overlays"
-					description="Show FPS counter, render stats, and query waterfall"
-				>
-					<NvSwitch checked={debugOverlays} onCheckedChange={setDebugOverlays} />
-				</SettingsRow>
-				<SettingsRow
-					label="Verbose Logging"
-					description="Log detailed event traces to the browser console"
-				>
-					<NvSwitch checked={verboseLogging} onCheckedChange={setVerboseLogging} />
-				</SettingsRow>
-				<SettingsRow
-					label="Query Timing"
-					description="Display query round-trip times in the resource strip"
-				>
-					<NvSwitch checked={showQueryTiming} onCheckedChange={setShowQueryTiming} />
-				</SettingsRow>
-				<SettingsRow
-					label="Show Entity IDs"
-					description="Display Convex document IDs next to game objects"
-				>
-					<NvSwitch checked={showEntityIds} onCheckedChange={setShowEntityIds} />
-				</SettingsRow>
-			</SettingsSection>
-
-			<SettingsSection title="Simulation">
-				<SettingsRow label="Simulation Speed" description="Accelerate game time for testing">
-					<NvSelect
-						className="w-36"
-						onValueChange={setSimulationSpeed}
-						options={[
-							{ label: "1x (Real)", value: "1x" },
-							{ label: "10x", value: "10x" },
-							{ label: "100x", value: "100x" },
-							{ label: "1000x", value: "1000x" },
-						]}
-						value={simulationSpeed}
-					/>
-				</SettingsRow>
-				<SettingsRow label="Bypass Cooldowns" description="Skip queue timers and build durations">
-					<NvSwitch checked={bypassCooldowns} onCheckedChange={setBypassCooldowns} />
-				</SettingsRow>
-			</SettingsSection>
-
-			{canUseDevConsole ? (
-				<SettingsSection title="Dev Console">
-					<SettingsRow
-						label="Enable Console UI"
-						description="Show developer console controls in colony screens for this player."
-					>
-						<NvSwitch
-							checked={devConsoleUiEnabled}
-							disabled={!canToggleDevConsoleUi}
-							onCheckedChange={(checked) => {
-								void setDevConsoleUiEnabled({ enabled: checked });
-							}}
-						/>
-					</SettingsRow>
-					{!canToggleDevConsoleUi ? (
-						<p className="pt-1 text-xs text-(--nv-text-muted)">
-							Open settings from a colony route to update this flag.
-						</p>
-					) : null}
-					<SettingsRow
-						label="Trigger Raid"
-						description="Force an NPC raid to target the currently open colony immediately."
-					>
-						<button
-							className="
-         inline-flex items-center gap-1.5 rounded-md border
-         border-[rgba(255,111,136,0.35)] bg-[rgba(255,111,136,0.08)] px-3 py-1.5
-         text-xs font-medium text-[#ffd4dd] transition
-         hover:bg-[rgba(255,111,136,0.15)]
-         disabled:cursor-not-allowed disabled:opacity-50
-       "
-							disabled={!activeColonyId || isTriggeringRaid}
-							onClick={() => {
-								if (!activeColonyId) {
-									toast.error("Open settings from a colony route to trigger a raid");
-									return;
-								}
-
-								setIsTriggeringRaid(true);
-								void triggerNpcRaidAtCurrentColony({
-									colonyId: activeColonyId,
-								})
-									.then((result) => {
-										if (result.raidOperationId) {
-											toast.success("NPC raid launched toward the current colony");
-											return;
-										}
-										toast.error("No hostile source available to launch a raid");
-									})
-									.catch((error) => {
-										toast.error(error instanceof Error ? error.message : "Failed to trigger raid");
-									})
-									.finally(() => {
-										setIsTriggeringRaid(false);
-									});
-							}}
-							type="button"
-						>
-							{isTriggeringRaid ? "Launching..." : "Launch Raid"}
-						</button>
-					</SettingsRow>
-				</SettingsSection>
-			) : null}
-
-			<SettingsSection title="Data">
-				<SettingsRow label="Export Colony State" description="Download raw colony data as JSON">
-					<button
-						className="
-        inline-flex items-center gap-1.5 rounded-md border border-white/12
-        bg-white/4 px-3 py-1.5 text-xs font-medium text-(--nv-text-secondary)
-        transition
-        hover:bg-white/8 hover:text-white
-      "
-						type="button"
-					>
-						Export
-					</button>
-				</SettingsRow>
-				<SettingsRow
-					label="Clear Local Storage"
-					description="Reset cached preferences and session data"
-				>
-					<button
-						className="
-        inline-flex items-center gap-1.5 rounded-md border
-        border-[rgba(255,111,136,0.35)] bg-[rgba(255,111,136,0.08)] px-3 py-1.5
-        text-xs font-medium text-[#ffd4dd] transition
-        hover:bg-[rgba(255,111,136,0.15)]
-      "
-						type="button"
-					>
-						Clear
-					</button>
 				</SettingsRow>
 			</SettingsSection>
 		</>

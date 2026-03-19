@@ -9,23 +9,32 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
-	useColonySelectors,
+	ActivityTimelinePanel,
+	type ActivityTimelineItem,
+} from "@/features/colony-route/active-activity-panel";
+import { DefensesRouteSkeleton } from "@/features/colony-route/loading-skeletons";
+import {
+	useColonyView,
 	useColonySessionSnapshot,
 	useOptimisticColonyMutation,
 } from "@/features/colony-state/hooks";
 import { getQueueableBuildActionPresentation } from "@/features/colony-ui/action-state";
 import { ActionButton } from "@/features/colony-ui/components/action-button";
 import { CostPill } from "@/features/colony-ui/components/cost-pill";
+import { DevNumberInput } from "@/features/colony-ui/components/dev-number-input";
 import { LockWarningPopover } from "@/features/colony-ui/components/lock-warning-popover";
 import { QuantityStepper } from "@/features/colony-ui/components/quantity-stepper";
 import { StatusBadge } from "@/features/colony-ui/components/status-badge";
+import { useBoundedQuantityInput } from "@/features/colony-ui/hooks/use-bounded-quantity-input";
+import { useColonyDevConsole } from "@/features/colony-ui/hooks/use-colony-dev-console";
+import { useInlineNumberEditor } from "@/features/colony-ui/hooks/use-inline-number-editor";
+import {
+	getQueueBuildResourceLabel,
+	isDefenseBuildQueueRow,
+} from "@/features/colony-ui/queue-items";
 import { getQueueProgress } from "@/features/colony-ui/queue-state";
 import { formatColonyDuration } from "@/features/colony-ui/time";
-import { useColonyResources } from "@/hooks/use-colony-resources";
-import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
-
-import { ActivityTimelinePanel, type ActivityTimelineItem } from "./active-activity-panel";
-import { DefensesRouteSkeleton } from "./loading-skeletons";
+import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 
 export const Route = createFileRoute("/game/colony/$colonyId/defenses")({
 	component: DefensesRoute,
@@ -62,20 +71,6 @@ type DefenseQueueItem = {
 	total: number;
 };
 
-type DefenseBuildQueueRow = {
-	completesAt: number;
-	id: Id<"colonyQueueItems">;
-	kind: "defenseBuild";
-	payload: {
-		completedQuantity: number;
-		defenseKey: DefenseKey;
-		perUnitDurationSeconds: number;
-		quantity: number;
-	};
-	startsAt?: number;
-	status: "active" | "queued" | "completed" | "cancelled" | "failed";
-};
-
 type DefenseGroup = {
 	keys: DefenseKey[];
 	label: string;
@@ -106,35 +101,19 @@ const DEFENSE_GROUPS: DefenseGroup[] = [
 	{ label: "Shield Systems", keys: ["shieldDome"] },
 ];
 
-function isDefenseBuildQueueRow(item: {
-	kind: string;
-	payload: unknown;
-}): item is DefenseBuildQueueRow {
-	return (
-		item.kind === "defenseBuild" &&
-		typeof item.payload === "object" &&
-		item.payload !== null &&
-		"defenseKey" in item.payload
-	);
-}
-
 function DefensesRoute() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 
 	const defenseCatalog = useMemo(() => selectDefenseCatalog(), []);
-	const colonySelectors = useColonySelectors(isAuthenticated ? colonyIdAsId : null);
+	const colonyView = useColonyView(isAuthenticated ? colonyIdAsId : null);
 	const colonySession = useColonySessionSnapshot(isAuthenticated ? colonyIdAsId : null);
 	const raidStatus = useQuery(
 		api.raids.getRaidStatusForColony,
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
-	const devConsoleState = useQuery(
-		api.devConsole.getDevConsoleState,
-		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
-	);
-	const colonyResources = useColonyResources(isAuthenticated ? colonyIdAsId : null);
+	const devConsole = useColonyDevConsole(isAuthenticated ? colonyIdAsId : null);
 	const enqueueDefenseBuild = useOptimisticColonyMutation({
 		intentFromArgs: (args: {
 			colonyId: Id<"colonies">;
@@ -154,37 +133,29 @@ function DefensesRoute() {
 		}),
 		mutation: api.defenses.cancelDefenseQueueItem,
 	});
-	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
-	const setDefenseCounts = useMutation(api.devConsole.setDefenseCounts);
-	const completeActiveRaidAtCurrentColony = useMutation(
-		api.devConsole.completeActiveRaidAtCurrentColony,
-	);
 
-	const [quantities, setQuantities] = useState<Partial<Record<DefenseKey, number>>>({});
-	const [quantityInputs, setQuantityInputs] = useState<Partial<Record<DefenseKey, string>>>({});
 	const [queueingDefenseKey, setQueueingDefenseKey] = useState<DefenseKey | null>(null);
-	const [editingDefenseKey, setEditingDefenseKey] = useState<DefenseKey | null>(null);
-	const [defenseDraftValue, setDefenseDraftValue] = useState("");
-	const [savingDefenseKey, setSavingDefenseKey] = useState<DefenseKey | null>(null);
 	const [cancelingQueueItemId, setCancelingQueueItemId] = useState<Id<"colonyQueueItems"> | null>(
 		null,
 	);
 	const [isCompletingQueueItem, setIsCompletingQueueItem] = useState(false);
 	const [isCompletingRaid, setIsCompletingRaid] = useState(false);
 	const [expandedRaidId, setExpandedRaidId] = useState<string | null>(null);
+	const quantityInput = useBoundedQuantityInput<DefenseKey>();
+	const defenseEditor = useInlineNumberEditor<DefenseKey>();
 
-	const canShowDevUi = devConsoleState?.showDevConsoleUi === true;
-	const canUseDevConsole = devConsoleState?.canUseDevConsole === true;
+	const canShowDevUi = devConsole.canShowDevUi;
+	const canUseDevConsole = devConsole.canUseDevConsole;
 
-	const nowMs = colonyResources.nowMs;
+	const nowMs = colonyView?.nowMs ?? Date.now();
 
 	const view = useMemo(() => {
-		if (!colonySelectors) {
+		if (!colonyView) {
 			return undefined;
 		}
 
 		const stateByDefenseKey = new Map(
-			colonySelectors.defenseState.defenseStates.map((state) => [state.key, state]),
+			colonyView.defenseState.defenseStates.map((state) => [state.key, state]),
 		);
 		const defenses = defenseCatalog.map((defense) => {
 			const state = stateByDefenseKey.get(defense.key);
@@ -208,12 +179,12 @@ function DefensesRoute() {
 		});
 
 		return {
-			colonyId: colonySelectors.defenseState.colonyId,
-			defenseGridLevel: colonySelectors.defenseState.defenseGridLevel,
+			colonyId: colonyView.defenseState.colonyId,
+			defenseGridLevel: colonyView.defenseState.defenseGridLevel,
 			defenses,
-			lane: colonySelectors.defenseState.lane,
+			lane: colonyView.defenseState.lane,
 		};
-	}, [colonySelectors, defenseCatalog]);
+	}, [colonyView, defenseCatalog]);
 
 	const defensesByKey = useMemo(
 		() => new Map((view?.defenses ?? []).map((defense) => [defense.key, defense])),
@@ -236,7 +207,7 @@ function DefensesRoute() {
 			items.push({
 				defenseKey: item.payload.defenseKey,
 				defenseName: defense?.name ?? item.payload.defenseKey,
-				id: item.id,
+				id: item.id as Id<"colonyQueueItems">,
 				isActive: item.status === "active",
 				remaining: Math.max(0, item.payload.quantity - item.payload.completedQuantity),
 				timeLeftSeconds: Math.max(0, Math.ceil((item.completesAt - nowMs) / 1_000)),
@@ -258,7 +229,7 @@ function DefensesRoute() {
 		? getQueueProgress(nowMs, activeRawItem.startsAt, activeRawItem.completesAt).percent
 		: 0;
 
-	const availableResources = colonyResources.projected?.stored;
+	const availableResources = colonyView?.projected?.resources;
 	const totalOwned = view?.defenses.reduce((sum, defense) => sum + defense.owned, 0) ?? 0;
 	const totalQueued = view?.defenses.reduce((sum, defense) => sum + defense.queued, 0) ?? 0;
 	const totalAttack =
@@ -309,9 +280,8 @@ function DefensesRoute() {
 									onClick={(event) => {
 										event.stopPropagation();
 										setIsCompletingRaid(true);
-										void completeActiveRaidAtCurrentColony({
-											colonyId: colonyIdAsId,
-										})
+										void devConsole.actions
+											.completeRaid()
 											.then(() => {
 												toast.success("Active raid completed");
 											})
@@ -385,8 +355,7 @@ function DefensesRoute() {
 		activeColonyNav.name,
 		canShowDevUi,
 		canUseDevConsole,
-		colonyIdAsId,
-		completeActiveRaidAtCurrentColony,
+		devConsole.actions,
 		isCompletingRaid,
 		nowMs,
 		raidStatus?.activeRaid,
@@ -396,46 +365,20 @@ function DefensesRoute() {
 			? null
 			: Math.max(0, Math.ceil((raidStatus.nextNpcRaidAt - nowMs) / 1_000));
 
-	function updateQuantity(defenseKey: DefenseKey, value: number) {
-		setQuantities((current) => ({ ...current, [defenseKey]: value }));
-		setQuantityInputs((current) => ({ ...current, [defenseKey]: String(value) }));
-	}
-
 	function handleDecrementQuantity(defenseKey: DefenseKey, currentQuantity: number) {
-		updateQuantity(defenseKey, Math.max(1, currentQuantity - 1));
+		quantityInput.decrement(defenseKey, currentQuantity);
 	}
 
 	function handleIncrementQuantity(defenseKey: DefenseKey, currentQuantity: number) {
-		updateQuantity(defenseKey, Math.min(10_000, currentQuantity + 1));
+		quantityInput.increment(defenseKey, currentQuantity);
 	}
 
 	function handleQuantityInputChange(defenseKey: DefenseKey, raw: string) {
-		if (!/^\d*$/.test(raw)) {
-			return;
-		}
-
-		setQuantityInputs((current) => ({ ...current, [defenseKey]: raw }));
-		if (raw === "") {
-			return;
-		}
-
-		const parsed = Number(raw);
-		if (!Number.isFinite(parsed)) {
-			return;
-		}
-
-		setQuantities((current) => ({
-			...current,
-			[defenseKey]: Math.max(1, Math.min(10_000, parsed)),
-		}));
+		quantityInput.updateInput(defenseKey, raw);
 	}
 
 	function handleQuantityBlur(defenseKey: DefenseKey, currentQuantity: number) {
-		const raw = quantityInputs[defenseKey];
-		const parsed = Number(raw);
-		const normalized =
-			raw && Number.isFinite(parsed) ? Math.max(1, Math.min(10_000, parsed)) : currentQuantity;
-		updateQuantity(defenseKey, normalized);
+		quantityInput.commitInput(defenseKey, currentQuantity);
 	}
 
 	function handleQueueDefense(defense: DefenseDisplay, quantity: number) {
@@ -467,7 +410,7 @@ function DefensesRoute() {
 			queueItemId,
 		})
 			.then((result) => {
-				const resourceLabel = `${result.refunded.alloy.toLocaleString()} alloy, ${result.refunded.crystal.toLocaleString()} crystal, ${result.refunded.fuel.toLocaleString()} fuel`;
+				const resourceLabel = getQueueBuildResourceLabel(result.refunded);
 				toast.success(
 					`Cancelled ${result.cancelledRemainingQuantity.toLocaleString()} defense(s); refunded ${resourceLabel}.`,
 				);
@@ -486,38 +429,29 @@ function DefensesRoute() {
 				return;
 			}
 
-			const parsed = Math.max(0, Math.floor(Number(defenseDraftValue) || 0));
-			setSavingDefenseKey(defenseKey);
-			await setDefenseCounts({
-				colonyId: colonyIdAsId,
-				defenseCounts: {
-					[defenseKey]: parsed,
-				},
-			})
+			await devConsole.actions
+				.setDefenseCounts({
+					[defenseKey]: Math.max(0, Math.floor(Number(defenseEditor.draftValue) || 0)),
+				})
 				.then(() => {
 					toast.success("Defense count updated");
-					setEditingDefenseKey(null);
+					defenseEditor.cancelEditing();
 				})
 				.catch((error) => {
 					toast.error(error instanceof Error ? error.message : "Failed to update defense count");
-				})
-				.finally(() => {
-					setSavingDefenseKey(null);
 				});
 		},
-		[canShowDevUi, canUseDevConsole, colonyIdAsId, defenseDraftValue, setDefenseCounts],
+		[canShowDevUi, canUseDevConsole, defenseEditor, devConsole.actions],
 	);
 
 	async function handleCompleteActiveQueue() {
-		if (!canShowDevUi || !devConsoleState?.canUseDevConsole || isCompletingQueueItem) {
+		if (!canShowDevUi || !canUseDevConsole || isCompletingQueueItem) {
 			return;
 		}
 
 		setIsCompletingQueueItem(true);
-		await completeActiveQueueItem({
-			colonyId: colonyIdAsId,
-			lane: "defense",
-		})
+		await devConsole.actions
+			.completeQueue("defense")
 			.then(() => {
 				toast.success("Active defense build completed");
 			})
@@ -529,19 +463,20 @@ function DefensesRoute() {
 			});
 	}
 
-	if (
-		isAuthLoading ||
-		(isAuthenticated && (!view || colonyResources.isLoading || !colonyResources.projected))
-	) {
+	if (isAuthLoading || (isAuthenticated && !view)) {
 		return <DefensesRouteSkeleton />;
 	}
 
-	if (!view || !availableResources) {
+	if (!view) {
 		return (
 			<div className="mx-auto w-full max-w-[1440px] px-4 py-8 text-white/80">
 				Unable to load defenses. Please sign in again.
 			</div>
 		);
+	}
+
+	if (!availableResources) {
+		return <DefensesRouteSkeleton />;
 	}
 
 	return (
@@ -677,38 +612,35 @@ function DefensesRoute() {
 											</p>
 											<div className="space-y-2">
 												{groupDefenses.map((defense, index) => {
-													const quantity = quantities[defense.key] ?? 1;
+													const quantity = quantityInput.getValue(defense.key);
 													return (
 														<DefenseCard
 															availableResources={availableResources}
 															canShowDevUi={canShowDevUi}
 															canUseDevConsole={canUseDevConsole}
 															defense={defense}
-															editingDefenseKey={editingDefenseKey}
+															editingDefenseKey={defenseEditor.editingKey}
 															index={index}
 															isQueueFull={view.lane.isFull}
 															isQueueing={queueingDefenseKey === defense.key}
-															isSavingDefenseCount={savingDefenseKey === defense.key}
+															isSavingDefenseCount={defenseEditor.isSaving(defense.key)}
 															key={defense.key}
 															onDecrementQuantity={handleDecrementQuantity}
 															onEditDefense={(defenseKey, currentCount) => {
-																setEditingDefenseKey(defenseKey);
-																setDefenseDraftValue(String(currentCount));
+																defenseEditor.startEditing(defenseKey, currentCount);
 															}}
 															onIncrementQuantity={handleIncrementQuantity}
 															onQuantityBlur={handleQuantityBlur}
 															onQuantityInputChange={handleQuantityInputChange}
 															onQueueDefense={handleQueueDefense}
-															onDefenseDraftCancel={() => {
-																setEditingDefenseKey(null);
-															}}
-															onDefenseDraftChange={setDefenseDraftValue}
+															onDefenseDraftCancel={defenseEditor.cancelEditing}
+															onDefenseDraftChange={defenseEditor.setDraftValue}
 															onDefenseDraftCommit={(defenseKey) => {
 																void commitDefenseCount(defenseKey);
 															}}
 															quantity={quantity}
-															quantityInput={quantityInputs[defense.key] ?? String(quantity)}
-															defenseDraftValue={defenseDraftValue}
+															quantityInput={quantityInput.getInputValue(defense.key)}
+															defenseDraftValue={defenseEditor.draftValue}
 														/>
 													);
 												})}
@@ -864,29 +796,11 @@ function DefenseCard(props: {
 						<p className="mt-0.5 text-[11px] leading-snug text-white/40">{defense.description}</p>
 					</div>
 					{canShowDevUi && editingDefenseKey === defense.key ? (
-						<input
-							className="
-         inline-flex h-7 w-14 shrink-0 items-center justify-center rounded-md
-         border border-rose-300/35 bg-black/45 px-1 text-center
-         font-(family-name:--nv-font-mono) text-[10px] font-bold text-rose-100
-         outline-none
-         focus:border-rose-200/60
-       "
-							inputMode="numeric"
+						<DevNumberInput
 							onBlur={onDefenseDraftCancel}
-							onChange={(event) => {
-								onDefenseDraftChange(event.target.value.replace(/[^\d]/g, ""));
-							}}
-							onKeyDown={(event) => {
-								if (event.key === "Escape") {
-									onDefenseDraftCancel();
-									return;
-								}
-								if (event.key === "Enter") {
-									event.preventDefault();
-									onDefenseDraftCommit(defense.key);
-								}
-							}}
+							onCancel={onDefenseDraftCancel}
+							onChange={onDefenseDraftChange}
+							onCommit={() => onDefenseDraftCommit(defense.key)}
 							value={defenseDraftValue}
 						/>
 					) : canShowDevUi ? (
@@ -1059,9 +973,7 @@ function PowerSplitBar(props: { totalAttack: number; totalHull: number; totalShi
      `} key={seg.label} style={{ width: `${seg.pct}%` }}>
 						{seg.icon}
 						<span className="tracking-wider uppercase">{seg.label}</span>
-						<span
-							className="font-(family-name:--nv-font-mono) font-bold text-white/70"
-						>
+						<span className="font-(family-name:--nv-font-mono) font-bold text-white/70">
 							{seg.value.toLocaleString()}
 						</span>
 						<span className="font-(family-name:--nv-font-mono) text-white/30">
@@ -1131,9 +1043,7 @@ function DefenseQueuePanel(props: {
      bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
    "
 		>
-			<div
-				className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
-			>
+			<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
 				<Clock3 className="size-5 text-rose-300" />
 				<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Defense Queue</h2>
 				{queueItemsCount > 0 ? (
@@ -1157,9 +1067,7 @@ function DefenseQueuePanel(props: {
 						>
 							Active
 						</p>
-						<div
-							className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3"
-						>
+						<div className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3">
 							<div className="flex items-start justify-between gap-2">
 								<div className="flex items-center gap-2.5">
 									<img
@@ -1255,9 +1163,7 @@ function DefenseQueuePanel(props: {
 								/>
 							</div>
 							<div className="mt-1 flex items-center justify-between">
-								<span
-									className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
-								>
+								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/25">
 									{Math.round(activeUpgradeProgress)}%
 								</span>
 								<span

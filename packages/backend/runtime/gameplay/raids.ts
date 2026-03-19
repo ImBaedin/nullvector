@@ -174,7 +174,9 @@ async function loadColonySystemCoordsBatch(args: {
 	colonies: Doc<"colonies">[];
 	ctx: QueryCtx | MutationCtx;
 }) {
-	const planets = await Promise.all(args.colonies.map((colony) => args.ctx.db.get(colony.planetId)));
+	const planets = await Promise.all(
+		args.colonies.map((colony) => args.ctx.db.get(colony.planetId)),
+	);
 	const systemIds = [...new Set(planets.flatMap((planet) => (planet ? [planet.systemId] : [])))];
 	const systems = await Promise.all(systemIds.map((systemId) => args.ctx.db.get(systemId)));
 	const systemById = new Map(

@@ -221,6 +221,17 @@ type FleetActivityOperation = Pick<
 	"_id" | "arriveAt" | "nextEventAt" | "originColonyId" | "ownerPlayerId" | "status" | "target"
 >;
 
+function isInboundOperationForColony(args: {
+	colonyId: Id<"colonies">;
+	operation: FleetActivityOperation;
+}) {
+	return (
+		(args.operation.target.colonyId === args.colonyId &&
+			args.operation.originColonyId !== args.colonyId) ||
+		(args.operation.status === "returning" && args.operation.originColonyId === args.colonyId)
+	);
+}
+
 function formatElapsedLabel(args: { now: number; occurredAt: number }) {
 	const deltaMs = Math.max(0, args.now - args.occurredAt);
 	const totalSeconds = Math.max(0, Math.floor(deltaMs / 1_000));
@@ -296,7 +307,10 @@ function buildStrategicTags(args: {
 	status: OverviewStatus;
 }) {
 	const tags: string[] = [];
-	if (args.fuelMultiplier >= args.alloyMultiplier && args.fuelMultiplier >= args.crystalMultiplier) {
+	if (
+		args.fuelMultiplier > args.alloyMultiplier &&
+		args.fuelMultiplier > args.crystalMultiplier
+	) {
 		tags.push("Fuel Exporter");
 	}
 	if (args.alloyMultiplier > 1.1) {
@@ -416,13 +430,12 @@ function buildActivityFeed(args: {
 	}
 
 	for (const operation of args.operations) {
-		const isInbound = operation.target.colonyId === args.colony._id && operation.originColonyId !== args.colony._id;
+		const isInbound = isInboundOperationForColony({
+			colonyId: args.colony._id,
+			operation,
+		});
 		const isHostile = operation.ownerPlayerId !== args.colony.playerId;
-		const severity: ActivitySeverity = isInbound
-			? isHostile
-				? "warning"
-				: "info"
-			: "neutral";
+		const severity: ActivitySeverity = isInbound ? (isHostile ? "warning" : "info") : "neutral";
 		const relationLabel = isInbound
 			? isHostile
 				? "Hostile fleet inbound"
@@ -485,8 +498,15 @@ function buildActivityFeed(args: {
 }
 
 function buildFileId(args: { addressLabel: string; colonyId: Id<"colonies"> }) {
-	const seed = String(args.colonyId).replace(/[^a-z0-9]/gi, "").slice(-8).toUpperCase() || "00000000";
-	const address = args.addressLabel.replace(/[^A-Z0-9]/gi, "").slice(0, 10).toUpperCase();
+	const seed =
+		String(args.colonyId)
+			.replace(/[^a-z0-9]/gi, "")
+			.slice(-8)
+			.toUpperCase() || "00000000";
+	const address = args.addressLabel
+		.replace(/[^A-Z0-9]/gi, "")
+		.slice(0, 10)
+		.toUpperCase();
 	return `NV-INT-${address}-${seed}`;
 }
 
@@ -541,59 +561,63 @@ export const getColonyOverview = query({
 			}),
 		]);
 
-		const [queueRows, dockedShips, defenseCountsRaw, originOps, inboundOps, activeRaid, raidResults] =
-			await Promise.all([
-				listOpenColonyQueueItems({
-					colonyId: publicColony.colony._id,
-					ctx,
-				}),
-				readColonyShipCounts({
-					colonyId: publicColony.colony._id,
-					ctx,
-				}),
-				readColonyDefenseCounts({
-					colonyId: publicColony.colony._id,
-					ctx,
-				}),
-				Promise.all([
-					ctx.db
-						.query("fleetOperations")
-						.withIndex("by_origin_stat_evt", (q) =>
-							q.eq("originColonyId", publicColony.colony._id).eq("status", "inTransit"),
-						)
-						.collect(),
-					ctx.db
-						.query("fleetOperations")
-						.withIndex("by_origin_stat_evt", (q) =>
-							q.eq("originColonyId", publicColony.colony._id).eq("status", "returning"),
-						)
-						.collect(),
-				]).then((rows) => rows.flat()),
-				Promise.all([
-					ctx.db
-						.query("fleetOperations")
-						.withIndex("by_tcol_st_evt", (q) =>
-							q.eq("target.colonyId", publicColony.colony._id).eq("status", "inTransit"),
-						)
-						.collect(),
-					ctx.db
-						.query("fleetOperations")
-						.withIndex("by_tcol_st_evt", (q) =>
-							q.eq("target.colonyId", publicColony.colony._id).eq("status", "returning"),
-						)
-						.collect(),
-				]).then((rows) => rows.flat()),
+		const [
+			queueRows,
+			dockedShips,
+			defenseCountsRaw,
+			originOps,
+			inboundOps,
+			activeRaid,
+			lastRaidResult,
+		] = await Promise.all([
+			listOpenColonyQueueItems({
+				colonyId: publicColony.colony._id,
+				ctx,
+			}),
+			readColonyShipCounts({
+				colonyId: publicColony.colony._id,
+				ctx,
+			}),
+			readColonyDefenseCounts({
+				colonyId: publicColony.colony._id,
+				ctx,
+			}),
+			Promise.all([
 				ctx.db
-					.query("npcRaidOperations")
-					.withIndex("by_target_status_event", (q) =>
-						q.eq("targetColonyId", publicColony.colony._id).eq("status", "inTransit"),
+					.query("fleetOperations")
+					.withIndex("by_origin_stat_evt", (q) =>
+						q.eq("originColonyId", publicColony.colony._id).eq("status", "inTransit"),
 					)
-					.first(),
-				ctx.db
-					.query("npcRaidResults")
-					.withIndex("by_target_colony_id", (q) => q.eq("targetColonyId", publicColony.colony._id))
 					.collect(),
-			]);
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_origin_stat_evt", (q) =>
+						q.eq("originColonyId", publicColony.colony._id).eq("status", "returning"),
+					)
+					.collect(),
+			]).then((rows) => rows.flat()),
+			Promise.all([
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_tcol_st_evt", (q) =>
+						q.eq("target.colonyId", publicColony.colony._id).eq("status", "inTransit"),
+					)
+					.collect(),
+			]).then((rows) => rows.flat()),
+			ctx.db
+				.query("npcRaidOperations")
+				.withIndex("by_target_status_event", (q) =>
+					q.eq("targetColonyId", publicColony.colony._id).eq("status", "inTransit"),
+				)
+				.first(),
+			ctx.db
+				.query("npcRaidResults")
+				.withIndex("by_target_colony_created_at", (q) =>
+					q.eq("targetColonyId", publicColony.colony._id),
+				)
+				.order("desc")
+				.first(),
+		]);
 
 		const viewerRelation: "anonymous" | "otherPlayer" | "owner" =
 			viewer?.player?._id === publicColony.player._id
@@ -606,18 +630,27 @@ export const getColonyOverview = query({
 		const operations = uniqueOperations([...originOps, ...inboundOps]);
 		const inboundFriendlyCount = operations.filter(
 			(operation) =>
-				operation.target.colonyId === publicColony.colony._id &&
-				operation.originColonyId !== publicColony.colony._id &&
+				isInboundOperationForColony({
+					colonyId: publicColony.colony._id,
+					operation,
+				}) &&
 				operation.ownerPlayerId === publicColony.player._id,
 		).length;
 		const inboundHostileCount = operations.filter(
 			(operation) =>
-				operation.target.colonyId === publicColony.colony._id &&
-				operation.originColonyId !== publicColony.colony._id &&
+				isInboundOperationForColony({
+					colonyId: publicColony.colony._id,
+					operation,
+				}) &&
 				operation.ownerPlayerId !== publicColony.player._id,
 		).length;
 		const outboundCount = operations.filter(
-			(operation) => operation.originColonyId === publicColony.colony._id,
+			(operation) =>
+				operation.originColonyId === publicColony.colony._id &&
+				!isInboundOperationForColony({
+					colonyId: publicColony.colony._id,
+					operation,
+				}),
 		).length;
 		const status = deriveOverviewStatus({
 			activeRaid,
@@ -626,8 +659,6 @@ export const getColonyOverview = query({
 			inboundFriendlyCount,
 			outboundCount,
 		});
-		const lastRaidResult =
-			raidResults.sort((left, right) => right.createdAt - left.createdAt)[0] ?? null;
 		const defenseFirepower = estimateColonyDefensePower({
 			defenses: defenseCounts,
 			ships: dockedShips,
