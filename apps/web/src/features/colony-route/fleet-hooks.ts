@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
+import { useSelfHealingFleetOperations } from "./fleet-operations-query";
 import { type OperationTimelineRow, useColonyDevConsole } from "./route-shared";
 import { type FleetMissionKind, type StarMapFleetTargetSelection } from "./star-map-picker-context";
 
@@ -134,10 +135,7 @@ export function useFleetRouteData(colonyId: Id<"colonies">) {
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 	const shipCatalog = useMemo(() => selectShipCatalog(), []);
 	const garrison = useQuery(api.fleetV2.getFleetGarrison, isAuthenticated ? { colonyId } : "skip");
-	const operations = useQuery(
-		api.fleetV2.getFleetOperationsForColony,
-		isAuthenticated ? { colonyId } : "skip",
-	);
+	const operations = useSelfHealingFleetOperations({ colonyId, isAuthenticated });
 	const colonyNav = useQuery(api.colonyNav.getColonyNav, isAuthenticated ? { colonyId } : "skip");
 	const devConsole = useColonyDevConsole(colonyId);
 	const colonyResources = useColonyResources(isAuthenticated ? colonyId : null);

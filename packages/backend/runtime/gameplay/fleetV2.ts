@@ -1668,13 +1668,16 @@ export const getFleetOperationsForColony = query({
 	},
 	returns: v.object({
 		active: v.array(fleetOperationColonySummaryValidator),
+		hasStaleOwnedOperations: v.boolean(),
 		nextEventAt: v.optional(v.number()),
+		serverNowMs: v.number(),
 	}),
 	handler: async (ctx, args) => {
 		const { colony, player } = await getOwnedColony({
 			ctx,
 			colonyId: args.colonyId,
 		});
+		const now = Date.now();
 
 		const [ownedInTransit, ownedReturning, inboundInTransit, inboundReturning] = await Promise.all([
 			ctx.db
@@ -1710,6 +1713,9 @@ export const getFleetOperationsForColony = query({
 				),
 			).values(),
 		].sort((left, right) => left.nextEventAt - right.nextEventAt);
+		const hasStaleOwnedOperations = [...ownedInTransit, ...ownedReturning].some(
+			(operation) => operation.nextEventAt <= now,
+		);
 
 		const colonySummaryCache = new Map<Id<"colonies">, { addressLabel: string; name: string }>();
 		const getColonySummary = async (colonyId: Id<"colonies">) => {
@@ -1781,7 +1787,9 @@ export const getFleetOperationsForColony = query({
 
 		return {
 			active: rows.filter((row) => row !== null),
+			hasStaleOwnedOperations,
 			nextEventAt: rows.find((row) => row !== null)?.nextEventAt,
+			serverNowMs: now,
 		};
 	},
 });
