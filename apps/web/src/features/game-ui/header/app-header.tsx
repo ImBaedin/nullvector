@@ -404,7 +404,11 @@ export function AppHeader({
        "
 						>
 							{playerProfile ? (
-								<div className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3">
+								<div
+									className="
+          mr-1 flex items-center gap-2 border-r border-white/8 pr-3
+        "
+								>
 									<div className="flex items-center gap-2">
 										<div
 											className="
@@ -590,9 +594,9 @@ function ColonyRenameInput(props: {
 		<input
 			autoFocus
 			className="
-             w-[min(48vw,360px)] rounded-md border border-cyan-300/30
-             bg-black/40 px-2 py-0.5 text-inherit outline-none
-           "
+     w-[min(48vw,360px)] rounded-md border border-cyan-300/30 bg-black/40 px-2
+     py-0.5 text-inherit outline-none
+   "
 			disabled={props.isSaving}
 			maxLength={40}
 			onBlur={() => {

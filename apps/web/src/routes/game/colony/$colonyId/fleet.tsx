@@ -6,9 +6,6 @@ import { Layers3, MapPin, Ship } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { FleetRouteSkeleton } from "@/features/colony-route/loading-skeletons";
-import { MissionPlannerPanel } from "@/features/colony-route/fleet-mission-planner";
-import { getShipImagePath, SHIP_GROUPS } from "@/features/colony-route/shipyard-shared";
 import {
 	EMPTY_CARGO,
 	EMPTY_SHIP_COUNTS,
@@ -18,8 +15,11 @@ import {
 	useFleetPlannerState,
 	useFleetRouteData,
 } from "@/features/colony-route/fleet-hooks";
-import { useColonyStarMapPicker } from "@/features/colony-route/star-map-picker-context";
+import { MissionPlannerPanel } from "@/features/colony-route/fleet-mission-planner";
+import { FleetRouteSkeleton } from "@/features/colony-route/loading-skeletons";
 import { OperationTimelinePanel } from "@/features/colony-route/route-shared";
+import { getShipImagePath, SHIP_GROUPS } from "@/features/colony-route/shipyard-shared";
+import { useColonyStarMapPicker } from "@/features/colony-route/star-map-picker-context";
 
 export const Route = createFileRoute("/game/colony/$colonyId/fleet")({
 	component: FleetRoute,
@@ -166,9 +166,9 @@ function FleetRoute() {
 						header={
 							<h2
 								className="
-       flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
-       font-bold
-     "
+          flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
+          font-bold
+        "
 							>
 								<Layers3 className="size-4 text-cyan-300/60" />
 								Active Expeditions
@@ -354,9 +354,7 @@ function FleetSummaryStrip(props: {
 												<span className="text-emerald-300/70">{ship.available} avail</span>
 												<span className="text-cyan-200/50">{ship.deployed} out</span>
 											</div>
-											<div
-												className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8"
-											>
+											<div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8">
 												<div
 													className="h-full rounded-full bg-cyan-400/40"
 													style={{

@@ -281,8 +281,8 @@ export function ContractDetailPanel(props: {
 						<div className="min-w-0 flex-1">
 							<p
 								className="
-         font-(family-name:--nv-font-display) text-sm font-bold tracking-wide
-       "
+          font-(family-name:--nv-font-display) text-sm font-bold tracking-wide
+        "
 							>
 								{missionName}
 							</p>
@@ -410,9 +410,9 @@ function EnemyForcesSection(props: { contract: ContractView }): ReactNode {
 					<div className="flex-1">
 						<div
 							className="
-        flex items-center justify-between text-[8px] font-semibold
-        tracking-wider text-white/35 uppercase
-      "
+         flex items-center justify-between text-[8px] font-semibold
+         tracking-wider text-white/35 uppercase
+       "
 						>
 							<span className="flex items-center gap-1">
 								<Ship className="size-2.5" /> Fleet {fleetPct}%
@@ -443,9 +443,9 @@ function EnemyForcesSection(props: { contract: ContractView }): ReactNode {
 					<div>
 						<p
 							className="
-        mb-1.5 flex items-center gap-1.5 text-[8px] font-semibold tracking-wider
-        text-white/30 uppercase
-      "
+         mb-1.5 flex items-center gap-1.5 text-[8px] font-semibold
+         tracking-wider text-white/30 uppercase
+       "
 						>
 							<Ship className="size-2.5" /> Hostile Fleet
 						</p>
@@ -466,9 +466,9 @@ function EnemyForcesSection(props: { contract: ContractView }): ReactNode {
 					<div>
 						<p
 							className="
-        mb-1.5 flex items-center gap-1.5 text-[8px] font-semibold tracking-wider
-        text-white/30 uppercase
-      "
+         mb-1.5 flex items-center gap-1.5 text-[8px] font-semibold
+         tracking-wider text-white/30 uppercase
+       "
 						>
 							<Shield className="size-2.5" /> Defenses
 						</p>
@@ -723,11 +723,7 @@ export function ContractHistory(props: { contracts: ContractView[] }): ReactNode
          ${isSuccess ? "text-emerald-200/60" : `text-rose-200/60`}
        `}>{isSuccess ? "Success" : "Failed"}</span>
 							{contract.resolvedAt ? (
-								<span
-									className="
-          font-(family-name:--nv-font-mono) text-[9px] text-white/20
-        "
-								>
+								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/20">
 									{new Date(contract.resolvedAt).toLocaleDateString()}
 								</span>
 							) : null}
@@ -821,27 +817,27 @@ function BriefingCornerAccents(): ReactNode {
 		<>
 			<div
 				className="
-     pointer-events-none absolute top-0 left-0 size-3.5 rounded-tl-2xl
-     border-t-2 border-l-2 border-rose-400/15
-   "
+      pointer-events-none absolute top-0 left-0 size-3.5 rounded-tl-2xl
+      border-t-2 border-l-2 border-rose-400/15
+    "
 			/>
 			<div
 				className="
-     pointer-events-none absolute top-0 right-0 size-3.5 rounded-tr-2xl
-     border-t-2 border-r-2 border-rose-400/15
-   "
+      pointer-events-none absolute top-0 right-0 size-3.5 rounded-tr-2xl
+      border-t-2 border-r-2 border-rose-400/15
+    "
 			/>
 			<div
 				className="
-     pointer-events-none absolute bottom-0 left-0 size-3.5 rounded-bl-2xl
-     border-b-2 border-l-2 border-rose-400/15
-   "
+      pointer-events-none absolute bottom-0 left-0 size-3.5 rounded-bl-2xl
+      border-b-2 border-l-2 border-rose-400/15
+    "
 			/>
 			<div
 				className="
-     pointer-events-none absolute right-0 bottom-0 size-3.5 rounded-br-2xl
-     border-r-2 border-b-2 border-rose-400/15
-   "
+      pointer-events-none absolute right-0 bottom-0 size-3.5 rounded-br-2xl
+      border-r-2 border-b-2 border-rose-400/15
+    "
 			/>
 		</>
 	);

@@ -1,20 +1,18 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import "@/features/game-ui/theme";
-
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { Activity } from "react";
-import { useConvexAuth } from "@/lib/convex-hooks";
-
-import { AppHeader } from "@/features/game-ui/header";
-import { useColonyLayoutController } from "@/features/game-ui/shell/use-colony-layout-controller";
-import { ColonyStarMapLayer } from "@/features/universe-explorer-realdata/components/colony-star-map-layer";
-import { ExplorerProvider } from "@/features/universe-explorer-realdata/context/explorer-context";
 
 import {
 	ColonyStarMapPickerProvider,
 	useColonyStarMapPicker,
 } from "@/features/colony-route/star-map-picker-context";
+import { AppHeader } from "@/features/game-ui/header";
+import { useColonyLayoutController } from "@/features/game-ui/shell/use-colony-layout-controller";
+import { ColonyStarMapLayer } from "@/features/universe-explorer-realdata/components/colony-star-map-layer";
+import { ExplorerProvider } from "@/features/universe-explorer-realdata/context/explorer-context";
+import { useConvexAuth } from "@/lib/convex-hooks";
 
 export const Route = createFileRoute("/game/colony/$colonyId")({
 	component: ColonyLayoutRoute,
@@ -78,9 +76,15 @@ function ColonyLayoutContent() {
 				}}
 			>
 				<div
-					className={`relative min-h-full transition-[clip-path,opacity,transform] duration-500 ease-out ${
-						layout.shouldCollapseContent ? "pointer-events-none -translate-y-3 opacity-0" : "translate-y-0 opacity-100"
-					}`}
+					className={`
+       relative min-h-full transition-[clip-path,opacity,transform] duration-500
+       ease-out
+       ${layout.shouldCollapseContent ? `
+        pointer-events-none -translate-y-3 opacity-0
+      ` : `
+        translate-y-0 opacity-100
+      `}
+     `}
 					style={{
 						clipPath: layout.shouldCollapseContent
 							? "inset(0 0 100% 0 round 0.5rem)"

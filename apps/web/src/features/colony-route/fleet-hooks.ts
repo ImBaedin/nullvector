@@ -12,15 +12,11 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
-import { useColonyResources } from "@/hooks/use-colony-resources";
-
-import {
-	type FleetMissionKind,
-	type StarMapFleetTargetSelection,
-} from "./star-map-picker-context";
 import { type OperationTimelineRow, useColonyDevConsole } from "./route-shared";
+import { type FleetMissionKind, type StarMapFleetTargetSelection } from "./star-map-picker-context";
 
 export type PlannerCoords = {
 	g: string;
@@ -99,18 +95,12 @@ function cloneEmptyShipCounts(): Record<ShipKey, number> {
 export function useFleetRouteData(colonyId: Id<"colonies">) {
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 	const shipCatalog = useMemo(() => selectShipCatalog(), []);
-	const garrison = useQuery(
-		api.fleetV2.getFleetGarrison,
-		isAuthenticated ? { colonyId } : "skip",
-	);
+	const garrison = useQuery(api.fleetV2.getFleetGarrison, isAuthenticated ? { colonyId } : "skip");
 	const operations = useQuery(
 		api.fleetV2.getFleetOperationsForColony,
 		isAuthenticated ? { colonyId } : "skip",
 	);
-	const colonyNav = useQuery(
-		api.colonyNav.getColonyNav,
-		isAuthenticated ? { colonyId } : "skip",
-	);
+	const colonyNav = useQuery(api.colonyNav.getColonyNav, isAuthenticated ? { colonyId } : "skip");
 	const devConsole = useColonyDevConsole(colonyId);
 	const colonyResources = useColonyResources(isAuthenticated ? colonyId : null);
 	const nowMs = colonyResources.nowMs;
@@ -157,19 +147,10 @@ export function useFleetRouteData(colonyId: Id<"colonies">) {
 		});
 	}, [activeOperations, garrison, shipCatalog]);
 
-	const shipsByKey = useMemo(
-		() => new Map(ships.map((ship) => [ship.key, ship])),
-		[ships],
-	);
+	const shipsByKey = useMemo(() => new Map(ships.map((ship) => [ship.key, ship])), [ships]);
 
-	const fleetTotal = useMemo(
-		() => ships.reduce((sum, ship) => sum + ship.owned, 0),
-		[ships],
-	);
-	const fleetDeployed = useMemo(
-		() => ships.reduce((sum, ship) => sum + ship.deployed, 0),
-		[ships],
-	);
+	const fleetTotal = useMemo(() => ships.reduce((sum, ship) => sum + ship.owned, 0), [ships]);
+	const fleetDeployed = useMemo(() => ships.reduce((sum, ship) => sum + ship.deployed, 0), [ships]);
 
 	const availableResources = colonyResources.projected?.stored ?? null;
 	const nonCurrentColonies = useMemo(
@@ -327,7 +308,10 @@ export function useFleetPlannerDerived(args: {
 			: "skip",
 	);
 
-	const selectedShipCounts = useMemo(() => normalizeShipCounts(args.selectedShips), [args.selectedShips]);
+	const selectedShipCounts = useMemo(
+		() => normalizeShipCounts(args.selectedShips),
+		[args.selectedShips],
+	);
 	const hasShips = useMemo(
 		() => Object.values(selectedShipCounts).some((value) => value > 0),
 		[selectedShipCounts],
@@ -434,7 +418,10 @@ export function useFleetPlannerDerived(args: {
 
 export function useFleetOperationsActions(args: {
 	colonyId: Id<"colonies">;
-	completeActiveMission: (input: { colonyId: Id<"colonies">; operationId: Id<"fleetOperations"> }) => Promise<unknown>;
+	completeActiveMission: (input: {
+		colonyId: Id<"colonies">;
+		operationId: Id<"fleetOperations">;
+	}) => Promise<unknown>;
 }) {
 	const createOperation = useMutation(api.fleetV2.createOperation);
 	const cancelOperation = useMutation(api.fleetV2.cancelOperation);

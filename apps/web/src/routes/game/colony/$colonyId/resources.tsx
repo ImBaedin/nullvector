@@ -8,8 +8,11 @@ import { BatteryCharging, Clock3, Droplets, Factory, Gem, Pickaxe, Radar } from 
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { ResourcesRouteSkeleton } from "@/features/colony-route/loading-skeletons";
+import { ResourceBuildingCard } from "@/features/colony-route/resource-building-card";
 import { useColonyView, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
 import { DevResourceInput } from "@/features/colony-ui/components/dev-number-input";
+import { QueuePanel } from "@/features/colony-ui/components/queue-panel";
 import { useColonyDevConsole } from "@/features/colony-ui/hooks/use-colony-dev-console";
 import { useInlineNumberEditor } from "@/features/colony-ui/hooks/use-inline-number-editor";
 import {
@@ -19,14 +22,10 @@ import {
 	isBuildingQueueRow,
 	type BuildingLaneQueueRow,
 } from "@/features/colony-ui/queue-items";
-import { QueuePanel } from "@/features/colony-ui/components/queue-panel";
 import { getQueueProgress } from "@/features/colony-ui/queue-state";
 import { formatColonyDuration } from "@/features/colony-ui/time";
 import { formatResourceValue } from "@/lib/colony-resource-simulation";
 import { useConvexAuth } from "@/lib/convex-hooks";
-
-import { ResourcesRouteSkeleton } from "@/features/colony-route/loading-skeletons";
-import { ResourceBuildingCard } from "@/features/colony-route/resource-building-card";
 
 export const Route = createFileRoute("/game/colony/$colonyId/resources")({
 	component: ResourcesRoute,
@@ -263,12 +262,7 @@ function ResourcesRoute() {
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to update resource");
 		}
-	}, [
-		canShowDevUi,
-		canUseDevConsole,
-		devConsole.actions,
-		resourceEditor,
-	]);
+	}, [canShowDevUi, canUseDevConsole, devConsole.actions, resourceEditor]);
 
 	const commitBuildingLevel = useCallback(
 		async (buildingKey: BuildingKey, nextLevel: number) => {
@@ -304,12 +298,7 @@ function ResourcesRoute() {
 		} finally {
 			setIsCompletingQueueItem(false);
 		}
-	}, [
-		canShowDevUi,
-		canUseDevConsole,
-		devConsole.actions,
-		isCompletingQueueItem,
-	]);
+	}, [canShowDevUi, canUseDevConsole, devConsole.actions, isCompletingQueueItem]);
 
 	if (isAuthLoading || (isAuthenticated && !view)) {
 		return <ResourcesRouteSkeleton />;
@@ -507,9 +496,7 @@ function ResourcesRoute() {
 									<div className="flex items-center gap-2.5">
 										<span className="text-white/50">{groupVisual.icon}</span>
 										<div>
-											<h2
-												className="font-(family-name:--nv-font-display) text-sm font-bold"
-											>
+											<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 												{groupVisual.label}
 											</h2>
 											<p className="mt-0.5 text-[10px] text-white/35">{groupVisual.description}</p>

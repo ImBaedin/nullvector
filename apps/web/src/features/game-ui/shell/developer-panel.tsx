@@ -74,12 +74,12 @@ export function DeveloperPanel({ activeColonyId }: { activeColonyId: Id<"colonie
 				>
 					<button
 						className="
-         inline-flex items-center gap-1.5 rounded-md border
-         border-[rgba(255,111,136,0.35)] bg-[rgba(255,111,136,0.08)] px-3 py-1.5
-         text-xs font-medium text-[#ffd4dd] transition
-         hover:bg-[rgba(255,111,136,0.15)]
-         disabled:cursor-not-allowed disabled:opacity-50
-       "
+        inline-flex items-center gap-1.5 rounded-md border
+        border-[rgba(255,111,136,0.35)] bg-[rgba(255,111,136,0.08)] px-3 py-1.5
+        text-xs font-medium text-[#ffd4dd] transition
+        hover:bg-[rgba(255,111,136,0.15)]
+        disabled:cursor-not-allowed disabled:opacity-50
+      "
 						disabled={!canUseDevConsole || !activeColonyId || isTriggeringRaid}
 						onClick={() => {
 							void handleTriggerRaid();

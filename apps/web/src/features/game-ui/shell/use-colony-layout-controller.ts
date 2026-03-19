@@ -1,6 +1,6 @@
-import type { StarMapHeaderNavigation } from "@/features/game-ui/header/app-header";
-
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import type { StarMapHeaderNavigation } from "@/features/game-ui/header/app-header";
 
 const STAR_MAP_CONTENT_TRANSITION_MS = 500;
 
@@ -124,9 +124,7 @@ export function useColonyLayoutController(args: { pickerRequested: boolean }) {
 		handleToggleStarMap,
 		headerStarMapNavigation,
 		isStarMapOpen,
-		outletActivityMode: (contentPhase === "hidden" ? "hidden" : "visible") as
-			| "hidden"
-			| "visible",
+		outletActivityMode: (contentPhase === "hidden" ? "hidden" : "visible") as "hidden" | "visible",
 		shouldCollapseContent:
 			contentPhase === "hiding" || contentPhase === "hidden" || contentPhase === "revealing",
 	};

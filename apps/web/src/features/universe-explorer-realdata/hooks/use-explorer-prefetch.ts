@@ -41,9 +41,9 @@ export function useExplorerPrefetch(args: {
 
 			void Promise.allSettled(
 				galaxyIdsToPrefetch.map(async (galaxyId) => {
-				await Promise.all([
-					convex.query(api.universeExplorer.getGalaxyHeader, { galaxyId }),
-					convex.query(api.universeExplorer.getGalaxySectorList, { galaxyId }),
+					await Promise.all([
+						convex.query(api.universeExplorer.getGalaxyHeader, { galaxyId }),
+						convex.query(api.universeExplorer.getGalaxySectorList, { galaxyId }),
 					]);
 					prefetchedGalaxyIds.add(galaxyId);
 				}),
@@ -64,9 +64,9 @@ export function useExplorerPrefetch(args: {
 
 			void Promise.allSettled(
 				sectorIdsToPrefetch.map(async (sectorId) => {
-				await Promise.all([
-					convex.query(api.universeExplorer.getSectorHeader, { sectorId }),
-					convex.query(api.universeExplorer.getSectorSystemList, { sectorId }),
+					await Promise.all([
+						convex.query(api.universeExplorer.getSectorHeader, { sectorId }),
+						convex.query(api.universeExplorer.getSectorSystemList, { sectorId }),
 					]);
 					prefetchedSectorIds.add(sectorId);
 				}),
@@ -98,5 +98,11 @@ export function useExplorerPrefetch(args: {
 				prefetchedSystemIds.add(systemId);
 			}),
 		);
-	}, [args.galaxyData?.sectors, args.level, args.overview?.galaxies, args.sectorData?.systems, convex]);
+	}, [
+		args.galaxyData?.sectors,
+		args.level,
+		args.overview?.galaxies,
+		args.sectorData?.systems,
+		convex,
+	]);
 }

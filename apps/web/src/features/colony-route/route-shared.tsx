@@ -1,16 +1,7 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import type { ResourceBucket, ShipKey } from "@nullvector/game-logic";
 
-import {
-	Clock3,
-	Globe2,
-	MapPin,
-	Package,
-	RotateCcw,
-	Ship,
-	Swords,
-	X,
-} from "lucide-react";
+import { Clock3, Globe2, MapPin, Package, RotateCcw, Ship, Swords, X } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { useColonyDevConsole as useSharedColonyDevConsole } from "@/features/colony-ui/hooks/use-colony-dev-console";
@@ -289,18 +280,14 @@ export function OperationTimelinePanel(props: {
 				subtitle: targetPreview?.address,
 				title: targetPreview?.name ?? operation.targetPreview.label,
 			},
-			transitIcon: isContract ? (
-				<Swords className={`
-     size-3
-     ${accent.iconText}
-   `} />
-			) : (
-				<Ship className={`
-     size-3
-     ${isReturning ? "rotate-180" : ""}
-     ${accent.iconText}
-   `} />
-			),
+			transitIcon: isContract ? <Swords className={`
+      size-3
+      ${accent.iconText}
+    `} /> : <Ship className={`
+      size-3
+      ${isReturning ? "rotate-180" : ""}
+      ${accent.iconText}
+    `} />,
 			transitIconBorderClassName: accent.iconBorder,
 			transitIconFillClassName: accent.iconFill,
 			transitLineClassName: accent.line,

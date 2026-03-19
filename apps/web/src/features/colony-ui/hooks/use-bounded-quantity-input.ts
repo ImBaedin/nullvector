@@ -30,35 +30,36 @@ export function useBoundedQuantityInput<TKey extends string>(args?: {
 		[max, updateValue],
 	);
 
-	const updateInput = useCallback((key: TKey, rawValue: string) => {
-		if (!/^\d*$/.test(rawValue)) {
-			return;
-		}
+	const updateInput = useCallback(
+		(key: TKey, rawValue: string) => {
+			if (!/^\d*$/.test(rawValue)) {
+				return;
+			}
 
-		setInputs((current) => ({ ...current, [key]: rawValue }));
-		if (rawValue === "") {
-			return;
-		}
+			setInputs((current) => ({ ...current, [key]: rawValue }));
+			if (rawValue === "") {
+				return;
+			}
 
-		const parsed = Number(rawValue);
-		if (!Number.isFinite(parsed)) {
-			return;
-		}
+			const parsed = Number(rawValue);
+			if (!Number.isFinite(parsed)) {
+				return;
+			}
 
-		setValues((current) => ({
-			...current,
-			[key]: Math.max(min, Math.min(max, parsed)),
-		}));
-	}, [max, min]);
+			setValues((current) => ({
+				...current,
+				[key]: Math.max(min, Math.min(max, parsed)),
+			}));
+		},
+		[max, min],
+	);
 
 	const commitInput = useCallback(
 		(key: TKey, currentValue: number) => {
 			const rawValue = inputs[key];
 			const parsed = Number(rawValue);
 			const normalized =
-				rawValue && Number.isFinite(parsed)
-					? Math.max(min, Math.min(max, parsed))
-					: currentValue;
+				rawValue && Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : currentValue;
 			updateValue(key, normalized);
 		},
 		[inputs, max, min, updateValue],

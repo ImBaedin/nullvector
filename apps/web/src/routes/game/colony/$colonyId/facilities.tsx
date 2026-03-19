@@ -7,9 +7,14 @@ import { Clock3, Wrench, Zap } from "lucide-react";
 import { type ReactElement, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { FacilitiesRouteSkeleton } from "@/features/colony-route/loading-skeletons";
 import { useColonyView, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
 import { getUpgradeActionPresentation } from "@/features/colony-ui/action-state";
+import { ActionButton } from "@/features/colony-ui/components/action-button";
+import { CostPill } from "@/features/colony-ui/components/cost-pill";
 import { DevLevelInput } from "@/features/colony-ui/components/dev-number-input";
+import { QueuePanel } from "@/features/colony-ui/components/queue-panel";
+import { StatusBadge } from "@/features/colony-ui/components/status-badge";
 import { useColonyDevConsole } from "@/features/colony-ui/hooks/use-colony-dev-console";
 import { useInlineNumberEditor } from "@/features/colony-ui/hooks/use-inline-number-editor";
 import {
@@ -19,15 +24,9 @@ import {
 	type BuildingLaneQueueRow,
 	type FacilityQueueRow,
 } from "@/features/colony-ui/queue-items";
-import { ActionButton } from "@/features/colony-ui/components/action-button";
-import { CostPill } from "@/features/colony-ui/components/cost-pill";
-import { QueuePanel } from "@/features/colony-ui/components/queue-panel";
-import { StatusBadge } from "@/features/colony-ui/components/status-badge";
 import { formatQueueRemainingLabel, getQueueProgress } from "@/features/colony-ui/queue-state";
 import { formatColonyDuration } from "@/features/colony-ui/time";
 import { useConvexAuth } from "@/lib/convex-hooks";
-
-import { FacilitiesRouteSkeleton } from "@/features/colony-route/loading-skeletons";
 
 export const Route = createFileRoute("/game/colony/$colonyId/facilities")({
 	component: FacilitiesRoute,
@@ -151,16 +150,9 @@ function FacilitiesRoute(): ReactElement {
 		} finally {
 			setIsCompletingQueueItem(false);
 		}
-	}, [
-		canShowDevUi,
-		canUseDevConsole,
-		devConsole.actions,
-		isCompletingQueueItem,
-	]);
+	}, [canShowDevUi, canUseDevConsole, devConsole.actions, isCompletingQueueItem]);
 
-	if (
-		isAuthLoading || (isAuthenticated && !view)
-	) {
+	if (isAuthLoading || (isAuthenticated && !view)) {
 		return <FacilitiesRouteSkeleton />;
 	}
 
@@ -392,9 +384,7 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
             "
 												src={visual.image}
 											/>
-											<h3
-												className="font-(family-name:--nv-font-display) text-sm font-bold"
-											>
+											<h3 className="font-(family-name:--nv-font-display) text-sm font-bold">
 												{facility.name}
 											</h3>
 										</div>
@@ -574,10 +564,7 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 	const pendingItems = props.pendingLaneItems.map((item) => ({
 		id: `${item.kind}-${item.completesAt}-${item.payload.toLevel}`,
 		isActive: false,
-		remainingLabel: formatQueueRemainingLabel(
-			props.nowMs,
-			Math.max(props.nowMs, item.completesAt),
-		),
+		remainingLabel: formatQueueRemainingLabel(props.nowMs, Math.max(props.nowMs, item.completesAt)),
 		subtitle: `Lv ${item.payload.fromLevel} → ${item.payload.toLevel}`,
 		title: laneItemLabel(item),
 	}));
@@ -590,17 +577,15 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 				completeAction={
 					props.canShowDevUi ? (
 						<button
-						className="
-         inline-flex items-center gap-1 rounded-md border border-cyan-300/30
-         bg-cyan-400/10 px-2 py-1 text-[10px] font-medium text-cyan-100
-         transition
-         hover:border-cyan-200/55 hover:bg-cyan-400/16
-         disabled:cursor-not-allowed disabled:opacity-50
-       "
+							className="
+        inline-flex items-center gap-1 rounded-md border border-cyan-300/30
+        bg-cyan-400/10 px-2 py-1 text-[10px] font-medium text-cyan-100
+        transition
+        hover:border-cyan-200/55 hover:bg-cyan-400/16
+        disabled:cursor-not-allowed disabled:opacity-50
+      "
 							disabled={
-								!props.activeLaneItem ||
-								props.isCompletingQueueItem ||
-								!props.canUseDevConsole
+								!props.activeLaneItem || props.isCompletingQueueItem || !props.canUseDevConsole
 							}
 							onClick={props.onCompleteActiveQueue}
 							type="button"

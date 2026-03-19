@@ -209,12 +209,12 @@ function ProfileDisplayNameField(props: {
 			/>
 			<button
 				className="
-         inline-flex items-center gap-1.5 rounded-md border border-white/12
-         bg-white/4 px-3 py-1.5 text-xs font-medium text-(--nv-text-secondary)
-         transition
-         hover:bg-white/8 hover:text-white
-         disabled:opacity-50
-       "
+      inline-flex items-center gap-1.5 rounded-md border border-white/12
+      bg-white/4 px-3 py-1.5 text-xs font-medium text-(--nv-text-secondary)
+      transition
+      hover:bg-white/8 hover:text-white
+      disabled:opacity-50
+    "
 				disabled={
 					props.isSaving ||
 					props.disabled ||

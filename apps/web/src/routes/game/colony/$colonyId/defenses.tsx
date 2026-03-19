@@ -9,6 +9,11 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
+	ActivityTimelinePanel,
+	type ActivityTimelineItem,
+} from "@/features/colony-route/active-activity-panel";
+import { DefensesRouteSkeleton } from "@/features/colony-route/loading-skeletons";
+import {
 	useColonyView,
 	useColonySessionSnapshot,
 	useOptimisticColonyMutation,
@@ -20,8 +25,8 @@ import { DevCountInput } from "@/features/colony-ui/components/dev-number-input"
 import { LockWarningPopover } from "@/features/colony-ui/components/lock-warning-popover";
 import { QuantityStepper } from "@/features/colony-ui/components/quantity-stepper";
 import { StatusBadge } from "@/features/colony-ui/components/status-badge";
-import { useColonyDevConsole } from "@/features/colony-ui/hooks/use-colony-dev-console";
 import { useBoundedQuantityInput } from "@/features/colony-ui/hooks/use-bounded-quantity-input";
+import { useColonyDevConsole } from "@/features/colony-ui/hooks/use-colony-dev-console";
 import { useInlineNumberEditor } from "@/features/colony-ui/hooks/use-inline-number-editor";
 import {
 	getQueueBuildResourceLabel,
@@ -31,9 +36,6 @@ import {
 import { getQueueProgress } from "@/features/colony-ui/queue-state";
 import { formatColonyDuration } from "@/features/colony-ui/time";
 import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
-
-import { ActivityTimelinePanel, type ActivityTimelineItem } from "@/features/colony-route/active-activity-panel";
-import { DefensesRouteSkeleton } from "@/features/colony-route/loading-skeletons";
 
 export const Route = createFileRoute("/game/colony/$colonyId/defenses")({
 	component: DefensesRoute,
@@ -968,9 +970,7 @@ function PowerSplitBar(props: { totalAttack: number; totalHull: number; totalShi
      `} key={seg.label} style={{ width: `${seg.pct}%` }}>
 						{seg.icon}
 						<span className="tracking-wider uppercase">{seg.label}</span>
-						<span
-							className="font-(family-name:--nv-font-mono) font-bold text-white/70"
-						>
+						<span className="font-(family-name:--nv-font-mono) font-bold text-white/70">
 							{seg.value.toLocaleString()}
 						</span>
 						<span className="font-(family-name:--nv-font-mono) text-white/30">
@@ -1040,9 +1040,7 @@ function DefenseQueuePanel(props: {
      bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
    "
 		>
-			<div
-				className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
-			>
+			<div className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
 				<Clock3 className="size-5 text-rose-300" />
 				<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Defense Queue</h2>
 				{queueItemsCount > 0 ? (
@@ -1066,9 +1064,7 @@ function DefenseQueuePanel(props: {
 						>
 							Active
 						</p>
-						<div
-							className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3"
-						>
+						<div className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3">
 							<div className="flex items-start justify-between gap-2">
 								<div className="flex items-center gap-2.5">
 									<img
@@ -1164,9 +1160,7 @@ function DefenseQueuePanel(props: {
 								/>
 							</div>
 							<div className="mt-1 flex items-center justify-between">
-								<span
-									className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
-								>
+								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/25">
 									{Math.round(activeUpgradeProgress)}%
 								</span>
 								<span

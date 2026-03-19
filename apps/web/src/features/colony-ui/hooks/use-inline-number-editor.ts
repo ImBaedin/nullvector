@@ -2,10 +2,7 @@ import { useCallback, useState } from "react";
 
 type SaveFn<TKey extends string> = (args: { key: TKey; value: number }) => Promise<void>;
 
-export function useInlineNumberEditor<TKey extends string>(args?: {
-	max?: number;
-	min?: number;
-}) {
+export function useInlineNumberEditor<TKey extends string>(args?: { max?: number; min?: number }) {
 	const min = args?.min ?? 0;
 	const max = args?.max ?? Number.POSITIVE_INFINITY;
 	const [editingKey, setEditingKey] = useState<TKey | null>(null);

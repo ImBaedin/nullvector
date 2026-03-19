@@ -4,22 +4,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import type { StarMapHeaderNavigation } from "@/features/game-ui/header/app-header";
+
+import { useColonyStarMapPicker } from "@/features/colony-route/star-map-picker-context";
 import { cn } from "@/lib/utils";
 
+import type { HoverPanelState, RenderableEntity } from "../types";
+
+import { useExplorerContext } from "../context/explorer-context";
+import { useColonyLayoutBootstrap } from "../hooks/use-colony-layout-bootstrap";
+import { useExplorerData } from "../hooks/use-explorer-data";
+import { useExplorerQuality } from "../hooks/use-explorer-quality";
+import { computeOrbitWorldPosition } from "../lib/orbits";
 import { ExplorerCanvas } from "./explorer-canvas";
 import { HoverPanel } from "./hover-panel";
 import { LevelGalaxy } from "./level-galaxy";
 import { LevelSector } from "./level-sector";
 import { LevelSystem } from "./level-system";
 import { LevelUniverse } from "./level-universe";
-import { useExplorerContext } from "../context/explorer-context";
-import { useExplorerData } from "../hooks/use-explorer-data";
-import { useExplorerQuality } from "../hooks/use-explorer-quality";
-import { useColonyLayoutBootstrap } from "../hooks/use-colony-layout-bootstrap";
-import { computeOrbitWorldPosition } from "../lib/orbits";
-import type { HoverPanelState, RenderableEntity } from "../types";
-
-import { useColonyStarMapPicker } from "@/features/colony-route/star-map-picker-context";
 
 const ZOOM = {
 	galaxy: 0.22,
@@ -528,7 +529,9 @@ export function ColonyStarMapLayer(props: {
 								explorer.cameraLock.mode === "planet" ? explorer.cameraLock.planetId : undefined
 							}
 							starCenter={
-								data.selectedSystem ? { x: data.selectedSystem.x, y: data.selectedSystem.y } : undefined
+								data.selectedSystem
+									? { x: data.selectedSystem.x, y: data.selectedSystem.y }
+									: undefined
 							}
 							onHover={handleHover}
 							onHoverEnd={clearHover}

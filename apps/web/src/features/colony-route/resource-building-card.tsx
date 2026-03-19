@@ -414,12 +414,12 @@ function InlineLevelEditor(props: {
 		<input
 			autoFocus
 			className="
-             inline-flex h-6 w-14 items-center justify-center rounded-md border
-             border-cyan-300/35 bg-black/45 px-1 text-center
-             font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
-             outline-none
-             focus:border-cyan-200/60
-           "
+     inline-flex h-6 w-14 items-center justify-center rounded-md border
+     border-cyan-300/35 bg-black/45 px-1 text-center
+     font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
+     outline-none
+     focus:border-cyan-200/60
+   "
 			disabled={props.isSaving}
 			inputMode="numeric"
 			onBlur={props.onCancel}
@@ -613,17 +613,16 @@ export function ResourceBuildingCard(props: {
 			<div className="relative z-10 flex h-full items-stretch gap-0">
 				<div
 					className="
-        relative flex w-24 shrink-0 items-center justify-center
-        overflow-hidden border-r border-white/6 bg-black/20
-      "
+       relative flex w-24 shrink-0 items-center justify-center overflow-hidden
+       border-r border-white/6 bg-black/20
+     "
 				>
 					<img
 						alt={building.name}
 						className="
-         h-full w-full object-cover opacity-90
-         transition-transform duration-300
-         group-hover:scale-105
-       "
+        h-full w-full object-cover opacity-90 transition-transform duration-300
+        group-hover:scale-105
+      "
 						draggable={false}
 						src={visual.portraitUrl}
 					/>
@@ -639,7 +638,11 @@ export function ResourceBuildingCard(props: {
 					{/* Name + Level + Actions */}
 					<div className="flex items-start justify-between gap-2">
 						<div className="min-w-0">
-							<h3 className="font-(family-name:--nv-font-display) text-sm leading-tight font-bold">
+							<h3
+								className="
+         font-(family-name:--nv-font-display) text-sm leading-tight font-bold
+       "
+							>
 								{building.name}
 							</h3>
 							{showOverflowBadgePopover ? (
@@ -650,10 +653,10 @@ export function ResourceBuildingCard(props: {
 										openOnHover
 										render={
 											<button className={`
-              mt-1.5 inline-flex cursor-help items-center gap-1 rounded-md border
-              px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap uppercase
-              ${statusStyle.badge}
-            `} type="button">
+             mt-1.5 inline-flex cursor-help items-center gap-1 rounded-md border
+             px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap uppercase
+             ${statusStyle.badge}
+           `} type="button">
 												{statusBadgeLabel}
 											</button>
 										}
@@ -662,13 +665,13 @@ export function ResourceBuildingCard(props: {
 										<Popover.Positioner align="start" className="z-90" sideOffset={8}>
 											<Popover.Popup
 												className="
-               max-w-[300px] rounded-xl border border-amber-200/35
-               bg-[rgba(35,24,8,0.86)] p-3 text-xs text-amber-100
-               shadow-[0_20px_45px_rgba(0,0,0,0.5)] backdrop-blur-md
-               transition-[transform,scale,opacity] duration-200 outline-none
-               data-ending-style:scale-90 data-ending-style:opacity-0
-               data-starting-style:scale-90 data-starting-style:opacity-0
-             "
+              max-w-[300px] rounded-xl border border-amber-200/35
+              bg-[rgba(35,24,8,0.86)] p-3 text-xs text-amber-100
+              shadow-[0_20px_45px_rgba(0,0,0,0.5)] backdrop-blur-md
+              transition-[transform,scale,opacity] duration-200 outline-none
+              data-ending-style:scale-90 data-ending-style:opacity-0
+              data-starting-style:scale-90 data-starting-style:opacity-0
+            "
 											>
 												Overflow stockpile: {resourceOverflow.toLocaleString()}{" "}
 												{resourceNameForBuilding(building.key)}. Production resumes automatically
@@ -679,10 +682,10 @@ export function ResourceBuildingCard(props: {
 								</Popover.Root>
 							) : (
 								<p className={`
-           mt-1.5 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5
-           text-[9px] font-semibold whitespace-nowrap uppercase
-           ${statusStyle.badge}
-         `}>
+          mt-1.5 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5
+          text-[9px] font-semibold whitespace-nowrap uppercase
+          ${statusStyle.badge}
+        `}>
 									{isActiveUpgradeTarget ? (
 										<>
 											<Clock3 className="size-3" />
@@ -716,13 +719,13 @@ export function ResourceBuildingCard(props: {
 									<button
 										aria-label={`Level ${building.currentLevel}`}
 										className="
-             inline-flex h-6 min-w-9 items-center justify-center rounded-md border
-             border-cyan-300/20 bg-cyan-400/8 px-1.5
-             font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
-             transition
-             hover:border-cyan-200/45 hover:bg-cyan-400/14
-             disabled:cursor-not-allowed disabled:opacity-50
-           "
+            inline-flex h-6 min-w-9 items-center justify-center rounded-md
+            border border-cyan-300/20 bg-cyan-400/8 px-1.5
+            font-(family-name:--nv-font-mono) text-[10px] font-bold
+            text-cyan-100 transition
+            hover:border-cyan-200/45 hover:bg-cyan-400/14
+            disabled:cursor-not-allowed disabled:opacity-50
+          "
 										disabled={devInlineLevelEditor.isSaving}
 										onClick={() => {
 											setIsEditingLevel(true);
@@ -737,10 +740,10 @@ export function ResourceBuildingCard(props: {
 								<span
 									aria-label={`Level ${building.currentLevel}`}
 									className="
-            inline-flex size-6 items-center justify-center rounded-md border
-            border-white/15 bg-black/25 font-(family-name:--nv-font-mono)
-            text-[10px] font-bold text-white/80
-          "
+           inline-flex size-6 items-center justify-center rounded-md border
+           border-white/15 bg-black/25 font-(family-name:--nv-font-mono)
+           text-[10px] font-bold text-white/80
+         "
 									title={`Level ${building.currentLevel}`}
 								>
 									{building.currentLevel}
@@ -754,8 +757,8 @@ export function ResourceBuildingCard(props: {
 												Efficiency:{" "}
 												<span
 													className="
-                font-(family-name:--nv-font-mono) font-semibold text-white
-              "
+               font-(family-name:--nv-font-mono) font-semibold text-white
+             "
 												>
 													{efficiencyLabel(cardStatus, energyRatio)}
 												</span>
@@ -764,8 +767,8 @@ export function ResourceBuildingCard(props: {
 												Output:{" "}
 												<span
 													className="
-                font-(family-name:--nv-font-mono) font-semibold text-white
-              "
+               font-(family-name:--nv-font-mono) font-semibold text-white
+             "
 												>
 													{effectiveOutputPerMinute.toLocaleString()} {building.outputLabel}
 												</span>
@@ -774,8 +777,8 @@ export function ResourceBuildingCard(props: {
 												Energy Draw:{" "}
 												<span
 													className="
-                font-(family-name:--nv-font-mono) font-semibold text-white
-              "
+               font-(family-name:--nv-font-mono) font-semibold text-white
+             "
 												>
 													{building.energyUsePerMinute.toLocaleString()} MW
 												</span>
@@ -785,8 +788,8 @@ export function ResourceBuildingCard(props: {
 													Overflow:{" "}
 													<span
 														className="
-                 font-(family-name:--nv-font-mono) font-semibold text-amber-200
-               "
+                font-(family-name:--nv-font-mono) font-semibold text-amber-200
+              "
 													>
 														{resourceOverflow.toLocaleString()}{" "}
 														{resourceNameForBuilding(building.key)}
@@ -816,10 +819,10 @@ export function ResourceBuildingCard(props: {
 							<Dialog.Root onOpenChange={onTableOpenChange} open={isTableOpen}>
 								<Dialog.Trigger
 									className="
-            rounded-md border border-white/12 bg-white/3 px-2 py-1 text-[10px]
-            font-semibold text-white/50 transition
-            hover:bg-white/6 hover:text-white/80
-          "
+           rounded-md border border-white/12 bg-white/3 px-2 py-1 text-[10px]
+           font-semibold text-white/50 transition
+           hover:bg-white/6 hover:text-white/80
+         "
 								>
 									<span className="inline-flex items-center gap-1">
 										<Layers3 className="size-3" />
@@ -829,35 +832,35 @@ export function ResourceBuildingCard(props: {
 								<Dialog.Portal>
 									<Dialog.Backdrop
 										className="
-             fixed inset-0 z-95 bg-[rgba(3,6,12,0.72)] backdrop-blur-sm
-             transition-all duration-200
-             data-ending-style:opacity-0
-             data-starting-style:opacity-0
-           "
+            fixed inset-0 z-95 bg-[rgba(3,6,12,0.72)] backdrop-blur-sm
+            transition-all duration-200
+            data-ending-style:opacity-0
+            data-starting-style:opacity-0
+          "
 									/>
 									<Dialog.Popup
 										className="
-             fixed top-1/2 left-1/2 z-100 max-h-[85vh] w-[min(96vw,860px)]
-             -translate-1/2 overflow-y-auto rounded-2xl border border-white/12
-             bg-[linear-gradient(170deg,rgba(12,20,36,0.98),rgba(6,10,18,0.99))]
-             shadow-[0_24px_56px_rgba(0,0,0,0.55)] transition-all duration-200
-             outline-none
-             data-ending-style:scale-95 data-ending-style:opacity-0
-             data-starting-style:scale-95 data-starting-style:opacity-0
-           "
+            fixed top-1/2 left-1/2 z-100 max-h-[85vh] w-[min(96vw,860px)]
+            -translate-1/2 overflow-y-auto rounded-2xl border border-white/12
+            bg-[linear-gradient(170deg,rgba(12,20,36,0.98),rgba(6,10,18,0.99))]
+            shadow-[0_24px_56px_rgba(0,0,0,0.55)] transition-all duration-200
+            outline-none
+            data-ending-style:scale-95 data-ending-style:opacity-0
+            data-starting-style:scale-95 data-starting-style:opacity-0
+          "
 									>
 										<div
 											className="
-              p-3.5
-              sm:p-5
-            "
+             p-3.5
+             sm:p-5
+           "
 										>
 											<div className="mb-3 flex items-center justify-between gap-2">
 												<Dialog.Title
 													className="
-                inline-flex items-center gap-2
-                font-(family-name:--nv-font-display) text-sm font-bold text-white
-              "
+               inline-flex items-center gap-2
+               font-(family-name:--nv-font-display) text-sm font-bold text-white
+             "
 												>
 													<Layers3 className="size-4 text-cyan-300/60" />
 													Level Planner: {building.name}
@@ -867,28 +870,28 @@ export function ResourceBuildingCard(props: {
 												</Dialog.Description>
 												<Dialog.Close
 													className="
-                rounded-md border border-white/12 bg-white/3 p-1.5 text-white/50
-                transition
-                hover:bg-white/6 hover:text-white/80
-              "
+               rounded-md border border-white/12 bg-white/3 p-1.5 text-white/50
+               transition
+               hover:bg-white/6 hover:text-white/80
+             "
 												>
 													<X className="size-3.5" strokeWidth={2.4} />
 												</Dialog.Close>
 											</div>
 											<div
 												className="
-               overflow-hidden rounded-lg border border-white/8 bg-black/20
-             "
+              overflow-hidden rounded-lg border border-white/8 bg-black/20
+            "
 											>
 												<table
 													className="
-                w-full text-left font-(family-name:--nv-font-mono) text-[10px]
-              "
+               w-full text-left font-(family-name:--nv-font-mono) text-[10px]
+             "
 												>
 													<thead
 														className="
-                 bg-white/4 text-[9px] tracking-widest text-white/40 uppercase
-               "
+                bg-white/4 text-[9px] tracking-widest text-white/40 uppercase
+              "
 													>
 														<tr>
 															<th className="px-2.5 py-2 font-semibold">Lv</th>
@@ -905,9 +908,9 @@ export function ResourceBuildingCard(props: {
 																	row.level === building.currentLevel
 																		? "bg-cyan-400/8 text-cyan-100"
 																		: `
-                     text-white/70
-                     hover:bg-white/2
-                   `
+                    text-white/70
+                    hover:bg-white/2
+                  `
 																}
 																key={`${building.key}-${row.level}`}
 															>
@@ -957,8 +960,8 @@ export function ResourceBuildingCard(props: {
 						<div className="mt-2.5 flex items-center gap-2">
 							<div
 								className="
-          flex items-center gap-1.5 rounded-lg border border-white/6
-          bg-black/20 px-2.5 py-1.5
+          flex items-center gap-1.5 rounded-lg border border-white/6 bg-black/20
+          px-2.5 py-1.5
         "
 							>
 								<img
@@ -968,19 +971,24 @@ export function ResourceBuildingCard(props: {
 								/>
 								<span
 									className="
-            font-(family-name:--nv-font-mono) text-[10px] font-semibold text-white/80
-          "
+           font-(family-name:--nv-font-mono) text-[10px] font-semibold
+           text-white/80
+         "
 								>
 									{effectiveOutputPerMinute.toLocaleString()}
 								</span>
-								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/35">
+								<span
+									className="
+          font-(family-name:--nv-font-mono) text-[9px] text-white/35
+        "
+								>
 									/m
 								</span>
 							</div>
 							<div
 								className="
-          flex items-center gap-1.5 rounded-lg border border-white/6
-          bg-black/20 px-2.5 py-1.5 text-[10px] text-white/50
+          flex items-center gap-1.5 rounded-lg border border-white/6 bg-black/20
+          px-2.5 py-1.5 text-[10px] text-white/50
         "
 							>
 								<Gauge className="size-3 text-cyan-300/50" />
@@ -1024,20 +1032,20 @@ export function ResourceBuildingCard(props: {
 								<Popover.Positioner align="end" className="z-90" sideOffset={8}>
 									<Popover.Popup
 										className="
-           w-[240px] origin-(--transform-origin) rounded-xl border
-           border-white/12
-           bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
-           p-3 text-xs text-white/80 shadow-[0_20px_45px_rgba(0,0,0,0.5)]
-           backdrop-blur-md transition-[transform,scale,opacity] duration-200
-           outline-none
-           data-ending-style:scale-90 data-ending-style:opacity-0
-           data-starting-style:scale-90 data-starting-style:opacity-0
-         "
+            w-[240px] origin-(--transform-origin) rounded-xl border
+            border-white/12
+            bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
+            p-3 text-xs text-white/80 shadow-[0_20px_45px_rgba(0,0,0,0.5)]
+            backdrop-blur-md transition-[transform,scale,opacity] duration-200
+            outline-none
+            data-ending-style:scale-90 data-ending-style:opacity-0
+            data-starting-style:scale-90 data-starting-style:opacity-0
+          "
 									>
 										<p
 											className="
-            text-[9px] font-semibold tracking-[0.14em] text-white/40 uppercase
-          "
+             text-[9px] font-semibold tracking-[0.14em] text-white/40 uppercase
+           "
 										>
 											Next Upgrade Cost
 										</p>
@@ -1062,8 +1070,9 @@ export function ResourceBuildingCard(props: {
 											<div className="mt-3 border-t border-white/15 pt-3">
 												<p
 													className="
-              text-[9px] font-semibold tracking-[0.14em] text-white/40 uppercase
-            "
+               text-[9px] font-semibold tracking-[0.14em] text-white/40
+               uppercase
+             "
 												>
 													Next Level Delta
 												</p>

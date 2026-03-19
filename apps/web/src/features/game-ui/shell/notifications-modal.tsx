@@ -588,9 +588,11 @@ export function NotificationsModal({
 															key={option.value}
 															value={option.value}
 														>
-															<Select.ItemIndicator className="
+															<Select.ItemIndicator
+																className="
                  flex size-4 items-center justify-center
-               ">
+               "
+															>
 																<Check className="size-3 text-cyan-400" />
 															</Select.ItemIndicator>
 															<Select.ItemText>{option.label}</Select.ItemText>
@@ -612,9 +614,9 @@ export function NotificationsModal({
              bg-cyan-400/12 text-cyan-200
              shadow-[inset_0_0_0_1px_rgba(61,217,255,0.18)]
            ` : `
-               text-(--nv-text-muted)
-               hover:bg-white/5 hover:text-(--nv-text-secondary)
-             `)} key={filter.id} onClick={() => setStatusFilter(filter.id)} type="button">
+             text-(--nv-text-muted)
+             hover:bg-white/5 hover:text-(--nv-text-secondary)
+           `)} key={filter.id} onClick={() => setStatusFilter(filter.id)} type="button">
 												{filter.label}
 											</button>
 										))}
@@ -629,10 +631,10 @@ export function NotificationsModal({
           `, categoryFilter === filter.id ? `
             border-cyan-400/20 bg-cyan-400/10 text-cyan-200
           ` : `
-              border-transparent text-(--nv-text-muted)
-              hover:border-white/8 hover:bg-white/4
-              hover:text-(--nv-text-secondary)
-            `)} key={filter.id} onClick={() => setCategoryFilter(filter.id)} type="button">
+            border-transparent text-(--nv-text-muted)
+            hover:border-white/8 hover:bg-white/4
+            hover:text-(--nv-text-secondary)
+          `)} key={filter.id} onClick={() => setCategoryFilter(filter.id)} type="button">
 											{filter.id === "combat" && <Swords className="size-3" />}
 											{filter.id === "fleet" && <Bell className="size-3" />}
 											{filter.id === "colony" && <Globe className="size-3" />}

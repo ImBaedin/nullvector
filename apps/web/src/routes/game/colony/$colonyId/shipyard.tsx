@@ -6,9 +6,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { ShipyardRouteSkeleton } from "@/features/colony-route/loading-skeletons";
+import {
+	ShipyardScreen,
+	type QueueItem,
+	type ShipyardDisplayShip,
+} from "@/features/colony-route/shipyard-screen";
 import { useColonyView, useOptimisticColonyMutation } from "@/features/colony-state/hooks";
-import { useColonyDevConsole } from "@/features/colony-ui/hooks/use-colony-dev-console";
 import { useBoundedQuantityInput } from "@/features/colony-ui/hooks/use-bounded-quantity-input";
+import { useColonyDevConsole } from "@/features/colony-ui/hooks/use-colony-dev-console";
 import { useInlineNumberEditor } from "@/features/colony-ui/hooks/use-inline-number-editor";
 import {
 	getQueueBuildResourceLabel,
@@ -17,9 +23,6 @@ import {
 } from "@/features/colony-ui/queue-items";
 import { getQueueProgress } from "@/features/colony-ui/queue-state";
 import { useConvexAuth } from "@/lib/convex-hooks";
-
-import { ShipyardRouteSkeleton } from "@/features/colony-route/loading-skeletons";
-import { ShipyardScreen, type QueueItem, type ShipyardDisplayShip } from "@/features/colony-route/shipyard-screen";
 
 export const Route = createFileRoute("/game/colony/$colonyId/shipyard")({
 	component: ShipyardRoute,
@@ -225,9 +228,7 @@ function ShipyardRoute() {
 			});
 	}
 
-	if (
-		isAuthLoading || (isAuthenticated && !view)
-	) {
+	if (isAuthLoading || (isAuthenticated && !view)) {
 		return <ShipyardRouteSkeleton />;
 	}
 

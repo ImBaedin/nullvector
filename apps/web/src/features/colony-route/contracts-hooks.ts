@@ -8,7 +8,12 @@ import { toast } from "sonner";
 
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
-import { DEFAULT_SELECTED_SHIPS, type RecommendedContractView, type SelectedContractContext, type ShipAssignment } from "./contracts-screen-shared";
+import {
+	DEFAULT_SELECTED_SHIPS,
+	type RecommendedContractView,
+	type SelectedContractContext,
+	type ShipAssignment,
+} from "./contracts-screen-shared";
 import { useColonyDevConsole, useNowMs } from "./route-shared";
 
 export function useContractsRouteData(args: {
@@ -190,8 +195,9 @@ export function useContractDiscoveryRebuild(args: {
 
 export function useContractSelection() {
 	const [selectedContext, setSelectedContext] = useState<SelectedContractContext | null>(null);
-	const [selectedShips, setSelectedShips] =
-		useState<Record<ShipKey, number>>({ ...DEFAULT_SELECTED_SHIPS });
+	const [selectedShips, setSelectedShips] = useState<Record<ShipKey, number>>({
+		...DEFAULT_SELECTED_SHIPS,
+	});
 
 	const selectedContract = selectedContext?.contract ?? null;
 	const selectedShipCounts = useMemo(() => normalizeShipCounts(selectedShips), [selectedShips]);

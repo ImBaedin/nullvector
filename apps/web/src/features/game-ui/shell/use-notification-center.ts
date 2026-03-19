@@ -7,16 +7,12 @@ import { toast } from "sonner";
 
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
-import { resolveNotificationDestinationPath } from "./notification-routing";
 import type { NotificationFeedItem } from "./notification-renderers";
 
+import { resolveNotificationDestinationPath } from "./notification-routing";
+
 export type NotificationCenterStatusFilter = "all" | "unread" | "read" | "archived";
-export type NotificationCenterCategoryFilter =
-	| "all"
-	| "combat"
-	| "fleet"
-	| "colony"
-	| "system";
+export type NotificationCenterCategoryFilter = "all" | "combat" | "fleet" | "colony" | "system";
 
 type ColonyOption = {
 	id: string;
@@ -60,8 +56,7 @@ export function useNotificationCenter(args: {
 		[args.activeColonyId, args.colonies],
 	);
 	const selectedColonyLabel =
-		colonyOptions.find((option) => option.value === selectedColonyFilter)?.label ??
-		"All Colonies";
+		colonyOptions.find((option) => option.value === selectedColonyFilter)?.label ?? "All Colonies";
 
 	const getColonyName = useCallback(
 		(colonyId?: Id<"colonies">) => {

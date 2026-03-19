@@ -1,23 +1,28 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
-import { createFileRoute } from "@tanstack/react-router";
-import { ChevronDown, Layers3 } from "lucide-react";
-import { useState } from "react";
-
 import {
 	getFleetFuelCostForDistance,
 	getFleetSlowestSpeed,
 	normalizeShipCounts,
 } from "@nullvector/game-logic";
+import { createFileRoute } from "@tanstack/react-router";
+import { ChevronDown, Layers3 } from "lucide-react";
+import { useState } from "react";
 
-import { ContractDetailPanel, ContractHistory, ContractsSkeleton, RecommendedSection } from "@/features/colony-route/contracts-screen-view";
+import type { ContractView } from "@/features/colony-route/contracts-screen-shared";
+
 import {
 	useContractDiscoveryRebuild,
 	useContractMissionActions,
 	useContractSelection,
 	useContractsRouteData,
 } from "@/features/colony-route/contracts-hooks";
-import type { ContractView } from "@/features/colony-route/contracts-screen-shared";
+import {
+	ContractDetailPanel,
+	ContractHistory,
+	ContractsSkeleton,
+	RecommendedSection,
+} from "@/features/colony-route/contracts-screen-view";
 import { OperationTimelinePanel } from "@/features/colony-route/route-shared";
 
 export const Route = createFileRoute("/game/colony/$colonyId/contracts")({
@@ -171,17 +176,17 @@ function ContractsRoute() {
 						header={
 							<h2
 								className="
-       flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
-       font-bold
-     "
+          flex items-center gap-2 font-(family-name:--nv-font-display) text-sm
+          font-bold
+        "
 							>
 								<Layers3 className="size-4 text-rose-300/60" />
 								<span>
 									Active Contracts{" "}
 									<span
 										className="
-         font-(family-name:--nv-font-mono) text-xs font-medium text-white/35
-       "
+            font-(family-name:--nv-font-mono) text-xs font-medium text-white/35
+          "
 									>
 										({activeContractCount}/{activeContractLimit})
 									</span>
@@ -221,12 +226,10 @@ function ContractsRoute() {
 							onClick={() => setHistoryExpanded((current) => !current)}
 						>
 							<div className="flex min-w-0 flex-1 items-center gap-2">
-								<ChevronDown
-									className={`
-         size-4 shrink-0 text-white/40 transition-transform
-         ${historyExpanded ? "rotate-180" : ""}
-       `}
-								/>
+								<ChevronDown className={`
+           size-4 shrink-0 text-white/40 transition-transform
+           ${historyExpanded ? "rotate-180" : ""}
+         `} />
 								<div>
 									<div className="font-(family-name:--nv-font-display) text-sm font-bold">
 										Recent Missions

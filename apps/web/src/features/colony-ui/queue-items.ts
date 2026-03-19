@@ -59,7 +59,10 @@ export const DEFENSE_KEY_LABELS: Record<DefenseKey, string> = {
 	shieldDome: "Shield Dome",
 };
 
-export function isBuildingQueueRow(item: { kind: string; payload: unknown }): item is BuildingQueueRow {
+export function isBuildingQueueRow(item: {
+	kind: string;
+	payload: unknown;
+}): item is BuildingQueueRow {
 	return (
 		item.kind === "buildingUpgrade" &&
 		typeof item.payload === "object" &&
@@ -68,7 +71,10 @@ export function isBuildingQueueRow(item: { kind: string; payload: unknown }): it
 	);
 }
 
-export function isFacilityQueueRow(item: { kind: string; payload: unknown }): item is FacilityQueueRow {
+export function isFacilityQueueRow(item: {
+	kind: string;
+	payload: unknown;
+}): item is FacilityQueueRow {
 	return (
 		item.kind === "facilityUpgrade" &&
 		typeof item.payload === "object" &&
@@ -77,13 +83,17 @@ export function isFacilityQueueRow(item: { kind: string; payload: unknown }): it
 	);
 }
 
-export function isBuildingLaneQueueRow(
-	item: { kind: string; payload: unknown },
-): item is BuildingLaneQueueRow {
+export function isBuildingLaneQueueRow(item: {
+	kind: string;
+	payload: unknown;
+}): item is BuildingLaneQueueRow {
 	return isBuildingQueueRow(item) || isFacilityQueueRow(item);
 }
 
-export function isShipBuildQueueRow(item: { kind: string; payload: unknown }): item is ShipBuildQueueRow {
+export function isShipBuildQueueRow(item: {
+	kind: string;
+	payload: unknown;
+}): item is ShipBuildQueueRow {
 	return (
 		item.kind === "shipBuild" &&
 		typeof item.payload === "object" &&
@@ -92,9 +102,10 @@ export function isShipBuildQueueRow(item: { kind: string; payload: unknown }): i
 	);
 }
 
-export function isDefenseBuildQueueRow(
-	item: { kind: string; payload: unknown },
-): item is DefenseBuildQueueRow {
+export function isDefenseBuildQueueRow(item: {
+	kind: string;
+	payload: unknown;
+}): item is DefenseBuildQueueRow {
 	return (
 		item.kind === "defenseBuild" &&
 		typeof item.payload === "object" &&

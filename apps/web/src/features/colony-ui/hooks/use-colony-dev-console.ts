@@ -1,15 +1,18 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import type { BuildingKey, DefenseKey, FacilityKey, ResourceBucket, ShipKey } from "@nullvector/game-logic";
+import type {
+	BuildingKey,
+	DefenseKey,
+	FacilityKey,
+	ResourceBucket,
+	ShipKey,
+} from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 
 import { useMutation, useQuery } from "@/lib/convex-hooks";
 
 export function useColonyDevConsole(colonyId: Id<"colonies"> | null) {
-	const state = useQuery(
-		api.devConsole.getDevConsoleState,
-		colonyId ? { colonyId } : "skip",
-	);
+	const state = useQuery(api.devConsole.getDevConsoleState, colonyId ? { colonyId } : "skip");
 	const completeActiveQueueItem = useMutation(api.devConsole.completeActiveQueueItem);
 	const completeActiveMission = useMutation(api.devConsole.completeActiveMission);
 	const completeActiveRaidAtCurrentColony = useMutation(

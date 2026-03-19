@@ -5,8 +5,8 @@ import { useMemo } from "react";
 import type { RenderableEntity } from "../types";
 
 import { useExplorerContext } from "../context/explorer-context";
-import { useExplorerPrefetch } from "./use-explorer-prefetch";
 import { computeOrbitWorldPosition } from "../lib/orbits";
+import { useExplorerPrefetch } from "./use-explorer-prefetch";
 
 const GALAXY_RADIUS = 500;
 const SECTOR_RADIUS = 46;
