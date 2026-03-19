@@ -1,6 +1,6 @@
 import { Tooltip } from "@base-ui/react/tooltip";
 import { Bell, ChevronDown, Earth, Menu, Settings, Trophy } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdata/types";
 
@@ -63,7 +63,6 @@ export function AppHeader({
 	const [notificationsOpen, setNotificationsOpen] = useState(false);
 	const [starMapEntitiesOpen, setStarMapEntitiesOpen] = useState(false);
 	const [starMapQualityOpen, setStarMapQualityOpen] = useState(false);
-	const renameInputRef = useRef<HTMLInputElement | null>(null);
 	const {
 		activeColony,
 		beginColonyRename,
@@ -79,9 +78,7 @@ export function AppHeader({
 		isSavingColonyName,
 		liveNotificationsCount,
 		playerProfile,
-		draftColonyName,
 		handleColonyChange,
-		setDraftColonyName,
 		setIsRenamingColony,
 	} = header;
 	const handleStarMapToggle = onToggleStarMap ?? config.onOpenStarMap ?? (() => {});
@@ -95,12 +92,6 @@ export function AppHeader({
 		}),
 		[contextTabs, headerDrawerConfig, liveNotificationsCount],
 	);
-
-	useEffect(() => {
-		if (isRenamingColony) {
-			renameInputRef.current?.focus();
-		}
-	}, [isRenamingColony]);
 
 	if (config.mode !== "game") {
 		return null;
@@ -142,33 +133,15 @@ export function AppHeader({
           font-(family-name:--nv-font-display) font-bold text-white
           transition-all
         `, isCompact ? "text-sm" : "text-[15px]")}>
-										{isRenamingColony && activeColony ? (
-											<input
-												ref={renameInputRef}
-												className="
-             w-[min(48vw,360px)] rounded-md border border-cyan-300/30
-             bg-black/40 px-2 py-0.5 text-inherit outline-none
-           "
-											disabled={isSavingColonyName}
-											maxLength={40}
-											onBlur={() => {
-												void commitColonyRename();
+									{isRenamingColony && activeColony ? (
+										<ColonyRenameInput
+											key={`${activeColony.id}:${activeColony.name}`}
+											currentName={activeColony.name}
+											isSaving={isSavingColonyName}
+											onCancel={() => {
+												setIsRenamingColony(false);
 											}}
-											onChange={(event) => {
-												setDraftColonyName(event.target.value);
-											}}
-											onKeyDown={(event) => {
-												if (event.key === "Enter") {
-													event.preventDefault();
-													void commitColonyRename();
-												}
-												if (event.key === "Escape") {
-													event.preventDefault();
-													setDraftColonyName(activeColony.name);
-													setIsRenamingColony(false);
-												}
-											}}
-											value={draftColonyName}
+											onCommit={commitColonyRename}
 										/>
 									) : (
 										<button
@@ -431,9 +404,7 @@ export function AppHeader({
        "
 						>
 							{playerProfile ? (
-								<div
-									className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3"
-								>
+								<div className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3">
 									<div className="flex items-center gap-2">
 										<div
 											className="
@@ -603,5 +574,49 @@ export function AppHeader({
 				open={settingsOpen}
 			/>
 		</>
+	);
+}
+
+function ColonyRenameInput(props: {
+	currentName: string;
+	isSaving: boolean;
+	onCancel: () => void;
+	onCommit: (nextName: string) => Promise<void> | void;
+}) {
+	const [draftName, setDraftName] = useState(props.currentName);
+	const cancelBlurRef = useRef(false);
+
+	return (
+		<input
+			autoFocus
+			className="
+             w-[min(48vw,360px)] rounded-md border border-cyan-300/30
+             bg-black/40 px-2 py-0.5 text-inherit outline-none
+           "
+			disabled={props.isSaving}
+			maxLength={40}
+			onBlur={() => {
+				if (cancelBlurRef.current) {
+					cancelBlurRef.current = false;
+					return;
+				}
+				void props.onCommit(draftName);
+			}}
+			onChange={(event) => {
+				setDraftName(event.target.value);
+			}}
+			onKeyDown={(event) => {
+				if (event.key === "Enter") {
+					event.preventDefault();
+					void props.onCommit(draftName);
+				}
+				if (event.key === "Escape") {
+					event.preventDefault();
+					cancelBlurRef.current = true;
+					props.onCancel();
+				}
+			}}
+			value={draftName}
+		/>
 	);
 }

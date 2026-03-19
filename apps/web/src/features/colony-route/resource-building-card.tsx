@@ -17,7 +17,7 @@ import {
 	getUpgradeDurationSeconds,
 } from "@nullvector/game-logic";
 import { Clock3, Gauge, Info, Layers3, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { getUpgradeActionPresentation } from "@/features/colony-ui/action-state";
 import { ActionButton } from "@/features/colony-ui/components/action-button";
@@ -402,6 +402,45 @@ function buildLevelTable(args: {
 	return rows;
 }
 
+function InlineLevelEditor(props: {
+	currentLevel: number;
+	isSaving: boolean;
+	onCancel: () => void;
+	onCommit: (nextLevel: number) => Promise<void> | void;
+}) {
+	const [draftLevel, setDraftLevel] = useState(() => String(props.currentLevel));
+
+	return (
+		<input
+			autoFocus
+			className="
+             inline-flex h-6 w-14 items-center justify-center rounded-md border
+             border-cyan-300/35 bg-black/45 px-1 text-center
+             font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
+             outline-none
+             focus:border-cyan-200/60
+           "
+			disabled={props.isSaving}
+			inputMode="numeric"
+			onBlur={props.onCancel}
+			onChange={(event) => {
+				setDraftLevel(event.target.value.replace(/[^\d]/g, ""));
+			}}
+			onKeyDown={(event) => {
+				if (event.key === "Escape") {
+					props.onCancel();
+					return;
+				}
+				if (event.key === "Enter") {
+					event.preventDefault();
+					void props.onCommit(Math.max(0, Math.floor(Number(draftLevel) || 0)));
+				}
+			}}
+			value={draftLevel}
+		/>
+	);
+}
+
 export function ResourceBuildingCard(props: {
 	activeQueueItem: LaneQueueItem | null;
 	building: ResourceBuildingCardData;
@@ -443,7 +482,6 @@ export function ResourceBuildingCard(props: {
 		onUpgrade,
 	} = props;
 	const [isEditingLevel, setIsEditingLevel] = useState(false);
-	const [draftLevel, setDraftLevel] = useState(() => String(building.currentLevel));
 
 	const isStorageBuilding = isStorageBuildingKey(building.key);
 	const isProductionBuilding = isProductionBuildingKey(building.key);
@@ -539,19 +577,6 @@ export function ResourceBuildingCard(props: {
 			? "Paused (Overflow)"
 			: cardStatus;
 
-	useEffect(() => {
-		setDraftLevel(String(building.currentLevel));
-	}, [building.currentLevel]);
-
-	const handleCommitInlineLevel = async () => {
-		if (!devInlineLevelEditor?.enabled || devInlineLevelEditor.isSaving) {
-			return;
-		}
-		const parsed = Math.max(0, Math.floor(Number(draftLevel) || 0));
-		await devInlineLevelEditor.onCommit(parsed);
-		setIsEditingLevel(false);
-	};
-
 	if (outputDeltaPerMinute !== 0) {
 		nextLevelDeltas.push({
 			key: outputResourceKey,
@@ -614,7 +639,7 @@ export function ResourceBuildingCard(props: {
 					{/* Name + Level + Actions */}
 					<div className="flex items-start justify-between gap-2">
 						<div className="min-w-0">
-							<h3 className="font-(family-name:--nv-font-display) text-sm font-bold leading-tight">
+							<h3 className="font-(family-name:--nv-font-display) text-sm leading-tight font-bold">
 								{building.name}
 							</h3>
 							{showOverflowBadgePopover ? (
@@ -646,8 +671,8 @@ export function ResourceBuildingCard(props: {
              "
 											>
 												Overflow stockpile: {resourceOverflow.toLocaleString()}{" "}
-												{resourceNameForBuilding(building.key)}. Production resumes automatically when
-												overflow reaches zero.
+												{resourceNameForBuilding(building.key)}. Production resumes automatically
+												when overflow reaches zero.
 											</Popover.Popup>
 										</Popover.Positioner>
 									</Popover.Portal>
@@ -675,35 +700,17 @@ export function ResourceBuildingCard(props: {
 						<div className="flex shrink-0 items-center gap-1.5">
 							{devInlineLevelEditor?.enabled ? (
 								isEditingLevel ? (
-									<input
-										autoFocus
-										className="
-             inline-flex h-6 w-14 items-center justify-center rounded-md border
-             border-cyan-300/35 bg-black/45 px-1 text-center
-             font-(family-name:--nv-font-mono) text-[10px] font-bold text-cyan-100
-             outline-none
-             focus:border-cyan-200/60
-           "
-										inputMode="numeric"
-										onBlur={() => {
+									<InlineLevelEditor
+										key={`${building.key}:${building.currentLevel}`}
+										currentLevel={building.currentLevel}
+										isSaving={devInlineLevelEditor.isSaving}
+										onCancel={() => {
 											setIsEditingLevel(false);
-											setDraftLevel(String(building.currentLevel));
 										}}
-										onChange={(event) => {
-											setDraftLevel(event.target.value.replace(/[^\d]/g, ""));
+										onCommit={async (nextLevel) => {
+											await devInlineLevelEditor.onCommit(nextLevel);
+											setIsEditingLevel(false);
 										}}
-										onKeyDown={(event) => {
-											if (event.key === "Escape") {
-												setIsEditingLevel(false);
-												setDraftLevel(String(building.currentLevel));
-												return;
-											}
-											if (event.key === "Enter") {
-												event.preventDefault();
-												void handleCommitInlineLevel();
-											}
-										}}
-										value={draftLevel}
 									/>
 								) : (
 									<button
@@ -718,7 +725,6 @@ export function ResourceBuildingCard(props: {
            "
 										disabled={devInlineLevelEditor.isSaving}
 										onClick={() => {
-											setDraftLevel(String(building.currentLevel));
 											setIsEditingLevel(true);
 										}}
 										title={`Level ${building.currentLevel}`}
@@ -990,34 +996,34 @@ export function ResourceBuildingCard(props: {
 					) : null}
 
 					<div className="mt-auto flex pt-3">
-					<Popover.Root>
-						<Popover.Trigger
-							closeDelay={90}
-							delay={60}
-							nativeButton={false}
-							openOnHover
-							render={
-								<div>
-									<ActionButton
-										disabled={!actionPresentation.isActionEnabled}
-										durationLabel={formatUpgradeTime(nextUpgradeDurationSeconds)}
-										label={actionPresentation.buttonLabel}
-										loading={isBusy}
-										onClick={() => {
-											if (!canStartUpgrade) {
-												return;
-											}
-											onUpgrade();
-										}}
-										tone="resource"
-									/>
-								</div>
-							}
-						/>
-						<Popover.Portal>
-							<Popover.Positioner align="end" className="z-90" sideOffset={8}>
-								<Popover.Popup
-									className="
+						<Popover.Root>
+							<Popover.Trigger
+								closeDelay={90}
+								delay={60}
+								nativeButton={false}
+								openOnHover
+								render={
+									<div>
+										<ActionButton
+											disabled={!actionPresentation.isActionEnabled}
+											durationLabel={formatUpgradeTime(nextUpgradeDurationSeconds)}
+											label={actionPresentation.buttonLabel}
+											loading={isBusy}
+											onClick={() => {
+												if (!canStartUpgrade) {
+													return;
+												}
+												onUpgrade();
+											}}
+											tone="resource"
+										/>
+									</div>
+								}
+							/>
+							<Popover.Portal>
+								<Popover.Positioner align="end" className="z-90" sideOffset={8}>
+									<Popover.Popup
+										className="
            w-[240px] origin-(--transform-origin) rounded-xl border
            border-white/12
            bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
@@ -1027,62 +1033,62 @@ export function ResourceBuildingCard(props: {
            data-ending-style:scale-90 data-ending-style:opacity-0
            data-starting-style:scale-90 data-starting-style:opacity-0
          "
-								>
-									<p
-										className="
+									>
+										<p
+											className="
             text-[9px] font-semibold tracking-[0.14em] text-white/40 uppercase
           "
-									>
-										Next Upgrade Cost
-									</p>
-									<div className="mt-2 flex flex-wrap items-center gap-1.5">
-										<CostPill
-											amount={nextUpgradeCost.alloy}
-											icon="/game-icons/alloy.png"
-											label="Alloy"
-										/>
-										<CostPill
-											amount={nextUpgradeCost.crystal}
-											icon="/game-icons/crystal.png"
-											label="Crystal"
-										/>
-										<CostPill
-											amount={nextUpgradeCost.fuel}
-											icon="/game-icons/deuterium.png"
-											label="Fuel"
-										/>
-									</div>
-									{nextLevelDeltas.length > 0 ? (
-										<div className="mt-3 border-t border-white/15 pt-3">
-											<p
-												className="
+										>
+											Next Upgrade Cost
+										</p>
+										<div className="mt-2 flex flex-wrap items-center gap-1.5">
+											<CostPill
+												amount={nextUpgradeCost.alloy}
+												icon="/game-icons/alloy.png"
+												label="Alloy"
+											/>
+											<CostPill
+												amount={nextUpgradeCost.crystal}
+												icon="/game-icons/crystal.png"
+												label="Crystal"
+											/>
+											<CostPill
+												amount={nextUpgradeCost.fuel}
+												icon="/game-icons/deuterium.png"
+												label="Fuel"
+											/>
+										</div>
+										{nextLevelDeltas.length > 0 ? (
+											<div className="mt-3 border-t border-white/15 pt-3">
+												<p
+													className="
               text-[9px] font-semibold tracking-[0.14em] text-white/40 uppercase
             "
-											>
-												Next Level Delta
-											</p>
-											<div className="mt-2 flex flex-wrap items-center gap-1.5">
-												{nextLevelDeltas.map((delta) => (
-													<DeltaPill
-														icon={DELTA_RESOURCE_META[delta.key].icon}
-														key={`${building.key}-${delta.key}`}
-														label={DELTA_RESOURCE_META[delta.key].label}
-														tone={delta.value > 0 ? "positive" : "negative"}
-														value={formatSignedDelta(
-															delta.value,
-															delta.key === outputResourceKey && isStorageBuilding
-																? " cap"
-																: DELTA_RESOURCE_META[delta.key].suffix,
-														)}
-													/>
-												))}
+												>
+													Next Level Delta
+												</p>
+												<div className="mt-2 flex flex-wrap items-center gap-1.5">
+													{nextLevelDeltas.map((delta) => (
+														<DeltaPill
+															icon={DELTA_RESOURCE_META[delta.key].icon}
+															key={`${building.key}-${delta.key}`}
+															label={DELTA_RESOURCE_META[delta.key].label}
+															tone={delta.value > 0 ? "positive" : "negative"}
+															value={formatSignedDelta(
+																delta.value,
+																delta.key === outputResourceKey && isStorageBuilding
+																	? " cap"
+																	: DELTA_RESOURCE_META[delta.key].suffix,
+															)}
+														/>
+													))}
+												</div>
 											</div>
-										</div>
-									) : null}
-								</Popover.Popup>
-							</Popover.Positioner>
-						</Popover.Portal>
-					</Popover.Root>
+										) : null}
+									</Popover.Popup>
+								</Popover.Positioner>
+							</Popover.Portal>
+						</Popover.Root>
 					</div>
 				</div>
 			</div>

@@ -73,7 +73,6 @@ export function useHeaderData() {
 	);
 	const [isRenamingColony, setIsRenamingColony] = useState(false);
 	const [isSavingColonyName, setIsSavingColonyName] = useState(false);
-	const [draftColonyName, setDraftColonyName] = useState("");
 	const isCompact = useCompactHeaderMode();
 
 	const hud = useMemo<HeaderHudData | undefined>(() => {
@@ -186,48 +185,50 @@ export function useHeaderData() {
 		return (config.title ?? "Colony Operations").replace(/ Resources$/, "");
 	}, [activeColony?.name, config.title, publicOverview?.header.name]);
 
-	const commitColonyRename = useCallback(async () => {
-		if (!activeColony || isSavingColonyName) {
-			return;
-		}
+	const commitColonyRename = useCallback(
+		async (nextName: string) => {
+			if (!activeColony || isSavingColonyName) {
+				return;
+			}
 
-		const normalizedName = draftColonyName.trim().replace(/\s+/g, " ");
-		if (normalizedName.length < 3) {
-			toast.error("Colony name must be at least 3 characters");
-			return;
-		}
-		if (normalizedName.length > 40) {
-			toast.error("Colony name must be 40 characters or fewer");
-			return;
-		}
+			const normalizedName = nextName.trim().replace(/\s+/g, " ");
+			if (normalizedName.length < 3) {
+				toast.error("Colony name must be at least 3 characters");
+				return;
+			}
+			if (normalizedName.length > 40) {
+				toast.error("Colony name must be 40 characters or fewer");
+				return;
+			}
 
-		if (normalizedName === activeColony.name) {
-			setIsRenamingColony(false);
-			return;
-		}
+			if (normalizedName === activeColony.name) {
+				setIsRenamingColony(false);
+				return;
+			}
 
-		setIsSavingColonyName(true);
-		const error = await renameColony({
-			colonyId: activeColony.id as Id<"colonies">,
-			name: normalizedName,
-		})
-			.then(() => null)
-			.catch((caughtError) => caughtError);
-		setIsSavingColonyName(false);
-		if (error) {
-			toast.error(error instanceof Error ? error.message : "Failed to rename colony");
-		} else {
-			setIsRenamingColony(false);
-			toast.success("Colony renamed");
-		}
-	}, [activeColony, draftColonyName, isSavingColonyName, renameColony]);
+			setIsSavingColonyName(true);
+			const error = await renameColony({
+				colonyId: activeColony.id as Id<"colonies">,
+				name: normalizedName,
+			})
+				.then(() => null)
+				.catch((caughtError) => caughtError);
+			setIsSavingColonyName(false);
+			if (error) {
+				toast.error(error instanceof Error ? error.message : "Failed to rename colony");
+			} else {
+				setIsRenamingColony(false);
+				toast.success("Colony renamed");
+			}
+		},
+		[activeColony, isSavingColonyName, renameColony],
+	);
 
 	const beginColonyRename = useCallback(() => {
 		if (!activeColony) {
 			return;
 		}
 
-		setDraftColonyName(activeColony.name);
 		setIsRenamingColony(true);
 	}, [activeColony]);
 
@@ -240,17 +241,6 @@ export function useHeaderData() {
 		},
 		[navigate],
 	);
-
-	useEffect(() => {
-		if (!activeColony) {
-			setIsRenamingColony(false);
-			setDraftColonyName("");
-			return;
-		}
-		if (!isRenamingColony) {
-			setDraftColonyName(activeColony.name);
-		}
-	}, [activeColony, isRenamingColony]);
 
 	return {
 		activeColony,
@@ -270,9 +260,7 @@ export function useHeaderData() {
 		publicOverview,
 		raidStatus,
 		colonyResources,
-		draftColonyName,
 		handleColonyChange,
-		setDraftColonyName,
 		setIsRenamingColony,
 	};
 }

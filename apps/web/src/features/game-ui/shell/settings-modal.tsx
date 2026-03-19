@@ -19,7 +19,7 @@ import {
 	Volume2,
 	X,
 } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
 import { toast } from "sonner";
 
 import { NvDivider, NvInput, NvScrollArea, NvSelect } from "@/features/game-ui/primitives";
@@ -53,18 +53,12 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 	const { isAuthenticated } = useConvexAuth();
 	const profile = useQuery(api.auth.getCurrentPlayerProfile, isAuthenticated ? {} : "skip");
 	const updateCurrentPlayerDisplayName = useMutation(api.auth.updateCurrentPlayerDisplayName);
-	const [draftDisplayName, setDraftDisplayName] = useState("");
 	const [bio, setBio] = useState("");
 	const [isSavingDisplayName, setIsSavingDisplayName] = useState(false);
 	const [isSigningOut, setIsSigningOut] = useState(false);
-	const displayName = draftDisplayName;
 
-	useEffect(() => {
-		setDraftDisplayName(profile?.displayName ?? "");
-	}, [profile?.displayName]);
-
-	const saveDisplayName = async () => {
-		const trimmedDisplayName = displayName.trim();
+	const saveDisplayName = async (nextDisplayName: string) => {
+		const trimmedDisplayName = nextDisplayName.trim();
 		if (trimmedDisplayName.length < 3) {
 			toast.error("Display name must be at least 3 characters");
 			return;
@@ -87,7 +81,6 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 		if (error) {
 			toast.error(error instanceof Error ? error.message : "Failed to update display name");
 		} else {
-			setDraftDisplayName(trimmedDisplayName);
 			toast.success("Display name updated");
 		}
 	};
@@ -120,42 +113,13 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 		<>
 			<SettingsSection title="Account">
 				<SettingsRow label="Display Name" description="Visible to other players in-game">
-					<div className="flex items-center gap-2">
-						<NvInput
-							className="w-48"
-							maxLength={32}
-							onChange={(e) => setDraftDisplayName(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") {
-									e.preventDefault();
-									void saveDisplayName();
-								}
-							}}
-							placeholder="Enter name"
-							value={displayName}
-						/>
-						<button
-							className="
-         inline-flex items-center gap-1.5 rounded-md border border-white/12
-         bg-white/4 px-3 py-1.5 text-xs font-medium text-(--nv-text-secondary)
-         transition
-         hover:bg-white/8 hover:text-white
-         disabled:opacity-50
-       "
-							disabled={
-								isSavingDisplayName ||
-								!profile ||
-								displayName.trim().length < 3 ||
-								displayName.trim() === profile.displayName
-							}
-							onClick={() => {
-								void saveDisplayName();
-							}}
-							type="button"
-						>
-							{isSavingDisplayName ? "Saving..." : "Save"}
-						</button>
-					</div>
+					<ProfileDisplayNameField
+						key={`${profile?.email ?? "guest"}:${profile?.displayName ?? ""}`}
+						currentDisplayName={profile?.displayName ?? ""}
+						disabled={!profile}
+						isSaving={isSavingDisplayName}
+						onSave={saveDisplayName}
+					/>
 				</SettingsRow>
 				<SettingsRow label="Email" description="Used for account recovery">
 					<span className="text-sm text-(--nv-text-secondary)">
@@ -217,6 +181,54 @@ function ProfilePanel({ onClose }: { onClose: () => void }) {
 				</div>
 			</SettingsSection>
 		</>
+	);
+}
+
+function ProfileDisplayNameField(props: {
+	currentDisplayName: string;
+	disabled: boolean;
+	isSaving: boolean;
+	onSave: (nextDisplayName: string) => Promise<void> | void;
+}) {
+	const [draftDisplayName, setDraftDisplayName] = useState(props.currentDisplayName);
+
+	return (
+		<div className="flex items-center gap-2">
+			<NvInput
+				className="w-48"
+				maxLength={32}
+				onChange={(event) => setDraftDisplayName(event.target.value)}
+				onKeyDown={(event) => {
+					if (event.key === "Enter") {
+						event.preventDefault();
+						void props.onSave(draftDisplayName);
+					}
+				}}
+				placeholder="Enter name"
+				value={draftDisplayName}
+			/>
+			<button
+				className="
+         inline-flex items-center gap-1.5 rounded-md border border-white/12
+         bg-white/4 px-3 py-1.5 text-xs font-medium text-(--nv-text-secondary)
+         transition
+         hover:bg-white/8 hover:text-white
+         disabled:opacity-50
+       "
+				disabled={
+					props.isSaving ||
+					props.disabled ||
+					draftDisplayName.trim().length < 3 ||
+					draftDisplayName.trim() === props.currentDisplayName
+				}
+				onClick={() => {
+					void props.onSave(draftDisplayName);
+				}}
+				type="button"
+			>
+				{props.isSaving ? "Saving..." : "Save"}
+			</button>
+		</div>
 	);
 }
 
