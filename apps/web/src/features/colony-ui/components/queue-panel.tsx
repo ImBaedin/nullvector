@@ -38,9 +38,7 @@ export function QueuePanel(props: {
     bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
   `, props.className)}>
 			<div
-				className="
-     flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
-   "
+				className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
 			>
 				{props.headerIcon ?? (
 					<Clock3 className={cn("size-5", HEADER_ICON_CLASSNAMES[props.theme])} />
@@ -68,9 +66,7 @@ export function QueuePanel(props: {
 							Active
 						</p>
 						<div
-							className="
-        rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3
-      "
+							className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3"
 						>
 							<div className="flex items-center justify-between gap-3">
 								<div>
@@ -124,9 +120,7 @@ export function QueuePanel(props: {
 							</div>
 							<div className="mt-1 flex items-center justify-between">
 								<span
-									className="
-          font-(family-name:--nv-font-mono) text-[9px] text-white/25
-        "
+									className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
 								>
 									{Math.round(clampedPercent)}%
 								</span>

@@ -100,8 +100,8 @@ function QuestCard({
 							<div className="flex items-center justify-between gap-3 text-[11px]">
 								<span className="text-(--nv-text-secondary)">Objective {index + 1}</span>
 								<span className={objective.complete ? "text-emerald-200/80" : `
-           text-(--nv-text-muted)
-         `}>
+          text-(--nv-text-muted)
+        `}>
 									{objective.current.toLocaleString()} / {objective.required.toLocaleString()}
 								</span>
 							</div>
@@ -202,24 +202,22 @@ export function QuestsModal({
 				>
 					<div
 						className="
-       flex items-center justify-between border-b border-white/8 px-6 py-4
-     "
+        flex items-center justify-between border-b border-white/8 px-6 py-4
+      "
 					>
 						<div className="flex items-center gap-2.5">
 							<ScrollText className="size-4 text-cyan-400/70" />
 							<Dialog.Title
-								className="
-         font-(family-name:--nv-font-display) text-sm font-bold
-       "
+								className="font-(family-name:--nv-font-display) text-sm font-bold"
 							>
 								Quest Tracker
 							</Dialog.Title>
 							{tracker?.items.length ? (
 								<span
 									className="
-          flex h-5 min-w-5 items-center justify-center rounded-full
-          bg-cyan-400/15 px-1.5 text-[10px] font-bold text-cyan-300
-        "
+           flex h-5 min-w-5 items-center justify-center rounded-full
+           bg-cyan-400/15 px-1.5 text-[10px] font-bold text-cyan-300
+         "
 								>
 									{tracker.items.length}
 								</span>
@@ -229,10 +227,10 @@ export function QuestsModal({
 							{syncing ? <LoaderCircle className="size-4 animate-spin text-white/40" /> : null}
 							<Dialog.Close
 								className="
-         rounded-md border border-white/12 bg-white/3 p-1.5 text-white/50
-         transition
-         hover:bg-white/6 hover:text-white/80
-       "
+          rounded-md border border-white/12 bg-white/3 p-1.5 text-white/50
+          transition
+          hover:bg-white/6 hover:text-white/80
+        "
 							>
 								<X className="size-4" />
 							</Dialog.Close>
@@ -246,8 +244,8 @@ export function QuestsModal({
 									<div>
 										<p
 											className="
-            text-xs font-semibold tracking-[0.12em] text-white/40 uppercase
-          "
+             text-xs font-semibold tracking-[0.12em] text-white/40 uppercase
+           "
 										>
 											Tracker
 										</p>
@@ -302,8 +300,8 @@ export function QuestsModal({
 								<div>
 									<p
 										className="
-           text-xs font-semibold tracking-[0.12em] text-white/40 uppercase
-         "
+            text-xs font-semibold tracking-[0.12em] text-white/40 uppercase
+          "
 									>
 										Log
 									</p>

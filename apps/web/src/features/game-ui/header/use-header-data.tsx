@@ -108,8 +108,20 @@ export function useHeaderData() {
 							title: hud.title,
 						}
 					: undefined,
+				progressionOverview
+					? {
+							features: {
+								overview: progressionOverview.features.overview,
+								contracts: progressionOverview.features.contracts,
+								defenses: progressionOverview.features.defenses,
+								facilities: progressionOverview.features.facilities,
+								fleet: progressionOverview.features.fleet,
+								shipyard: progressionOverview.features.shipyard,
+							},
+						}
+					: undefined,
 			),
-		[hud, pathname],
+		[hud, pathname, progressionOverview],
 	);
 
 	const liveNotificationsCount = notificationSummary?.total ?? config.notificationsCount ?? 0;

@@ -180,9 +180,15 @@ export type {
 	ShipKey,
 } from "./gameplay";
 export type {
+	ContractRewardResourcesObjective,
 	ContractProgressionRules,
+	ContractSuccessObjective,
+	DefenseCountObjective,
+	FacilityAccessMap,
 	FeatureAccessState,
 	FeatureKey,
+	MissionAccessMap,
+	MissionKey,
 	ObjectiveScope,
 	ProgressionFeatureMap,
 	ProgressionOverview,
@@ -190,6 +196,7 @@ export type {
 	QuestBindings,
 	QuestCategory,
 	QuestDefinition,
+	QuestEffect,
 	QuestEvaluationColony,
 	QuestEvaluationContext,
 	QuestEvaluationResult,
@@ -201,8 +208,13 @@ export type {
 	QuestReward,
 	QuestStatus,
 	QuestTrackerItem,
+	RaidDefenseSuccessObjective,
+	RaidProgressionMode,
 	RaidProgressionRules,
 	RankDefinition,
+	ShipAccessMap,
+	TransportDeliveredResourcesObjective,
+	TransportDeliveryObjective,
 } from "./progression";
 export type { ShipCounts, ShipDefinition } from "./ships";
 export type { DefenseCounts, DefenseDefinition, DefenseKey } from "./defenses";

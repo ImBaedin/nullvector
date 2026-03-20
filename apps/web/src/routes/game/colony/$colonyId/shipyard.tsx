@@ -2,8 +2,8 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { selectShipCatalog, type ShipKey } from "@nullvector/game-logic";
-import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { ShipyardRouteSkeleton } from "@/features/colony-route/loading-skeletons";
@@ -22,7 +22,7 @@ import {
 	type ShipBuildQueueRow,
 } from "@/features/colony-ui/queue-items";
 import { getQueueProgress } from "@/features/colony-ui/queue-state";
-import { useConvexAuth } from "@/lib/convex-hooks";
+import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 
 export const Route = createFileRoute("/game/colony/$colonyId/shipyard")({
 	component: ShipyardRoute,
@@ -32,9 +32,11 @@ function ShipyardRoute() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+	const navigate = useNavigate();
 
 	const shipCatalog = useMemo(() => selectShipCatalog(), []);
 	const colonyView = useColonyView(isAuthenticated ? colonyIdAsId : null);
+	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
 	const devConsole = useColonyDevConsole(isAuthenticated ? colonyIdAsId : null);
 	const enqueueShipBuild = useOptimisticColonyMutation({
 		intentFromArgs: (args: { colonyId: Id<"colonies">; quantity: number; shipKey: ShipKey }) => ({
@@ -71,21 +73,38 @@ function ShipyardRoute() {
 		const stateByShipKey = new Map(
 			colonyView.shipyardState.shipStates.map((state) => [state.key, state]),
 		);
-		const ships = shipCatalog.map((ship) => {
-			const state = stateByShipKey.get(ship.key);
-			return {
-				...ship,
-				owned: state?.owned ?? 0,
-				perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
-				queued: state?.queued ?? 0,
-			};
-		});
+		const ships = shipCatalog
+			.map((ship) => {
+				const state = stateByShipKey.get(ship.key);
+				return {
+					...ship,
+					owned: state?.owned ?? 0,
+					perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
+					queued: state?.queued ?? 0,
+				};
+			})
+			.filter((ship) => progressionOverview?.shipAccess[ship.key] === "unlocked");
 
 		return {
 			...colonyView.shipyardState,
 			ships,
 		};
-	}, [colonyView, shipCatalog]);
+	}, [colonyView, progressionOverview?.shipAccess, shipCatalog]);
+
+	useEffect(() => {
+		if (
+			!isAuthenticated ||
+			!progressionOverview ||
+			progressionOverview.features.shipyard === "unlocked"
+		) {
+			return;
+		}
+		void navigate({
+			params: { colonyId },
+			replace: true,
+			to: "/game/colony/$colonyId/resources",
+		});
+	}, [colonyId, isAuthenticated, navigate, progressionOverview]);
 
 	const nowMs = colonyView?.nowMs ?? Date.now();
 

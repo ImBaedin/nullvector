@@ -1,6 +1,7 @@
 import {
 	QUEST_DEFINITIONS,
 	evaluateQuestDefinition,
+	type QuestDefinition,
 	type QuestBindings,
 	type QuestEvaluationContext,
 	type QuestLogItem,
@@ -12,6 +13,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 
 import { mutation, query, type MutationCtx, type QueryCtx } from "../../convex/_generated/server";
+import { RESOURCE_SCALE } from "../../convex/schema";
 import {
 	buildProgressionOverview,
 	ensurePlayerProgression,
@@ -19,12 +21,15 @@ import {
 	grantProgressionXp,
 	requireQuestDefinition,
 } from "./progression";
+import { spawnNpcRaidImmediatelyForColony } from "./raids";
 import {
 	RESOURCE_KEYS,
 	cloneResourceBucket,
 	listPlayerColonies,
 	loadColonyState,
+	readColonyDefenseCounts,
 	resolveCurrentPlayer,
+	scaledUnits,
 	upsertColonyCompanionRows,
 } from "./shared";
 
@@ -109,6 +114,20 @@ async function buildQuestEvaluationContext(args: {
 		ctx: args.ctx,
 		playerId: args.playerId,
 	});
+	const [contractResults, raidResults, fleetOperationResults] = await Promise.all([
+		args.ctx.db
+			.query("contractResults")
+			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+			.collect(),
+		args.ctx.db
+			.query("npcRaidResults")
+			.withIndex("by_target_player_id", (q) => q.eq("targetPlayerId", args.playerId))
+			.collect(),
+		args.ctx.db
+			.query("fleetOperationResults")
+			.withIndex("by_owner_id", (q) => q.eq("ownerPlayerId", args.playerId))
+			.collect(),
+	]);
 	const contextColonies = await Promise.all(
 		colonies.map(async (colony) => {
 			const state = await loadColonyState({
@@ -123,6 +142,10 @@ async function buildQuestEvaluationContext(args: {
 				acc[row.shipKey] = row.count;
 				return acc;
 			}, {});
+			const defenses = await readColonyDefenseCounts({
+				colonyId: colony._id,
+				ctx: args.ctx,
+			});
 			return {
 				colonyId: colony._id,
 				buildings: {
@@ -139,13 +162,75 @@ async function buildQuestEvaluationContext(args: {
 					shipyard: state.buildings.shipyardLevel ?? 0,
 					defense_grid: state.buildings.defenseGridLevel ?? 0,
 				},
+				defenses,
 				ships,
 			};
 		}),
 	);
+
+	const contractSuccessCountByColony: Record<string, number> = {};
+	const contractRewardResourcesByColony: Record<string, number> = {};
+	for (const result of contractResults) {
+		const originColonyId = result.originColonyId;
+		if (!originColonyId || !result.success) {
+			continue;
+		}
+		contractSuccessCountByColony[originColonyId] =
+			(contractSuccessCountByColony[originColonyId] ?? 0) + 1;
+		contractRewardResourcesByColony[originColonyId] =
+			(contractRewardResourcesByColony[originColonyId] ?? 0) +
+			Math.floor(
+				(result.rewardCargoLoaded.alloy +
+					result.rewardCargoLoaded.crystal +
+					result.rewardCargoLoaded.fuel) /
+					RESOURCE_SCALE,
+			);
+	}
+
+	const raidDefenseSuccessCountByColony: Record<string, number> = {};
+	for (const result of raidResults) {
+		if (result.success) {
+			continue;
+		}
+		raidDefenseSuccessCountByColony[result.targetColonyId] =
+			(raidDefenseSuccessCountByColony[result.targetColonyId] ?? 0) + 1;
+	}
+
+	let colonizationSuccessCount = 0;
+	const transportDeliveryCountByColony: Record<string, number> = {};
+	const transportDeliveredResourcesByColony: Record<string, number> = {};
+	for (const result of fleetOperationResults) {
+		if (result.resultCode === "colonized" && result.operationKind === "colonize") {
+			colonizationSuccessCount += 1;
+		}
+		if (result.resultCode !== "delivered" || result.operationKind !== "transport") {
+			continue;
+		}
+		const targetColonyId = result.targetColonyId;
+		if (!targetColonyId) {
+			continue;
+		}
+		transportDeliveryCountByColony[targetColonyId] =
+			(transportDeliveryCountByColony[targetColonyId] ?? 0) + 1;
+		transportDeliveredResourcesByColony[targetColonyId] =
+			(transportDeliveredResourcesByColony[targetColonyId] ?? 0) +
+			Math.floor(
+				(result.cargoDeliveredToStorage.alloy +
+					result.cargoDeliveredToStorage.crystal +
+					result.cargoDeliveredToStorage.fuel) /
+					RESOURCE_SCALE,
+			);
+	}
+
 	return {
 		colonies: contextColonies,
 		colonyCount: contextColonies.length,
+		colonizationSuccessCount,
+		contractRewardResourcesByColony,
+		contractSuccessCountByColony,
+		raidDefenseSuccessCountByColony,
+		transportDeliveredResourcesByColony,
+		transportDeliveryCountByColony,
 	};
 }
 
@@ -174,6 +259,27 @@ function arePrerequisitesSatisfied(args: {
 		}
 		return args.claimedQuestIds.has(prerequisite.questId);
 	});
+}
+
+function resolveQuestBindings(args: {
+	activeColonyId?: Id<"colonies">;
+	colonies: QuestEvaluationContext["colonies"];
+	definition: QuestDefinition;
+	existing?: Doc<"playerQuestStates"> | null;
+}) {
+	if (args.existing?.bindings) {
+		return args.existing.bindings;
+	}
+	if (args.definition.bindingStrategy === "activeColony" && args.activeColonyId) {
+		return { colonyId: args.activeColonyId };
+	}
+	if (args.definition.bindingStrategy === "newestPlayerColony") {
+		const newestColony = args.colonies[args.colonies.length - 1];
+		if (newestColony) {
+			return { colonyId: newestColony.colonyId };
+		}
+	}
+	return {};
 }
 
 function rowToBindings(row: Doc<"playerQuestStates"> | null | undefined): QuestBindings {
@@ -232,7 +338,7 @@ async function applyResourceRewards(args: {
 	for (const key of RESOURCE_KEYS) {
 		const currentStored = nextResources[key];
 		const cap = colony.storageCaps[key];
-		const inbound = args.resources[key];
+		const inbound = scaledUnits(args.resources[key]);
 		const accepted = Math.max(0, Math.min(inbound, Math.max(0, cap - currentStored)));
 		const overflow = Math.max(0, inbound - accepted);
 		nextResources[key] = currentStored + accepted;
@@ -318,11 +424,12 @@ export async function syncQuestAvailabilityForPlayer(args: {
 			continue;
 		}
 		const existing = rowsByQuestId.get(definition.id);
-		const bindings: QuestBindings =
-			existing?.bindings ??
-			(definition.bindingStrategy === "activeColony" && args.activeColonyId
-				? { colonyId: args.activeColonyId }
-				: {});
+		const bindings: QuestBindings = resolveQuestBindings({
+			activeColonyId: args.activeColonyId,
+			colonies: questContext.colonies,
+			definition,
+			existing,
+		});
 		const evaluation = evaluateQuestDefinition({
 			quest: definition,
 			context: questContext,
@@ -466,9 +573,7 @@ export const claim = mutation({
 		});
 		const row = await ctx.db
 			.query("playerQuestStates")
-			.withIndex("by_player_quest", (q) =>
-				q.eq("playerId", playerId).eq("questId", definition.id),
-			)
+			.withIndex("by_player_quest", (q) => q.eq("playerId", playerId).eq("questId", definition.id))
 			.unique();
 		if (!row) {
 			throw new ConvexError("Quest is not available");
@@ -496,7 +601,7 @@ export const claim = mutation({
 			if (reward.kind === "xp") {
 				await grantProgressionXp({
 					ctx,
-						playerId,
+					playerId,
 					amount: reward.amount,
 				});
 				continue;
@@ -504,14 +609,14 @@ export const claim = mutation({
 			if (reward.kind === "credits") {
 				await grantPlayerCredits({
 					ctx,
-						playerId,
+					playerId,
 					amount: reward.amount,
 				});
 				continue;
 			}
 			await applyResourceRewards({
 				ctx,
-					playerId,
+				playerId,
 				now,
 				bindings: rowToBindings(row),
 				resources: reward.resources,
@@ -523,6 +628,30 @@ export const claim = mutation({
 			claimableAt: row.claimableAt ?? now,
 			updatedAt: now,
 		});
+		for (const effect of definition.effects ?? []) {
+			if (effect.kind !== "spawnTutorialRaid" || !row.bindings.colonyId) {
+				continue;
+			}
+			const colony = await ctx.db.get(row.bindings.colonyId as Id<"colonies">);
+			if (!colony) {
+				continue;
+			}
+			const existingRaid = await ctx.db
+				.query("npcRaidOperations")
+				.withIndex("by_target_status_event", (q) =>
+					q.eq("targetColonyId", colony._id).eq("status", "inTransit"),
+				)
+				.first();
+			if (existingRaid?.spawnReason === "tutorialRank2") {
+				continue;
+			}
+			await spawnNpcRaidImmediatelyForColony({
+				colony,
+				ctx,
+				scheduledAt: now,
+				spawnReason: "tutorialRank2",
+			});
+		}
 		await syncQuestAvailabilityForPlayer({
 			ctx,
 			playerId: playerResult.player._id,

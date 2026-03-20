@@ -5,9 +5,9 @@ import {
 	getFleetSlowestSpeed,
 	normalizeShipCounts,
 } from "@nullvector/game-logic";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ChevronDown, Layers3 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { ContractView } from "@/features/colony-route/contracts-screen-shared";
 
@@ -32,6 +32,7 @@ export const Route = createFileRoute("/game/colony/$colonyId/contracts")({
 function ContractsRoute() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
+	const navigate = useNavigate();
 	const [historyExpanded, setHistoryExpanded] = useState(false);
 	const [expandedOp, setExpandedOp] = useState<string | null>(null);
 
@@ -56,6 +57,16 @@ function ContractsRoute() {
 		colonyId: colonyIdAsId,
 		historyExpanded,
 	});
+	useEffect(() => {
+		if (!isAuthenticated || !progression || progression.features.contracts === "unlocked") {
+			return;
+		}
+		void navigate({
+			params: { colonyId },
+			replace: true,
+			to: "/game/colony/$colonyId/resources",
+		});
+	}, [colonyId, isAuthenticated, navigate, progression]);
 	const { isRebuildingDiscovery } = useContractDiscoveryRebuild({
 		colonyId: colonyIdAsId,
 		isAuthenticated,

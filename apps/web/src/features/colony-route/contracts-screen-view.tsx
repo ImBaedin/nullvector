@@ -724,9 +724,7 @@ export function ContractHistory(props: { contracts: ContractView[] }): ReactNode
        `}>{isSuccess ? "Success" : "Failed"}</span>
 							{contract.resolvedAt ? (
 								<span
-									className="
-          font-(family-name:--nv-font-mono) text-[9px] text-white/20
-        "
+									className="font-(family-name:--nv-font-mono) text-[9px] text-white/20"
 								>
 									{new Date(contract.resolvedAt).toLocaleDateString()}
 								</span>

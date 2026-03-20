@@ -7,6 +7,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 
 import { mutation } from "../../convex/_generated/server";
 import { RESOURCE_SCALE } from "../../convex/schema";
+import { buildProgressionRules, requireFeatureAccess, requireShipAccess } from "./progression";
 import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	LANE_QUEUE_CAPACITY,
@@ -124,6 +125,20 @@ export const enqueueShipBuild = mutation({
 		const { colony, planet, player } = await getOwnedColony({
 			ctx,
 			colonyId: args.colonyId,
+		});
+		const progression = await buildProgressionRules({
+			ctx,
+			playerId: player._id,
+		});
+		requireFeatureAccess({
+			featureKey: "shipyard",
+			label: "Shipyard",
+			progression,
+		});
+		requireShipAccess({
+			label: "Ship",
+			progression,
+			shipKey: args.shipKey,
 		});
 		const settledColony = await settleColonyAndPersist({
 			ctx,

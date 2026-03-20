@@ -608,9 +608,7 @@ export function ResourceBuildingCard(props: {
 					<div className="flex items-start justify-between gap-2">
 						<div className="min-w-0">
 							<h3
-								className="
-          font-(family-name:--nv-font-display) text-sm/tight  font-bold
-        "
+								className="font-(family-name:--nv-font-display) text-sm/tight font-bold"
 							>
 								{building.name}
 							</h3>
@@ -946,7 +944,9 @@ export function ResourceBuildingCard(props: {
 								>
 									{effectiveOutputPerMinute.toLocaleString()}
 								</span>
-								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/35">
+								<span className="
+          font-(family-name:--nv-font-mono) text-[9px] text-white/35
+        ">
 									/m
 								</span>
 							</div>

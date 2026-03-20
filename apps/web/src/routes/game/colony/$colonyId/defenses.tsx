@@ -3,9 +3,9 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { selectDefenseCatalog, type DefenseKey } from "@nullvector/game-logic";
 import { HOSTILE_FACTIONS } from "@nullvector/game-logic";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Clock3, Heart, Layers3, Package, Shield, ShieldAlert, Swords, X, Zap } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -105,6 +105,8 @@ function DefensesRoute() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+	const navigate = useNavigate();
+	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
 
 	const defenseCatalog = useMemo(() => selectDefenseCatalog(), []);
 	const colonyView = useColonyView(isAuthenticated ? colonyIdAsId : null);
@@ -114,6 +116,20 @@ function DefensesRoute() {
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const devConsole = useColonyDevConsole(isAuthenticated ? colonyIdAsId : null);
+	useEffect(() => {
+		if (
+			!isAuthenticated ||
+			!progressionOverview ||
+			progressionOverview.features.defenses === "unlocked"
+		) {
+			return;
+		}
+		void navigate({
+			params: { colonyId },
+			replace: true,
+			to: "/game/colony/$colonyId/resources",
+		});
+	}, [colonyId, isAuthenticated, navigate, progressionOverview]);
 	const enqueueDefenseBuild = useOptimisticColonyMutation({
 		intentFromArgs: (args: {
 			colonyId: Id<"colonies">;
@@ -974,9 +990,7 @@ function PowerSplitBar(props: { totalAttack: number; totalHull: number; totalShi
 						{seg.icon}
 						<span className="tracking-wider uppercase">{seg.label}</span>
 						<span
-							className="
-        font-(family-name:--nv-font-mono) font-bold text-white/70
-      "
+							className="font-(family-name:--nv-font-mono) font-bold text-white/70"
 						>
 							{seg.value.toLocaleString()}
 						</span>
@@ -1048,9 +1062,7 @@ function DefenseQueuePanel(props: {
    "
 		>
 			<div
-				className="
-     flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
-   "
+				className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
 			>
 				<Clock3 className="size-5 text-rose-300" />
 				<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Defense Queue</h2>
@@ -1076,9 +1088,7 @@ function DefenseQueuePanel(props: {
 							Active
 						</p>
 						<div
-							className="
-        rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3
-      "
+							className="rounded-xl border border-emerald-300/20 bg-emerald-400/4 p-3"
 						>
 							<div className="flex items-start justify-between gap-2">
 								<div className="flex items-center gap-2.5">
@@ -1176,9 +1186,7 @@ function DefenseQueuePanel(props: {
 							</div>
 							<div className="mt-1 flex items-center justify-between">
 								<span
-									className="
-          font-(family-name:--nv-font-mono) text-[9px] text-white/25
-        "
+									className="font-(family-name:--nv-font-mono) text-[9px] text-white/25"
 								>
 									{Math.round(activeUpgradeProgress)}%
 								</span>

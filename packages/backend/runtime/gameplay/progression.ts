@@ -4,6 +4,9 @@ import {
 	getRankDefinition,
 	type FeatureAccessState,
 	type FeatureKey,
+	type FacilityKey,
+	type MissionKey,
+	type ShipKey,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
@@ -19,13 +22,37 @@ const featureAccessStateValidator = v.union(
 );
 
 const featureMapValidator = v.object({
+	overview: featureAccessStateValidator,
 	contracts: featureAccessStateValidator,
 	raids: featureAccessStateValidator,
 	colonization: featureAccessStateValidator,
+	facilities: featureAccessStateValidator,
 	fleet: featureAccessStateValidator,
 	shipyard: featureAccessStateValidator,
 	defenses: featureAccessStateValidator,
 	notifications: featureAccessStateValidator,
+});
+
+const facilityAccessValidator = v.object({
+	robotics_hub: featureAccessStateValidator,
+	shipyard: featureAccessStateValidator,
+	defense_grid: featureAccessStateValidator,
+});
+
+const shipAccessValidator = v.object({
+	smallCargo: featureAccessStateValidator,
+	largeCargo: featureAccessStateValidator,
+	colonyShip: featureAccessStateValidator,
+	interceptor: featureAccessStateValidator,
+	frigate: featureAccessStateValidator,
+	cruiser: featureAccessStateValidator,
+	bomber: featureAccessStateValidator,
+});
+
+const missionAccessValidator = v.object({
+	contracts: featureAccessStateValidator,
+	colonize: featureAccessStateValidator,
+	transport: featureAccessStateValidator,
 });
 
 const progressionOverviewValidator = v.object({
@@ -41,13 +68,16 @@ const progressionOverviewValidator = v.object({
 	colonyCap: v.number(),
 	questTrackerCount: v.number(),
 	features: featureMapValidator,
+	facilityAccess: facilityAccessValidator,
+	shipAccess: shipAccessValidator,
+	missionAccess: missionAccessValidator,
 	contractRules: v.object({
 		visibleSlots: v.number(),
 		activeLimit: v.number(),
 		difficultyTier: v.number(),
 	}),
 	raidRules: v.object({
-		enabled: v.boolean(),
+		mode: v.union(v.literal("off"), v.literal("tutorialOnly"), v.literal("full")),
 		difficultyTier: v.number(),
 	}),
 });
@@ -133,14 +163,20 @@ async function getQuestTrackerCount(args: {
 
 function mapFeatures(features: Record<FeatureKey, FeatureAccessState>) {
 	return {
+		overview: features.overview,
 		contracts: features.contracts,
 		raids: features.raids,
 		colonization: features.colonization,
+		facilities: features.facilities,
 		fleet: features.fleet,
 		shipyard: features.shipyard,
 		defenses: features.defenses,
 		notifications: features.notifications,
 	};
+}
+
+function formatAccessError(label: string, access: FeatureAccessState) {
+	return access === "hidden" ? `${label} is not available yet` : `${label} is locked`;
 }
 
 function deriveRankXpTotal(
@@ -218,9 +254,56 @@ export async function buildProgressionOverview(args: {
 		colonyCap: overview.colonyCap,
 		questTrackerCount: overview.questTrackerCount,
 		features: mapFeatures(overview.features),
+		facilityAccess: overview.facilityAccess,
+		shipAccess: overview.shipAccess,
+		missionAccess: overview.missionAccess,
 		contractRules: overview.contractRules,
 		raidRules: overview.raidRules,
 	};
+}
+
+export function requireFeatureAccess(args: {
+	featureKey: FeatureKey;
+	label: string;
+	progression: Awaited<ReturnType<typeof buildProgressionRules>>;
+}) {
+	const access = args.progression.features[args.featureKey];
+	if (access !== "unlocked") {
+		throw new ConvexError(formatAccessError(args.label, access));
+	}
+}
+
+export function requireFacilityAccess(args: {
+	facilityKey: FacilityKey;
+	label: string;
+	progression: Awaited<ReturnType<typeof buildProgressionRules>>;
+}) {
+	const access = args.progression.facilityAccess[args.facilityKey];
+	if (access !== "unlocked") {
+		throw new ConvexError(formatAccessError(args.label, access));
+	}
+}
+
+export function requireShipAccess(args: {
+	label: string;
+	progression: Awaited<ReturnType<typeof buildProgressionRules>>;
+	shipKey: ShipKey;
+}) {
+	const access = args.progression.shipAccess[args.shipKey];
+	if (access !== "unlocked") {
+		throw new ConvexError(formatAccessError(args.label, access));
+	}
+}
+
+export function requireMissionAccess(args: {
+	label: string;
+	missionKey: MissionKey;
+	progression: Awaited<ReturnType<typeof buildProgressionRules>>;
+}) {
+	const access = args.progression.missionAccess[args.missionKey];
+	if (access !== "unlocked") {
+		throw new ConvexError(formatAccessError(args.label, access));
+	}
 }
 
 export const getOverview = query({

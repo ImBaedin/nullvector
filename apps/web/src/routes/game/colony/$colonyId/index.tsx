@@ -15,7 +15,7 @@ import type { BuildingKey, DefenseKey, FacilityKey, ShipKey } from "@nullvector/
 import type { ReactNode } from "react";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
 	Activity,
 	AlertTriangle,
@@ -191,8 +191,8 @@ function SectionRule({
 			</span>
 			<div className="h-px flex-1 bg-white/6" />
 			<span className={`
-     rounded-sm border px-1.5 py-0.5 font-(family-name:--nv-font-mono) text-[7px]
-     font-bold tracking-[0.2em]
+     rounded-sm border px-1.5 py-0.5 font-(family-name:--nv-font-mono)
+     text-[7px] font-bold tracking-[0.2em]
      ${cls}
    `}>{classification}</span>
 		</div>
@@ -367,9 +367,11 @@ function ColonyOverviewRoute() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+	const navigate = useNavigate();
 	const overview = useQuery(api.colonyOverview.getColonyOverview, {
 		colonyId: colonyIdAsId,
 	});
+	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
 	const isOwnerView = overview?.viewerRelation === "owner";
 	const colonySelectors = useColonySelectors(isAuthenticated && isOwnerView ? colonyIdAsId : null);
 	const colonyResources = useColonyResources(isAuthenticated && isOwnerView ? colonyIdAsId : null);
@@ -383,6 +385,22 @@ function ColonyOverviewRoute() {
 			window.clearInterval(intervalId);
 		};
 	}, []);
+
+	useEffect(() => {
+		if (
+			!isAuthenticated ||
+			!isOwnerView ||
+			!progressionOverview ||
+			progressionOverview.features.overview === "unlocked"
+		) {
+			return;
+		}
+		void navigate({
+			params: { colonyId },
+			replace: true,
+			to: "/game/colony/$colonyId/resources",
+		});
+	}, [colonyId, isAuthenticated, isOwnerView, navigate, progressionOverview]);
 
 	const ownerReady =
 		!isOwnerView ||
@@ -455,7 +473,7 @@ function ColonyOverviewRoute() {
 
 				<div
 					className="
-       dossier-paper relative overflow-hidden border border-white/8 p-5 
+       dossier-paper relative overflow-hidden border border-white/8 p-5
        shadow-[0_30px_80px_rgba(0,0,0,0.35)]
      "
 				>
@@ -748,7 +766,7 @@ function ColonyOverviewRoute() {
 							<div
 								className="
           rounded-sm border border-white/8 bg-white/3 p-3 text-[12px]/6
-           text-white/72
+          text-white/72
         "
 							>
 								{overview.strategic.notesPlaceholder}
@@ -901,7 +919,9 @@ function ColonyOverviewRoute() {
 																</span>
 															</div>
 															<p className="text-[12px] text-white/72">{queue.itemLabel}</p>
-															<div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
+															<div className="
+                 mt-2 h-1.5 overflow-hidden rounded-full bg-white/8
+               ">
 																<div
 																	className="h-full rounded-full bg-rose-300/60"
 																	style={{ width: `${queue.progressPercent}%` }}

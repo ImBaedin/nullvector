@@ -2,9 +2,9 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import type { BuildingKey, FacilityKey, ResourceBucket } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Clock3, Wrench, Zap } from "lucide-react";
-import { type ReactElement, useCallback, useMemo, useState } from "react";
+import { type ReactElement, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { FacilitiesRouteSkeleton } from "@/features/colony-route/loading-skeletons";
@@ -26,7 +26,7 @@ import {
 } from "@/features/colony-ui/queue-items";
 import { formatQueueRemainingLabel, getQueueProgress } from "@/features/colony-ui/queue-state";
 import { formatColonyDuration } from "@/features/colony-ui/time";
-import { useConvexAuth } from "@/lib/convex-hooks";
+import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 
 export const Route = createFileRoute("/game/colony/$colonyId/facilities")({
 	component: FacilitiesRoute,
@@ -63,8 +63,10 @@ function FacilitiesRoute(): ReactElement {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+	const navigate = useNavigate();
 
 	const colonyView = useColonyView(isAuthenticated ? colonyIdAsId : null);
+	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
 	const devConsole = useColonyDevConsole(isAuthenticated ? colonyIdAsId : null);
 	const enqueueFacilityUpgrade = useOptimisticColonyMutation({
 		intentFromArgs: (args: { colonyId: Id<"colonies">; facilityKey: FacilityKey }) => ({
@@ -84,11 +86,29 @@ function FacilitiesRoute(): ReactElement {
 		if (!colonyView) {
 			return undefined;
 		}
+		const visibleFacilities = colonyView.facilities.filter(
+			(facility) => progressionOverview?.facilityAccess[facility.key] === "unlocked",
+		);
 		return {
-			facilities: colonyView.facilities,
+			facilities: visibleFacilities,
 			queues: colonyView.queueLanes,
 		};
-	}, [colonyView]);
+	}, [colonyView, progressionOverview?.facilityAccess]);
+
+	useEffect(() => {
+		if (
+			!isAuthenticated ||
+			!progressionOverview ||
+			progressionOverview.features.facilities === "unlocked"
+		) {
+			return;
+		}
+		void navigate({
+			params: { colonyId },
+			replace: true,
+			to: "/game/colony/$colonyId/resources",
+		});
+	}, [colonyId, isAuthenticated, navigate, progressionOverview]);
 
 	const nowMs = colonyView?.nowMs ?? Date.now();
 
@@ -379,9 +399,7 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 												src={visual.image}
 											/>
 											<h3
-												className="
-             font-(family-name:--nv-font-display) text-sm font-bold
-           "
+												className="font-(family-name:--nv-font-display) text-sm font-bold"
 											>
 												{facility.name}
 											</h3>
