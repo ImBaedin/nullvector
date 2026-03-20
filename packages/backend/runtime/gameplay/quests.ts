@@ -153,19 +153,22 @@ async function readQuestRowsByPlayer(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
-	const rows = await args.ctx.db
-		.query("playerQuestStates")
-		.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "active"))
-		.collect();
-	const claimable = await args.ctx.db
-		.query("playerQuestStates")
-		.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "claimable"))
-		.collect();
-	const claimed = await args.ctx.db
-		.query("playerQuestStates")
-		.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "claimed"))
-		.collect();
+	const [rows, claimable, claimed] = await Promise.all([
+		args.ctx.db
+			.query("playerQuestStates")
+			.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "active"))
+			.collect(),
+		args.ctx.db
+			.query("playerQuestStates")
+			.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "claimable"))
+			.collect(),
+		args.ctx.db
+			.query("playerQuestStates")
+			.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "claimed"))
+			.collect(),
+	]);
 	return [...rows, ...claimable, ...claimed];
+}
 }
 
 function arePrerequisitesSatisfied(args: {
