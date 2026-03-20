@@ -2363,9 +2363,9 @@ export const createOperation = mutation({
 				throw new ConvexError("Target planet already has an active colonization operation");
 			}
 			const playerColonies = await ctx.db
-					.query("colonies")
-					.withIndex("by_player_id", (q) => q.eq("playerId", origin.player._id))
-					.collect();
+				.query("colonies")
+				.withIndex("by_player_id", (q) => q.eq("playerId", origin.player._id))
+				.collect();
 			if (playerColonies.length >= progression.colonyCap) {
 				throw new ConvexError("Colony cap reached for current progression");
 			}

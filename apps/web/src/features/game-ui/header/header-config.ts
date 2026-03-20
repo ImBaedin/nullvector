@@ -41,13 +41,13 @@ const PLACEHOLDER_TAB_ICON_SRC: Record<ContextNavItem["id"], string> = {
 function buildTabs(args: {
 	visibleTabIds: ContextNavItem["id"][];
 	basePaths: {
-	overview: string;
-	contracts: string;
-	defenses: string;
-	facilities: string;
-	fleet: string;
-	resources: string;
-	shipyard: string;
+		overview: string;
+		contracts: string;
+		defenses: string;
+		facilities: string;
+		fleet: string;
+		resources: string;
+		shipyard: string;
 	};
 }): ContextNavItem[] {
 	const routeMap: Record<string, string> = {

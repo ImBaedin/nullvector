@@ -73,15 +73,17 @@ function ShipyardRoute() {
 		const stateByShipKey = new Map(
 			colonyView.shipyardState.shipStates.map((state) => [state.key, state]),
 		);
-		const ships = shipCatalog.map((ship) => {
-			const state = stateByShipKey.get(ship.key);
-			return {
-				...ship,
-				owned: state?.owned ?? 0,
-				perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
-				queued: state?.queued ?? 0,
-			};
-		}).filter((ship) => progressionOverview?.shipAccess[ship.key] === "unlocked");
+		const ships = shipCatalog
+			.map((ship) => {
+				const state = stateByShipKey.get(ship.key);
+				return {
+					...ship,
+					owned: state?.owned ?? 0,
+					perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
+					queued: state?.queued ?? 0,
+				};
+			})
+			.filter((ship) => progressionOverview?.shipAccess[ship.key] === "unlocked");
 
 		return {
 			...colonyView.shipyardState,
@@ -90,7 +92,11 @@ function ShipyardRoute() {
 	}, [colonyView, progressionOverview?.shipAccess, shipCatalog]);
 
 	useEffect(() => {
-		if (!isAuthenticated || !progressionOverview || progressionOverview.features.shipyard === "unlocked") {
+		if (
+			!isAuthenticated ||
+			!progressionOverview ||
+			progressionOverview.features.shipyard === "unlocked"
+		) {
 			return;
 		}
 		void navigate({

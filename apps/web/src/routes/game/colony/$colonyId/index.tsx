@@ -191,8 +191,8 @@ function SectionRule({
 			</span>
 			<div className="h-px flex-1 bg-white/6" />
 			<span className={`
-     rounded-sm border px-1.5 py-0.5 font-(family-name:--nv-font-mono) text-[7px]
-     font-bold tracking-[0.2em]
+     rounded-sm border px-1.5 py-0.5 font-(family-name:--nv-font-mono)
+     text-[7px] font-bold tracking-[0.2em]
      ${cls}
    `}>{classification}</span>
 		</div>
@@ -473,7 +473,7 @@ function ColonyOverviewRoute() {
 
 				<div
 					className="
-       dossier-paper relative overflow-hidden border border-white/8 p-5 
+       dossier-paper relative overflow-hidden border border-white/8 p-5
        shadow-[0_30px_80px_rgba(0,0,0,0.35)]
      "
 				>
@@ -766,7 +766,7 @@ function ColonyOverviewRoute() {
 							<div
 								className="
           rounded-sm border border-white/8 bg-white/3 p-3 text-[12px]/6
-           text-white/72
+          text-white/72
         "
 							>
 								{overview.strategic.notesPlaceholder}
@@ -919,7 +919,9 @@ function ColonyOverviewRoute() {
 																</span>
 															</div>
 															<p className="text-[12px] text-white/72">{queue.itemLabel}</p>
-															<div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
+															<div className="
+                 mt-2 h-1.5 overflow-hidden rounded-full bg-white/8
+               ">
 																<div
 																	className="h-full rounded-full bg-rose-300/60"
 																	style={{ width: `${queue.progressPercent}%` }}

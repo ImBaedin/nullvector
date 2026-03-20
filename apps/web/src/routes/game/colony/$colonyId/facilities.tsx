@@ -96,7 +96,11 @@ function FacilitiesRoute(): ReactElement {
 	}, [colonyView, progressionOverview?.facilityAccess]);
 
 	useEffect(() => {
-		if (!isAuthenticated || !progressionOverview || progressionOverview.features.facilities === "unlocked") {
+		if (
+			!isAuthenticated ||
+			!progressionOverview ||
+			progressionOverview.features.facilities === "unlocked"
+		) {
 			return;
 		}
 		void navigate({
@@ -395,9 +399,7 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 												src={visual.image}
 											/>
 											<h3
-												className="
-             font-(family-name:--nv-font-display) text-sm font-bold
-           "
+												className="font-(family-name:--nv-font-display) text-sm font-bold"
 											>
 												{facility.name}
 											</h3>

@@ -78,7 +78,9 @@ export function MissionPlannerPanel(props: MissionPlannerPanelProps) {
       bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
     "
 			>
-				<header className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
+				<header className="
+      flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
+    ">
 					<Rocket className="size-5 text-cyan-300" />
 					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 						Plan Expedition
@@ -163,9 +165,9 @@ function MissionTypeSection(props: {
        ${props.missionType === type ? `
          border-cyan-300/40 bg-cyan-400/12 text-cyan-100
        ` : `
-          border-white/10 bg-white/3 text-white/40
-          hover:text-white/60
-        `}
+         border-white/10 bg-white/3 text-white/40
+         hover:text-white/60
+       `}
      `} key={type} onClick={() => props.onMissionTypeChange(type)} type="button">
 						{type === "transport" ? (
 							<Package className="size-3.5" />
@@ -246,9 +248,9 @@ function DestinationSection(props: {
        ${props.colonyPickerOpen ? `
          border-cyan-300/30 bg-cyan-400/6 text-cyan-100
        ` : `
-          border-dashed border-white/10 text-white/30
-          hover:border-cyan-300/20 hover:text-cyan-200/50
-        `}
+         border-dashed border-white/10 text-white/30
+         hover:border-cyan-300/20 hover:text-cyan-200/50
+       `}
      `} onClick={() => props.onSetColonyPickerOpen(!props.colonyPickerOpen)} type="button">
 						<span className="flex items-center gap-1.5">
 							<Globe2 className="size-3" />

@@ -378,9 +378,7 @@ function FleetSummaryStrip(props: {
 												<span className="text-cyan-200/50">{ship.deployed} out</span>
 											</div>
 											<div
-												className="
-             mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8
-           "
+												className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8"
 											>
 												<div
 													className="h-full rounded-full bg-cyan-400/40"

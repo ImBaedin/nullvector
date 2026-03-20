@@ -15,7 +15,9 @@ function Sweep({ className }: SweepProps) {
 }
 
 function ColonyPageSkeletonFrame({ children }: { children: ReactNode }) {
-	return <div className="mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white">{children}</div>;
+	return <div className="
+   mx-auto w-full max-w-[1440px] px-4 pt-4 pb-12 text-white
+ ">{children}</div>;
 }
 
 export function OverviewRouteSkeleton() {
@@ -25,8 +27,8 @@ export function OverviewRouteSkeleton() {
 				<Sweep className="h-8 w-44 rounded-t-lg rounded-b-none border-b-0" />
 				<div
 					className="
-      rounded-tr-xl rounded-b-xl border border-white/10 bg-white/2 p-5
-    "
+       rounded-tr-xl rounded-b-xl border border-white/10 bg-white/2 p-5
+     "
 				>
 					<div className="space-y-5">
 						<Sweep className="h-24 rounded-xl" />

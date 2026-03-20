@@ -152,10 +152,9 @@ export type QuestReward =
 			resources: ResourceBucket;
 	  };
 
-export type QuestEffect =
-	| {
-			kind: "spawnTutorialRaid";
-	  };
+export type QuestEffect = {
+	kind: "spawnTutorialRaid";
+};
 
 export type QuestDefinition = {
 	bindingStrategy: QuestBindingStrategy;
@@ -308,10 +307,9 @@ function nextRankXpRequirement(rank: number) {
 	return Math.max(100, Math.round(100 * Math.pow(1.4, Math.max(0, rank - 1))));
 }
 
-function createOnboardingRankDefinition(rank: number): Omit<
-	RankDefinition,
-	"contractRules" | "rank" | "totalXpRequired"
-> {
+function createOnboardingRankDefinition(
+	rank: number,
+): Omit<RankDefinition, "contractRules" | "rank" | "totalXpRequired"> {
 	switch (rank) {
 		case 0:
 			return {

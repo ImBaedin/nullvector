@@ -948,7 +948,7 @@ async function deriveRecommendedContractsByOrdinal(args: {
 			const baseOfferSequence = sequenceForSlot(boardState?.slotSequences ?? [], slot);
 			const offer =
 				!tutorialSafeInserted && progression.rank === 3
-					? deriveTutorialSafeOffer({
+					? (deriveTutorialSafeOffer({
 							baseOfferSequence,
 							candidate,
 							colonyId: args.colony._id,
@@ -965,7 +965,7 @@ async function deriveRecommendedContractsByOrdinal(args: {
 							planetSeed: candidate.planetSeed,
 							playerRank: progression.rank,
 							slot,
-						})
+						}))
 					: deriveOffer({
 							colonyId: args.colony._id,
 							controlMax: liveHostility.controlMax,

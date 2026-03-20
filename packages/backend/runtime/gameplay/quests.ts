@@ -573,9 +573,7 @@ export const claim = mutation({
 		});
 		const row = await ctx.db
 			.query("playerQuestStates")
-			.withIndex("by_player_quest", (q) =>
-				q.eq("playerId", playerId).eq("questId", definition.id),
-			)
+			.withIndex("by_player_quest", (q) => q.eq("playerId", playerId).eq("questId", definition.id))
 			.unique();
 		if (!row) {
 			throw new ConvexError("Quest is not available");
@@ -603,7 +601,7 @@ export const claim = mutation({
 			if (reward.kind === "xp") {
 				await grantProgressionXp({
 					ctx,
-						playerId,
+					playerId,
 					amount: reward.amount,
 				});
 				continue;
@@ -611,7 +609,7 @@ export const claim = mutation({
 			if (reward.kind === "credits") {
 				await grantPlayerCredits({
 					ctx,
-						playerId,
+					playerId,
 					amount: reward.amount,
 				});
 				continue;
