@@ -3,9 +3,9 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { selectDefenseCatalog, type DefenseKey } from "@nullvector/game-logic";
 import { HOSTILE_FACTIONS } from "@nullvector/game-logic";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Clock3, Heart, Layers3, Package, Shield, ShieldAlert, Swords, X, Zap } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -105,6 +105,8 @@ function DefensesRoute() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+	const navigate = useNavigate();
+	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
 
 	const defenseCatalog = useMemo(() => selectDefenseCatalog(), []);
 	const colonyView = useColonyView(isAuthenticated ? colonyIdAsId : null);
@@ -114,6 +116,16 @@ function DefensesRoute() {
 		isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const devConsole = useColonyDevConsole(isAuthenticated ? colonyIdAsId : null);
+	useEffect(() => {
+		if (!isAuthenticated || !progressionOverview || progressionOverview.features.defenses === "unlocked") {
+			return;
+		}
+		void navigate({
+			params: { colonyId },
+			replace: true,
+			to: "/game/colony/$colonyId/resources",
+		});
+	}, [colonyId, isAuthenticated, navigate, progressionOverview]);
 	const enqueueDefenseBuild = useOptimisticColonyMutation({
 		intentFromArgs: (args: {
 			colonyId: Id<"colonies">;

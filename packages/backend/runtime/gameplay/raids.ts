@@ -282,7 +282,7 @@ async function reconcileNpcRaidScheduleForColony(args: {
 		playerId: player._id,
 	});
 	const now = Date.now();
-	if (!progression.raidRules.enabled) {
+	if (progression.raidRules.mode !== "full") {
 		await args.ctx.db.patch(args.colony._id, {
 			nextNpcRaidAt: undefined,
 			updatedAt: now,
@@ -336,6 +336,7 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 	colony: Doc<"colonies">;
 	ctx: MutationCtx;
 	scheduledAt: number;
+	spawnReason?: "tutorialRank2";
 }) {
 	const now = Date.now();
 	const hostileSource = await getNearestHostilePlanetForColony({
@@ -364,7 +365,7 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 		ctx: args.ctx,
 		playerId: player._id,
 	});
-	if (!progression.raidRules.enabled) {
+	if (progression.raidRules.mode === "off") {
 		await setNextNpcRaidAtForColony({
 			colony: args.colony,
 			ctx: args.ctx,
@@ -392,6 +393,7 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 		targetColonyId: args.colony._id,
 		targetPlayerId: args.colony.playerId,
 		sourcePlanetId: hostileSource.planetId,
+		spawnReason: args.spawnReason,
 		hostileFactionKey: hostileSource.hostileFactionKey,
 		status: RAID_STATUS_IN_TRANSIT,
 		difficultyTier,
@@ -818,7 +820,7 @@ export const reconcileDueNpcRaids = internalMutation({
 				await setNextNpcRaidAtForColony({
 					colony,
 					ctx,
-					hostileSource: progression.raidRules.enabled ? hostileSource : null,
+					hostileSource: progression.raidRules.mode === "full" ? hostileSource : null,
 					now,
 					scheduledAt: colony.nextNpcRaidAt,
 				});

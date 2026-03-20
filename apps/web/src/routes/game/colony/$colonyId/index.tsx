@@ -15,7 +15,7 @@ import type { BuildingKey, DefenseKey, FacilityKey, ShipKey } from "@nullvector/
 import type { ReactNode } from "react";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
 	Activity,
 	AlertTriangle,
@@ -367,9 +367,11 @@ function ColonyOverviewRoute() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+	const navigate = useNavigate();
 	const overview = useQuery(api.colonyOverview.getColonyOverview, {
 		colonyId: colonyIdAsId,
 	});
+	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
 	const isOwnerView = overview?.viewerRelation === "owner";
 	const colonySelectors = useColonySelectors(isAuthenticated && isOwnerView ? colonyIdAsId : null);
 	const colonyResources = useColonyResources(isAuthenticated && isOwnerView ? colonyIdAsId : null);
@@ -383,6 +385,22 @@ function ColonyOverviewRoute() {
 			window.clearInterval(intervalId);
 		};
 	}, []);
+
+	useEffect(() => {
+		if (
+			!isAuthenticated ||
+			!isOwnerView ||
+			!progressionOverview ||
+			progressionOverview.features.overview === "unlocked"
+		) {
+			return;
+		}
+		void navigate({
+			params: { colonyId },
+			replace: true,
+			to: "/game/colony/$colonyId/resources",
+		});
+	}, [colonyId, isAuthenticated, isOwnerView, navigate, progressionOverview]);
 
 	const ownerReady =
 		!isOwnerView ||

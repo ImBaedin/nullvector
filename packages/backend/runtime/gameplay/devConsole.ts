@@ -7,7 +7,12 @@ import { ConvexError, v } from "convex/values";
 
 import type { Id } from "../../convex/_generated/dataModel";
 
-import { mutation, query, type MutationCtx } from "../../convex/_generated/server";
+import {
+	internalMutation,
+	mutation,
+	query,
+	type MutationCtx,
+} from "../../convex/_generated/server";
 import { settleDueFleetOperations } from "./fleetV2";
 import { resolveNpcRaidNow, spawnNpcRaidImmediatelyForColony } from "./raids";
 import { reconcileFleetOperationSchedule, rescheduleColonyQueueResolution } from "./scheduling";
@@ -150,6 +155,51 @@ async function logDevAction(args: {
 		createdAt: args.now,
 	});
 }
+
+async function deleteAllByQuery(args: {
+	ctx: MutationCtx;
+	dryRun: boolean;
+	queryFactory: () => Promise<Array<{ _id: Id<any> }>>;
+}) {
+	const rows = await args.queryFactory();
+	let deleted = 0;
+
+	for (const row of rows) {
+		if (!args.dryRun) {
+			await args.ctx.db.delete(row._id);
+		}
+		deleted += 1;
+	}
+
+	return deleted;
+}
+
+const clearAllPlayerDataDeletedValidator = v.object({
+	playerProgression: v.number(),
+	playerQuestStates: v.number(),
+	devConsoleActions: v.number(),
+	playerNotificationPreferences: v.number(),
+	notifications: v.number(),
+	colonyContractCandidates: v.number(),
+	colonyContractDiscoveryState: v.number(),
+	contractBoardState: v.number(),
+	contractResults: v.number(),
+	contracts: v.number(),
+	fleetEvents: v.number(),
+	fleetOperationResults: v.number(),
+	fleetOperations: v.number(),
+	fleets: v.number(),
+	npcRaidResults: v.number(),
+	npcRaidOperations: v.number(),
+	colonyQueuePayloads: v.number(),
+	colonyQueueItems: v.number(),
+	colonyShips: v.number(),
+	colonyDefenses: v.number(),
+	colonyPolicy: v.number(),
+	colonyInfrastructure: v.number(),
+	colonyEconomy: v.number(),
+	colonies: v.number(),
+});
 
 async function getDevAuthorizedOwnedColony(args: { colonyId: Id<"colonies">; ctx: MutationCtx }) {
 	const owned = await getOwnedColony({
@@ -1107,6 +1157,147 @@ export const completeActiveRaidAtCurrentColony = mutation({
 		return {
 			colonyId: owned.colony._id,
 			raidOperationId: activeRaid._id,
+		};
+	},
+});
+
+export const clearAllPlayerData = internalMutation({
+	args: {
+		dryRun: v.optional(v.boolean()),
+	},
+	returns: v.object({
+		deleted: clearAllPlayerDataDeletedValidator,
+		dryRun: v.boolean(),
+	}),
+	handler: async (ctx, args) => {
+		const dryRun = args.dryRun ?? false;
+
+		const deleted = {
+			playerProgression: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("playerProgression").collect(),
+			}),
+			playerQuestStates: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("playerQuestStates").collect(),
+			}),
+			devConsoleActions: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("devConsoleActions").collect(),
+			}),
+			playerNotificationPreferences: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("playerNotificationPreferences").collect(),
+			}),
+			notifications: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("notifications").collect(),
+			}),
+			colonyContractCandidates: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("colonyContractCandidates").collect(),
+			}),
+			colonyContractDiscoveryState: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("colonyContractDiscoveryState").collect(),
+			}),
+			contractBoardState: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("contractBoardState").collect(),
+			}),
+			contractResults: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("contractResults").collect(),
+			}),
+			contracts: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("contracts").collect(),
+			}),
+			fleetEvents: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("fleetEvents").collect(),
+			}),
+			fleetOperationResults: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("fleetOperationResults").collect(),
+			}),
+			fleetOperations: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("fleetOperations").collect(),
+			}),
+			fleets: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("fleets").collect(),
+			}),
+			npcRaidResults: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("npcRaidResults").collect(),
+			}),
+			npcRaidOperations: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("npcRaidOperations").collect(),
+			}),
+			colonyQueuePayloads: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("colonyQueuePayloads").collect(),
+			}),
+			colonyQueueItems: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("colonyQueueItems").collect(),
+			}),
+			colonyShips: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("colonyShips").collect(),
+			}),
+			colonyDefenses: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("colonyDefenses").collect(),
+			}),
+			colonyPolicy: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("colonyPolicy").collect(),
+			}),
+			colonyInfrastructure: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("colonyInfrastructure").collect(),
+			}),
+			colonyEconomy: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("colonyEconomy").collect(),
+			}),
+			colonies: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("colonies").collect(),
+			}),
+		};
+
+		return {
+			deleted,
+			dryRun,
 		};
 	},
 });

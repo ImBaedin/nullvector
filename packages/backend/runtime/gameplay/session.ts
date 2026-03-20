@@ -18,7 +18,6 @@ import {
 	resolveDisplayName,
 	resolvedAuthUserId,
 	resolveUniverse,
-	scaledUnits,
 	storageCapsFromBuildings,
 	usedSlotsFromBuildings,
 	sessionStateValidator,
@@ -253,11 +252,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	} satisfies Doc<"colonyInfrastructure">["buildings"];
 
 	const storageCaps = storageCapsFromBuildings(starterBuildings);
-	const resources = {
-		alloy: Math.min(storageCaps.alloy, scaledUnits(5_000)),
-		crystal: Math.min(storageCaps.crystal, scaledUnits(3_000)),
-		fuel: Math.min(storageCaps.fuel, scaledUnits(1_000)),
-	};
+	const resources = emptyResourceBucket();
 
 	if (!selectedPlanet) {
 		throw new ConvexError("No colonizable planet selected");
