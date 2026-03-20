@@ -1,7 +1,6 @@
 import {
 	DEFAULT_SHIP_DEFINITIONS,
 	generateNpcRaidSnapshot,
-	getDifficultyTierForRank,
 	getFleetCargoCapacity,
 	normalizeDefenseCounts,
 	normalizeShipCounts,
@@ -25,7 +24,7 @@ import {
 import { RESOURCE_SCALE } from "../../convex/schema";
 import { colonySystemCoords, durationMsForFleet, euclideanDistance } from "./fleetV2";
 import { emitRaidIncomingNotification, emitRaidResolvedNotification } from "./notifications";
-import { changePlayerRankXp } from "./progression";
+import { buildProgressionRules } from "./progression";
 import {
 	cloneResourceBucket,
 	emptyResourceBucket,
@@ -45,7 +44,6 @@ const RAID_STATUS_IN_TRANSIT = "inTransit" as const;
 const RESOURCE_KEYS = ["alloy", "crystal", "fuel"] as const;
 const MAX_RAID_DIFFICULTY_TIER = 10;
 const DEFENSE_SALVAGE_FACTOR = 0.35;
-const RAID_FAILURE_RANK_XP_PER_TIER = 25;
 const RAID_RECONCILE_BATCH_SIZE = 64;
 
 function scaledUnits(unscaledUnits: number) {
@@ -275,12 +273,16 @@ async function reconcileNpcRaidScheduleForColony(args: {
 	ctx: MutationCtx;
 	hostileSource?: HostileSource | null;
 }) {
-	const progression = await args.ctx.db
-		.query("playerProgression")
-		.withIndex("by_player_id", (q) => q.eq("playerId", args.colony.playerId))
-		.unique();
+	const player = await args.ctx.db.get(args.colony.playerId);
+	if (!player) {
+		throw new ConvexError("Player not found");
+	}
+	const progression = await buildProgressionRules({
+		ctx: args.ctx,
+		playerId: player._id,
+	});
 	const now = Date.now();
-	if ((progression?.rank ?? 1) < 5) {
+	if (!progression.raidRules.enabled) {
 		await args.ctx.db.patch(args.colony._id, {
 			nextNpcRaidAt: undefined,
 			updatedAt: now,
@@ -354,11 +356,15 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 		};
 	}
 
-	const progression = await args.ctx.db
-		.query("playerProgression")
-		.withIndex("by_player_id", (q) => q.eq("playerId", args.colony.playerId))
-		.unique();
-	if ((progression?.rank ?? 1) < 5) {
+	const player = await args.ctx.db.get(args.colony.playerId);
+	if (!player) {
+		throw new ConvexError("Player not found");
+	}
+	const progression = await buildProgressionRules({
+		ctx: args.ctx,
+		playerId: player._id,
+	});
+	if (!progression.raidRules.enabled) {
 		await setNextNpcRaidAtForColony({
 			colony: args.colony,
 			ctx: args.ctx,
@@ -371,10 +377,7 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 			stale: false,
 		};
 	}
-	const difficultyTier = Math.min(
-		MAX_RAID_DIFFICULTY_TIER,
-		getDifficultyTierForRank(progression?.rank ?? 1),
-	);
+	const difficultyTier = Math.min(MAX_RAID_DIFFICULTY_TIER, progression.raidRules.difficultyTier);
 	const snapshot = generateNpcRaidSnapshot({
 		difficultyTier,
 		hostileFactionKey: hostileSource.hostileFactionKey,
@@ -590,7 +593,6 @@ export const getRaidHistoryForColony = query({
 					crystal: v.number(),
 					fuel: v.number(),
 				}),
-				rankXpDelta: v.number(),
 				createdAt: v.number(),
 			}),
 		),
@@ -617,7 +619,6 @@ export const getRaidHistoryForColony = query({
 					hostileFactionKey: row.hostileFactionKey,
 					resourcesLooted: row.resourcesLooted,
 					salvageGranted: row.salvageGranted,
-					rankXpDelta: row.rankXpDelta,
 					createdAt: row.createdAt,
 				})),
 		};
@@ -806,14 +807,18 @@ export const reconcileDueNpcRaids = internalMutation({
 					colony,
 					ctx,
 				});
-				const progression = await ctx.db
-					.query("playerProgression")
-					.withIndex("by_player_id", (q) => q.eq("playerId", colony.playerId))
-					.unique();
+				const player = await ctx.db.get(colony.playerId);
+				if (!player) {
+					throw new ConvexError("Player not found");
+				}
+				const progression = await buildProgressionRules({
+					ctx,
+					playerId: player._id,
+				});
 				await setNextNpcRaidAtForColony({
 					colony,
 					ctx,
-					hostileSource: (progression?.rank ?? 1) >= 5 ? hostileSource : null,
+					hostileSource: progression.raidRules.enabled ? hostileSource : null,
 					now,
 					scheduledAt: colony.nextNpcRaidAt,
 				});
@@ -937,7 +942,6 @@ export async function resolveNpcRaidNow(args: {
 
 	let resourcesLooted = emptyResourceBucket();
 	let salvageGranted = emptyResourceBucket();
-	let rankXpDelta = 0;
 	if (combat.success) {
 		const available = cloneResourceBucket(settledColony.resources);
 		const capacity = getFleetCargoCapacity(combat.attackerRemaining);
@@ -960,12 +964,6 @@ export async function resolveNpcRaidNow(args: {
 				now,
 			});
 		}
-		rankXpDelta = -Math.max(25, raid.difficultyTier * RAID_FAILURE_RANK_XP_PER_TIER);
-		await changePlayerRankXp({
-			amount: rankXpDelta,
-			ctx: args.ctx,
-			playerId: raid.targetPlayerId,
-		});
 	} else {
 		salvageGranted = salvageFromDestroyedAttackers({
 			initialFleet: normalizeShipCounts(raid.attackerFleet),
@@ -1005,7 +1003,6 @@ export async function resolveNpcRaidNow(args: {
 		},
 		resourcesLooted,
 		salvageGranted,
-		rankXpDelta,
 		createdAt: now,
 		updatedAt: now,
 	});
@@ -1013,7 +1010,6 @@ export async function resolveNpcRaidNow(args: {
 		ctx: args.ctx,
 		hostileFactionKey: raid.hostileFactionKey,
 		playerId: raid.targetPlayerId,
-		rankXpDelta,
 		raidOperationId: raid._id,
 		resolvedAt: now,
 		resourcesLooted,

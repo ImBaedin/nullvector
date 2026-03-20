@@ -378,7 +378,11 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
             "
 												src={visual.image}
 											/>
-											<h3 className="font-(family-name:--nv-font-display) text-sm font-bold">
+											<h3
+												className="
+             font-(family-name:--nv-font-display) text-sm font-bold
+           "
+											>
 												{facility.name}
 											</h3>
 										</div>
@@ -572,12 +576,12 @@ function FacilityQueuePanel(props: FacilityQueuePanelProps): ReactElement {
 					props.canShowDevUi ? (
 						<button
 							className="
-        inline-flex items-center gap-1 rounded-md border border-cyan-300/30
-        bg-cyan-400/10 px-2 py-1 text-[10px] font-medium text-cyan-100
-        transition
-        hover:border-cyan-200/55 hover:bg-cyan-400/16
-        disabled:cursor-not-allowed disabled:opacity-50
-      "
+         inline-flex items-center gap-1 rounded-md border border-cyan-300/30
+         bg-cyan-400/10 px-2 py-1 text-[10px] font-medium text-cyan-100
+         transition
+         hover:border-cyan-200/55 hover:bg-cyan-400/16
+         disabled:cursor-not-allowed disabled:opacity-50
+       "
 							disabled={
 								!props.activeLaneItem || props.isCompletingQueueItem || !props.canUseDevConsole
 							}

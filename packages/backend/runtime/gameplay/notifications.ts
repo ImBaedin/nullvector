@@ -261,7 +261,6 @@ export async function emitRaidResolvedNotification(args: {
 	ctx: MutationCtx;
 	hostileFactionKey: RaidResolvedNotification["hostileFactionKey"];
 	playerId: Id<"players">;
-	rankXpDelta: number;
 	raidOperationId: Id<"npcRaidOperations">;
 	resolvedAt: number;
 	resourcesLooted: RaidResolvedNotification["resourcesLooted"];
@@ -280,7 +279,6 @@ export async function emitRaidResolvedNotification(args: {
 		roundsFought: args.roundsFought,
 		resourcesLooted: args.resourcesLooted,
 		salvageGranted: args.salvageGranted,
-		rankXpDelta: args.rankXpDelta,
 	};
 	return insertNotificationIfMissing({
 		category: categoryForNotificationKind(payload.kind),
@@ -312,7 +310,7 @@ export async function emitContractResolvedNotification(args: {
 	rewardCargoLoaded: ContractResolvedNotification["rewardCargoLoaded"];
 	rewardCargoLostByCapacity: ContractResolvedNotification["rewardCargoLostByCapacity"];
 	rewardCreditsGranted: number;
-	rewardRankXpGranted: number;
+	rewardXpGranted: number;
 	roundsFought: number;
 	success: boolean;
 	contractId: Id<"contracts">;
@@ -327,7 +325,7 @@ export async function emitContractResolvedNotification(args: {
 		success: args.success,
 		roundsFought: args.roundsFought,
 		rewardCreditsGranted: args.rewardCreditsGranted,
-		rewardRankXpGranted: args.rewardRankXpGranted,
+		rewardXpGranted: args.rewardXpGranted,
 		rewardCargoLoaded: args.rewardCargoLoaded,
 		rewardCargoLostByCapacity: args.rewardCargoLostByCapacity,
 		controlReductionApplied: args.controlReductionApplied,

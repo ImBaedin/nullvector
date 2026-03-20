@@ -1,3 +1,10 @@
+import {
+	getProgressionOverview as getSharedProgressionOverview,
+	getQuestDefinition,
+	getRankDefinition,
+	type FeatureAccessState,
+	type FeatureKey,
+} from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
 import type { Id } from "../../convex/_generated/dataModel";
@@ -5,24 +12,52 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "../../convex/_generated/server";
 import { resolveCurrentPlayer } from "./shared";
 
-export const playerProgressionValidator = v.object({
+const featureAccessStateValidator = v.union(
+	v.literal("hidden"),
+	v.literal("locked"),
+	v.literal("unlocked"),
+);
+
+const featureMapValidator = v.object({
+	contracts: featureAccessStateValidator,
+	raids: featureAccessStateValidator,
+	colonization: featureAccessStateValidator,
+	fleet: featureAccessStateValidator,
+	shipyard: featureAccessStateValidator,
+	defenses: featureAccessStateValidator,
+	notifications: featureAccessStateValidator,
+});
+
+const progressionOverviewValidator = v.object({
 	playerId: v.id("players"),
+	displayName: v.string(),
 	credits: v.number(),
 	rank: v.number(),
-	rankXp: v.number(),
+	rankXpTotal: v.number(),
+	xpIntoCurrentRank: v.number(),
+	xpToNextRank: v.union(v.number(), v.null()),
+	nextRank: v.union(v.number(), v.null()),
+	nextRankXpRequired: v.union(v.number(), v.null()),
+	colonyCap: v.number(),
+	questTrackerCount: v.number(),
+	features: featureMapValidator,
+	contractRules: v.object({
+		visibleSlots: v.number(),
+		activeLimit: v.number(),
+		difficultyTier: v.number(),
+	}),
+	raidRules: v.object({
+		enabled: v.boolean(),
+		difficultyTier: v.number(),
+	}),
 });
 
 function defaultPlayerProgression(playerId: Id<"players">) {
 	return {
 		playerId,
 		credits: 0,
-		rank: 1,
-		rankXp: 0,
+		rankXpTotal: 0,
 	};
-}
-
-function nextRankXpRequirement(rank: number) {
-	return Math.max(100, Math.round(100 * Math.pow(1.4, Math.max(0, rank - 1))));
 }
 
 export async function ensurePlayerProgression(args: {
@@ -43,8 +78,7 @@ export async function ensurePlayerProgression(args: {
 	const progressionId = await args.ctx.db.insert("playerProgression", {
 		playerId: args.playerId,
 		credits: 0,
-		rank: 1,
-		rankXp: 0,
+		rankXpTotal: 0,
 		createdAt: now,
 		updatedAt: now,
 	});
@@ -71,7 +105,7 @@ export async function grantPlayerCredits(args: {
 	});
 }
 
-export async function grantPlayerRankXp(args: {
+export async function grantProgressionXp(args: {
 	amount: number;
 	ctx: MutationCtx;
 	playerId: Id<"players">;
@@ -80,99 +114,127 @@ export async function grantPlayerRankXp(args: {
 		ctx: args.ctx,
 		playerId: args.playerId,
 	});
-	let rank = progression.rank;
-	let rankXp = progression.rankXp + Math.max(0, Math.floor(args.amount));
-
-	while (rankXp >= nextRankXpRequirement(rank)) {
-		rankXp -= nextRankXpRequirement(rank);
-		rank += 1;
-	}
-
 	await args.ctx.db.patch(progression._id, {
-		rank,
-		rankXp,
+		rankXpTotal: progression.rankXpTotal + Math.max(0, Math.floor(args.amount)),
 		updatedAt: Date.now(),
 	});
 }
 
-export async function changePlayerRankXp(args: {
-	amount: number;
-	ctx: MutationCtx;
+async function getQuestTrackerCount(args: {
+	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
-	const progression = await ensurePlayerProgression({
-		ctx: args.ctx,
-		playerId: args.playerId,
-	});
-	let rank = progression.rank;
-	let rankXp = progression.rankXp + Math.floor(args.amount);
+	const rows = await args.ctx.db
+		.query("playerQuestStates")
+		.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId))
+		.collect();
+	return rows.filter((row) => row.status === "active" || row.status === "claimable").length;
+}
 
-	while (rankXp >= nextRankXpRequirement(rank)) {
-		rankXp -= nextRankXpRequirement(rank);
-		rank += 1;
+function mapFeatures(features: Record<FeatureKey, FeatureAccessState>) {
+	return {
+		contracts: features.contracts,
+		raids: features.raids,
+		colonization: features.colonization,
+		fleet: features.fleet,
+		shipyard: features.shipyard,
+		defenses: features.defenses,
+		notifications: features.notifications,
+	};
+}
+
+function deriveRankXpTotal(
+	playerId: Id<"players">,
+	progression:
+		| {
+				rankXpTotal?: number;
+				rank?: number;
+				rankXp?: number;
+		  }
+		| null
+		| undefined,
+) {
+	if (typeof progression?.rankXpTotal === "number" && Number.isFinite(progression.rankXpTotal)) {
+		return Math.max(0, Math.floor(progression.rankXpTotal));
 	}
-
-	while (rankXp < 0 && rank > 1) {
-		rank -= 1;
-		rankXp += nextRankXpRequirement(rank);
+	if (typeof progression?.rank === "number" || typeof progression?.rankXp === "number") {
+		const legacyRank = Math.max(0, Math.floor(progression?.rank ?? 0));
+		const legacyXp = Math.max(0, Math.floor(progression?.rankXp ?? 0));
+		return getRankDefinition(legacyRank).totalXpRequired + legacyXp;
 	}
+	return defaultPlayerProgression(playerId).rankXpTotal;
+}
 
-	rankXp = Math.max(0, rankXp);
+async function loadProgressionState(args: {
+	ctx: QueryCtx | MutationCtx;
+	playerId: Id<"players">;
+}) {
+	const progression = await args.ctx.db
+		.query("playerProgression")
+		.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+		.unique();
+	const current = progression ?? defaultPlayerProgression(args.playerId);
+	return {
+		current,
+		rankXpTotal: deriveRankXpTotal(args.playerId, progression),
+	};
+}
 
-	await args.ctx.db.patch(progression._id, {
-		rank,
-		rankXp,
-		updatedAt: Date.now(),
+export async function buildProgressionRules(args: {
+	ctx: QueryCtx | MutationCtx;
+	playerId: Id<"players">;
+}) {
+	const { rankXpTotal } = await loadProgressionState(args);
+	return getSharedProgressionOverview({
+		rankXpTotal,
 	});
 }
 
-export const getPlayerProgression = query({
-	args: {},
-	returns: playerProgressionValidator,
-	handler: async (ctx) => {
-		const playerResult = await resolveCurrentPlayer(ctx);
-		if (!playerResult?.player) {
-			throw new ConvexError("Authentication required");
-		}
-		const progression = await ctx.db
-			.query("playerProgression")
-			.withIndex("by_player_id", (q) => q.eq("playerId", playerResult.player._id))
-			.unique();
-		if (!progression) {
-			return defaultPlayerProgression(playerResult.player._id);
-		}
-		return {
-			playerId: progression.playerId,
-			credits: progression.credits,
-			rank: progression.rank,
-			rankXp: progression.rankXp,
-		};
-	},
-});
+export async function buildProgressionOverview(args: {
+	ctx: QueryCtx | MutationCtx;
+	player: { _id: Id<"players">; displayName: string };
+}) {
+	const [{ current, rankXpTotal }, questTrackerCount] = await Promise.all([
+		loadProgressionState({
+			ctx: args.ctx,
+			playerId: args.player._id,
+		}),
+		getQuestTrackerCount({ ctx: args.ctx, playerId: args.player._id }),
+	]);
+	const overview = getSharedProgressionOverview({
+		rankXpTotal,
+		questTrackerCount,
+	});
+	return {
+		playerId: args.player._id,
+		displayName: args.player.displayName,
+		credits: current.credits,
+		rank: overview.rank,
+		rankXpTotal: overview.rankXpTotal,
+		xpIntoCurrentRank: overview.xpIntoCurrentRank,
+		xpToNextRank: overview.xpToNextRank,
+		nextRank: overview.nextRank,
+		nextRankXpRequired: overview.nextRankXpRequired,
+		colonyCap: overview.colonyCap,
+		questTrackerCount: overview.questTrackerCount,
+		features: mapFeatures(overview.features),
+		contractRules: overview.contractRules,
+		raidRules: overview.raidRules,
+	};
+}
 
-export const getPlayerProfile = query({
+export const getOverview = query({
 	args: {},
-	returns: v.object({
-		displayName: v.string(),
-		rank: v.number(),
-		rankXp: v.number(),
-		credits: v.number(),
-	}),
+	returns: progressionOverviewValidator,
 	handler: async (ctx) => {
 		const playerResult = await resolveCurrentPlayer(ctx);
 		if (!playerResult?.player) {
 			throw new ConvexError("Authentication required");
 		}
-		const progression = await ctx.db
-			.query("playerProgression")
-			.withIndex("by_player_id", (q) => q.eq("playerId", playerResult.player._id))
-			.unique();
-		return {
-			displayName: playerResult.player.displayName,
-			rank: progression?.rank ?? 1,
-			rankXp: progression?.rankXp ?? 0,
-			credits: progression?.credits ?? 0,
-		};
+		return buildProgressionOverview({
+			ctx,
+			player: playerResult.player,
+		});
 	},
 });
 
@@ -210,3 +272,11 @@ export const backfillPlayerProgression = mutation({
 		return { created };
 	},
 });
+
+export function requireQuestDefinition(questId: string) {
+	const definition = getQuestDefinition(questId as never);
+	if (!definition) {
+		throw new ConvexError(`Unknown quest definition: ${questId}`);
+	}
+	return definition;
+}

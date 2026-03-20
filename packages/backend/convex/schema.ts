@@ -99,8 +99,8 @@ const contractSnapshotValidator = v.object({
 	priorityProfile: combatPriorityProfileValidator,
 	requiredRank: v.number(),
 	rewardCredits: v.number(),
-	rewardRankXpFailure: v.number(),
-	rewardRankXpSuccess: v.number(),
+	rewardXpFailure: v.number(),
+	rewardXpSuccess: v.number(),
 	rewardResources: resourceBucketValidator,
 });
 
@@ -455,11 +455,29 @@ export default defineSchema({
 	playerProgression: defineTable({
 		playerId: v.id("players"),
 		credits: v.number(),
-		rank: v.number(),
-		rankXp: v.number(),
+		rankXpTotal: v.number(),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	}).index("by_player_id", ["playerId"]),
+
+	// Player-owned quest lifecycle rows for code-defined progression quests.
+	playerQuestStates: defineTable({
+		playerId: v.id("players"),
+		questId: v.string(),
+		status: v.union(v.literal("active"), v.literal("claimable"), v.literal("claimed")),
+		questVersion: v.number(),
+		bindings: v.object({
+			colonyId: v.optional(v.string()),
+		}),
+		activatedAt: v.number(),
+		claimableAt: v.optional(v.number()),
+		claimedAt: v.optional(v.number()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_player_quest", ["playerId", "questId"])
+		.index("by_player", ["playerId"])
+		.index("by_player_status", ["playerId", "status"]),
 
 	devConsoleActions: defineTable({
 		actorPlayerId: v.id("players"),
@@ -660,7 +678,6 @@ export default defineSchema({
 		}),
 		resourcesLooted: resourceBucketValidator,
 		salvageGranted: resourceBucketValidator,
-		rankXpDelta: v.number(),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	})
@@ -711,7 +728,7 @@ export default defineSchema({
 			defenses: defenseCountsValidator,
 		}),
 		rewardCreditsGranted: v.number(),
-		rewardRankXpGranted: v.number(),
+		rewardXpGranted: v.number(),
 		rewardCargoLoaded: resourceBucketValidator,
 		rewardCargoLostByCapacity: resourceBucketValidator,
 		controlReductionApplied: v.number(),

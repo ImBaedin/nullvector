@@ -31,7 +31,8 @@ import {
 	emitTransportIncomingNotification,
 	emitTransportReturnedNotification,
 } from "./notifications";
-import { grantPlayerCredits, grantPlayerRankXp } from "./progression";
+import { buildProgressionRules, grantPlayerCredits, grantProgressionXp } from "./progression";
+import { syncQuestAvailabilityForPlayer } from "./quests";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	cloneResourceBucket,
@@ -692,6 +693,27 @@ async function settleColonizeAtTarget(args: {
 		return;
 	}
 
+	const [progression, playerColonies] = await Promise.all([
+		buildProgressionRules({
+			ctx: args.ctx,
+			playerId: args.operation.ownerPlayerId,
+		}),
+		args.ctx.db
+			.query("colonies")
+			.withIndex("by_player_id", (q) => q.eq("playerId", args.operation.ownerPlayerId))
+			.collect(),
+	]);
+	if (playerColonies.length >= progression.colonyCap) {
+		await failOperationAndNotify({
+			ctx: args.ctx,
+			now: args.now,
+			operation: args.operation,
+			resultCode: "failed",
+			resultMessage: "Colony cap reached before colonization completed",
+		});
+		return;
+	}
+
 	const starterBuildings = starterColonyBuildings();
 	const storageCaps = storageCapsFromBuildings(starterBuildings);
 	const colonyId = await args.ctx.db.insert("colonies", {
@@ -878,9 +900,9 @@ async function settleContractAtTarget(args: {
 				})
 			).applied
 		: 0;
-	const rankXpGranted = combat.success
-		? contract.snapshot.rewardRankXpSuccess
-		: contract.snapshot.rewardRankXpFailure;
+	const xpGranted = combat.success
+		? contract.snapshot.rewardXpSuccess
+		: contract.snapshot.rewardXpFailure;
 
 	if (combat.success) {
 		await grantPlayerCredits({
@@ -889,11 +911,24 @@ async function settleContractAtTarget(args: {
 			playerId: contract.playerId,
 		});
 	}
-	await grantPlayerRankXp({
-		amount: rankXpGranted,
+	await grantProgressionXp({
+		amount: xpGranted,
 		ctx: args.ctx,
 		playerId: contract.playerId,
 	});
+	try {
+		await syncQuestAvailabilityForPlayer({
+			ctx: args.ctx,
+			playerId: contract.playerId,
+			activeColonyId: args.operation.originColonyId,
+		});
+	} catch (error) {
+		console.error("Quest sync after contract XP failed", {
+			contractId: contract._id,
+			error,
+			playerId: contract.playerId,
+		});
+	}
 
 	await args.ctx.db.patch(contract._id, {
 		status: combat.success ? "completed" : "failed",
@@ -914,7 +949,7 @@ async function settleContractAtTarget(args: {
 			defenses: combat.defenderDefenseRemaining,
 		},
 		rewardCreditsGranted: combat.success ? contract.snapshot.rewardCredits : 0,
-		rewardRankXpGranted: rankXpGranted,
+		rewardXpGranted: xpGranted,
 		rewardCargoLoaded: rewardCargoScaled,
 		rewardCargoLostByCapacity: rewardCargoLostScaled,
 		controlReductionApplied,
@@ -974,7 +1009,7 @@ async function settleContractAtTarget(args: {
 		rewardCargoLoaded: rewardCargoScaled,
 		rewardCargoLostByCapacity: rewardCargoLostScaled,
 		rewardCreditsGranted: combat.success ? contract.snapshot.rewardCredits : 0,
-		rewardRankXpGranted: rankXpGranted,
+		rewardXpGranted: xpGranted,
 		roundsFought: combat.roundsFought,
 		success: combat.success,
 		contractId: contract._id,
@@ -2255,6 +2290,19 @@ export const createOperation = mutation({
 				.collect();
 			if (activePlanetOps.some((row) => row.kind === "colonize")) {
 				throw new ConvexError("Target planet already has an active colonization operation");
+			}
+			const [progression, playerColonies] = await Promise.all([
+				buildProgressionRules({
+					ctx,
+					playerId: origin.player._id,
+				}),
+				ctx.db
+					.query("colonies")
+					.withIndex("by_player_id", (q) => q.eq("playerId", origin.player._id))
+					.collect(),
+			]);
+			if (playerColonies.length >= progression.colonyCap) {
+				throw new ConvexError("Colony cap reached for current progression");
 			}
 
 			const originCoords = await colonySystemCoords({

@@ -226,9 +226,9 @@ function ContractsRoute() {
 						>
 							<div className="flex min-w-0 flex-1 items-center gap-2">
 								<ChevronDown className={`
-           size-4 shrink-0 text-white/40 transition-transform
-           ${historyExpanded ? "rotate-180" : ""}
-         `} />
+          size-4 shrink-0 text-white/40 transition-transform
+          ${historyExpanded ? "rotate-180" : ""}
+        `} />
 								<div>
 									<div className="font-(family-name:--nv-font-display) text-sm font-bold">
 										Recent Missions

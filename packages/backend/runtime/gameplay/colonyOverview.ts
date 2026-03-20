@@ -307,10 +307,7 @@ function buildStrategicTags(args: {
 	status: OverviewStatus;
 }) {
 	const tags: string[] = [];
-	if (
-		args.fuelMultiplier > args.alloyMultiplier &&
-		args.fuelMultiplier > args.crystalMultiplier
-	) {
+	if (args.fuelMultiplier > args.alloyMultiplier && args.fuelMultiplier > args.crystalMultiplier) {
 		tags.push("Fuel Exporter");
 	}
 	if (args.alloyMultiplier > 1.1) {
@@ -633,16 +630,14 @@ export const getColonyOverview = query({
 				isInboundOperationForColony({
 					colonyId: publicColony.colony._id,
 					operation,
-				}) &&
-				operation.ownerPlayerId === publicColony.player._id,
+				}) && operation.ownerPlayerId === publicColony.player._id,
 		).length;
 		const inboundHostileCount = operations.filter(
 			(operation) =>
 				isInboundOperationForColony({
 					colonyId: publicColony.colony._id,
 					operation,
-				}) &&
-				operation.ownerPlayerId !== publicColony.player._id,
+				}) && operation.ownerPlayerId !== publicColony.player._id,
 		).length;
 		const outboundCount = operations.filter(
 			(operation) =>

@@ -29,8 +29,8 @@ export type ContractView = {
 	resolvedAt?: number;
 	offerSequence?: number;
 	rewardCredits: number;
-	rewardRankXpSuccess: number;
-	rewardRankXpFailure: number;
+	rewardXpSuccess: number;
+	rewardXpFailure: number;
 	rewardResources: { alloy: number; crystal: number; fuel: number };
 	controlReduction: number;
 	enemyFleet: ShipCounts;

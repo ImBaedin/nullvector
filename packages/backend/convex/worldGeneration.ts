@@ -52,11 +52,26 @@ const wipeUniverseResultValidator = v.object({
 	universeSlug: v.string(),
 	deleted: v.object({
 		universeGeneration: v.number(),
+		sectorHostility: v.number(),
+		planetHostility: v.number(),
+		playerProgression: v.number(),
+		playerQuestStates: v.number(),
+		devConsoleActions: v.number(),
 		fleetOperations: v.number(),
 		fleetOperationResults: v.number(),
 		fleets: v.number(),
 		fleetEvents: v.number(),
 		colonyShips: v.number(),
+		colonyDefenses: v.number(),
+		npcRaidOperations: v.number(),
+		npcRaidResults: v.number(),
+		contracts: v.number(),
+		contractResults: v.number(),
+		colonyContractCandidates: v.number(),
+		colonyContractDiscoveryState: v.number(),
+		contractBoardState: v.number(),
+		notifications: v.number(),
+		playerNotificationPreferences: v.number(),
 		colonyQueueItems: v.number(),
 		colonyQueuePayloads: v.number(),
 		colonyEconomy: v.number(),
@@ -174,6 +189,17 @@ export const wipeUniverse = mutation({
 			.withIndex("by_universe_id", (q) => q.eq("universeId", universe._id))
 			.collect();
 		const colonyIdSet = new Set(coloniesInUniverse.map((row) => row._id));
+		const playerIdSet = new Set(coloniesInUniverse.map((row) => row.playerId));
+		const sectorsInUniverse = await ctx.db
+			.query("sectors")
+			.withIndex("by_universe_id_and_sector_type", (q) => q.eq("universeId", universe._id))
+			.collect();
+		const planetsInUniverse = await ctx.db
+			.query("planets")
+			.withIndex("by_universe_and_galaxy_and_sector_and_system_and_planet", (q) =>
+				q.eq("universeId", universe._id),
+			)
+			.collect();
 
 		const deleted = {
 			universeGeneration: await deleteAllByQuery({
@@ -184,6 +210,69 @@ export const wipeUniverse = mutation({
 						.query("universeGeneration")
 						.withIndex("by_universe_id", (q) => q.eq("universeId", universe._id))
 						.collect(),
+			}),
+			sectorHostility: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("sectorHostility")
+						.withIndex("by_universe_status", (q) => q.eq("universeId", universe._id))
+						.collect(),
+			}),
+			planetHostility: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("planetHostility")
+						.withIndex("by_universe_status", (q) => q.eq("universeId", universe._id))
+						.collect(),
+			}),
+			playerProgression: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: async () =>
+					(
+						await Promise.all(
+							Array.from(playerIdSet).map((playerId) =>
+								ctx.db
+									.query("playerProgression")
+									.withIndex("by_player_id", (q) => q.eq("playerId", playerId))
+									.collect(),
+							),
+						)
+					).flat(),
+			}),
+			playerQuestStates: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: async () =>
+					(
+						await Promise.all(
+							Array.from(playerIdSet).map((playerId) =>
+								ctx.db
+									.query("playerQuestStates")
+									.withIndex("by_player", (q) => q.eq("playerId", playerId))
+									.collect(),
+							),
+						)
+					).flat(),
+			}),
+			devConsoleActions: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("devConsoleActions")
+						.collect()
+						.then((rows) =>
+							rows.filter(
+								(row) =>
+									playerIdSet.has(row.actorPlayerId) ||
+									(row.targetColonyId !== undefined && colonyIdSet.has(row.targetColonyId)),
+							),
+						),
 			}),
 			fleetOperations: await deleteAllByQuery({
 				ctx,
@@ -221,6 +310,87 @@ export const wipeUniverse = mutation({
 						.collect()
 						.then((rows) => rows.filter((row) => row.universeId === universe._id)),
 			}),
+			npcRaidOperations: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("npcRaidOperations")
+						.collect()
+						.then((rows) => rows.filter((row) => row.universeId === universe._id)),
+			}),
+			npcRaidResults: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("npcRaidResults")
+						.collect()
+						.then((rows) => rows.filter((row) => row.universeId === universe._id)),
+			}),
+			contracts: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("contracts")
+						.collect()
+						.then((rows) => rows.filter((row) => row.universeId === universe._id)),
+			}),
+			contractResults: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("contractResults")
+						.collect()
+						.then((rows) => rows.filter((row) => playerIdSet.has(row.playerId))),
+			}),
+			colonyContractCandidates: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("colonyContractCandidates")
+						.collect()
+						.then((rows) => rows.filter((row) => row.universeId === universe._id)),
+			}),
+			colonyContractDiscoveryState: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("colonyContractDiscoveryState")
+						.collect()
+						.then((rows) => rows.filter((row) => row.universeId === universe._id)),
+			}),
+			contractBoardState: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("contractBoardState")
+						.collect()
+						.then((rows) => rows.filter((row) => row.universeId === universe._id)),
+			}),
+			notifications: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("notifications")
+						.collect()
+						.then((rows) => rows.filter((row) => row.universeId === universe._id)),
+			}),
+			playerNotificationPreferences: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("playerNotificationPreferences")
+						.collect()
+						.then((rows) => rows.filter((row) => playerIdSet.has(row.playerId))),
+			}),
 			colonyShips: await deleteAllByQuery({
 				ctx,
 				dryRun,
@@ -229,6 +399,15 @@ export const wipeUniverse = mutation({
 						.query("colonyShips")
 						.collect()
 						.then((rows) => rows.filter((row) => row.universeId === universe._id)),
+			}),
+			colonyDefenses: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("colonyDefenses")
+						.collect()
+						.then((rows) => rows.filter((row) => colonyIdSet.has(row.colonyId))),
 			}),
 			colonyQueueItems: await deleteAllByQuery({
 				ctx,
@@ -292,13 +471,7 @@ export const wipeUniverse = mutation({
 			planets: await deleteAllByQuery({
 				ctx,
 				dryRun,
-				queryFactory: () =>
-					ctx.db
-						.query("planets")
-						.withIndex("by_universe_and_galaxy_and_sector_and_system_and_planet", (q) =>
-							q.eq("universeId", universe._id),
-						)
-						.collect(),
+				queryFactory: async () => planetsInUniverse,
 			}),
 			systems: await deleteAllByQuery({
 				ctx,
@@ -314,11 +487,7 @@ export const wipeUniverse = mutation({
 			sectors: await deleteAllByQuery({
 				ctx,
 				dryRun,
-				queryFactory: () =>
-					ctx.db
-						.query("sectors")
-						.withIndex("by_universe_id_and_sector_type", (q) => q.eq("universeId", universe._id))
-						.collect(),
+				queryFactory: async () => sectorsInUniverse,
 			}),
 			galaxies: await deleteAllByQuery({
 				ctx,

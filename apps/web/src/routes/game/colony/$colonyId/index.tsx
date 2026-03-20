@@ -175,26 +175,26 @@ function SectionRule({
 		<div className="my-5 flex items-center gap-3">
 			<span
 				className="
-     font-(family-name:--nv-font-mono) text-[9px] font-bold text-white/20
-   "
+      font-(family-name:--nv-font-mono) text-[9px] font-bold text-white/20
+    "
 			>
 				{code}
 			</span>
 			<div className="h-px flex-1 bg-white/6" />
 			<span
 				className="
-     font-(family-name:--nv-font-mono) text-[9px] font-bold tracking-[0.15em]
-     text-white/30 uppercase
-   "
+      font-(family-name:--nv-font-mono) text-[9px] font-bold tracking-[0.15em]
+      text-white/30 uppercase
+    "
 			>
 				{label}
 			</span>
 			<div className="h-px flex-1 bg-white/6" />
 			<span className={`
-      rounded border px-1.5 py-0.5 font-(family-name:--nv-font-mono) text-[7px]
-      font-bold tracking-[0.2em]
-      ${cls}
-    `}>{classification}</span>
+     rounded-sm border px-1.5 py-0.5 font-(family-name:--nv-font-mono) text-[7px]
+     font-bold tracking-[0.2em]
+     ${cls}
+   `}>{classification}</span>
 		</div>
 	);
 }
@@ -211,17 +211,15 @@ function DataRow({
 	return (
 		<div
 			className="
-    flex items-baseline justify-between border-b border-white/3 py-1
-    last:border-0
-  "
+     flex items-baseline justify-between border-b border-white/3 py-1
+     last:border-0
+   "
 		>
 			<span className="font-(family-name:--nv-font-mono) text-[10px] text-white/30">{label}</span>
 			<span className={`
-      text-[11px] text-white/75
-      ${mono ? `
-      font-(family-name:--nv-font-mono) font-semibold
-    ` : ""}
-    `}>{value}</span>
+     text-[11px] text-white/75
+     ${mono ? `font-(family-name:--nv-font-mono) font-semibold` : ""}
+   `}>{value}</span>
 		</div>
 	);
 }
@@ -439,15 +437,15 @@ function ColonyOverviewRoute() {
 				<div className="mb-0 flex items-end gap-0">
 					<div
 						className="
-       dossier-tab border-x border-t border-white/8 bg-[rgba(12,18,30,0.95)]
-       px-6 py-1.5
-     "
+        dossier-tab border-x border-t border-white/8 bg-[rgba(12,18,30,0.95)]
+        px-6 py-1.5
+      "
 					>
 						<span
 							className="
-        font-(family-name:--nv-font-mono) text-[9px] font-bold tracking-[0.2em]
-        text-white/30
-      "
+         font-(family-name:--nv-font-mono) text-[9px] font-bold tracking-[0.2em]
+         text-white/30
+       "
 						>
 							INTELLIGENCE BRIEF
 						</span>
@@ -457,46 +455,46 @@ function ColonyOverviewRoute() {
 
 				<div
 					className="
-      dossier-paper relative overflow-hidden border border-white/8 px-5 py-5
-      shadow-[0_30px_80px_rgba(0,0,0,0.35)]
-    "
+       dossier-paper relative overflow-hidden border border-white/8 p-5 
+       shadow-[0_30px_80px_rgba(0,0,0,0.35)]
+     "
 				>
 					<div
 						className="
-       pointer-events-none absolute inset-0
-       bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.04),transparent_30%),radial-gradient(circle_at_80%_100%,rgba(255,255,255,0.03),transparent_35%)]
-     "
+        pointer-events-none absolute inset-0
+        bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.04),transparent_30%),radial-gradient(circle_at_80%_100%,rgba(255,255,255,0.03),transparent_35%)]
+      "
 					/>
 
 					<div className="relative z-10">
 						<div
 							className="
-        flex flex-wrap items-start justify-between gap-4 border-b border-white/8
-        pb-4
-      "
+         flex flex-wrap items-start justify-between gap-4 border-b
+         border-white/8 pb-4
+       "
 						>
 							<div>
 								<p
 									className="
-          font-(family-name:--nv-font-mono) text-[10px] tracking-[0.25em]
-          text-white/25 uppercase
-        "
+           font-(family-name:--nv-font-mono) text-[10px] tracking-[0.25em]
+           text-white/25 uppercase
+         "
 								>
 									Colony Overview
 								</p>
 								<h1
 									className="
-          mt-1 font-(family-name:--nv-font-display) text-3xl font-black
-          tracking-tight text-white
-          sm:text-4xl
-        "
+           mt-1 font-(family-name:--nv-font-display) text-3xl font-black
+           tracking-tight text-white
+           sm:text-4xl
+         "
 								>
 									{overview.header.name}
 								</h1>
 								<div
 									className="
-          mt-2 flex flex-wrap items-center gap-3 text-[11px] text-white/38
-        "
+           mt-2 flex flex-wrap items-center gap-3 text-[11px] text-white/38
+         "
 								>
 									<span className="flex items-center gap-1">
 										<Users className="size-3" />
@@ -513,33 +511,31 @@ function ColonyOverviewRoute() {
 							</div>
 							<div
 								className="
-         flex flex-col items-start gap-2
-         sm:items-end
-       "
+          flex flex-col items-start gap-2
+          sm:items-end
+        "
 							>
 								<div
 									className="
-          rounded border border-white/10 px-2 py-1
-          font-(family-name:--nv-font-mono) text-[9px] font-bold
-          tracking-[0.2em] text-white/35
-        "
+           rounded-sm border border-white/10 px-2 py-1
+           font-(family-name:--nv-font-mono) text-[9px] font-bold
+           tracking-[0.2em] text-white/35
+         "
 								>
 									{overview.header.fileId}
 								</div>
 								<div className="flex items-center gap-2">
 									<span className={`
-            font-(family-name:--nv-font-mono) text-[10px] font-bold
-            tracking-[0.18em] uppercase
-            ${statusColors[overview.header.status] ?? `
-            text-white/60
-          `}
-          `}>{overview.header.status}</span>
+           font-(family-name:--nv-font-mono) text-[10px] font-bold
+           tracking-[0.18em] uppercase
+           ${statusColors[overview.header.status] ?? `text-white/60`}
+         `}>{overview.header.status}</span>
 									<span
 										className="
-           rounded border border-amber-400/30 px-2 py-0.5
-           font-(family-name:--nv-font-mono) text-[8px] font-bold
-           tracking-[0.2em] text-amber-300/70
-         "
+            rounded-sm border border-amber-400/30 px-2 py-0.5
+            font-(family-name:--nv-font-mono) text-[8px] font-bold
+            tracking-[0.2em] text-amber-300/70
+          "
 									>
 										{overview.header.classification}
 									</span>
@@ -554,9 +550,9 @@ function ColonyOverviewRoute() {
 						/>
 						<div
 							className="
-        grid gap-5
-        md:grid-cols-[1.1fr_0.9fr]
-      "
+         grid gap-5
+         md:grid-cols-[1.1fr_0.9fr]
+       "
 						>
 							<div className="space-y-2">
 								<DataRow label="TYPE" value={formatPlanetType(overview.planet.compositionType)} />
@@ -583,9 +579,9 @@ function ColonyOverviewRoute() {
 									<Globe2 className="size-4" />
 									<span
 										className="
-           font-(family-name:--nv-font-mono) text-[10px] font-bold
-           tracking-[0.16em] uppercase
-         "
+            font-(family-name:--nv-font-mono) text-[10px] font-bold
+            tracking-[0.16em] uppercase
+          "
 									>
 										Planetary Notes
 									</span>
@@ -604,18 +600,18 @@ function ColonyOverviewRoute() {
 						<SectionRule code="SEC-02" label="Infrastructure" classification="RESTRICTED" />
 						<div
 							className="
-        grid gap-5
-        md:grid-cols-2
-      "
+         grid gap-5
+         md:grid-cols-2
+       "
 						>
 							<div>
 								<div className="mb-2 flex items-center gap-2 text-white/45">
 									<Factory className="size-4" />
 									<span
 										className="
-           font-(family-name:--nv-font-mono) text-[10px] font-bold
-           tracking-[0.16em] uppercase
-         "
+            font-(family-name:--nv-font-mono) text-[10px] font-bold
+            tracking-[0.16em] uppercase
+          "
 									>
 										Buildings
 									</span>
@@ -637,9 +633,9 @@ function ColonyOverviewRoute() {
 									<Zap className="size-4" />
 									<span
 										className="
-           font-(family-name:--nv-font-mono) text-[10px] font-bold
-           tracking-[0.16em] uppercase
-         "
+            font-(family-name:--nv-font-mono) text-[10px] font-bold
+            tracking-[0.16em] uppercase
+          "
 									>
 										Facilities
 									</span>
@@ -661,9 +657,9 @@ function ColonyOverviewRoute() {
 						<SectionRule code="SEC-03" label="Defense & Fleet" classification="CLASSIFIED" />
 						<div
 							className="
-        grid gap-5
-        md:grid-cols-2
-      "
+         grid gap-5
+         md:grid-cols-2
+       "
 						>
 							<div className="rounded-sm border border-rose-400/15 bg-rose-400/4 p-3">
 								<div className="mb-3 flex items-center justify-between">
@@ -671,19 +667,19 @@ function ColonyOverviewRoute() {
 										<Shield className="size-4" />
 										<span
 											className="
-            font-(family-name:--nv-font-mono) text-[10px] font-bold
-            tracking-[0.16em] uppercase
-          "
+             font-(family-name:--nv-font-mono) text-[10px] font-bold
+             tracking-[0.16em] uppercase
+           "
 										>
 											Defense Grid
 										</span>
 									</div>
 									<span
 										className="
-           dossier-stamp rotate-[-6deg] border border-rose-400/40 px-2 py-0.5
-           font-(family-name:--nv-font-display) text-[10px] font-black
-           tracking-[0.2em] text-rose-300/75
-         "
+            dossier-stamp -rotate-6 border border-rose-400/40 px-2 py-0.5
+            font-(family-name:--nv-font-display) text-[10px] font-black
+            tracking-[0.2em] text-rose-300/75
+          "
 									>
 										{overview.header.status === "under attack" ? "ALERT" : "MONITOR"}
 									</span>
@@ -710,9 +706,9 @@ function ColonyOverviewRoute() {
 									<Ship className="size-4" />
 									<span
 										className="
-           font-(family-name:--nv-font-mono) text-[10px] font-bold
-           tracking-[0.16em] uppercase
-         "
+            font-(family-name:--nv-font-mono) text-[10px] font-bold
+            tracking-[0.16em] uppercase
+          "
 									>
 										Fleet Posture
 									</span>
@@ -740,7 +736,7 @@ function ColonyOverviewRoute() {
 									<span
 										key={tag}
 										className="
-            rounded border border-white/10 px-2 py-1
+            rounded-sm border border-white/10 px-2 py-1
             font-(family-name:--nv-font-mono) text-[9px] font-bold
             tracking-[0.12em] text-white/45 uppercase
           "
@@ -751,26 +747,26 @@ function ColonyOverviewRoute() {
 							</div>
 							<div
 								className="
-         rounded border border-white/8 bg-white/[0.03] p-3 text-[12px] leading-6
-         text-white/72
-       "
+          rounded-sm border border-white/8 bg-white/3 p-3 text-[12px]/6
+           text-white/72
+        "
 							>
 								{overview.strategic.notesPlaceholder}
 							</div>
 							<div
 								className="
-         grid gap-3
-         sm:grid-cols-3
-       "
+          grid gap-3
+          sm:grid-cols-3
+        "
 							>
 								<div className="rounded-sm border border-white/8 bg-white/3 p-3">
 									<div className="mb-2 flex items-center gap-2 text-white/45">
 										<Swords className="size-4" />
 										<span
 											className="
-            font-(family-name:--nv-font-mono) text-[10px] font-bold
-            tracking-[0.16em] uppercase
-          "
+             font-(family-name:--nv-font-mono) text-[10px] font-bold
+             tracking-[0.16em] uppercase
+           "
 										>
 											Diplomacy
 										</span>
@@ -786,9 +782,9 @@ function ColonyOverviewRoute() {
 										<Crosshair className="size-4" />
 										<span
 											className="
-            font-(family-name:--nv-font-mono) text-[10px] font-bold
-            tracking-[0.16em] uppercase
-          "
+             font-(family-name:--nv-font-mono) text-[10px] font-bold
+             tracking-[0.16em] uppercase
+           "
 										>
 											Threat
 										</span>
@@ -801,9 +797,9 @@ function ColonyOverviewRoute() {
 										<Radar className="size-4" />
 										<span
 											className="
-            font-(family-name:--nv-font-mono) text-[10px] font-bold
-            tracking-[0.16em] uppercase
-          "
+             font-(family-name:--nv-font-mono) text-[10px] font-bold
+             tracking-[0.16em] uppercase
+           "
 										>
 											Surveillance
 										</span>
@@ -825,17 +821,17 @@ function ColonyOverviewRoute() {
 								<SectionRule code="SEC-05" label="Owner Annex" classification="EYES ONLY" />
 								<div
 									className="
-          relative overflow-hidden rounded border border-rose-400/20
-          bg-rose-950/10 p-4
-        "
+           relative overflow-hidden rounded-sm border border-rose-400/20
+           bg-rose-950/10 p-4
+         "
 								>
 									<div className="pointer-events-none absolute top-3 right-3">
 										<span
 											className="
-            dossier-stamp inline-flex rotate-[-8deg] items-center gap-1 border
-            border-rose-400/35 px-2 py-1 font-(family-name:--nv-font-display)
-            text-[10px] font-black tracking-[0.2em] text-rose-300/70
-          "
+             dossier-stamp inline-flex rotate-[-8deg] items-center gap-1 border
+             border-rose-400/35 px-2 py-1 font-(family-name:--nv-font-display)
+             text-[10px] font-black tracking-[0.2em] text-rose-300/70
+           "
 										>
 											<Eye className="size-3" />
 											EYES ONLY
@@ -843,18 +839,18 @@ function ColonyOverviewRoute() {
 									</div>
 									<div
 										className="
-           grid gap-5
-           md:grid-cols-[1fr_1fr]
-         "
+            grid gap-5
+            md:grid-cols-[1fr_1fr]
+          "
 									>
 										<div>
 											<div className="mb-2 flex items-center gap-2 text-white/45">
 												<BarChart3 className="size-4" />
 												<span
 													className="
-              font-(family-name:--nv-font-mono) text-[10px] font-bold
-              tracking-[0.16em] uppercase
-            "
+               font-(family-name:--nv-font-mono) text-[10px] font-bold
+               tracking-[0.16em] uppercase
+             "
 												>
 													Resources
 												</span>
@@ -873,9 +869,9 @@ function ColonyOverviewRoute() {
 												<FileText className="size-4" />
 												<span
 													className="
-              font-(family-name:--nv-font-mono) text-[10px] font-bold
-              tracking-[0.16em] uppercase
-            "
+               font-(family-name:--nv-font-mono) text-[10px] font-bold
+               tracking-[0.16em] uppercase
+             "
 												>
 													Queues
 												</span>
@@ -890,26 +886,22 @@ function ColonyOverviewRoute() {
 															<div className="mb-2 flex items-center justify-between gap-3">
 																<span
 																	className="
-                  font-(family-name:--nv-font-mono) text-[10px] font-bold
-                  tracking-[0.16em] text-white/45 uppercase
-                "
+                   font-(family-name:--nv-font-mono) text-[10px] font-bold
+                   tracking-[0.16em] text-white/45 uppercase
+                 "
 																>
 																	{queue.lane}
 																</span>
 																<span
 																	className="
-                  font-(family-name:--nv-font-mono) text-[10px] text-white/40
-                "
+                   font-(family-name:--nv-font-mono) text-[10px] text-white/40
+                 "
 																>
 																	{queue.etaLabel}
 																</span>
 															</div>
 															<p className="text-[12px] text-white/72">{queue.itemLabel}</p>
-															<div
-																className="
-                 mt-2 h-1.5 overflow-hidden rounded-full bg-white/8
-               "
-															>
+															<div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
 																<div
 																	className="h-full rounded-full bg-rose-300/60"
 																	style={{ width: `${queue.progressPercent}%` }}
@@ -920,9 +912,9 @@ function ColonyOverviewRoute() {
 												) : (
 													<div
 														className="
-               rounded border border-white/8 bg-white/[0.03] p-3 text-[12px]
-               text-white/55
-             "
+                rounded-sm border border-white/8 bg-white/3 p-3 text-[12px]
+                text-white/55
+              "
 													>
 														No active colony queues.
 													</div>
@@ -937,9 +929,9 @@ function ColonyOverviewRoute() {
 						<SectionRule code="SEC-06" label="Activity Log" classification="UNCLASSIFIED" />
 						<div
 							className="
-        rounded border border-white/8 bg-black/20 p-3
-        font-(family-name:--nv-font-mono)
-      "
+         rounded-sm border border-white/8 bg-black/20 p-3
+         font-(family-name:--nv-font-mono)
+       "
 						>
 							<div className="mb-3 flex items-center justify-between">
 								<div className="flex items-center gap-2 text-white/42">
@@ -953,7 +945,7 @@ function ColonyOverviewRoute() {
 									<span>LIVE BUFFER</span>
 								</div>
 							</div>
-							<div className="space-y-2 text-[11px]/5 ">
+							<div className="space-y-2 text-[11px]/5">
 								{overview.activity.map(
 									(entry: (typeof overview.activity)[number], index: number) => {
 										const indicator = SEV_INDICATOR[entry.severity];
@@ -961,14 +953,14 @@ function ColonyOverviewRoute() {
 											<div
 												key={entry.id}
 												className="
-             dossier-terminal-line flex items-start gap-3 text-white/70
-           "
+              dossier-terminal-line flex items-start gap-3 text-white/70
+            "
 												data-line={String(index + 1).padStart(2, "0")}
 											>
 												<span className={`
-             w-6 shrink-0 font-bold
-             ${indicator.color}
-           `}>{indicator.prefix}</span>
+              w-6 shrink-0 font-bold
+              ${indicator.color}
+            `}>{indicator.prefix}</span>
 												<div className="min-w-0 flex-1">
 													<div className="flex flex-wrap items-baseline gap-x-2">
 														<span>{entry.text}</span>
@@ -990,9 +982,9 @@ function ColonyOverviewRoute() {
 
 						<div
 							className="
-        mt-4 flex flex-wrap items-center justify-between gap-3 border-t
-        border-white/8 pt-3 text-[10px] text-white/25
-      "
+         mt-4 flex flex-wrap items-center justify-between gap-3 border-t
+         border-white/8 pt-3 text-[10px] text-white/25
+       "
 						>
 							<div className="flex items-center gap-2">
 								<AlertTriangle className="size-3" />

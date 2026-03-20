@@ -80,10 +80,8 @@ function ColonyLayoutContent() {
        relative min-h-full transition-[clip-path,opacity,transform] duration-500
        ease-out
        ${layout.shouldCollapseContent ? `
-        pointer-events-none -translate-y-3 opacity-0
-      ` : `
-        translate-y-0 opacity-100
-      `}
+         pointer-events-none -translate-y-3 opacity-0
+       ` : `translate-y-0 opacity-100`}
      `}
 					style={{
 						clipPath: layout.shouldCollapseContent
