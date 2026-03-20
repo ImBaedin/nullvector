@@ -6,6 +6,18 @@ export {
 	roundResourceMap,
 } from "./curves";
 export { generateSciFiName } from "./object-names";
+export {
+	FEATURE_KEYS,
+	QUEST_DEFINITIONS,
+	QUEST_IDS,
+	RANK_DEFINITIONS,
+	evaluateQuestDefinition,
+	evaluateQuestObjective,
+	getProgressionOverview,
+	getQuestDefinition,
+	getRankDefinition,
+	getRankForXpTotal,
+} from "./progression";
 
 export {
 	createGeneratorRegistry,
@@ -154,6 +166,7 @@ export type {
 export type {
 	BuildingKey,
 	BuildingUpgradeQueuePayload,
+	DefenseBuildQueuePayload,
 	FacilityKey,
 	FacilityUpgradeQueuePayload,
 	LaneQueueItem,
@@ -163,10 +176,34 @@ export type {
 	ResourceBucket,
 	ResourceBuildingCardData,
 	ResourceBuildingLevelRow,
-	DefenseBuildQueuePayload,
 	ShipBuildQueuePayload,
 	ShipKey,
 } from "./gameplay";
+export type {
+	ContractProgressionRules,
+	FeatureAccessState,
+	FeatureKey,
+	ObjectiveScope,
+	ProgressionFeatureMap,
+	ProgressionOverview,
+	QuestBindingStrategy,
+	QuestBindings,
+	QuestCategory,
+	QuestDefinition,
+	QuestEvaluationColony,
+	QuestEvaluationContext,
+	QuestEvaluationResult,
+	QuestId,
+	QuestLogItem,
+	QuestObjectiveDefinition,
+	QuestObjectiveProgress,
+	QuestPrerequisite,
+	QuestReward,
+	QuestStatus,
+	QuestTrackerItem,
+	RaidProgressionRules,
+	RankDefinition,
+} from "./progression";
 export type { ShipCounts, ShipDefinition } from "./ships";
 export type { DefenseCounts, DefenseDefinition, DefenseKey } from "./defenses";
 export type {

@@ -9,6 +9,7 @@ import { DEFAULT_UNIVERSE_SLUG } from "../../convex/lib/worldgen/config";
 import { ensureCoreCapacityPipeline } from "../../convex/lib/worldgen/pipeline";
 import { ensureUniverseHostilitySeeded, isPlanetCurrentlyColonizable } from "./hostility";
 import { ensurePlayerProgression } from "./progression";
+import { syncQuestAvailabilityForPlayer } from "./quests";
 import {
 	emptyResourceBucket,
 	hashString,
@@ -86,6 +87,11 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	});
 
 	if (existingColonies.length > 0 && existingColonies[0]) {
+		await syncQuestAvailabilityForPlayer({
+			ctx,
+			playerId: player._id,
+			activeColonyId: existingColonies[0]._id,
+		});
 		return {
 			playerId: player._id,
 			defaultColonyId: existingColonies[0]._id,
@@ -276,6 +282,11 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	});
 	await ctx.scheduler.runAfter(0, internal.contracts.rebuildContractDiscoveryForColony, {
 		colonyId,
+	});
+	await syncQuestAvailabilityForPlayer({
+		ctx,
+		playerId: player._id,
+		activeColonyId: colonyId,
 	});
 	return {
 		playerId: player._id,

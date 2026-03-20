@@ -31,7 +31,7 @@ import {
 	emitTransportIncomingNotification,
 	emitTransportReturnedNotification,
 } from "./notifications";
-import { grantPlayerCredits, grantPlayerRankXp } from "./progression";
+import { buildProgressionOverview, grantPlayerCredits, grantProgressionXp } from "./progression";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	cloneResourceBucket,
@@ -878,9 +878,9 @@ async function settleContractAtTarget(args: {
 				})
 			).applied
 		: 0;
-	const rankXpGranted = combat.success
-		? contract.snapshot.rewardRankXpSuccess
-		: contract.snapshot.rewardRankXpFailure;
+	const xpGranted = combat.success
+		? contract.snapshot.rewardXpSuccess
+		: contract.snapshot.rewardXpFailure;
 
 	if (combat.success) {
 		await grantPlayerCredits({
@@ -889,10 +889,11 @@ async function settleContractAtTarget(args: {
 			playerId: contract.playerId,
 		});
 	}
-	await grantPlayerRankXp({
-		amount: rankXpGranted,
+	await grantProgressionXp({
+		amount: xpGranted,
 		ctx: args.ctx,
 		playerId: contract.playerId,
+		source: "contract",
 	});
 
 	await args.ctx.db.patch(contract._id, {
@@ -914,7 +915,7 @@ async function settleContractAtTarget(args: {
 			defenses: combat.defenderDefenseRemaining,
 		},
 		rewardCreditsGranted: combat.success ? contract.snapshot.rewardCredits : 0,
-		rewardRankXpGranted: rankXpGranted,
+		rewardXpGranted: xpGranted,
 		rewardCargoLoaded: rewardCargoScaled,
 		rewardCargoLostByCapacity: rewardCargoLostScaled,
 		controlReductionApplied,
@@ -974,7 +975,7 @@ async function settleContractAtTarget(args: {
 		rewardCargoLoaded: rewardCargoScaled,
 		rewardCargoLostByCapacity: rewardCargoLostScaled,
 		rewardCreditsGranted: combat.success ? contract.snapshot.rewardCredits : 0,
-		rewardRankXpGranted: rankXpGranted,
+		rewardXpGranted: xpGranted,
 		roundsFought: combat.roundsFought,
 		success: combat.success,
 		contractId: contract._id,
@@ -2255,6 +2256,19 @@ export const createOperation = mutation({
 				.collect();
 			if (activePlanetOps.some((row) => row.kind === "colonize")) {
 				throw new ConvexError("Target planet already has an active colonization operation");
+			}
+			const [progression, playerColonies] = await Promise.all([
+				buildProgressionOverview({
+					ctx,
+					player: origin.player,
+				}),
+				ctx.db
+					.query("colonies")
+					.withIndex("by_player_id", (q) => q.eq("playerId", origin.player._id))
+					.collect(),
+			]);
+			if (playerColonies.length >= progression.colonyCap) {
+				throw new ConvexError("Colony cap reached for current progression");
 			}
 
 			const originCoords = await colonySystemCoords({

@@ -363,9 +363,11 @@ function InlineLevelEditor(props: {
 	onCancel: () => void;
 	onCommit: (nextLevel: number) => Promise<void> | void;
 }) {
-	const { commitEditing, draftValue, setDraftValue, startEditing } = useInlineNumberEditor<"level">({
-		min: 0,
-	});
+	const { commitEditing, draftValue, setDraftValue, startEditing } = useInlineNumberEditor<"level">(
+		{
+			min: 0,
+		},
+	);
 
 	useEffect(() => {
 		startEditing("level", props.currentLevel);
@@ -445,12 +447,10 @@ export function ResourceBuildingCard(props: {
 		onUpgrade,
 	} = props;
 	const [isEditingLevel, setIsEditingLevel] = useState(false);
-	const activeBuildingPayload = activeQueueItem && isBuildingQueueRow(activeQueueItem)
-		? activeQueueItem.payload
-		: null;
-	const queuedBuildingPayload = queuedForBuilding && isBuildingQueueRow(queuedForBuilding)
-		? queuedForBuilding.payload
-		: null;
+	const activeBuildingPayload =
+		activeQueueItem && isBuildingQueueRow(activeQueueItem) ? activeQueueItem.payload : null;
+	const queuedBuildingPayload =
+		queuedForBuilding && isBuildingQueueRow(queuedForBuilding) ? queuedForBuilding.payload : null;
 
 	const isStorageBuilding = isStorageBuildingKey(building.key);
 	const isProductionBuilding = isProductionBuildingKey(building.key);

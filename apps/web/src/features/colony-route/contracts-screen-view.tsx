@@ -176,7 +176,7 @@ function RecommendedContractCard(props: {
 					{contract.rewardCredits.toLocaleString()} cr
 				</span>
 				<span className="font-(family-name:--nv-font-mono) text-cyan-200/60">
-					{contract.rewardRankXpSuccess} XP
+					{contract.rewardXpSuccess} XP
 				</span>
 				<span className="font-(family-name:--nv-font-mono) text-white/30">
 					{contract.distance.toFixed(1)} AU
@@ -615,7 +615,7 @@ function RewardsSection(props: { contract: ContractView }): ReactNode {
 					label="Credits"
 					value={props.contract.rewardCredits.toLocaleString()}
 				/>
-				<RewardCard accent="cyan" label="Rank XP" value={`${props.contract.rewardRankXpSuccess}`} />
+				<RewardCard accent="cyan" label="XP" value={`${props.contract.rewardXpSuccess}`} />
 				{props.contract.rewardResources.alloy > 0 ? (
 					<RewardCard
 						accent="neutral"
@@ -643,7 +643,7 @@ function RewardsSection(props: { contract: ContractView }): ReactNode {
 				<RewardCard accent="rose" label="Control" value={`-${props.contract.controlReduction}`} />
 			</div>
 			<p className="mt-1 text-[8px] text-white/20">
-				On failure: {props.contract.rewardRankXpFailure} XP (pity) · no control reduction
+				On failure: {props.contract.rewardXpFailure} XP (pity) · no control reduction
 			</p>
 		</div>
 	);

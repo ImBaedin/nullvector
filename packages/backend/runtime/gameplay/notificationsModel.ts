@@ -90,7 +90,6 @@ export type RaidResolvedNotification = {
 	roundsFought: number;
 	resourcesLooted: ResourceBucket;
 	salvageGranted: ResourceBucket;
-	rankXpDelta: number;
 };
 
 export type ContractResolvedNotification = {
@@ -102,7 +101,7 @@ export type ContractResolvedNotification = {
 	success: boolean;
 	roundsFought: number;
 	rewardCreditsGranted: number;
-	rewardRankXpGranted: number;
+	rewardXpGranted: number;
 	rewardCargoLoaded: ResourceBucket;
 	rewardCargoLostByCapacity: ResourceBucket;
 	controlReductionApplied: number;
@@ -263,7 +262,6 @@ export const notificationPayloadValidator = v.union(
 		roundsFought: v.number(),
 		resourcesLooted: resourceBucketValidator,
 		salvageGranted: resourceBucketValidator,
-		rankXpDelta: v.number(),
 	}),
 	v.object({
 		kind: v.literal("contractResolved"),
@@ -274,7 +272,7 @@ export const notificationPayloadValidator = v.union(
 		success: v.boolean(),
 		roundsFought: v.number(),
 		rewardCreditsGranted: v.number(),
-		rewardRankXpGranted: v.number(),
+		rewardXpGranted: v.number(),
 		rewardCargoLoaded: resourceBucketValidator,
 		rewardCargoLostByCapacity: resourceBucketValidator,
 		controlReductionApplied: v.number(),

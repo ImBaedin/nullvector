@@ -12,7 +12,7 @@ import {
 	useOptimisticColonyMutation,
 } from "@/features/colony-state/hooks";
 import { useColonyResources } from "@/hooks/use-colony-resources";
-import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
+import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { getHeaderConfig, parseColonyId } from "./header-config";
 
@@ -63,10 +63,8 @@ export function useHeaderData() {
 		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const colonyResources = useColonyResources(colonyIdAsId && isAuthenticated ? colonyIdAsId : null);
-	const playerProfile = useQuery(
-		api.playerProgression.getPlayerProfile,
-		isAuthenticated ? {} : "skip",
-	);
+	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
+	const syncQuestAvailability = useMutation(api.quests.syncAvailability);
 	const notificationSummary = useQuery(
 		api.notifications.getNotificationUnreadSummary,
 		isAuthenticated ? {} : "skip",
@@ -74,6 +72,18 @@ export function useHeaderData() {
 	const [isRenamingColony, setIsRenamingColony] = useState(false);
 	const [isSavingColonyName, setIsSavingColonyName] = useState(false);
 	const isCompact = useCompactHeaderMode();
+
+	useEffect(() => {
+		if (!isAuthenticated) {
+			return;
+		}
+
+		void syncQuestAvailability(colonyIdAsId ? { activeColonyId: colonyIdAsId } : {}).catch(
+			(error) => {
+				toast.error(error instanceof Error ? error.message : "Failed to sync quests");
+			},
+		);
+	}, [colonyIdAsId, isAuthenticated, syncQuestAvailability]);
 
 	const hud = useMemo<HeaderHudData | undefined>(() => {
 		if (!colonySession || !colonyResources.hudResources) {
@@ -256,7 +266,7 @@ export function useHeaderData() {
 		isRenamingColony,
 		isSavingColonyName,
 		liveNotificationsCount,
-		playerProfile,
+		progressionOverview,
 		publicOverview,
 		raidStatus,
 		colonyResources,

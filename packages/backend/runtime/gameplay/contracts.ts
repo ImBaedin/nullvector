@@ -1,10 +1,7 @@
 import {
 	generateContractSnapshot,
-	getConcurrentContractLimit,
 	getFleetCargoCapacity,
 	getFleetFuelCostForDistance,
-	getDifficultyTierForRank,
-	getVisibleContractSlotCount,
 	generateSciFiName,
 	normalizeDefenseCounts,
 	normalizeShipCounts,
@@ -28,7 +25,7 @@ import {
 	euclideanDistance,
 } from "./fleetV2";
 import { ensureUniverseHostilitySeeded, getPlanetHostility } from "./hostility";
-import { ensurePlayerProgression } from "./progression";
+import { buildProgressionOverview, ensurePlayerProgression } from "./progression";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	emptyResourceBucket,
@@ -68,8 +65,8 @@ const contractViewValidator = v.object({
 	resolvedAt: v.optional(v.number()),
 	offerSequence: v.optional(v.number()),
 	rewardCredits: v.number(),
-	rewardRankXpSuccess: v.number(),
-	rewardRankXpFailure: v.number(),
+	rewardXpSuccess: v.number(),
+	rewardXpFailure: v.number(),
 	rewardResources: v.object({
 		alloy: v.number(),
 		crystal: v.number(),
@@ -106,8 +103,8 @@ const recommendedContractViewValidator = v.object({
 	resolvedAt: contractViewValidator.fields.resolvedAt,
 	offerSequence: contractViewValidator.fields.offerSequence,
 	rewardCredits: contractViewValidator.fields.rewardCredits,
-	rewardRankXpSuccess: contractViewValidator.fields.rewardRankXpSuccess,
-	rewardRankXpFailure: contractViewValidator.fields.rewardRankXpFailure,
+	rewardXpSuccess: contractViewValidator.fields.rewardXpSuccess,
+	rewardXpFailure: contractViewValidator.fields.rewardXpFailure,
 	rewardResources: contractViewValidator.fields.rewardResources,
 	controlReduction: contractViewValidator.fields.controlReduction,
 	enemyFleet: contractViewValidator.fields.enemyFleet,
@@ -286,15 +283,19 @@ async function getContractHistorySummaryForPlayer(args: {
 	ctx: MutationCtx | QueryCtx;
 	playerId: Id<"players">;
 }) {
-	const progression = await ensurePlayerProgression({
+	const player = await args.ctx.db.get(args.playerId);
+	if (!player) {
+		throw new ConvexError("Player not found");
+	}
+	const progression = await buildProgressionOverview({
 		ctx: args.ctx,
-		playerId: args.playerId,
+		player,
 	});
 	const activeContractCount = await getInProgressContractCount(args);
 
 	return {
 		activeContractCount,
-		activeContractLimit: getConcurrentContractLimit(progression.rank),
+		activeContractLimit: progression.contractRules.activeLimit,
 	};
 }
 
@@ -314,8 +315,8 @@ function snapshotToView(contract: {
 		enemyDefenses: Partial<ContractSnapshot["enemyDefenses"]>;
 		enemyFleet: Partial<ContractSnapshot["enemyFleet"]>;
 		rewardCredits: number;
-		rewardRankXpFailure: number;
-		rewardRankXpSuccess: number;
+		rewardXpFailure: number;
+		rewardXpSuccess: number;
 		rewardResources: ContractSnapshot["rewardResources"];
 	};
 	status: ContractStatus;
@@ -338,8 +339,8 @@ function snapshotToView(contract: {
 		resolvedAt: contract.resolvedAt,
 		offerSequence: contract.offerSequence,
 		rewardCredits: snapshot.rewardCredits,
-		rewardRankXpSuccess: snapshot.rewardRankXpSuccess,
-		rewardRankXpFailure: snapshot.rewardRankXpFailure,
+		rewardXpSuccess: snapshot.rewardXpSuccess,
+		rewardXpFailure: snapshot.rewardXpFailure,
 		rewardResources: snapshot.rewardResources,
 		controlReduction: snapshot.controlReduction,
 		enemyFleet: snapshot.enemyFleet,
@@ -438,8 +439,8 @@ function deriveOffer(args: {
 		difficultyTier: snapshot.difficultyTier,
 		offerSequence: args.offerSequence,
 		rewardCredits: snapshot.rewardCredits,
-		rewardRankXpSuccess: snapshot.rewardRankXpSuccess,
-		rewardRankXpFailure: snapshot.rewardRankXpFailure,
+		rewardXpSuccess: snapshot.rewardXpSuccess,
+		rewardXpFailure: snapshot.rewardXpFailure,
 		rewardResources: snapshot.rewardResources,
 		controlReduction: snapshot.controlReduction,
 		enemyFleet: normalizeShipCounts(snapshot.enemyFleet),
@@ -790,10 +791,14 @@ async function deriveRecommendedContractsByOrdinal(args: {
 	colony: Doc<"colonies">;
 	playerId: Id<"players">;
 }) {
+	const player = await args.ctx.db.get(args.playerId);
+	if (!player) {
+		throw new ConvexError("Player not found");
+	}
 	const [progression, discoveryState, inProgressRows] = await Promise.all([
-		ensurePlayerProgression({
+		buildProgressionOverview({
 			ctx: args.ctx,
-			playerId: args.playerId,
+			player,
 		}),
 		args.ctx.db
 			.query("colonyContractDiscoveryState")
@@ -867,8 +872,8 @@ async function deriveRecommendedContractsByOrdinal(args: {
 		}
 	}
 
-	const difficultyTier = getDifficultyTierForRank(progression.rank);
-	const visibleSlots = getVisibleContractSlotCount(progression.rank);
+	const difficultyTier = progression.contractRules.difficultyTier;
+	const visibleSlots = progression.contractRules.visibleSlots;
 	const contracts: Array<typeof recommendedContractViewValidator.type> = [];
 	for (const [index, candidate] of hydratedCandidates.entries()) {
 		const liveHostility = liveHostilityByPlanetId.get(candidate.planetId);
@@ -1084,16 +1089,20 @@ export const launchContract = mutation({
 			throw new ConvexError("Planet is no longer hostile");
 		}
 
-		const progression = await ensurePlayerProgression({
+		await ensurePlayerProgression({
 			ctx,
 			playerId: player._id,
 		});
-		const visibleSlots = getVisibleContractSlotCount(progression.rank);
+		const progression = await buildProgressionOverview({
+			ctx,
+			player,
+		});
+		const visibleSlots = progression.contractRules.visibleSlots;
 		if (args.slot < 0 || args.slot >= visibleSlots) {
 			throw new ConvexError("Contract slot is not available at your rank");
 		}
 
-		const activeContractLimit = getConcurrentContractLimit(progression.rank);
+		const activeContractLimit = progression.contractRules.activeLimit;
 		const activeContractCount = await getInProgressContractCount({
 			ctx,
 			playerId: player._id,
@@ -1129,7 +1138,7 @@ export const launchContract = mutation({
 		const offer = deriveOffer({
 			colonyId: colony._id,
 			controlMax: hostility.controlMax,
-			difficultyTier: getDifficultyTierForRank(progression.rank),
+			difficultyTier: progression.contractRules.difficultyTier,
 			offerSequence: currentSequence,
 			planetId: args.planetId,
 			planetSeed: candidate.planetSeed,

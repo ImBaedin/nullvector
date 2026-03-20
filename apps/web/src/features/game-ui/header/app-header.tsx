@@ -1,5 +1,5 @@
 import { Tooltip } from "@base-ui/react/tooltip";
-import { Bell, ChevronDown, Earth, Menu, Settings, Trophy } from "lucide-react";
+import { Bell, ChevronDown, Earth, Menu, ScrollText, Settings, Trophy } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
 import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdata/types";
@@ -12,6 +12,7 @@ import { SettingsModal } from "@/features/game-ui/shell/settings-modal";
 import { cn } from "@/lib/utils";
 
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";
+import { QuestsModal } from "./quests-modal";
 import { useHeaderData } from "./use-header-data";
 
 type AppHeaderProps = {
@@ -59,6 +60,7 @@ export function AppHeader({
 }: AppHeaderProps = {}) {
 	const header = useHeaderData();
 	const [drawerOpen, setDrawerOpen] = useState(false);
+	const [questsOpen, setQuestsOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [notificationsOpen, setNotificationsOpen] = useState(false);
 	const [starMapEntitiesOpen, setStarMapEntitiesOpen] = useState(false);
@@ -77,7 +79,7 @@ export function AppHeader({
 		isRenamingColony,
 		isSavingColonyName,
 		liveNotificationsCount,
-		playerProfile,
+		progressionOverview,
 		handleColonyChange,
 		setIsRenamingColony,
 	} = header;
@@ -403,7 +405,7 @@ export function AppHeader({
          lg:flex
        "
 						>
-							{playerProfile ? (
+							{progressionOverview ? (
 								<div
 									className="
           mr-1 flex items-center gap-2 border-r border-white/8 pr-3
@@ -420,17 +422,37 @@ export function AppHeader({
 										</div>
 										<div className="leading-tight">
 											<p className="text-[11px] font-semibold text-white/80">
-												{playerProfile.displayName}
+												{progressionOverview.displayName}
 											</p>
 											<p
 												className="
               font-(family-name:--nv-font-mono) text-[9px] text-amber-200/50
             "
 											>
-												Rank {playerProfile.rank}
+												Rank {progressionOverview.rank}
 											</p>
 										</div>
 									</div>
+									{progressionOverview.nextRankXpRequired ? (
+										<div className="hidden min-w-28 lg:block">
+											<p className="text-[8px] tracking-[0.12em] text-white/25 uppercase">XP</p>
+											<div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/8">
+												<div
+													className="h-full rounded-full bg-[linear-gradient(90deg,#fbbf24,#fde68a)]"
+													style={{
+														width: `${Math.max(
+															0,
+															Math.min(100, progressivePercent(progressionOverview) ?? 0),
+														)}%`,
+													}}
+												/>
+											</div>
+											<p className="mt-1 text-[8px] text-white/35">
+												{progressionOverview.xpIntoCurrentRank.toLocaleString()} /{" "}
+												{progressionOverview.nextRankXpRequired.toLocaleString()}
+											</p>
+										</div>
+									) : null}
 									<div
 										className="
             flex items-center gap-1 rounded-md border border-white/8 bg-white/3
@@ -443,7 +465,7 @@ export function AppHeader({
              text-amber-200/80
            "
 										>
-											{playerProfile.credits.toLocaleString()}
+											{progressionOverview.credits.toLocaleString()}
 										</span>
 										<span className="text-[8px] text-white/25 uppercase">CR</span>
 									</div>
@@ -458,6 +480,29 @@ export function AppHeader({
 									onColonyChange={config.onColonyChange ?? handleColonyChange}
 								/>
 							) : null}
+							<button
+								aria-label="Quests"
+								className="
+          relative flex size-8 items-center justify-center rounded-lg
+          text-white/30 transition-colors
+          hover:bg-white/4 hover:text-white/60
+        "
+								onClick={() => setQuestsOpen(true)}
+								type="button"
+							>
+								<ScrollText className="size-3.5" />
+								{progressionOverview?.questTrackerCount ? (
+									<span
+										className="
+            absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center
+            justify-center rounded-full bg-cyan-400/20 px-1 text-[8px] font-bold
+            text-cyan-200
+          "
+									>
+										{progressionOverview.questTrackerCount}
+									</span>
+								) : null}
+							</button>
 							<button
 								aria-label="Notifications"
 								className="
@@ -558,9 +603,13 @@ export function AppHeader({
 			<AppHeaderMobileDrawer
 				config={drawerConfig}
 				onOpenStarMap={handleStarMapToggle}
+				onOpenQuests={() => setQuestsOpen(true)}
 				onClose={() => setDrawerOpen(false)}
+				questCount={progressionOverview?.questTrackerCount ?? 0}
 				open={drawerOpen}
 			/>
+
+			<QuestsModal activeColonyId={colonyIdAsId} onOpenChange={setQuestsOpen} open={questsOpen} />
 
 			<NotificationsModal
 				activeColonyId={colonyIdAsId}
@@ -579,6 +628,17 @@ export function AppHeader({
 			/>
 		</>
 	);
+}
+
+function progressivePercent(args: {
+	nextRankXpRequired: number | null;
+	xpIntoCurrentRank: number;
+}) {
+	if (!args.nextRankXpRequired || args.nextRankXpRequired <= 0) {
+		return null;
+	}
+
+	return (args.xpIntoCurrentRank / args.nextRankXpRequired) * 100;
 }
 
 function ColonyRenameInput(props: {
