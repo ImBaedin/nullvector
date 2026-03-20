@@ -589,7 +589,7 @@ export function ResourceBuildingCard(props: {
 					<img
 						alt={building.name}
 						className="
-        h-full w-full object-cover opacity-90 transition-transform duration-300
+        size-full object-cover opacity-90 transition-transform duration-300
         group-hover:scale-105
       "
 						draggable={false}
@@ -609,8 +609,8 @@ export function ResourceBuildingCard(props: {
 						<div className="min-w-0">
 							<h3
 								className="
-         font-(family-name:--nv-font-display) text-sm leading-tight font-bold
-       "
+          font-(family-name:--nv-font-display) text-sm/tight  font-bold
+        "
 							>
 								{building.name}
 							</h3>
@@ -946,11 +946,7 @@ export function ResourceBuildingCard(props: {
 								>
 									{effectiveOutputPerMinute.toLocaleString()}
 								</span>
-								<span
-									className="
-          font-(family-name:--nv-font-mono) text-[9px] text-white/35
-        "
-								>
+								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/35">
 									/m
 								</span>
 							</div>

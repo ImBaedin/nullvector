@@ -1,6 +1,7 @@
 import {
 	getProgressionOverview as getSharedProgressionOverview,
 	getQuestDefinition,
+	getRankDefinition,
 	type FeatureAccessState,
 	type FeatureKey,
 } from "@nullvector/game-logic";
@@ -108,9 +109,7 @@ export async function grantProgressionXp(args: {
 	amount: number;
 	ctx: MutationCtx;
 	playerId: Id<"players">;
-	source: "contract" | "quest";
 }) {
-	void args.source;
 	const progression = await ensurePlayerProgression({
 		ctx: args.ctx,
 		playerId: args.playerId,
@@ -127,13 +126,9 @@ async function getQuestTrackerCount(args: {
 }) {
 	const rows = await args.ctx.db
 		.query("playerQuestStates")
-		.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "active"))
+		.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId))
 		.collect();
-	const claimableRows = await args.ctx.db
-		.query("playerQuestStates")
-		.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "claimable"))
-		.collect();
-	return rows.length + claimableRows.length;
+	return rows.filter((row) => row.status === "active" || row.status === "claimable").length;
 }
 
 function mapFeatures(features: Record<FeatureKey, FeatureAccessState>) {
@@ -148,20 +143,66 @@ function mapFeatures(features: Record<FeatureKey, FeatureAccessState>) {
 	};
 }
 
+function deriveRankXpTotal(
+	playerId: Id<"players">,
+	progression:
+		| {
+				rankXpTotal?: number;
+				rank?: number;
+				rankXp?: number;
+		  }
+		| null
+		| undefined,
+) {
+	if (typeof progression?.rankXpTotal === "number" && Number.isFinite(progression.rankXpTotal)) {
+		return Math.max(0, Math.floor(progression.rankXpTotal));
+	}
+	if (typeof progression?.rank === "number" || typeof progression?.rankXp === "number") {
+		const legacyRank = Math.max(0, Math.floor(progression?.rank ?? 0));
+		const legacyXp = Math.max(0, Math.floor(progression?.rankXp ?? 0));
+		return getRankDefinition(legacyRank).totalXpRequired + legacyXp;
+	}
+	return defaultPlayerProgression(playerId).rankXpTotal;
+}
+
+async function loadProgressionState(args: {
+	ctx: QueryCtx | MutationCtx;
+	playerId: Id<"players">;
+}) {
+	const progression = await args.ctx.db
+		.query("playerProgression")
+		.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+		.unique();
+	const current = progression ?? defaultPlayerProgression(args.playerId);
+	return {
+		current,
+		rankXpTotal: deriveRankXpTotal(args.playerId, progression),
+	};
+}
+
+export async function buildProgressionRules(args: {
+	ctx: QueryCtx | MutationCtx;
+	playerId: Id<"players">;
+}) {
+	const { rankXpTotal } = await loadProgressionState(args);
+	return getSharedProgressionOverview({
+		rankXpTotal,
+	});
+}
+
 export async function buildProgressionOverview(args: {
 	ctx: QueryCtx | MutationCtx;
 	player: { _id: Id<"players">; displayName: string };
 }) {
-	const [progression, questTrackerCount] = await Promise.all([
-		args.ctx.db
-			.query("playerProgression")
-			.withIndex("by_player_id", (q) => q.eq("playerId", args.player._id))
-			.unique(),
+	const [{ current, rankXpTotal }, questTrackerCount] = await Promise.all([
+		loadProgressionState({
+			ctx: args.ctx,
+			playerId: args.player._id,
+		}),
 		getQuestTrackerCount({ ctx: args.ctx, playerId: args.player._id }),
 	]);
-	const current = progression ?? defaultPlayerProgression(args.player._id);
 	const overview = getSharedProgressionOverview({
-		rankXpTotal: current.rankXpTotal,
+		rankXpTotal,
 		questTrackerCount,
 	});
 	return {

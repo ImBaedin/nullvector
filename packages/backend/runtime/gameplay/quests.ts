@@ -153,22 +153,14 @@ async function readQuestRowsByPlayer(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
-	const [rows, claimable, claimed] = await Promise.all([
-		args.ctx.db
-			.query("playerQuestStates")
-			.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "active"))
-			.collect(),
-		args.ctx.db
-			.query("playerQuestStates")
-			.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "claimable"))
-			.collect(),
-		args.ctx.db
-			.query("playerQuestStates")
-			.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "claimed"))
-			.collect(),
-	]);
-	return [...rows, ...claimable, ...claimed];
-}
+	const rows = await args.ctx.db
+		.query("playerQuestStates")
+		.withIndex("by_player", (q) => q.eq("playerId", args.playerId))
+		.collect();
+	const active = rows.filter((row) => row.status === "active");
+	const claimable = rows.filter((row) => row.status === "claimable");
+	const claimed = rows.filter((row) => row.status === "claimed");
+	return [...active, ...claimable, ...claimed];
 }
 
 function arePrerequisitesSatisfied(args: {
@@ -224,6 +216,11 @@ async function applyResourceRewards(args: {
 			? colonies.find((colony) => colony._id === args.bindings.colonyId)
 			: null) ?? colonies[0];
 	if (!targetColony) {
+		console.error("Quest resource rewards skipped because no target colony was found", {
+			boundColonyId: args.bindings.colonyId,
+			colonyCount: colonies.length,
+			playerId: args.playerId,
+		});
 		return;
 	}
 	const colony = await loadColonyState({
@@ -500,7 +497,6 @@ export const claim = mutation({
 					ctx,
 					playerId: playerResult.player._id,
 					amount: reward.amount,
-					source: "quest",
 				});
 				continue;
 			}

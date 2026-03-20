@@ -24,7 +24,7 @@ import {
 import { RESOURCE_SCALE } from "../../convex/schema";
 import { colonySystemCoords, durationMsForFleet, euclideanDistance } from "./fleetV2";
 import { emitRaidIncomingNotification, emitRaidResolvedNotification } from "./notifications";
-import { buildProgressionOverview } from "./progression";
+import { buildProgressionRules } from "./progression";
 import {
 	cloneResourceBucket,
 	emptyResourceBucket,
@@ -277,9 +277,9 @@ async function reconcileNpcRaidScheduleForColony(args: {
 	if (!player) {
 		throw new ConvexError("Player not found");
 	}
-	const progression = await buildProgressionOverview({
+	const progression = await buildProgressionRules({
 		ctx: args.ctx,
-		player,
+		playerId: player._id,
 	});
 	const now = Date.now();
 	if (!progression.raidRules.enabled) {
@@ -360,9 +360,9 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 	if (!player) {
 		throw new ConvexError("Player not found");
 	}
-	const progression = await buildProgressionOverview({
+	const progression = await buildProgressionRules({
 		ctx: args.ctx,
-		player,
+		playerId: player._id,
 	});
 	if (!progression.raidRules.enabled) {
 		await setNextNpcRaidAtForColony({
@@ -811,9 +811,9 @@ export const reconcileDueNpcRaids = internalMutation({
 				if (!player) {
 					throw new ConvexError("Player not found");
 				}
-				const progression = await buildProgressionOverview({
+				const progression = await buildProgressionRules({
 					ctx,
-					player,
+					playerId: player._id,
 				});
 				await setNextNpcRaidAtForColony({
 					colony,

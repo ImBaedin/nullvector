@@ -406,11 +406,7 @@ export function AppHeader({
        "
 						>
 							{progressionOverview ? (
-								<div
-									className="
-          mr-1 flex items-center gap-2 border-r border-white/8 pr-3
-        "
-								>
+								<div className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3">
 									<div className="flex items-center gap-2">
 										<div
 											className="
@@ -434,23 +430,56 @@ export function AppHeader({
 										</div>
 									</div>
 									{progressionOverview.nextRankXpRequired ? (
-										<div className="hidden min-w-28 lg:block">
-											<p className="text-[8px] tracking-[0.12em] text-white/25 uppercase">XP</p>
-											<div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/8">
-												<div
-													className="h-full rounded-full bg-[linear-gradient(90deg,#fbbf24,#fde68a)]"
-													style={{
-														width: `${Math.max(
-															0,
-															Math.min(100, progressivePercent(progressionOverview) ?? 0),
-														)}%`,
-													}}
-												/>
-											</div>
-											<p className="mt-1 text-[8px] text-white/35">
-												{progressionOverview.xpIntoCurrentRank.toLocaleString()} /{" "}
-												{progressionOverview.nextRankXpRequired.toLocaleString()}
-											</p>
+										<div
+											className="
+            hidden min-w-28
+            lg:block
+          "
+										>
+											{(() => {
+												const rankXpSpan =
+													progressionOverview.xpIntoCurrentRank +
+													(progressionOverview.xpToNextRank ?? 0);
+												return (
+													<>
+														<p
+															className="
+                text-[8px] tracking-[0.12em] text-white/25 uppercase
+              "
+														>
+															XP
+														</p>
+														<div
+															className="
+                mt-1 h-1.5 overflow-hidden rounded-full bg-white/8
+              "
+														>
+															<div
+																className="
+                  h-full rounded-full
+                  bg-[linear-gradient(90deg,#fbbf24,#fde68a)]
+                "
+																style={{
+																	width: `${Math.max(
+																		0,
+																		Math.min(
+																			100,
+																			progressivePercent({
+																				rankXpSpan,
+																				xpIntoCurrentRank: progressionOverview.xpIntoCurrentRank,
+																			}) ?? 0,
+																		),
+																	)}%`,
+																}}
+															/>
+														</div>
+														<p className="mt-1 text-[8px] text-white/35">
+															{progressionOverview.xpIntoCurrentRank.toLocaleString()} /{" "}
+															{rankXpSpan.toLocaleString()}
+														</p>
+													</>
+												);
+											})()}
 										</div>
 									) : null}
 									<div
@@ -630,15 +659,12 @@ export function AppHeader({
 	);
 }
 
-function progressivePercent(args: {
-	nextRankXpRequired: number | null;
-	xpIntoCurrentRank: number;
-}) {
-	if (!args.nextRankXpRequired || args.nextRankXpRequired <= 0) {
+function progressivePercent(args: { rankXpSpan: number; xpIntoCurrentRank: number }) {
+	if (args.rankXpSpan <= 0) {
 		return null;
 	}
 
-	return (args.xpIntoCurrentRank / args.nextRankXpRequired) * 100;
+	return (args.xpIntoCurrentRank / args.rankXpSpan) * 100;
 }
 
 function ColonyRenameInput(props: {

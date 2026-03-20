@@ -31,6 +31,22 @@ const bootstrapResponseValidator = v.object({
 	isNewColony: v.boolean(),
 });
 
+async function syncQuestAvailabilityBestEffort(args: {
+	activeColonyId: Doc<"colonies">["_id"];
+	ctx: MutationCtx;
+	playerId: Doc<"players">["_id"];
+}) {
+	try {
+		await syncQuestAvailabilityForPlayer(args);
+	} catch (error) {
+		console.error("Session quest sync failed", {
+			activeColonyId: args.activeColonyId,
+			error,
+			playerId: args.playerId,
+		});
+	}
+}
+
 async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	const authUser = await authComponent.safeGetAuthUser(ctx);
 	if (!authUser) {
@@ -87,7 +103,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	});
 
 	if (existingColonies.length > 0 && existingColonies[0]) {
-		await syncQuestAvailabilityForPlayer({
+		await syncQuestAvailabilityBestEffort({
 			ctx,
 			playerId: player._id,
 			activeColonyId: existingColonies[0]._id,
@@ -283,7 +299,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	await ctx.scheduler.runAfter(0, internal.contracts.rebuildContractDiscoveryForColony, {
 		colonyId,
 	});
-	await syncQuestAvailabilityForPlayer({
+	await syncQuestAvailabilityBestEffort({
 		ctx,
 		playerId: player._id,
 		activeColonyId: colonyId,

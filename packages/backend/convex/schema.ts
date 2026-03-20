@@ -476,6 +476,7 @@ export default defineSchema({
 		updatedAt: v.number(),
 	})
 		.index("by_player_quest", ["playerId", "questId"])
+		.index("by_player", ["playerId"])
 		.index("by_player_status", ["playerId", "status"]),
 
 	devConsoleActions: defineTable({

@@ -74,15 +74,13 @@ export function useHeaderData() {
 	const isCompact = useCompactHeaderMode();
 
 	useEffect(() => {
-		if (!isAuthenticated) {
+		if (!isAuthenticated || !colonyIdAsId) {
 			return;
 		}
 
-		void syncQuestAvailability(colonyIdAsId ? { activeColonyId: colonyIdAsId } : {}).catch(
-			(error) => {
-				toast.error(error instanceof Error ? error.message : "Failed to sync quests");
-			},
-		);
+		void syncQuestAvailability({ activeColonyId: colonyIdAsId }).catch((error) => {
+			toast.error(error instanceof Error ? error.message : "Failed to sync quests");
+		});
 	}, [colonyIdAsId, isAuthenticated, syncQuestAvailability]);
 
 	const hud = useMemo<HeaderHudData | undefined>(() => {

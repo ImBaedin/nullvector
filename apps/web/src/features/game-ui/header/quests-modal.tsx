@@ -99,9 +99,9 @@ function QuestCard({
 						<div className="space-y-1.5" key={`${item.id}:objective:${index}`}>
 							<div className="flex items-center justify-between gap-3 text-[11px]">
 								<span className="text-(--nv-text-secondary)">Objective {index + 1}</span>
-								<span
-									className={objective.complete ? "text-emerald-200/80" : "text-(--nv-text-muted)"}
-								>
+								<span className={objective.complete ? "text-emerald-200/80" : `
+           text-(--nv-text-muted)
+         `}>
 									{objective.current.toLocaleString()} / {objective.required.toLocaleString()}
 								</span>
 							</div>
@@ -162,6 +162,9 @@ export function QuestsModal({
 	);
 
 	function handleClaim(questId: string) {
+		if (syncing) {
+			return;
+		}
 		setClaimingQuestId(questId);
 		void claimQuest({ questId })
 			.then(() => {
@@ -180,35 +183,57 @@ export function QuestsModal({
 			<Dialog.Portal>
 				<Dialog.Backdrop
 					className="
-						fixed inset-0 z-95 bg-[rgba(3,6,12,0.72)] backdrop-blur-sm transition-all duration-200
-						data-ending-style:opacity-0 data-starting-style:opacity-0
-					"
+       fixed inset-0 z-95 bg-[rgba(3,6,12,0.72)] backdrop-blur-sm transition-all
+       duration-200
+       data-ending-style:opacity-0
+       data-starting-style:opacity-0
+     "
 				/>
 				<Dialog.Popup
 					className="
-						fixed top-1/2 left-1/2 z-100 flex h-[min(88vh,720px)] w-[min(96vw,720px)]
-						-translate-1/2 flex-col overflow-hidden rounded-2xl border border-white/10
-						bg-[linear-gradient(170deg,rgba(10,16,28,0.97),rgba(6,10,18,0.99))]
-						shadow-[0_24px_80px_rgba(0,0,0,0.6)] transition-all duration-200
-						data-ending-style:scale-95 data-ending-style:opacity-0
-						data-starting-style:scale-95 data-starting-style:opacity-0
-					"
+       fixed top-1/2 left-1/2 z-100 flex h-[min(88vh,720px)] w-[min(96vw,720px)]
+       -translate-1/2 flex-col overflow-hidden rounded-2xl border
+       border-white/10
+       bg-[linear-gradient(170deg,rgba(10,16,28,0.97),rgba(6,10,18,0.99))]
+       shadow-[0_24px_80px_rgba(0,0,0,0.6)] transition-all duration-200
+       data-ending-style:scale-95 data-ending-style:opacity-0
+       data-starting-style:scale-95 data-starting-style:opacity-0
+     "
 				>
-					<div className="flex items-center justify-between border-b border-white/8 px-6 py-4">
+					<div
+						className="
+       flex items-center justify-between border-b border-white/8 px-6 py-4
+     "
+					>
 						<div className="flex items-center gap-2.5">
 							<ScrollText className="size-4 text-cyan-400/70" />
-							<Dialog.Title className="font-(family-name:--nv-font-display) text-sm font-bold">
+							<Dialog.Title
+								className="
+         font-(family-name:--nv-font-display) text-sm font-bold
+       "
+							>
 								Quest Tracker
 							</Dialog.Title>
 							{tracker?.items.length ? (
-								<span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-400/15 px-1.5 text-[10px] font-bold text-cyan-300">
+								<span
+									className="
+          flex h-5 min-w-5 items-center justify-center rounded-full
+          bg-cyan-400/15 px-1.5 text-[10px] font-bold text-cyan-300
+        "
+								>
 									{tracker.items.length}
 								</span>
 							) : null}
 						</div>
 						<div className="flex items-center gap-2">
 							{syncing ? <LoaderCircle className="size-4 animate-spin text-white/40" /> : null}
-							<Dialog.Close className="rounded-md border border-white/12 bg-white/3 p-1.5 text-white/50 transition hover:bg-white/6 hover:text-white/80">
+							<Dialog.Close
+								className="
+         rounded-md border border-white/12 bg-white/3 p-1.5 text-white/50
+         transition
+         hover:bg-white/6 hover:text-white/80
+       "
+							>
 								<X className="size-4" />
 							</Dialog.Close>
 						</div>
@@ -219,7 +244,11 @@ export function QuestsModal({
 							<section className="space-y-3">
 								<div className="flex items-center justify-between gap-3">
 									<div>
-										<p className="text-xs font-semibold tracking-[0.12em] text-white/40 uppercase">
+										<p
+											className="
+            text-xs font-semibold tracking-[0.12em] text-white/40 uppercase
+          "
+										>
 											Tracker
 										</p>
 										<p className="mt-1 text-xs text-(--nv-text-muted)">
@@ -237,7 +266,7 @@ export function QuestsModal({
 												action={
 													item.claimable ? (
 														<NvButton
-															disabled={claimingQuestId === item.id}
+															disabled={syncing || claimingQuestId === item.id}
 															onClick={() => {
 																handleClaim(item.id);
 															}}
@@ -271,7 +300,11 @@ export function QuestsModal({
 
 							<section className="space-y-3 border-t border-white/8 pt-5">
 								<div>
-									<p className="text-xs font-semibold tracking-[0.12em] text-white/40 uppercase">
+									<p
+										className="
+           text-xs font-semibold tracking-[0.12em] text-white/40 uppercase
+         "
+									>
 										Log
 									</p>
 									<p className="mt-1 text-xs text-(--nv-text-muted)">

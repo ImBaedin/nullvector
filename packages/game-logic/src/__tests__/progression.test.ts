@@ -5,6 +5,7 @@ import {
 	evaluateQuestDefinition,
 	getProgressionOverview,
 	getRankForXpTotal,
+	RANK_DEFINITIONS,
 } from "../progression";
 
 test("progression overview derives rank and colony cap from total xp", () => {
@@ -16,10 +17,11 @@ test("progression overview derives rank and colony cap from total xp", () => {
 	expect(rankZero.raidRules.enabled).toBe(false);
 
 	const rankFive = getRankForXpTotal(1_000);
-	expect(rankFive.rank).toBeGreaterThanOrEqual(5);
 	const overview = getProgressionOverview({
 		rankXpTotal: rankFive.totalXpRequired,
 	});
+	expect(overview.rank).toBe(rankFive.rank);
+	expect(rankFive.totalXpRequired).toBe(RANK_DEFINITIONS[rankFive.rank]?.totalXpRequired);
 	expect(overview.colonyCap).toBe(2);
 	expect(overview.features.colonization).toBe("unlocked");
 	expect(overview.raidRules.enabled).toBe(true);

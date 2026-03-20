@@ -74,15 +74,11 @@ export function MissionPlannerPanel(props: MissionPlannerPanelProps) {
 		<div className="lg:sticky lg:top-4 lg:self-start">
 			<div
 				className="
-     rounded-2xl border border-white/12
-     bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
-   "
-			>
-				<header
-					className="
-      flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
+      rounded-2xl border border-white/12
+      bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
     "
-				>
+			>
+				<header className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5">
 					<Rocket className="size-5 text-cyan-300" />
 					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 						Plan Expedition
@@ -162,23 +158,19 @@ function MissionTypeSection(props: {
 			<div className="mt-1.5 flex gap-2">
 				{(["transport", "colonize"] as const).map((type) => (
 					<button className={`
-        flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2
-        text-xs font-semibold transition-all
-        ${props.missionType === type ? `
-            border-cyan-300/40 bg-cyan-400/12 text-cyan-100
-          ` : `
-            border-white/10 bg-white/3 text-white/40
-            hover:text-white/60
-          `}
-      `} key={type} onClick={() => props.onMissionTypeChange(type)} type="button">
+       flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2
+       text-xs font-semibold transition-all
+       ${props.missionType === type ? `
+         border-cyan-300/40 bg-cyan-400/12 text-cyan-100
+       ` : `
+          border-white/10 bg-white/3 text-white/40
+          hover:text-white/60
+        `}
+     `} key={type} onClick={() => props.onMissionTypeChange(type)} type="button">
 						{type === "transport" ? (
 							<Package className="size-3.5" />
 						) : (
-							<Globe2
-								className="
-        size-3.5
-      "
-							/>
+							<Globe2 className="size-3.5" />
 						)}
 						<span className="capitalize">{type}</span>
 					</button>
@@ -207,18 +199,18 @@ function DestinationSection(props: {
 			{props.targetResolution?.ok && props.targetResolution.targetPreview ? (
 				<p
 					className="
-      mt-1.5 rounded-lg border border-cyan-300/20 bg-cyan-400/6 px-3 py-2
-      text-[11px] text-cyan-100
-    "
+       mt-1.5 rounded-lg border border-cyan-300/20 bg-cyan-400/6 px-3 py-2
+       text-[11px] text-cyan-100
+     "
 				>
 					{props.targetResolution.targetPreview.label}
 				</p>
 			) : null}
 
 			<div className={`
-      mt-1.5 grid grid-cols-4 gap-1.5 transition-opacity
-      ${props.selectedColonyId ? "opacity-35" : ""}
-    `}>
+     mt-1.5 grid grid-cols-4 gap-1.5 transition-opacity
+     ${props.selectedColonyId ? "opacity-35" : ""}
+   `}>
 				{(["g", "s", "ss", "p"] as const).map((field, index) => (
 					<div key={field}>
 						<span className="block text-center text-[7px] text-white/25 uppercase">
@@ -249,68 +241,64 @@ function DestinationSection(props: {
 			{props.missionType === "transport" ? (
 				<div className="mt-2">
 					<button className={`
-        flex w-full items-center justify-between gap-1.5 rounded-lg border px-3
-        py-2 text-[10px] transition-all
-        ${props.colonyPickerOpen ? `
-            border-cyan-300/30 bg-cyan-400/6 text-cyan-100
-          ` : `
-            border-dashed border-white/10 text-white/30
-            hover:border-cyan-300/20 hover:text-cyan-200/50
-          `}
-      `} onClick={() => props.onSetColonyPickerOpen(!props.colonyPickerOpen)} type="button">
+       flex w-full items-center justify-between gap-1.5 rounded-lg border px-3
+       py-2 text-[10px] transition-all
+       ${props.colonyPickerOpen ? `
+         border-cyan-300/30 bg-cyan-400/6 text-cyan-100
+       ` : `
+          border-dashed border-white/10 text-white/30
+          hover:border-cyan-300/20 hover:text-cyan-200/50
+        `}
+     `} onClick={() => props.onSetColonyPickerOpen(!props.colonyPickerOpen)} type="button">
 						<span className="flex items-center gap-1.5">
 							<Globe2 className="size-3" />
 							My Colonies
 						</span>
 						<ChevronDown className={`
-         size-3 transition-transform duration-200
-         ${props.colonyPickerOpen ? "rotate-180" : ""}
-       `} />
+        size-3 transition-transform duration-200
+        ${props.colonyPickerOpen ? "rotate-180" : ""}
+      `} />
 					</button>
 
 					{props.colonyPickerOpen ? (
 						<div className="pt-1 pb-0.5">
 							{props.nonCurrentColonies.map((colony) => (
 								<button className={`
-           group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2
-           text-left transition-colors
-           hover:bg-white/[0.035]
-           ${props.selectedColonyId === colony.id ? "bg-cyan-400/6" : ""}
-         `} key={colony.id} onClick={() => props.onSelectColony(colony.id)} type="button">
+          group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2
+          text-left transition-colors
+          hover:bg-white/[0.035]
+          ${props.selectedColonyId === colony.id ? "bg-cyan-400/6" : ""}
+        `} key={colony.id} onClick={() => props.onSelectColony(colony.id)} type="button">
 									<div
 										className="
-           flex size-7 shrink-0 items-center justify-center rounded-md border
-           border-white/10
-           bg-[linear-gradient(150deg,rgba(61,217,255,0.08),rgba(255,145,79,0.08))]
-           text-[8px] font-bold text-white/60 transition-colors
-           group-hover:border-cyan-300/20 group-hover:text-white/80
-         "
+            flex size-7 shrink-0 items-center justify-center rounded-md border
+            border-white/10
+            bg-[linear-gradient(150deg,rgba(61,217,255,0.08),rgba(255,145,79,0.08))]
+            text-[8px] font-bold text-white/60 transition-colors
+            group-hover:border-cyan-300/20 group-hover:text-white/80
+          "
 									>
 										{colony.name.slice(0, 2).toUpperCase()}
 									</div>
 									<div className="min-w-0 flex-1">
 										<p
 											className="
-            truncate text-[11px] font-semibold text-white/80 transition-colors
-            group-hover:text-white
-          "
+             truncate text-[11px] font-semibold text-white/80 transition-colors
+             group-hover:text-white
+           "
 										>
 											{colony.name}
 										</p>
 										<p
 											className="
-            font-(family-name:--nv-font-mono) text-[9px] text-white/25
-          "
+             font-(family-name:--nv-font-mono) text-[9px] text-white/25
+           "
 										>
 											{colony.addressLabel}
 										</p>
 									</div>
 									{props.selectedColonyId === colony.id ? (
-										<Check
-											className="
-           size-3 shrink-0 text-cyan-300
-         "
-										/>
+										<Check className="size-3 shrink-0 text-cyan-300" />
 									) : null}
 								</button>
 							))}
@@ -320,9 +308,10 @@ function DestinationSection(props: {
 					{props.selectedColonyId ? (
 						<button
 							className="
-        mt-1 inline-flex items-center gap-1 text-[10px] text-cyan-200/70
-        transition-colors hover:text-cyan-100
-      "
+         mt-1 inline-flex items-center gap-1 text-[10px] text-cyan-200/70
+         transition-colors
+         hover:text-cyan-100
+       "
 							onClick={() => props.onSetSelectedColonyId(null)}
 							type="button"
 						>
@@ -360,9 +349,9 @@ function RoundTripSection(props: {
 	return (
 		<div
 			className="
-    flex items-center justify-between rounded-lg border border-white/8
-    bg-black/15 p-2.5
-  "
+     flex items-center justify-between rounded-lg border border-white/8
+     bg-black/15 p-2.5
+   "
 		>
 			<div className="flex items-center gap-2">
 				<RotateCcw className={`
@@ -378,8 +367,8 @@ function RoundTripSection(props: {
 				className={`
       relative h-6 w-10 rounded-full border transition-all
       ${props.roundTrip ? "border-cyan-300/40 bg-cyan-400/20" : `
-          border-white/15 bg-white/8
-        `}
+        border-white/15 bg-white/8
+      `}
     `}
 				disabled={props.missionType === "colonize"}
 				onClick={() => props.onRoundTripChange(!props.roundTrip)}
@@ -459,8 +448,8 @@ function CargoSection(props: {
 				<div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/8">
 					<div
 						className="
-       h-full rounded-full bg-linear-to-r from-cyan-400/60 to-cyan-300/40
-     "
+        h-full rounded-full bg-linear-to-r from-cyan-400/60 to-cyan-300/40
+      "
 						style={{ width: `${Math.min(100, (props.cargoUsed / props.cargoCapacity) * 100)}%` }}
 					/>
 				</div>
@@ -518,9 +507,9 @@ function LaunchSummarySection(props: {
 	return (
 		<div
 			className="
-    rounded-lg border border-white/8 bg-black/20 px-3 py-2 text-[10px]
-    text-white/55
-  "
+     rounded-lg border border-white/8 bg-black/20 px-3 py-2 text-[10px]
+     text-white/55
+   "
 		>
 			<p>
 				Resources after launch: Alloy {remainingAlloy.toLocaleString()} / Crystal{" "}
@@ -563,8 +552,8 @@ function SectionLabel(props: { children: string }) {
 	return (
 		<p
 			className="
-   text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
- "
+     text-[10px] font-semibold tracking-[0.14em] text-white/45 uppercase
+   "
 		>
 			{props.children}
 		</p>
@@ -577,8 +566,8 @@ function MetricCard(props: { label: string; value: string }) {
 			<p className="text-[8px] tracking-widest text-cyan-200/45 uppercase">{props.label}</p>
 			<p
 				className="
-     mt-0.5 font-(family-name:--nv-font-mono) text-xs font-bold text-cyan-100
-   "
+      mt-0.5 font-(family-name:--nv-font-mono) text-xs font-bold text-cyan-100
+    "
 			>
 				{props.value}
 			</p>

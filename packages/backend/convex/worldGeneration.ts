@@ -232,20 +232,32 @@ export const wipeUniverse = mutation({
 			playerProgression: await deleteAllByQuery({
 				ctx,
 				dryRun,
-				queryFactory: () =>
-					ctx.db
-						.query("playerProgression")
-						.collect()
-						.then((rows) => rows.filter((row) => playerIdSet.has(row.playerId))),
+				queryFactory: async () =>
+					(
+						await Promise.all(
+							Array.from(playerIdSet).map((playerId) =>
+								ctx.db
+									.query("playerProgression")
+									.withIndex("by_player_id", (q) => q.eq("playerId", playerId))
+									.collect(),
+							),
+						)
+					).flat(),
 			}),
 			playerQuestStates: await deleteAllByQuery({
 				ctx,
 				dryRun,
-				queryFactory: () =>
-					ctx.db
-						.query("playerQuestStates")
-						.collect()
-						.then((rows) => rows.filter((row) => playerIdSet.has(row.playerId))),
+				queryFactory: async () =>
+					(
+						await Promise.all(
+							Array.from(playerIdSet).map((playerId) =>
+								ctx.db
+									.query("playerQuestStates")
+									.withIndex("by_player", (q) => q.eq("playerId", playerId))
+									.collect(),
+							),
+						)
+					).flat(),
 			}),
 			devConsoleActions: await deleteAllByQuery({
 				ctx,
@@ -254,13 +266,12 @@ export const wipeUniverse = mutation({
 					ctx.db
 						.query("devConsoleActions")
 						.collect()
-						.then(
-							(rows) =>
-								rows.filter(
-									(row) =>
-										playerIdSet.has(row.actorPlayerId) ||
-										(row.targetColonyId !== undefined && colonyIdSet.has(row.targetColonyId)),
-								),
+						.then((rows) =>
+							rows.filter(
+								(row) =>
+									playerIdSet.has(row.actorPlayerId) ||
+									(row.targetColonyId !== undefined && colonyIdSet.has(row.targetColonyId)),
+							),
 						),
 			}),
 			fleetOperations: await deleteAllByQuery({
