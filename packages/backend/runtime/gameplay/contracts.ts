@@ -368,6 +368,15 @@ function sequenceForSlot(slotSequences: number[], slot: number) {
 	return slotSequences[slot] ?? 1;
 }
 
+function advanceSlotSequences(slotSequences: number[], slot: number) {
+	const nextSequences = [...slotSequences];
+	for (let index = 0; index < slot; index += 1) {
+		nextSequences[index] = nextSequences[index] ?? 1;
+	}
+	nextSequences[slot] = sequenceForSlot(nextSequences, slot) + 1;
+	return nextSequences;
+}
+
 async function getOrCreateBoardState(args: {
 	ctx: MutationCtx;
 	colony: Doc<"colonies">;
@@ -921,8 +930,7 @@ export async function advanceContractBoardSlot(args: {
 		planetId: args.planetId,
 		playerId: args.playerId,
 	});
-	const slotSequences = [...boardState.slotSequences];
-	slotSequences[args.slot] = sequenceForSlot(slotSequences, args.slot) + 1;
+	const slotSequences = advanceSlotSequences(boardState.slotSequences, args.slot);
 	await args.ctx.db.patch(boardState._id, {
 		slotSequences,
 		version: boardState.version + 1,
