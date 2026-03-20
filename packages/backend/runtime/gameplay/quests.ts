@@ -458,15 +458,16 @@ export const claim = mutation({
 		if (!playerResult?.player) {
 			throw new ConvexError("Authentication required");
 		}
+		const playerId = playerResult.player._id;
 		const definition = requireQuestDefinition(args.questId);
 		await syncQuestAvailabilityForPlayer({
 			ctx,
-			playerId: playerResult.player._id,
+			playerId,
 		});
 		const row = await ctx.db
 			.query("playerQuestStates")
 			.withIndex("by_player_quest", (q) =>
-				q.eq("playerId", playerResult.player._id).eq("questId", definition.id),
+				q.eq("playerId", playerId).eq("questId", definition.id),
 			)
 			.unique();
 		if (!row) {
@@ -480,7 +481,7 @@ export const claim = mutation({
 		}
 		const questContext = await buildQuestEvaluationContext({
 			ctx,
-			playerId: playerResult.player._id,
+			playerId,
 		});
 		const evaluation = evaluateQuestDefinition({
 			quest: definition,
@@ -495,7 +496,7 @@ export const claim = mutation({
 			if (reward.kind === "xp") {
 				await grantProgressionXp({
 					ctx,
-					playerId: playerResult.player._id,
+						playerId,
 					amount: reward.amount,
 				});
 				continue;
@@ -503,14 +504,14 @@ export const claim = mutation({
 			if (reward.kind === "credits") {
 				await grantPlayerCredits({
 					ctx,
-					playerId: playerResult.player._id,
+						playerId,
 					amount: reward.amount,
 				});
 				continue;
 			}
 			await applyResourceRewards({
 				ctx,
-				playerId: playerResult.player._id,
+					playerId,
 				now,
 				bindings: rowToBindings(row),
 				resources: reward.resources,
