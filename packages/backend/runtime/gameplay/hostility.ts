@@ -8,7 +8,11 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 
 import { mutation, query, type MutationCtx, type QueryCtx } from "../../convex/_generated/server";
-import { getOwnedColony, resolveUniverse } from "./shared";
+import {
+	requireOwnedColonyBase,
+	requireOwnedColonyRow,
+	resolveUniverse,
+} from "./shared";
 
 const MAX_HOSTILE_SECTOR_DETAILS = 6;
 
@@ -459,7 +463,7 @@ export const getHostileSectorsForUniverse = query({
 	},
 	returns: hostileSectorsResponseValidator,
 	handler: async (ctx, args) => {
-		const { colony, planet } = await getOwnedColony({
+		const { colony, planet } = await requireOwnedColonyBase({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -500,7 +504,7 @@ export const getHostileSectorDetail = query({
 	},
 	returns: hostileSectorDetailValidator,
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
+		const { colony } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -545,7 +549,7 @@ export const getHostileSectorDetails = query({
 				`Too many sectors requested; maximum is ${MAX_HOSTILE_SECTOR_DETAILS}.`,
 			);
 		}
-		const { colony } = await getOwnedColony({
+		const { colony } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});

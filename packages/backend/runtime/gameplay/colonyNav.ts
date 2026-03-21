@@ -6,11 +6,13 @@ import { mutation, query } from "../../convex/_generated/server";
 import {
 	colonyCoordinatesValidator,
 	colonyStatusValidator,
-	getOwnedColony,
-	listOpenColonyQueueItems,
+	getColonyRowOrThrow,
+	getPlanetRowOrThrow,
+	listOpenColonyQueueItemRows,
 	listPlayerColonies,
 	listPlayerColonyPlanets,
 	queueEventsNextAt,
+	requireOwnedColonyRow,
 	sessionColonyValidator,
 	toAddressLabel,
 } from "./shared";
@@ -53,7 +55,7 @@ export const getColonyNav = query({
 		colonies: v.array(sessionColonyValidator),
 	}),
 	handler: async (ctx, args) => {
-		const { colony, player } = await getOwnedColony({
+		const { colony, player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -91,11 +93,11 @@ export const getActiveColonyNextEvent = query({
 		nextEventAt: v.optional(v.number()),
 	}),
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
+		const { colony } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
-		const colonyQueueRows = await listOpenColonyQueueItems({
+		const colonyQueueRows = await listOpenColonyQueueItemRows({
 			colonyId: colony._id,
 			ctx,
 		});
@@ -129,7 +131,7 @@ export const getAllColonyQueueStatuses = query({
 		statuses: v.array(colonyStatusValidator),
 	}),
 	handler: async (ctx, args) => {
-		const { colony, player } = await getOwnedColony({
+		const { colony, player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -172,9 +174,13 @@ export const getColonyCoordinates = query({
 	},
 	returns: colonyCoordinatesValidator,
 	handler: async (ctx, args) => {
-		const { colony, planet } = await getOwnedColony({
+		const colony = await getColonyRowOrThrow({
 			ctx,
 			colonyId: args.colonyId,
+		});
+		const planet = await getPlanetRowOrThrow({
+			ctx,
+			planetId: colony.planetId,
 		});
 		const system = await ctx.db.get(planet.systemId);
 		if (!system) {
@@ -211,7 +217,7 @@ export const renameColony = mutation({
 		name: v.string(),
 	}),
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
+		const { colony } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});

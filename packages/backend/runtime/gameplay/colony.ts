@@ -5,12 +5,14 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 
 import { query, type QueryCtx } from "../../convex/_generated/server";
 import {
+	getColonyRowOrThrow,
+	getPlanetRowOrThrow,
 	listOpenColonyQueueItems,
 	queueEventsNextAt,
 	queueViewItemValidator,
 	readColonyDefenseCounts,
+	requireOwnedColonyRow,
 	resourceBucketValidator,
-	resolveCurrentPlayer,
 	storedToWholeUnits,
 	toAddressLabel,
 	toQueueViewItem,
@@ -99,32 +101,6 @@ export const colonyDefensesValidator = v.object({
 	defenses: defenseCountsValidator,
 });
 
-async function getOwnedColonyBase(args: { ctx: QueryCtx; colonyId: Id<"colonies"> }) {
-	const playerResult = await resolveCurrentPlayer(args.ctx);
-	if (!playerResult?.player) {
-		throw new ConvexError("Authentication required");
-	}
-
-	const colony = await args.ctx.db.get(args.colonyId);
-	if (!colony) {
-		throw new ConvexError("Colony not found");
-	}
-	if (colony.playerId !== playerResult.player._id) {
-		throw new ConvexError("Colony access denied");
-	}
-
-	const planet = await args.ctx.db.get(colony.planetId);
-	if (!planet) {
-		throw new ConvexError("Planet not found for colony");
-	}
-
-	return {
-		colony,
-		planet,
-		player: playerResult.player,
-	};
-}
-
 async function loadShipCounts(ctx: QueryCtx["db"], colonyId: Id<"colonies">) {
 	const rows = await ctx
 		.query("colonyShips")
@@ -153,9 +129,13 @@ export const getColonyIdentity = query({
 	},
 	returns: colonyIdentityValidator,
 	handler: async (ctx, args) => {
-		const { colony, planet } = await getOwnedColonyBase({
+		const colony = await getColonyRowOrThrow({
 			colonyId: args.colonyId,
 			ctx,
+		});
+		const planet = await getPlanetRowOrThrow({
+			ctx,
+			planetId: colony.planetId,
 		});
 
 		return {
@@ -173,7 +153,7 @@ export const getColonyEconomy = query({
 	returns: colonyEconomyValidator,
 	handler: async (ctx, args) => {
 		const serverNowMs = Date.now();
-		const { colony, planet } = await getOwnedColonyBase({
+		const { colony } = await requireOwnedColonyRow({
 			colonyId: args.colonyId,
 			ctx,
 		});
@@ -185,7 +165,7 @@ export const getColonyEconomy = query({
 				.unique(),
 			ctx.db
 				.query("planetEconomy")
-				.withIndex("by_planet_id", (q) => q.eq("planetId", planet._id))
+				.withIndex("by_planet_id", (q) => q.eq("planetId", colony.planetId))
 				.unique(),
 		]);
 
@@ -230,13 +210,9 @@ export const getColonyInfrastructure = query({
 	},
 	returns: colonyInfrastructureValidator,
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColonyBase({
-			colonyId: args.colonyId,
-			ctx,
-		});
 		const infrastructure = await ctx.db
 			.query("colonyInfrastructure")
-			.withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
+			.withIndex("by_colony_id", (q) => q.eq("colonyId", args.colonyId))
 			.unique();
 		if (!infrastructure) {
 			throw new ConvexError("Colony infrastructure row missing");
@@ -244,7 +220,7 @@ export const getColonyInfrastructure = query({
 
 		return {
 			buildings: normalizeBuildings(infrastructure.buildings),
-			colonyId: colony._id,
+			colonyId: args.colonyId,
 		};
 	},
 });
@@ -255,17 +231,13 @@ export const getColonyPolicy = query({
 	},
 	returns: colonyPolicyValidator,
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColonyBase({
-			colonyId: args.colonyId,
-			ctx,
-		});
 		const policy = await ctx.db
 			.query("colonyPolicy")
-			.withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
+			.withIndex("by_colony_id", (q) => q.eq("colonyId", args.colonyId))
 			.unique();
 
 		return {
-			colonyId: colony._id,
+			colonyId: args.colonyId,
 			policies: {
 				inboundMissionPolicy: policy?.inboundMissionPolicy,
 			},
@@ -280,7 +252,7 @@ export const getColonyQueueState = query({
 	returns: colonyQueueStateValidator,
 	handler: async (ctx, args) => {
 		const serverNowMs = Date.now();
-		const { colony } = await getOwnedColonyBase({
+		const { colony } = await requireOwnedColonyRow({
 			colonyId: args.colonyId,
 			ctx,
 		});
@@ -306,7 +278,7 @@ export const getColonyShips = query({
 	},
 	returns: colonyShipsValidator,
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColonyBase({
+		const { colony } = await requireOwnedColonyRow({
 			colonyId: args.colonyId,
 			ctx,
 		});
@@ -324,7 +296,7 @@ export const getColonyDefenses = query({
 	},
 	returns: colonyDefensesValidator,
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColonyBase({
+		const { colony } = await requireOwnedColonyRow({
 			colonyId: args.colonyId,
 			ctx,
 		});

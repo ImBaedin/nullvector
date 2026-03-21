@@ -12,9 +12,8 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 
 import { query, type QueryCtx } from "../../convex/_generated/server";
 import {
-	listOpenColonyQueueItems,
-	loadColonyState,
-	loadPlanetState,
+	getPublicColonyBaseOrThrow,
+	listOpenColonyQueueItemRows,
 	readColonyDefenseCounts,
 	resolveCurrentPlayer,
 	toAddressLabel,
@@ -541,30 +540,6 @@ async function readColonyShipCounts(args: { colonyId: Id<"colonies">; ctx: Query
 	return counts;
 }
 
-async function getPublicColonyOrThrow(args: { colonyId: Id<"colonies">; ctx: QueryCtx }) {
-	const colony = await args.ctx.db.get(args.colonyId);
-	if (!colony) {
-		throw new ConvexError("Colony not found");
-	}
-	const planet = await args.ctx.db.get(colony.planetId);
-	if (!planet) {
-		throw new ConvexError("Planet not found for colony");
-	}
-	const player = await args.ctx.db.get(colony.playerId);
-	if (!player) {
-		throw new ConvexError("Owner not found for colony");
-	}
-	const [colonyState, planetState] = await Promise.all([
-		loadColonyState({ colony, ctx: args.ctx }),
-		loadPlanetState({ planet, ctx: args.ctx }),
-	]);
-	return {
-		colony: colonyState,
-		planet: planetState,
-		player,
-	};
-}
-
 function getViewerRelation(args: {
 	ownerPlayerId: Id<"players">;
 	viewerPlayerId?: Id<"players">;
@@ -577,9 +552,9 @@ function getViewerRelation(args: {
 }
 
 async function readColonyOperationalOverview(args: {
-	colony: Awaited<ReturnType<typeof getPublicColonyOrThrow>>["colony"];
+	colonyId: Id<"colonies">;
 	ctx: QueryCtx;
-	playerId: Id<"players">;
+	ownerPlayerId: Id<"players">;
 }) {
 	const [
 		queueRows,
@@ -590,47 +565,47 @@ async function readColonyOperationalOverview(args: {
 		activeRaid,
 		lastRaidResult,
 	] = await Promise.all([
-		listOpenColonyQueueItems({
-			colonyId: args.colony._id,
+		listOpenColonyQueueItemRows({
+			colonyId: args.colonyId,
 			ctx: args.ctx,
 		}),
 		readColonyShipCounts({
-			colonyId: args.colony._id,
+			colonyId: args.colonyId,
 			ctx: args.ctx,
 		}),
 		readColonyDefenseCounts({
-			colonyId: args.colony._id,
+			colonyId: args.colonyId,
 			ctx: args.ctx,
 		}),
 		Promise.all([
 			args.ctx.db
 				.query("fleetOperations")
 				.withIndex("by_origin_stat_evt", (q) =>
-					q.eq("originColonyId", args.colony._id).eq("status", "inTransit"),
+					q.eq("originColonyId", args.colonyId).eq("status", "inTransit"),
 				)
 				.collect(),
 			args.ctx.db
 				.query("fleetOperations")
 				.withIndex("by_origin_stat_evt", (q) =>
-					q.eq("originColonyId", args.colony._id).eq("status", "returning"),
+					q.eq("originColonyId", args.colonyId).eq("status", "returning"),
 				)
 				.collect(),
 		]).then((rows) => rows.flat()),
 		args.ctx.db
 			.query("fleetOperations")
 			.withIndex("by_tcol_st_evt", (q) =>
-				q.eq("target.colonyId", args.colony._id).eq("status", "inTransit"),
+				q.eq("target.colonyId", args.colonyId).eq("status", "inTransit"),
 			)
 			.collect(),
 		args.ctx.db
 			.query("npcRaidOperations")
 			.withIndex("by_target_status_event", (q) =>
-				q.eq("targetColonyId", args.colony._id).eq("status", "inTransit"),
+				q.eq("targetColonyId", args.colonyId).eq("status", "inTransit"),
 			)
 			.first(),
 		args.ctx.db
 			.query("npcRaidResults")
-			.withIndex("by_target_colony_created_at", (q) => q.eq("targetColonyId", args.colony._id))
+			.withIndex("by_target_colony_created_at", (q) => q.eq("targetColonyId", args.colonyId))
 			.order("desc")
 			.first(),
 	]);
@@ -640,22 +615,22 @@ async function readColonyOperationalOverview(args: {
 	const inboundFriendlyCount = operations.filter(
 		(operation) =>
 			isInboundOperationForColony({
-				colonyId: args.colony._id,
+				colonyId: args.colonyId,
 				operation,
-			}) && operation.ownerPlayerId === args.playerId,
+			}) && operation.ownerPlayerId === args.ownerPlayerId,
 	).length;
 	const inboundHostileCount = operations.filter(
 		(operation) =>
 			isInboundOperationForColony({
-				colonyId: args.colony._id,
+				colonyId: args.colonyId,
 				operation,
-			}) && operation.ownerPlayerId !== args.playerId,
+			}) && operation.ownerPlayerId !== args.ownerPlayerId,
 	).length;
 	const outboundCount = operations.filter(
 		(operation) =>
-			operation.originColonyId === args.colony._id &&
+			operation.originColonyId === args.colonyId &&
 			!isInboundOperationForColony({
-				colonyId: args.colony._id,
+				colonyId: args.colonyId,
 				operation,
 			}),
 	).length;
@@ -712,15 +687,15 @@ export const getColonyOverviewHeader = query({
 	handler: async (ctx, args) => {
 		const [viewer, publicColony] = await Promise.all([
 			resolveCurrentPlayer(ctx),
-			getPublicColonyOrThrow({
+			getPublicColonyBaseOrThrow({
 				colonyId: args.colonyId,
 				ctx,
 			}),
 		]);
 		const { status } = await readColonyOperationalOverview({
-			colony: publicColony.colony,
+			colonyId: publicColony.colony._id,
 			ctx,
-			playerId: publicColony.player._id,
+			ownerPlayerId: publicColony.player._id,
 		});
 		const classification: "RESTRICTED" | "CLASSIFIED" =
 			status === "under attack" || status === "high traffic" ? "CLASSIFIED" : "RESTRICTED";
@@ -753,28 +728,44 @@ export const getColonyOverviewPlanet = query({
 	},
 	returns: colonyOverviewPlanetViewValidator,
 	handler: async (ctx, args) => {
-		const publicColony = await getPublicColonyOrThrow({
+		const publicColony = await getPublicColonyBaseOrThrow({
 			colonyId: args.colonyId,
 			ctx,
 		});
+		const [infrastructure, planetEconomy] = await Promise.all([
+			ctx.db
+				.query("colonyInfrastructure")
+				.withIndex("by_colony_id", (q) => q.eq("colonyId", publicColony.colony._id))
+				.unique(),
+			ctx.db
+				.query("planetEconomy")
+				.withIndex("by_planet_id", (q) => q.eq("planetId", publicColony.planet._id))
+				.unique(),
+		]);
+		if (!infrastructure) {
+			throw new ConvexError("Colony infrastructure row missing");
+		}
+		if (!planetEconomy) {
+			throw new ConvexError("Planet economy row missing");
+		}
 
 		return {
 			colonyId: publicColony.colony._id,
 			planet: {
-				compositionType: publicColony.planet.compositionType,
+				compositionType: planetEconomy.compositionType,
 				tierPlaceholder: "IV",
-				usedSlots: publicColony.colony.usedSlots,
-				maxSlots: publicColony.planet.maxBuildingSlots,
+				usedSlots: infrastructure.usedSlots,
+				maxSlots: planetEconomy.maxBuildingSlots,
 				multipliers: {
-					alloy: publicColony.planet.alloyMultiplier,
-					crystal: publicColony.planet.crystalMultiplier,
-					fuel: publicColony.planet.fuelMultiplier,
+					alloy: planetEconomy.alloyMultiplier,
+					crystal: planetEconomy.crystalMultiplier,
+					fuel: planetEconomy.fuelMultiplier,
 				},
 				notes: buildPlanetNotes({
-					alloyMultiplier: publicColony.planet.alloyMultiplier,
-					compositionType: publicColony.planet.compositionType,
-					crystalMultiplier: publicColony.planet.crystalMultiplier,
-					fuelMultiplier: publicColony.planet.fuelMultiplier,
+					alloyMultiplier: planetEconomy.alloyMultiplier,
+					compositionType: planetEconomy.compositionType,
+					crystalMultiplier: planetEconomy.crystalMultiplier,
+					fuelMultiplier: planetEconomy.fuelMultiplier,
 				}),
 			},
 		};
@@ -787,33 +778,36 @@ export const getColonyOverviewInfrastructure = query({
 	},
 	returns: colonyOverviewInfrastructureViewValidator,
 	handler: async (ctx, args) => {
-		const publicColony = await getPublicColonyOrThrow({
-			colonyId: args.colonyId,
-			ctx,
-		});
+		const infrastructure = await ctx.db
+			.query("colonyInfrastructure")
+			.withIndex("by_colony_id", (q) => q.eq("colonyId", args.colonyId))
+			.unique();
+		if (!infrastructure) {
+			throw new ConvexError("Colony infrastructure row missing");
+		}
 
 		return {
-			colonyId: publicColony.colony._id,
+			colonyId: args.colonyId,
 			infrastructure: {
 				buildings: Object.entries(BUILDING_LABELS).map(([key, name]) => ({
 					key,
-					level: publicColony.colony.buildings[key as keyof typeof BUILDING_LABELS] ?? 0,
+					level: infrastructure.buildings[key as keyof typeof BUILDING_LABELS] ?? 0,
 					name,
 				})),
 				facilities: [
 					{
 						key: "robotics_hub" as const,
-						level: publicColony.colony.buildings.roboticsHubLevel ?? 0,
+						level: infrastructure.buildings.roboticsHubLevel ?? 0,
 						name: FACILITY_LABELS.robotics_hub,
 					},
 					{
 						key: "shipyard" as const,
-						level: publicColony.colony.buildings.shipyardLevel ?? 0,
+						level: infrastructure.buildings.shipyardLevel ?? 0,
 						name: FACILITY_LABELS.shipyard,
 					},
 					{
 						key: "defense_grid" as const,
-						level: publicColony.colony.buildings.defenseGridLevel ?? 0,
+						level: infrastructure.buildings.defenseGridLevel ?? 0,
 						name: FACILITY_LABELS.defense_grid,
 					},
 				],
@@ -828,14 +822,14 @@ export const getColonyOverviewDefense = query({
 	},
 	returns: colonyOverviewDefenseViewValidator,
 	handler: async (ctx, args) => {
-		const publicColony = await getPublicColonyOrThrow({
+		const publicColony = await getPublicColonyBaseOrThrow({
 			colonyId: args.colonyId,
 			ctx,
 		});
 		const operational = await readColonyOperationalOverview({
-			colony: publicColony.colony,
+			colonyId: publicColony.colony._id,
 			ctx,
-			playerId: publicColony.player._id,
+			ownerPlayerId: publicColony.player._id,
 		});
 
 		return {
@@ -866,14 +860,14 @@ export const getColonyOverviewFleet = query({
 	},
 	returns: colonyOverviewFleetViewValidator,
 	handler: async (ctx, args) => {
-		const publicColony = await getPublicColonyOrThrow({
+		const publicColony = await getPublicColonyBaseOrThrow({
 			colonyId: args.colonyId,
 			ctx,
 		});
 		const operational = await readColonyOperationalOverview({
-			colony: publicColony.colony,
+			colonyId: publicColony.colony._id,
 			ctx,
-			playerId: publicColony.player._id,
+			ownerPlayerId: publicColony.player._id,
 		});
 
 		return {
@@ -895,28 +889,41 @@ export const getColonyOverviewStrategic = query({
 	},
 	returns: colonyOverviewStrategicViewValidator,
 	handler: async (ctx, args) => {
-		const publicColony = await getPublicColonyOrThrow({
+		const publicColony = await getPublicColonyBaseOrThrow({
 			colonyId: args.colonyId,
 			ctx,
 		});
+		const [planetEconomy, policy] = await Promise.all([
+			ctx.db
+				.query("planetEconomy")
+				.withIndex("by_planet_id", (q) => q.eq("planetId", publicColony.planet._id))
+				.unique(),
+			ctx.db
+				.query("colonyPolicy")
+				.withIndex("by_colony_id", (q) => q.eq("colonyId", publicColony.colony._id))
+				.unique(),
+		]);
+		if (!planetEconomy) {
+			throw new ConvexError("Planet economy row missing");
+		}
 		const operational = await readColonyOperationalOverview({
-			colony: publicColony.colony,
+			colonyId: publicColony.colony._id,
 			ctx,
-			playerId: publicColony.player._id,
+			ownerPlayerId: publicColony.player._id,
 		});
 
 		return {
 			colonyId: publicColony.colony._id,
 			strategic: {
 				tags: buildStrategicTags({
-					alloyMultiplier: publicColony.planet.alloyMultiplier,
-					crystalMultiplier: publicColony.planet.crystalMultiplier,
-					fuelMultiplier: publicColony.planet.fuelMultiplier,
+					alloyMultiplier: planetEconomy.alloyMultiplier,
+					crystalMultiplier: planetEconomy.crystalMultiplier,
+					fuelMultiplier: planetEconomy.fuelMultiplier,
 					status: operational.status,
 				}),
 				notesPlaceholder:
 					"Strategic assessment pending expanded intelligence synthesis. Treat current dossier as a live operational snapshot.",
-				diplomacyPolicy: (publicColony.colony.inboundMissionPolicy ?? "unknown") as
+				diplomacyPolicy: (policy?.inboundMissionPolicy ?? "unknown") as
 					| "allowAll"
 					| "denyAll"
 					| "alliesOnly"
@@ -945,14 +952,14 @@ export const getColonyOverviewActivity = query({
 	returns: colonyOverviewActivityViewValidator,
 	handler: async (ctx, args) => {
 		const serverNowMs = Date.now();
-		const publicColony = await getPublicColonyOrThrow({
+		const publicColony = await getPublicColonyBaseOrThrow({
 			colonyId: args.colonyId,
 			ctx,
 		});
 		const operational = await readColonyOperationalOverview({
-			colony: publicColony.colony,
+			colonyId: publicColony.colony._id,
 			ctx,
-			playerId: publicColony.player._id,
+			ownerPlayerId: publicColony.player._id,
 		});
 
 		return {
@@ -975,14 +982,14 @@ export const getColonyOverviewTiming = query({
 	returns: colonyOverviewTimingViewValidator,
 	handler: async (ctx, args) => {
 		const serverNowMs = Date.now();
-		const publicColony = await getPublicColonyOrThrow({
+		const publicColony = await getPublicColonyBaseOrThrow({
 			colonyId: args.colonyId,
 			ctx,
 		});
 		const operational = await readColonyOperationalOverview({
-			colony: publicColony.colony,
+			colonyId: publicColony.colony._id,
 			ctx,
-			playerId: publicColony.player._id,
+			ownerPlayerId: publicColony.player._id,
 		});
 
 		return {

@@ -10,6 +10,7 @@
 - Avoid projection tables/read models by default in this codebase. Prefer querying source-of-truth tables directly unless a derived view is clearly necessary and its sync/migration cost is justified.
 - Treat broad stitched queries as an exception. Before adding one, check whether the data can instead be split by domain volatility such as economy, infrastructure, policy, ships, queue, fleet, or threat state.
 - Avoid fanout follow-up lookups on hot paths where practical. If a query loads a row set and then performs per-row companion fetches, consider folding that data into the primary row shape or exposing a narrower query boundary.
+- Backend helper split rule: reserve `getOwnedColony`/`loadColonyState` for full-state mutation paths and read paths that genuinely need economy + infrastructure + policy + planet economy together; for narrow queries prefer lean row loaders such as `requireOwnedColonyRow`, `requireOwnedColonyBase`, `getColonyRowOrThrow`, and `getPublicColonyBaseOrThrow`.
 - Convex query checklist before adding/changing a function:
   1. Can this UI consume one row or one indexed row set directly?
   2. Can this broad query be split by domain or volatility boundary?

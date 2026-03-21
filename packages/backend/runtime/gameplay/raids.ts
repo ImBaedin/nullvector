@@ -32,11 +32,11 @@ import {
 import {
 	cloneResourceBucket,
 	emptyResourceBucket,
-	getOwnedColony,
 	incrementColonyShipCount,
 	loadColonyDefenseCounts,
 	loadColonyState,
 	loadPlanetState,
+	requireOwnedColonyRow,
 	replaceColonyDefenseCounts,
 	settleColonyAndPersist,
 	settleDefenseQueue,
@@ -355,7 +355,7 @@ export const getRaidStatusForColony = query({
 	},
 	returns: raidStatusViewValidator,
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
+		const { colony } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -410,7 +410,7 @@ export const getRaidHistoryForColony = query({
 		),
 	}),
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
+		const { colony } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -448,7 +448,7 @@ export const resolveOverdueRaidForColony = mutation({
 		stale: v.boolean(),
 	}),
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
+		const { colony } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});

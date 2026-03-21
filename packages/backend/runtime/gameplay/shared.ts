@@ -809,6 +809,108 @@ async function resolveCurrentPlayer(ctx: QueryCtx | MutationCtx) {
 	};
 }
 
+async function requirePlayer(ctx: QueryCtx | MutationCtx) {
+	const playerResult = await resolveCurrentPlayer(ctx);
+	if (!playerResult?.player) {
+		throw new ConvexError("Authentication required");
+	}
+
+	return playerResult.player;
+}
+
+async function getColonyRowOrThrow(args: {
+	ctx: QueryCtx | MutationCtx;
+	colonyId: Id<"colonies">;
+}) {
+	const colony = await args.ctx.db.get(args.colonyId);
+	if (!colony) {
+		throw new ConvexError("Colony not found");
+	}
+
+	return colony;
+}
+
+async function getPlanetRowOrThrow(args: {
+	ctx: QueryCtx | MutationCtx;
+	planetId: Id<"planets">;
+}) {
+	const planet = await args.ctx.db.get(args.planetId);
+	if (!planet) {
+		throw new ConvexError("Planet not found");
+	}
+
+	return planet;
+}
+
+async function getPlayerRowOrThrow(args: {
+	ctx: QueryCtx | MutationCtx;
+	playerId: Id<"players">;
+}) {
+	const player = await args.ctx.db.get(args.playerId);
+	if (!player) {
+		throw new ConvexError("Player not found");
+	}
+
+	return player;
+}
+
+async function requireOwnedColonyRow(args: {
+	ctx: QueryCtx | MutationCtx;
+	colonyId: Id<"colonies">;
+}) {
+	const player = await requirePlayer(args.ctx);
+	const colony = await getColonyRowOrThrow(args);
+
+	if (colony.playerId !== player._id) {
+		throw new ConvexError("Colony access denied");
+	}
+
+	return {
+		colony,
+		player,
+	};
+}
+
+async function requireOwnedColonyBase(args: {
+	ctx: QueryCtx | MutationCtx;
+	colonyId: Id<"colonies">;
+}) {
+	const { colony, player } = await requireOwnedColonyRow(args);
+	const planet = await getPlanetRowOrThrow({
+		ctx: args.ctx,
+		planetId: colony.planetId,
+	});
+
+	return {
+		colony,
+		planet,
+		player,
+	};
+}
+
+async function getPublicColonyBaseOrThrow(args: {
+	ctx: QueryCtx | MutationCtx;
+	colonyId: Id<"colonies">;
+}) {
+	const colony = await getColonyRowOrThrow(args);
+	const [planet, player] = await Promise.all([
+		getPlanetRowOrThrow({
+			ctx: args.ctx,
+			planetId: colony.planetId,
+		}),
+		getPlayerRowOrThrow({
+			ctx: args.ctx,
+			playerId: colony.playerId,
+		}),
+	]);
+
+	return {
+		colony,
+		planet,
+		player,
+	};
+}
+
 async function resolveUniverse(ctx: QueryCtx | MutationCtx) {
 	const active = await ctx.db
 		.query("universes")
@@ -830,26 +932,17 @@ async function getOwnedColony(args: {
 	colonyId: Id<"colonies">;
 }): Promise<ColonyWithRelations> {
 	const { ctx, colonyId } = args;
-	const playerResult = await resolveCurrentPlayer(ctx);
-	if (!playerResult?.authUser || !playerResult.player) {
-		throw new ConvexError("Authentication required");
-	}
-
-	const colony = await ctx.db.get(colonyId);
-	if (!colony) {
-		throw new ConvexError("Colony not found");
-	}
-
-	if (colony.playerId !== playerResult.player._id) {
-		throw new ConvexError("Colony access denied");
-	}
+	const { colony, player } = await requireOwnedColonyRow({
+		ctx,
+		colonyId,
+	});
 
 	const colonyWithState = await loadColonyState({ colony, ctx });
 
-	const planet = await ctx.db.get(colonyWithState.planetId);
-	if (!planet) {
-		throw new ConvexError("Planet not found for colony");
-	}
+	const planet = await getPlanetRowOrThrow({
+		ctx,
+		planetId: colonyWithState.planetId,
+	});
 	const planetWithState = await loadPlanetState({
 		planet,
 		ctx,
@@ -858,7 +951,7 @@ async function getOwnedColony(args: {
 	return {
 		colony: colonyWithState,
 		planet: planetWithState,
-		player: playerResult.player,
+		player,
 	};
 }
 
@@ -880,6 +973,22 @@ async function listOpenLaneQueueItems(args: {
 	ctx: QueryCtx | MutationCtx;
 	lane: QueueLane;
 }) {
+	const openRows = await listOpenLaneQueueItemRows(args);
+	return await Promise.all(
+		openRows.map((row) =>
+			loadQueueWithPayload({
+				ctx: args.ctx,
+				row,
+			}),
+		),
+	);
+}
+
+async function listOpenLaneQueueItemRows(args: {
+	colonyId: Id<"colonies">;
+	ctx: QueryCtx | MutationCtx;
+	lane: QueueLane;
+}) {
 	const [activeRows, queuedRows] = await Promise.all([
 		args.ctx.db
 			.query("colonyQueueItems")
@@ -895,7 +1004,7 @@ async function listOpenLaneQueueItems(args: {
 			.collect(),
 	]);
 
-	const openRows = [...activeRows, ...queuedRows].sort((l, r) => {
+	return [...activeRows, ...queuedRows].sort((l, r) => {
 		if (l.order !== r.order) {
 			return l.order - r.order;
 		}
@@ -904,14 +1013,6 @@ async function listOpenLaneQueueItems(args: {
 		}
 		return l._creationTime - r._creationTime;
 	});
-	return await Promise.all(
-		openRows.map((row) =>
-			loadQueueWithPayload({
-				ctx: args.ctx,
-				row,
-			}),
-		),
-	);
 }
 
 function isBuildingUpgradeQueueItem(
@@ -1489,6 +1590,21 @@ async function listOpenColonyQueueItems(args: {
 	colonyId: Id<"colonies">;
 	ctx: QueryCtx | MutationCtx;
 }) {
+	const rows = await listOpenColonyQueueItemRows(args);
+	return await Promise.all(
+		rows.map((row) =>
+			loadQueueWithPayload({
+				ctx: args.ctx,
+				row,
+			}),
+		),
+	);
+}
+
+async function listOpenColonyQueueItemRows(args: {
+	colonyId: Id<"colonies">;
+	ctx: QueryCtx | MutationCtx;
+}) {
 	const [activeRows, queuedRows] = await Promise.all([
 		args.ctx.db
 			.query("colonyQueueItems")
@@ -1509,14 +1625,7 @@ async function listOpenColonyQueueItems(args: {
 		}
 		return l._creationTime - r._creationTime;
 	});
-	return await Promise.all(
-		rows.map((row) =>
-			loadQueueWithPayload({
-				ctx: args.ctx,
-				row,
-			}),
-		),
-	);
+	return rows;
 }
 
 function sessionStateValidator() {
@@ -1586,7 +1695,9 @@ function toQueueViewItem(args: { item: Doc<"colonyQueueItems"> & QueuePayloadSta
 	};
 }
 
-export function queueEventsNextAt(rows: Array<Doc<"colonyQueueItems"> & QueuePayloadState>) {
+export function queueEventsNextAt(
+	rows: Array<Pick<Doc<"colonyQueueItems">, "completesAt" | "status">>,
+) {
 	let nextAt: number | null = null;
 	for (const row of rows) {
 		if (!OPEN_QUEUE_STATUSES.includes(row.status)) {
@@ -1787,7 +1898,7 @@ async function getBuildingQueueStatusForColony(args: {
 	colonyId: Id<"colonies">;
 	ctx: QueryCtx;
 }): Promise<ColonyQueueStatus> {
-	const queueRows = await listOpenLaneQueueItems({
+	const queueRows = await listOpenLaneQueueItemRows({
 		colonyId: args.colonyId,
 		ctx: args.ctx,
 		lane: "building",
@@ -1883,9 +1994,13 @@ export {
 	getBuildingLaneCapacity,
 	generatorConfigForBuilding,
 	getBuildingQueueStatusForColony,
+	getColonyRowOrThrow,
 	loadColonyDefenseCounts,
 	getGeneratorOrThrow,
 	getOwnedColony,
+	getPlanetRowOrThrow,
+	getPlayerRowOrThrow,
+	getPublicColonyBaseOrThrow,
 	getColonyShipCount,
 	hashString,
 	isBuildingUpgradeQueueItem,
@@ -1896,7 +2011,9 @@ export {
 	incrementColonyDefenseCount,
 	incrementColonyShipCount,
 	laneQueueViewValidator,
+	listOpenColonyQueueItemRows,
 	listOpenColonyQueueItems,
+	listOpenLaneQueueItemRows,
 	listOpenLaneQueueItems,
 	listPlayerColonyPlanets,
 	listPlayerColonies,
@@ -1910,6 +2027,9 @@ export {
 	queueItemStatusValidator,
 	queuePayloadValidator,
 	queueViewItemValidator,
+	requireOwnedColonyBase,
+	requireOwnedColonyRow,
+	requirePlayer,
 	resolveCurrentPlayer,
 	resolvedAuthUserId,
 	resolveDisplayName,

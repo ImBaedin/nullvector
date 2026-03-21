@@ -44,6 +44,8 @@ import {
 	cloneResourceBucket,
 	emptyResourceBucket,
 	getOwnedColony,
+	requireOwnedColonyRow,
+	requirePlayer,
 	incrementColonyShipCount,
 	loadColonyState,
 	loadPlanetState,
@@ -1539,7 +1541,7 @@ export const getFleetGarrison = query({
 		garrisonShips: shipCountsValidator,
 	}),
 	handler: async (ctx, args) => {
-		const owned = await getOwnedColony({
+		const owned = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -1579,7 +1581,7 @@ export const getFleetActiveOperations = query({
 		nextEventAt: v.optional(v.number()),
 	}),
 	handler: async (ctx, args) => {
-		const { player } = await getOwnedColony({
+		const { player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -1637,7 +1639,7 @@ export const getFleetOperationsForOriginColony = query({
 		nextEventAt: v.optional(v.number()),
 	}),
 	handler: async (ctx, args) => {
-		const { colony, player } = await getOwnedColony({
+		const { colony, player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -1736,7 +1738,7 @@ export const getFleetOperationsForTargetColony = query({
 		nextEventAt: v.optional(v.number()),
 	}),
 	handler: async (ctx, args) => {
-		const { colony, player } = await getOwnedColony({
+		const { colony, player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -1854,7 +1856,7 @@ export const getFleetOwnedOperationsHealth = query({
 	returns: fleetOwnedOperationsHealthValidator,
 	handler: async (ctx, args) => {
 		const serverNowMs = Date.now();
-		const { colony, player } = await getOwnedColony({
+		const { colony, player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -1915,7 +1917,7 @@ export const resolveFleetTarget = query({
 		const systemIndex = safeIndex(args.systemIndex);
 		const planetIndex = safeIndex(args.planetIndex);
 
-		const origin = await getOwnedColony({
+		const origin = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.originColonyId,
 		});
@@ -2092,13 +2094,10 @@ export const getFleetOperation = query({
 		resultMessage: v.optional(v.string()),
 	}),
 	handler: async (ctx, args) => {
-		const player = await resolveCurrentPlayer(ctx);
-		if (!player?.player) {
-			throw new ConvexError("Authentication required");
-		}
+		const player = await requirePlayer(ctx);
 
 		const operation = await ctx.db.get(args.operationId);
-		if (!operation || operation.ownerPlayerId !== player.player._id) {
+		if (!operation || operation.ownerPlayerId !== player._id) {
 			throw new ConvexError("Operation not found");
 		}
 
@@ -2151,13 +2150,10 @@ export const getFleetOperationTimeline = query({
 		),
 	}),
 	handler: async (ctx, args) => {
-		const player = await resolveCurrentPlayer(ctx);
-		if (!player?.player) {
-			throw new ConvexError("Authentication required");
-		}
+		const player = await requirePlayer(ctx);
 
 		if (args.colonyId) {
-			await getOwnedColony({
+			await requireOwnedColonyRow({
 				ctx,
 				colonyId: args.colonyId,
 			});
@@ -2166,7 +2162,7 @@ export const getFleetOperationTimeline = query({
 		const limit = Math.max(1, Math.min(200, Math.floor(args.limit ?? 50)));
 		const rows = await ctx.db
 			.query("fleetEvents")
-			.withIndex("by_owner_time", (q) => q.eq("ownerPlayerId", player.player._id))
+			.withIndex("by_owner_time", (q) => q.eq("ownerPlayerId", player._id))
 			.order("desc")
 			.take(limit);
 
@@ -2193,7 +2189,7 @@ export const syncFleetState = mutation({
 	}),
 	handler: async (ctx, args) => {
 		const now = Date.now();
-		const { player } = await getOwnedColony({
+		const { player } = await requireOwnedColonyRow({
 			colonyId: args.colonyId,
 			ctx,
 		});
@@ -2314,18 +2310,18 @@ export const createOperation = mutation({
 				throw new ConvexError("Transport operations require a target colony");
 			}
 
-			const destinationBase = await ctx.db.get(args.target.colonyId);
-			if (!destinationBase) {
+			const destination = await ctx.db.get(args.target.colonyId);
+			if (!destination) {
 				throw new ConvexError("Transport destination not found");
 			}
-			const destination = await loadColonyState({
-				colony: destinationBase,
-				ctx,
-			});
 			if (destination.universeId !== origin.colony.universeId) {
 				throw new ConvexError("Target colony is in a different universe");
 			}
-			const targetPolicy = destination.inboundMissionPolicy ?? "allowAll";
+			const destinationPolicy = await ctx.db
+				.query("colonyPolicy")
+				.withIndex("by_colony_id", (q) => q.eq("colonyId", destination._id))
+				.unique();
+			const targetPolicy = destinationPolicy?.inboundMissionPolicy ?? "allowAll";
 			if (targetPolicy === "denyAll") {
 				throw new ConvexError("Destination colony does not accept inbound missions");
 			}
