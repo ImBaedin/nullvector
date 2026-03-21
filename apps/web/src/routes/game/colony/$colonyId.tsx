@@ -55,9 +55,9 @@ function ColonyLayoutContent() {
 				>
 					<div
 						className="
-       pointer-events-none absolute inset-0
-       bg-[radial-gradient(circle_at_16%_18%,rgba(72,180,255,0.18),transparent_36%),radial-gradient(circle_at_84%_22%,rgba(74,233,255,0.14),transparent_38%)]
-     "
+        pointer-events-none absolute inset-0
+        bg-[radial-gradient(circle_at_16%_18%,rgba(72,180,255,0.18),transparent_36%),radial-gradient(circle_at_84%_22%,rgba(74,233,255,0.14),transparent_38%)]
+      "
 					/>
 
 					<ColonyStarMapLayer
@@ -85,12 +85,12 @@ function ColonyLayoutContent() {
 					>
 						<div
 							className={`
-        relative min-h-full transition-[clip-path,opacity,transform]
-        duration-500 ease-out
-        ${layout.shouldCollapseContent ? `
+         relative min-h-full transition-[clip-path,opacity,transform]
+         duration-500 ease-out
+         ${layout.shouldCollapseContent ? `
           pointer-events-none -translate-y-3 opacity-0
         ` : `translate-y-0 opacity-100`}
-      `}
+       `}
 							style={{
 								clipPath: layout.shouldCollapseContent
 									? "inset(0 0 100% 0 round 0.5rem)"

@@ -230,6 +230,28 @@ function emptyResourceBucket(): ResourceBucket {
 	};
 }
 
+function resourceBucketsEqual(left: ResourceBucket, right: ResourceBucket) {
+	return left.alloy === right.alloy && left.crystal === right.crystal && left.fuel === right.fuel;
+}
+
+function buildingLevelsEqual(
+	left: Doc<"colonyInfrastructure">["buildings"],
+	right: Doc<"colonyInfrastructure">["buildings"],
+) {
+	return (
+		left.alloyMineLevel === right.alloyMineLevel &&
+		left.crystalMineLevel === right.crystalMineLevel &&
+		left.fuelRefineryLevel === right.fuelRefineryLevel &&
+		left.powerPlantLevel === right.powerPlantLevel &&
+		left.alloyStorageLevel === right.alloyStorageLevel &&
+		left.crystalStorageLevel === right.crystalStorageLevel &&
+		left.fuelStorageLevel === right.fuelStorageLevel &&
+		left.roboticsHubLevel === right.roboticsHubLevel &&
+		left.shipyardLevel === right.shipyardLevel &&
+		left.defenseGridLevel === right.defenseGridLevel
+	);
+}
+
 async function upsertColonyCompanionRows(args: {
 	colony: Doc<"colonies"> & ColonyState;
 	ctx: MutationCtx;
@@ -253,13 +275,20 @@ async function upsertColonyCompanionRows(args: {
 	]);
 
 	if (economyRow) {
-		await ctx.db.patch(economyRow._id, {
-			resources: cloneResourceBucket(colony.resources),
-			overflow: cloneResourceBucket(colony.overflow),
-			storageCaps: cloneResourceBucket(colony.storageCaps),
-			lastAccruedAt: colony.lastAccruedAt,
-			updatedAt: now,
-		});
+		if (
+			!resourceBucketsEqual(economyRow.resources, colony.resources) ||
+			!resourceBucketsEqual(economyRow.overflow, colony.overflow) ||
+			!resourceBucketsEqual(economyRow.storageCaps, colony.storageCaps) ||
+			economyRow.lastAccruedAt !== colony.lastAccruedAt
+		) {
+			await ctx.db.patch(economyRow._id, {
+				resources: cloneResourceBucket(colony.resources),
+				overflow: cloneResourceBucket(colony.overflow),
+				storageCaps: cloneResourceBucket(colony.storageCaps),
+				lastAccruedAt: colony.lastAccruedAt,
+				updatedAt: now,
+			});
+		}
 	} else {
 		await ctx.db.insert("colonyEconomy", {
 			colonyId: colony._id,
@@ -273,11 +302,16 @@ async function upsertColonyCompanionRows(args: {
 	}
 
 	if (infraRow) {
-		await ctx.db.patch(infraRow._id, {
-			buildings: { ...colony.buildings },
-			usedSlots: colony.usedSlots,
-			updatedAt: now,
-		});
+		if (
+			!buildingLevelsEqual(infraRow.buildings, colony.buildings) ||
+			infraRow.usedSlots !== colony.usedSlots
+		) {
+			await ctx.db.patch(infraRow._id, {
+				buildings: { ...colony.buildings },
+				usedSlots: colony.usedSlots,
+				updatedAt: now,
+			});
+		}
 	} else {
 		await ctx.db.insert("colonyInfrastructure", {
 			colonyId: colony._id,
@@ -289,10 +323,12 @@ async function upsertColonyCompanionRows(args: {
 	}
 
 	if (policyRow) {
-		await ctx.db.patch(policyRow._id, {
-			inboundMissionPolicy: colony.inboundMissionPolicy,
-			updatedAt: now,
-		});
+		if (policyRow.inboundMissionPolicy !== colony.inboundMissionPolicy) {
+			await ctx.db.patch(policyRow._id, {
+				inboundMissionPolicy: colony.inboundMissionPolicy,
+				updatedAt: now,
+			});
+		}
 		return;
 	}
 
@@ -830,10 +866,172 @@ async function getColonyRowOrThrow(args: {
 	return colony;
 }
 
-async function getPlanetRowOrThrow(args: {
+type ColonyAccessState = Pick<Doc<"colonyAccess">, "colonyId" | "playerId">;
+
+type ColonySchedulingState = {
+	colonyId: Id<"colonies">;
+	queueResolutionJobId?: Id<"_scheduled_functions">;
+	queueResolutionScheduledAt?: number;
+};
+
+type ColonyRaidSchedulingState = {
+	colonyId: Id<"colonies">;
+	nextNpcRaidAt?: number;
+};
+
+async function getColonyAccessOrThrow(args: {
 	ctx: QueryCtx | MutationCtx;
-	planetId: Id<"planets">;
+	colonyId: Id<"colonies">;
+}): Promise<ColonyAccessState> {
+	const access = await args.ctx.db
+		.query("colonyAccess")
+		.withIndex("by_colony_id", (q) => q.eq("colonyId", args.colonyId))
+		.unique();
+	if (access) {
+		return access;
+	}
+
+	const colony = await getColonyRowOrThrow(args);
+	return {
+		colonyId: colony._id,
+		playerId: colony.playerId,
+	};
+}
+
+async function ensureColonyAccessRow(args: {
+	colony: Doc<"colonies">;
+	ctx: MutationCtx;
+	now: number;
 }) {
+	const existing = await args.ctx.db
+		.query("colonyAccess")
+		.withIndex("by_colony_id", (q) => q.eq("colonyId", args.colony._id))
+		.unique();
+	if (existing) {
+		if (existing.playerId === args.colony.playerId) {
+			return existing;
+		}
+		await args.ctx.db.patch(existing._id, {
+			playerId: args.colony.playerId,
+			updatedAt: args.now,
+		});
+		return {
+			...existing,
+			playerId: args.colony.playerId,
+			updatedAt: args.now,
+		};
+	}
+
+	const accessId = await args.ctx.db.insert("colonyAccess", {
+		colonyId: args.colony._id,
+		playerId: args.colony.playerId,
+		createdAt: args.now,
+		updatedAt: args.now,
+	});
+	const created = await args.ctx.db.get(accessId);
+	if (!created) {
+		throw new ConvexError("Failed to create colony access row");
+	}
+	return created;
+}
+
+async function getColonySchedulingState(args: {
+	ctx: QueryCtx | MutationCtx;
+	colonyId: Id<"colonies">;
+}): Promise<ColonySchedulingState> {
+	const scheduling = await args.ctx.db
+		.query("colonyScheduling")
+		.withIndex("by_colony_id", (q) => q.eq("colonyId", args.colonyId))
+		.unique();
+	if (scheduling) {
+		return {
+			colonyId: scheduling.colonyId,
+			queueResolutionJobId: scheduling.queueResolutionJobId,
+			queueResolutionScheduledAt: scheduling.queueResolutionScheduledAt,
+		};
+	}
+
+	return {
+		colonyId: args.colonyId,
+	};
+}
+
+async function upsertColonySchedulingState(args: {
+	colonyId: Id<"colonies">;
+	ctx: MutationCtx;
+	now: number;
+	patch: Partial<
+		Pick<Doc<"colonyScheduling">, "queueResolutionJobId" | "queueResolutionScheduledAt">
+	>;
+}) {
+	const existing = await args.ctx.db
+		.query("colonyScheduling")
+		.withIndex("by_colony_id", (q) => q.eq("colonyId", args.colonyId))
+		.unique();
+	if (existing) {
+		await args.ctx.db.patch(existing._id, {
+			...args.patch,
+			updatedAt: args.now,
+		});
+		return;
+	}
+
+	await args.ctx.db.insert("colonyScheduling", {
+		colonyId: args.colonyId,
+		queueResolutionJobId: args.patch.queueResolutionJobId,
+		queueResolutionScheduledAt: args.patch.queueResolutionScheduledAt,
+		createdAt: args.now,
+		updatedAt: args.now,
+	});
+}
+
+async function getColonyRaidSchedulingState(args: {
+	ctx: QueryCtx | MutationCtx;
+	colonyId: Id<"colonies">;
+}): Promise<ColonyRaidSchedulingState> {
+	const scheduling = await args.ctx.db
+		.query("colonyRaidScheduling")
+		.withIndex("by_colony_id", (q) => q.eq("colonyId", args.colonyId))
+		.unique();
+	if (scheduling) {
+		return {
+			colonyId: scheduling.colonyId,
+			nextNpcRaidAt: scheduling.nextNpcRaidAt,
+		};
+	}
+
+	return {
+		colonyId: args.colonyId,
+	};
+}
+
+async function upsertColonyRaidSchedulingState(args: {
+	colonyId: Id<"colonies">;
+	ctx: MutationCtx;
+	now: number;
+	patch: Partial<Pick<Doc<"colonyRaidScheduling">, "nextNpcRaidAt">>;
+}) {
+	const existing = await args.ctx.db
+		.query("colonyRaidScheduling")
+		.withIndex("by_colony_id", (q) => q.eq("colonyId", args.colonyId))
+		.unique();
+	if (existing) {
+		await args.ctx.db.patch(existing._id, {
+			...args.patch,
+			updatedAt: args.now,
+		});
+		return;
+	}
+
+	await args.ctx.db.insert("colonyRaidScheduling", {
+		colonyId: args.colonyId,
+		nextNpcRaidAt: args.patch.nextNpcRaidAt,
+		createdAt: args.now,
+		updatedAt: args.now,
+	});
+}
+
+async function getPlanetRowOrThrow(args: { ctx: QueryCtx | MutationCtx; planetId: Id<"planets"> }) {
 	const planet = await args.ctx.db.get(args.planetId);
 	if (!planet) {
 		throw new ConvexError("Planet not found");
@@ -842,10 +1040,7 @@ async function getPlanetRowOrThrow(args: {
 	return planet;
 }
 
-async function getPlayerRowOrThrow(args: {
-	ctx: QueryCtx | MutationCtx;
-	playerId: Id<"players">;
-}) {
+async function getPlayerRowOrThrow(args: { ctx: QueryCtx | MutationCtx; playerId: Id<"players"> }) {
 	const player = await args.ctx.db.get(args.playerId);
 	if (!player) {
 		throw new ConvexError("Player not found");
@@ -859,14 +1054,33 @@ async function requireOwnedColonyRow(args: {
 	colonyId: Id<"colonies">;
 }) {
 	const player = await requirePlayer(args.ctx);
+	const access = await getColonyAccessOrThrow(args);
+
+	if (access.playerId !== player._id) {
+		throw new ConvexError("Colony access denied");
+	}
+
 	const colony = await getColonyRowOrThrow(args);
 
-	if (colony.playerId !== player._id) {
+	return {
+		colony,
+		player,
+	};
+}
+
+async function requireOwnedColonyAccess(args: {
+	ctx: QueryCtx | MutationCtx;
+	colonyId: Id<"colonies">;
+}) {
+	const player = await requirePlayer(args.ctx);
+	const access = await getColonyAccessOrThrow(args);
+
+	if (access.playerId !== player._id) {
 		throw new ConvexError("Colony access denied");
 	}
 
 	return {
-		colony,
+		colonyId: access.colonyId,
 		player,
 	};
 }
@@ -1195,9 +1409,6 @@ async function settleColonyAndPersist(args: {
 		accrueTo(now);
 	}
 
-	await ctx.db.patch(colony._id, {
-		updatedAt: now,
-	});
 	await upsertColonyCompanionRows({
 		colony: {
 			...colony,
@@ -1994,7 +2205,10 @@ export {
 	getBuildingLaneCapacity,
 	generatorConfigForBuilding,
 	getBuildingQueueStatusForColony,
+	getColonyAccessOrThrow,
+	getColonyRaidSchedulingState,
 	getColonyRowOrThrow,
+	getColonySchedulingState,
 	loadColonyDefenseCounts,
 	getGeneratorOrThrow,
 	getOwnedColony,
@@ -2027,6 +2241,7 @@ export {
 	queueItemStatusValidator,
 	queuePayloadValidator,
 	queueViewItemValidator,
+	requireOwnedColonyAccess,
 	requireOwnedColonyBase,
 	requireOwnedColonyRow,
 	requirePlayer,
@@ -2043,6 +2258,7 @@ export {
 	replaceColonyShipCounts,
 	sessionStateValidator,
 	sessionColonyValidator,
+	ensureColonyAccessRow,
 	setFacilityLevelOnBuildings,
 	settleDefenseQueue,
 	settleColonyAndPersist,
@@ -2052,6 +2268,8 @@ export {
 	storageCapsFromBuildings,
 	toAddressLabel,
 	toQueueViewItem,
+	upsertColonyRaidSchedulingState,
+	upsertColonySchedulingState,
 	upsertColonyCompanionRows,
 	upsertQueuePayloadRow,
 	usedSlotsFromBuildings,

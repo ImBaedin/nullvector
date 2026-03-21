@@ -31,6 +31,7 @@ import {
 	readColonyDefenseCounts,
 	replaceColonyDefenseCounts,
 	replaceColonyShipCounts,
+	requireOwnedColonyAccess,
 	resolveCurrentPlayer,
 	scaledUnits,
 	settleColonyAndPersist,
@@ -267,7 +268,7 @@ export const getDevConsoleState = query({
 	}),
 	handler: async (ctx, args) => {
 		try {
-			const owned = await getOwnedColony({
+			const owned = await requireOwnedColonyAccess({
 				ctx,
 				colonyId: args.colonyId,
 			});

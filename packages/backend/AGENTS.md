@@ -11,6 +11,8 @@
 - Treat broad stitched queries as an exception. Before adding one, check whether the data can instead be split by domain volatility such as economy, infrastructure, policy, ships, queue, fleet, or threat state.
 - Avoid fanout follow-up lookups on hot paths where practical. If a query loads a row set and then performs per-row companion fetches, consider folding that data into the primary row shape or exposing a narrower query boundary.
 - Backend helper split rule: reserve `getOwnedColony`/`loadColonyState` for full-state mutation paths and read paths that genuinely need economy + infrastructure + policy + planet economy together; for narrow queries prefer lean row loaders such as `requireOwnedColonyRow`, `requireOwnedColonyBase`, `getColonyRowOrThrow`, and `getPublicColonyBaseOrThrow`.
+- Colony access/scheduling split: narrow ownership checks should prefer `colonyAccess` over reading `colonies`, and volatile scheduler metadata (`queueResolution*`, `nextNpcRaidAt`) should live in `colonyScheduling` so queue/raid churn does not invalidate unrelated colony queries.
+- Companion-row write rule: `upsertColonyCompanionRows` callers should not treat it as a blind fanout write. Patch economy/infrastructure/policy rows only when those values actually changed, and avoid touching `colonies.updatedAt` for queue/economy-only mutations or unrelated explorer/identity queries will churn.
 - Convex query checklist before adding/changing a function:
   1. Can this UI consume one row or one indexed row set directly?
   2. Can this broad query be split by domain or volatility boundary?

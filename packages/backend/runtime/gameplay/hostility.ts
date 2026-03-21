@@ -8,11 +8,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 
 import { mutation, query, type MutationCtx, type QueryCtx } from "../../convex/_generated/server";
-import {
-	requireOwnedColonyBase,
-	requireOwnedColonyRow,
-	resolveUniverse,
-} from "./shared";
+import { requireOwnedColonyBase, requireOwnedColonyRow, resolveUniverse } from "./shared";
 
 const MAX_HOSTILE_SECTOR_DETAILS = 6;
 

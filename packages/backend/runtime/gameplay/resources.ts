@@ -119,9 +119,6 @@ export const enqueueBuildingUpgrade = mutation({
 		const startsAt = laneTail ? laneTail.completesAt : now;
 		const completesAt = startsAt + durationSeconds * 1_000;
 
-		await ctx.db.patch(settledColony._id, {
-			updatedAt: now,
-		});
 		await upsertColonyCompanionRows({
 			colony: {
 				...settledColony,

@@ -529,16 +529,41 @@ export default defineSchema({
 		playerId: v.id("players"),
 		planetId: v.id("planets"),
 		name: v.string(),
-		queueResolutionScheduledAt: v.optional(v.number()),
-		queueResolutionJobId: v.optional(v.id("_scheduled_functions")),
-		nextNpcRaidAt: v.optional(v.number()),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	})
 		.index("by_player_id", ["playerId"])
 		.index("by_planet_id", ["planetId"])
 		.index("by_player_universe", ["playerId", "universeId"])
-		.index("by_universe_id", ["universeId"])
+		.index("by_universe_id", ["universeId"]),
+
+	// Stable one-row-per-colony ownership mapping for narrow auth checks without reading `colonies`.
+	colonyAccess: defineTable({
+		colonyId: v.id("colonies"),
+		playerId: v.id("players"),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_colony_id", ["colonyId"])
+		.index("by_player_id", ["playerId"]),
+
+	// Scheduler-only colony metadata isolated from the primary colony row to reduce invalidation churn.
+	colonyScheduling: defineTable({
+		colonyId: v.id("colonies"),
+		queueResolutionScheduledAt: v.optional(v.number()),
+		queueResolutionJobId: v.optional(v.id("_scheduled_functions")),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_colony_id", ["colonyId"]),
+
+	// Raid timing is isolated from queue scheduling so raid status queries do not churn on queue updates.
+	colonyRaidScheduling: defineTable({
+		colonyId: v.id("colonies"),
+		nextNpcRaidAt: v.optional(v.number()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_colony_id", ["colonyId"])
 		.index("by_next_npc_raid_at", ["nextNpcRaidAt"]),
 
 	colonyEconomy: defineTable({

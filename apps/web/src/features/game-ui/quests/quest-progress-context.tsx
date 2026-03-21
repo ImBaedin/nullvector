@@ -1,9 +1,5 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
-import type {
-	HighlightTarget,
-	QuestTimelineItem,
-	QuestTrackerItem,
-} from "@nullvector/game-logic";
+import type { HighlightTarget, QuestTimelineItem, QuestTrackerItem } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import {
@@ -154,8 +150,7 @@ export function QuestProgressProvider({
 			activeHighlights,
 			ensureActivations: () => ensureForCurrentContext(),
 			claimQuest,
-			loading:
-				isAuthenticated && (clientState === undefined || progressionOverview === undefined),
+			loading: isAuthenticated && (clientState === undefined || progressionOverview === undefined),
 		}),
 		[
 			activeHighlights,

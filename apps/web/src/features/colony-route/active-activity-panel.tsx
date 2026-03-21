@@ -115,9 +115,9 @@ export function ActivityTimelinePanel(props: ActivityTimelinePanelProps) {
 									{Math.round(item.progress)}%
 								</span>
 
-								<div
-									className="flex shrink-0 items-center gap-1 text-[10px] text-white/45"
-								>
+								<div className="
+          flex shrink-0 items-center gap-1 text-[10px] text-white/45
+        ">
 									<Clock3 className="size-3" />
 									<span
 										className="

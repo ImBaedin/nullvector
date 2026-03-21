@@ -11,6 +11,7 @@ import {
 	queueEventsNextAt,
 	queueViewItemValidator,
 	readColonyDefenseCounts,
+	requireOwnedColonyAccess,
 	requireOwnedColonyRow,
 	resourceBucketValidator,
 	storedToWholeUnits,
@@ -278,14 +279,14 @@ export const getColonyShips = query({
 	},
 	returns: colonyShipsValidator,
 	handler: async (ctx, args) => {
-		const { colony } = await requireOwnedColonyRow({
+		const { colonyId } = await requireOwnedColonyAccess({
 			colonyId: args.colonyId,
 			ctx,
 		});
 
 		return {
-			colonyId: colony._id,
-			ships: await loadShipCounts(ctx.db, colony._id),
+			colonyId,
+			ships: await loadShipCounts(ctx.db, colonyId),
 		};
 	},
 });
@@ -296,16 +297,16 @@ export const getColonyDefenses = query({
 	},
 	returns: colonyDefensesValidator,
 	handler: async (ctx, args) => {
-		const { colony } = await requireOwnedColonyRow({
+		const { colonyId } = await requireOwnedColonyAccess({
 			colonyId: args.colonyId,
 			ctx,
 		});
 
 		return {
-			colonyId: colony._id,
+			colonyId,
 			defenses: normalizeDefenseCounts(
 				await readColonyDefenseCounts({
-					colonyId: colony._id,
+					colonyId,
 					ctx,
 				}),
 			),

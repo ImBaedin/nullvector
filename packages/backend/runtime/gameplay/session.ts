@@ -11,6 +11,7 @@ import { ensureUniverseHostilitySeeded, isPlanetCurrentlyColonizable } from "./h
 import { ensurePlayerProgression } from "./progression";
 import { ensureQuestActivationsForPlayer } from "./quests";
 import {
+	ensureColonyAccessRow,
 	emptyResourceBucket,
 	hashString,
 	listPlayerColonies,
@@ -19,6 +20,7 @@ import {
 	resolvedAuthUserId,
 	resolveUniverse,
 	storageCapsFromBuildings,
+	upsertColonySchedulingState,
 	usedSlotsFromBuildings,
 	sessionStateValidator,
 } from "./shared";
@@ -287,6 +289,21 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 		inboundMissionPolicy: "allowAll",
 		createdAt: now,
 		updatedAt: now,
+	});
+	const createdColony = await ctx.db.get(colonyId);
+	if (!createdColony) {
+		throw new ConvexError("Failed to create colony");
+	}
+	await ensureColonyAccessRow({
+		colony: createdColony,
+		ctx,
+		now,
+	});
+	await upsertColonySchedulingState({
+		colonyId,
+		ctx,
+		now,
+		patch: {},
 	});
 	await ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
 		colonyId,

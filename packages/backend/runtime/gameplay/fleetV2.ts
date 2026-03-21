@@ -48,19 +48,21 @@ import {
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	cloneResourceBucket,
+	ensureColonyAccessRow,
 	emptyResourceBucket,
 	getOwnedColony,
-	requireOwnedColonyRow,
-	requirePlayer,
 	incrementColonyShipCount,
 	loadColonyState,
 	loadPlanetState,
-	resolveCurrentPlayer,
+	requireOwnedColonyRow,
+	requirePlayer,
 	resourceBucketValidator,
+	resolveCurrentPlayer,
 	settleDefenseQueue,
 	settleShipyardQueue,
 	toAddressLabel,
 	upsertColonyCompanionRows,
+	upsertColonySchedulingState,
 } from "./shared";
 
 const RESOURCE_KEYS = ["alloy", "crystal", "fuel"] as const;
@@ -785,17 +787,27 @@ async function settleColonizeAtTarget(args: {
 		createdAt: args.now,
 		updatedAt: args.now,
 	});
+	const createdColonyBase = await args.ctx.db.get(colonyId);
+	if (!createdColonyBase) {
+		throw new ConvexError("Failed to create colony");
+	}
+	await ensureColonyAccessRow({
+		colony: createdColonyBase,
+		ctx: args.ctx,
+		now: args.now,
+	});
+	await upsertColonySchedulingState({
+		colonyId,
+		ctx: args.ctx,
+		now: args.now,
+		patch: {},
+	});
 	await args.ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
 		colonyId,
 	});
 	await args.ctx.scheduler.runAfter(0, internal.contracts.rebuildContractDiscoveryForColony, {
 		colonyId,
 	});
-
-	const createdColonyBase = await args.ctx.db.get(colonyId);
-	if (!createdColonyBase) {
-		throw new ConvexError("Failed to create colony");
-	}
 	const createdColony = await loadColonyState({
 		colony: createdColonyBase,
 		ctx: args.ctx,

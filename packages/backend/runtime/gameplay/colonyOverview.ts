@@ -105,9 +105,12 @@ const overviewHeaderValidator = v.object({
 	ownerName: v.string(),
 	addressLabel: v.string(),
 	fileId: v.string(),
+	factionPlaceholder: v.string(),
+});
+
+const overviewOperationalStateValidator = v.object({
 	status: statusValidator,
 	classification: classificationValidator,
-	factionPlaceholder: v.string(),
 });
 
 const overviewPlanetValidator = v.object({
@@ -197,6 +200,11 @@ export const colonyOverviewHeaderViewValidator = v.object({
 	colonyId: v.id("colonies"),
 	viewerRelation: viewerRelationValidator,
 	header: overviewHeaderValidator,
+});
+
+export const colonyOverviewOperationalStateViewValidator = v.object({
+	colonyId: v.id("colonies"),
+	operational: overviewOperationalStateValidator,
 });
 
 export const colonyOverviewPlanetViewValidator = v.object({
@@ -692,13 +700,6 @@ export const getColonyOverviewHeader = query({
 				ctx,
 			}),
 		]);
-		const { status } = await readColonyOperationalOverview({
-			colonyId: publicColony.colony._id,
-			ctx,
-			ownerPlayerId: publicColony.player._id,
-		});
-		const classification: "RESTRICTED" | "CLASSIFIED" =
-			status === "under attack" || status === "high traffic" ? "CLASSIFIED" : "RESTRICTED";
 
 		return {
 			colonyId: publicColony.colony._id,
@@ -714,9 +715,35 @@ export const getColonyOverviewHeader = query({
 					addressLabel: toAddressLabel(publicColony.planet),
 					colonyId: publicColony.colony._id,
 				}),
+				factionPlaceholder: "Frontier Coalition",
+			},
+		};
+	},
+});
+
+export const getColonyOverviewOperationalState = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyOverviewOperationalStateViewValidator,
+	handler: async (ctx, args) => {
+		const publicColony = await getPublicColonyBaseOrThrow({
+			colonyId: args.colonyId,
+			ctx,
+		});
+		const { status } = await readColonyOperationalOverview({
+			colonyId: publicColony.colony._id,
+			ctx,
+			ownerPlayerId: publicColony.player._id,
+		});
+		const classification: "RESTRICTED" | "CLASSIFIED" =
+			status === "under attack" || status === "high traffic" ? "CLASSIFIED" : "RESTRICTED";
+
+		return {
+			colonyId: publicColony.colony._id,
+			operational: {
 				status,
 				classification,
-				factionPlaceholder: "Frontier Coalition",
 			},
 		};
 	},

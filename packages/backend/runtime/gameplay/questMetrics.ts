@@ -13,11 +13,7 @@ type BackfillCursorState = {
 	fleetOperationResultsCursor?: string;
 };
 
-function wholeUnitsFromScaledBucket(resources: {
-	alloy: number;
-	crystal: number;
-	fuel: number;
-}) {
+function wholeUnitsFromScaledBucket(resources: { alloy: number; crystal: number; fuel: number }) {
 	return Math.floor((resources.alloy + resources.crystal + resources.fuel) / RESOURCE_SCALE);
 }
 
@@ -118,8 +114,7 @@ export async function incrementRaidDefenseSuccess(args: {
 }) {
 	const metrics = await ensureColonyQuestMetrics(args);
 	await args.ctx.db.patch(metrics._id, {
-		raidDefenseSuccessCount:
-			metrics.raidDefenseSuccessCount + Math.max(0, args.successCount ?? 1),
+		raidDefenseSuccessCount: metrics.raidDefenseSuccessCount + Math.max(0, args.successCount ?? 1),
 		updatedAt: Date.now(),
 	});
 }
@@ -183,12 +178,14 @@ async function processContractResults(args: {
 	let processed = 0;
 
 	for (const row of result.page) {
-		if (!(await markSourceProcessed({
-			ctx: args.ctx,
-			now: args.now,
-			sourceKind: "contractResult",
-			sourceId: String(row._id),
-		}))) {
+		if (
+			!(await markSourceProcessed({
+				ctx: args.ctx,
+				now: args.now,
+				sourceKind: "contractResult",
+				sourceId: String(row._id),
+			}))
+		) {
 			continue;
 		}
 		if (row.success && row.originColonyId) {
@@ -221,12 +218,14 @@ async function processNpcRaidResults(args: {
 	let processed = 0;
 
 	for (const row of result.page) {
-		if (!(await markSourceProcessed({
-			ctx: args.ctx,
-			now: args.now,
-			sourceKind: "npcRaidResult",
-			sourceId: String(row._id),
-		}))) {
+		if (
+			!(await markSourceProcessed({
+				ctx: args.ctx,
+				now: args.now,
+				sourceKind: "npcRaidResult",
+				sourceId: String(row._id),
+			}))
+		) {
 			continue;
 		}
 		if (row.success === false) {
@@ -258,12 +257,14 @@ async function processFleetOperationResults(args: {
 	let processed = 0;
 
 	for (const row of result.page) {
-		if (!(await markSourceProcessed({
-			ctx: args.ctx,
-			now: args.now,
-			sourceKind: "fleetOperationResult",
-			sourceId: String(row._id),
-		}))) {
+		if (
+			!(await markSourceProcessed({
+				ctx: args.ctx,
+				now: args.now,
+				sourceKind: "fleetOperationResult",
+				sourceId: String(row._id),
+			}))
+		) {
 			continue;
 		}
 
@@ -344,7 +345,9 @@ export const backfillQuestMetricsBatch = internalMutation({
 
 		return {
 			cursor: {
-				contractResultsCursor: contractBatch.isDone ? undefined : (contractBatch.cursor ?? undefined),
+				contractResultsCursor: contractBatch.isDone
+					? undefined
+					: (contractBatch.cursor ?? undefined),
 				npcRaidResultsCursor: raidBatch.isDone ? undefined : (raidBatch.cursor ?? undefined),
 				fleetOperationResultsCursor: fleetBatch.isDone
 					? undefined
@@ -356,7 +359,9 @@ export const backfillQuestMetricsBatch = internalMutation({
 	},
 });
 
-export function contractRewardResourcesTotal(row: Pick<Doc<"contractResults">, "rewardCargoLoaded">) {
+export function contractRewardResourcesTotal(
+	row: Pick<Doc<"contractResults">, "rewardCargoLoaded">,
+) {
 	return wholeUnitsFromScaledBucket(row.rewardCargoLoaded);
 }
 

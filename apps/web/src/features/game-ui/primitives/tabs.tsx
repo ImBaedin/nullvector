@@ -24,9 +24,9 @@ function TabItem({ activeId, item }: { activeId: string; item: ContextNavItem })
     pointer-events-none border-transparent text-white/20
     [&_img]:opacity-30
   ` : item.id === activeId ? `
-      border-cyan-400/80 text-cyan-50
-      [&_img]:opacity-90
-    ` : `
+    border-cyan-400/80 text-cyan-50
+    [&_img]:opacity-90
+  ` : `
       border-transparent text-white/35
       hover:border-white/15 hover:text-white/60
       [&_img]:opacity-40

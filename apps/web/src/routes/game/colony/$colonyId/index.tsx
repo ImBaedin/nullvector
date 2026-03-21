@@ -42,6 +42,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { OverviewRouteSkeleton } from "@/features/colony-route/loading-skeletons";
 import { useColonySelectors } from "@/features/colony-state/hooks";
+import { useColonyOverviewOperationalState } from "@/features/colony-ui/hooks/use-colony-overview-operational-state";
 import { formatQueueRemainingLabel, getQueueProgress } from "@/features/colony-ui/queue-state";
 import { formatColonyDuration } from "@/features/colony-ui/time";
 import { useColonyResources } from "@/hooks/use-colony-resources";
@@ -362,6 +363,7 @@ function ColonyOverviewRoute() {
 	const overviewHeader = useQuery(api.colonyOverview.getColonyOverviewHeader, {
 		colonyId: colonyIdAsId,
 	});
+	const overviewOperational = useColonyOverviewOperationalState(colonyIdAsId);
 	const overviewPlanet = useQuery(api.colonyOverview.getColonyOverviewPlanet, {
 		colonyId: colonyIdAsId,
 	});
@@ -391,6 +393,7 @@ function ColonyOverviewRoute() {
 			!overviewInfrastructure ||
 			!overviewDefense ||
 			!overviewFleet ||
+			!overviewOperational ||
 			!overviewStrategic ||
 			!overviewActivity ||
 			!overviewTiming
@@ -401,7 +404,11 @@ function ColonyOverviewRoute() {
 		return {
 			colonyId: overviewHeader.colonyId,
 			viewerRelation: overviewHeader.viewerRelation,
-			header: overviewHeader.header,
+			header: {
+				...overviewHeader.header,
+				classification: overviewOperational.operational.classification,
+				status: overviewOperational.operational.status,
+			},
 			planet: overviewPlanet.planet,
 			infrastructure: overviewInfrastructure.infrastructure,
 			defense: overviewDefense.defense,
@@ -416,6 +423,7 @@ function ColonyOverviewRoute() {
 		overviewFleet,
 		overviewHeader,
 		overviewInfrastructure,
+		overviewOperational,
 		overviewPlanet,
 		overviewStrategic,
 		overviewTiming,
@@ -967,9 +975,9 @@ function ColonyOverviewRoute() {
 																</span>
 															</div>
 															<p className="text-[12px] text-white/72">{queue.itemLabel}</p>
-															<div className="
-                 mt-2 h-1.5 overflow-hidden rounded-full bg-white/8
-               ">
+															<div
+																className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8"
+															>
 																<div
 																	className="h-full rounded-full bg-rose-300/60"
 																	style={{ width: `${queue.progressPercent}%` }}

@@ -268,7 +268,9 @@ test("tracker and timeline derive local claimable and locked states", () => {
 	expect(timelineItems.find((item) => item.id === "main_welcome_to_nullvector")?.status).toBe(
 		"claimed",
 	);
-	expect(timelineItems.find((item) => item.id === "main_scaling_production")?.status).toBe("upcoming");
+	expect(timelineItems.find((item) => item.id === "main_scaling_production")?.status).toBe(
+		"upcoming",
+	);
 	expect(timelineItems.find((item) => item.id === "main_increasing_storage_capacity")?.status).toBe(
 		"locked",
 	);

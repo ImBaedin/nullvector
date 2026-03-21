@@ -1114,8 +1114,7 @@ export function buildQuestEvaluationContextFromFacts(
 		contractRewardResourcesByColony[metric.colonyId] = metric.contractRewardResourcesTotal;
 		raidDefenseSuccessCountByColony[metric.colonyId] = metric.raidDefenseSuccessCount;
 		transportDeliveryCountByColony[metric.colonyId] = metric.transportDeliveryCount;
-		transportDeliveredResourcesByColony[metric.colonyId] =
-			metric.transportDeliveredResourcesTotal;
+		transportDeliveredResourcesByColony[metric.colonyId] = metric.transportDeliveredResourcesTotal;
 	}
 
 	return {
@@ -1197,7 +1196,9 @@ export function deriveQuestTimelineItems(args: {
 			.filter((row) => normalizeQuestStateStatus(row.status) === "claimed")
 			.map((row) => row.questId),
 	);
-	const questTitleById = new Map(definitions.map((definition) => [definition.id, definition.title]));
+	const questTitleById = new Map(
+		definitions.map((definition) => [definition.id, definition.title]),
+	);
 
 	return definitions
 		.map((definition) => {
