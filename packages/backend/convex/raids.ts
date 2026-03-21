@@ -1,8 +1,8 @@
 import {
 	getRaidHistoryForColony,
 	getRaidStatusForColony,
-	reconcileAllNpcRaidSchedules,
 	reconcileNpcRaidSchedule,
+	reconcileNpcRaidSchedulesForPlayer,
 	reconcileDueNpcRaids,
 	resolveOverdueRaidForColony,
 	resolveNpcRaid,
@@ -11,8 +11,8 @@ import {
 export {
 	getRaidHistoryForColony,
 	getRaidStatusForColony,
-	reconcileAllNpcRaidSchedules,
 	reconcileNpcRaidSchedule,
+	reconcileNpcRaidSchedulesForPlayer,
 	reconcileDueNpcRaids,
 	resolveOverdueRaidForColony,
 	resolveNpcRaid,

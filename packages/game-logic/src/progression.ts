@@ -815,7 +815,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 30 }],
-		highlights: [{ target: "tab-shipyard", hint: "Open Shipyard to build your shipyard" }],
+		highlights: [{ target: "tab-facilities", hint: "Open Facilities to build your shipyard" }],
 	},
 	{
 		id: "main_upgrade_shipyard",
