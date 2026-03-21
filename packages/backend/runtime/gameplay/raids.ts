@@ -1,6 +1,7 @@
 import {
 	DEFAULT_SHIP_DEFINITIONS,
 	generateNpcRaidSnapshot,
+	generateTutorialNpcRaidSnapshot,
 	getFleetCargoCapacity,
 	normalizeDefenseCounts,
 	normalizeShipCounts,
@@ -379,11 +380,14 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 		};
 	}
 	const difficultyTier = Math.min(MAX_RAID_DIFFICULTY_TIER, progression.raidRules.difficultyTier);
-	const snapshot = generateNpcRaidSnapshot({
-		difficultyTier,
-		hostileFactionKey: hostileSource.hostileFactionKey,
-		seed: `${args.colony._id}:${hostileSource.planetId}:${args.scheduledAt}`,
-	});
+	const snapshot =
+		args.spawnReason === "tutorialRank2"
+			? generateTutorialNpcRaidSnapshot()
+			: generateNpcRaidSnapshot({
+					difficultyTier,
+					hostileFactionKey: hostileSource.hostileFactionKey,
+					seed: `${args.colony._id}:${hostileSource.planetId}:${args.scheduledAt}`,
+				});
 	const durationMs = durationMsForFleet({
 		distance: hostileSource.distance,
 		shipCounts: snapshot.attackerFleet,

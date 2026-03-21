@@ -156,11 +156,28 @@ export type QuestEffect = {
 	kind: "spawnTutorialRaid";
 };
 
+export type HighlightTarget =
+	| "tab-overview"
+	| "tab-facilities"
+	| "tab-shipyard"
+	| "tab-defenses"
+	| "tab-contracts"
+	| "tab-fleet"
+	| "tab-colonization"
+	| "quest-button"
+	| "star-map-button";
+
+export type QuestHighlight = {
+	target: HighlightTarget;
+	hint?: string;
+};
+
 export type QuestDefinition = {
 	bindingStrategy: QuestBindingStrategy;
 	category: QuestCategory;
 	description: string;
 	effects?: QuestEffect[];
+	highlights?: QuestHighlight[];
 	id: QuestId;
 	objectives: QuestObjectiveDefinition[];
 	order: number;
@@ -698,6 +715,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 30 }],
+		highlights: [{ target: "tab-facilities", hint: "Open Facilities to build the Robotics Hub" }],
 	},
 	{
 		id: "main_upgrade_robotics_hub",
@@ -717,6 +735,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 30 }],
+		highlights: [{ target: "tab-facilities" }],
 	},
 	{
 		id: "main_establish_defense_grid",
@@ -736,6 +755,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 40 }],
+		highlights: [{ target: "tab-defenses", hint: "Open Defenses to establish your defense grid" }],
 	},
 	{
 		id: "main_arm_missile_batteries",
@@ -756,6 +776,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 		],
 		rewards: [{ kind: "xp", amount: 40 }],
 		effects: [{ kind: "spawnTutorialRaid" }],
+		highlights: [{ target: "tab-defenses" }],
 	},
 	{
 		id: "main_hold_the_line",
@@ -774,6 +795,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 100 }],
+		highlights: [{ target: "tab-defenses" }],
 	},
 	{
 		id: "main_build_shipyard",
@@ -793,6 +815,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 30 }],
+		highlights: [{ target: "tab-shipyard", hint: "Open Shipyard to build your shipyard" }],
 	},
 	{
 		id: "main_upgrade_shipyard",
@@ -812,6 +835,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 30 }],
+		highlights: [{ target: "tab-shipyard" }],
 	},
 	{
 		id: "main_assemble_interceptors",
@@ -831,6 +855,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 40 }],
+		highlights: [{ target: "tab-shipyard" }],
 	},
 	{
 		id: "main_complete_first_contract",
@@ -849,6 +874,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 40 }],
+		highlights: [{ target: "tab-contracts", hint: "Open Contracts to take your first contract" }],
 	},
 	{
 		id: "main_profit_from_conflict",
@@ -867,6 +893,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 56 }],
+		highlights: [{ target: "tab-contracts" }],
 	},
 	{
 		id: "main_build_small_cargo",
@@ -886,6 +913,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 50 }],
+		highlights: [{ target: "tab-shipyard" }],
 	},
 	{
 		id: "main_expand_shipyard_for_colonization",
@@ -905,6 +933,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 90 }],
+		highlights: [{ target: "tab-shipyard" }],
 	},
 	{
 		id: "main_commission_colony_ship",
@@ -924,6 +953,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 134 }],
+		highlights: [{ target: "tab-shipyard" }],
 	},
 	{
 		id: "main_found_second_colony",
@@ -941,6 +971,9 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 80 }],
+		highlights: [
+			{ target: "star-map-button", hint: "Open Star Map to find a new colony location" },
+		],
 	},
 	{
 		id: "main_stabilize_new_outpost",

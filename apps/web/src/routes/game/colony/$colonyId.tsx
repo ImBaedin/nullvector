@@ -12,6 +12,7 @@ import { AppHeader } from "@/features/game-ui/header";
 import { useColonyLayoutController } from "@/features/game-ui/shell/use-colony-layout-controller";
 import { ColonyStarMapLayer } from "@/features/universe-explorer-realdata/components/colony-star-map-layer";
 import { ExplorerProvider } from "@/features/universe-explorer-realdata/context/explorer-context";
+import { HighlightProvider, useQuestProgressWatcher } from "@/features/game-ui/quests";
 import { useConvexAuth } from "@/lib/convex-hooks";
 
 export const Route = createFileRoute("/game/colony/$colonyId")({
@@ -37,7 +38,10 @@ function ColonyLayoutContent() {
 		pickerRequested: Boolean(pickerRequest),
 	});
 
+	useQuestProgressWatcher({ activeColonyId: colonyIdAsId });
+
 	return (
+		<HighlightProvider>
 		<div
 			className="relative h-full overflow-y-auto"
 			style={{
@@ -95,5 +99,6 @@ function ColonyLayoutContent() {
 				</div>
 			</div>
 		</div>
+		</HighlightProvider>
 	);
 }

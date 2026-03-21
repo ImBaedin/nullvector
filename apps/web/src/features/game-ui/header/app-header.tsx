@@ -1,9 +1,11 @@
 import { Tooltip } from "@base-ui/react/tooltip";
-import { Bell, ChevronDown, Earth, Menu, ScrollText, Settings, Trophy } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { Bell, ChevronDown, Compass, Earth, Menu, Settings, Trophy } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdata/types";
 
+import { useHighlightTarget } from "@/features/game-ui/quests/use-highlight-target";
+import { QUEST_MODAL_OPEN_EVENT } from "@/features/game-ui/quests/quest-modal-events";
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { NotificationsModal } from "@/features/game-ui/shell/notifications-modal";
@@ -61,6 +63,7 @@ export function AppHeader({
 	const header = useHeaderData();
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [questsOpen, setQuestsOpen] = useState(false);
+	const [focusedQuestId, setFocusedQuestId] = useState<string | null>(null);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [notificationsOpen, setNotificationsOpen] = useState(false);
 	const [starMapEntitiesOpen, setStarMapEntitiesOpen] = useState(false);
@@ -84,6 +87,8 @@ export function AppHeader({
 		setIsRenamingColony,
 	} = header;
 	const handleStarMapToggle = onToggleStarMap ?? config.onOpenStarMap ?? (() => {});
+	const starMapHighlight = useHighlightTarget("star-map-button");
+	const questButtonHighlight = useHighlightTarget("quest-button");
 	const drawerConfig = useMemo(
 		() => ({
 			...headerDrawerConfig,
@@ -95,8 +100,26 @@ export function AppHeader({
 		[contextTabs, headerDrawerConfig, liveNotificationsCount],
 	);
 
+	useEffect(() => {
+		const handleQuestModalOpen = (event: Event) => {
+			const detail = (event as CustomEvent<{ questId?: string }>).detail;
+			setFocusedQuestId(detail?.questId ?? null);
+			setQuestsOpen(true);
+		};
+
+		window.addEventListener(QUEST_MODAL_OPEN_EVENT, handleQuestModalOpen);
+		return () => {
+			window.removeEventListener(QUEST_MODAL_OPEN_EVENT, handleQuestModalOpen);
+		};
+	}, []);
+
 	if (config.mode !== "game") {
 		return null;
+	}
+
+	function openQuests(questId?: string) {
+		setFocusedQuestId(questId ?? null);
+		setQuestsOpen(true);
 	}
 
 	return (
@@ -382,7 +405,7 @@ export function AppHeader({
         ` : `
           border-white/12 bg-white/4 text-white/60
           hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100
-        `, isCompact ? "h-8" : "h-9")} onClick={handleStarMapToggle} type="button">
+        `, isCompact ? "h-8" : "h-9", starMapHighlight.highlightProps.className)} onClick={handleStarMapToggle} title={starMapHighlight.highlightProps.title} type="button">
 									<span className="nv-starmap-stars" />
 									<span className="nv-starmap-stars is-slower" />
 									<img
@@ -509,21 +532,22 @@ export function AppHeader({
 							) : null}
 							<button
 								aria-label="Quests"
-								className="
+								className={cn(`
           relative flex size-8 items-center justify-center rounded-lg
-          text-white/30 transition-colors
-          hover:bg-white/4 hover:text-white/60
-        "
-								onClick={() => setQuestsOpen(true)}
+          text-cyan-300/50 transition-all duration-200
+          hover:bg-cyan-400/10 hover:text-cyan-200/90 hover:shadow-[0_0_8px_rgba(34,211,238,0.15)]
+        `, questButtonHighlight.highlightProps.className)}
+								onClick={() => openQuests()}
+								title={questButtonHighlight.highlightProps.title}
 								type="button"
 							>
-								<ScrollText className="size-3.5" />
+								<Compass className="size-4" />
 								{progressionOverview?.questTrackerCount ? (
 									<span
 										className="
             absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center
-            justify-center rounded-full bg-cyan-400/20 px-1 text-[8px] font-bold
-            text-cyan-200
+            justify-center rounded-full bg-cyan-400/25 px-1 text-[8px] font-bold
+            text-cyan-100 shadow-[0_0_6px_rgba(34,211,238,0.3)]
           "
 									>
 										{progressionOverview.questTrackerCount}
@@ -630,13 +654,23 @@ export function AppHeader({
 			<AppHeaderMobileDrawer
 				config={drawerConfig}
 				onOpenStarMap={handleStarMapToggle}
-				onOpenQuests={() => setQuestsOpen(true)}
+				onOpenQuests={() => openQuests()}
 				onClose={() => setDrawerOpen(false)}
 				questCount={progressionOverview?.questTrackerCount ?? 0}
 				open={drawerOpen}
 			/>
 
-			<QuestsModal activeColonyId={colonyIdAsId} onOpenChange={setQuestsOpen} open={questsOpen} />
+			<QuestsModal
+				activeColonyId={colonyIdAsId}
+				focusQuestId={focusedQuestId}
+				onOpenChange={(open) => {
+					setQuestsOpen(open);
+					if (!open) {
+						setFocusedQuestId(null);
+					}
+				}}
+				open={questsOpen}
+			/>
 
 			<NotificationsModal
 				activeColonyId={colonyIdAsId}

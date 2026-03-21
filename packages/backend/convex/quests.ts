@@ -1,3 +1,3 @@
-import { claim, getLog, getTracker, syncAvailability } from "../runtime/gameplay/quests";
+import { claim, getLog, getTimeline, getTracker, syncAvailability } from "../runtime/gameplay/quests";
 
-export { claim, getLog, getTracker, syncAvailability };
+export { claim, getLog, getTimeline, getTracker, syncAvailability };

@@ -5,6 +5,8 @@ import {
 	type QuestBindings,
 	type QuestEvaluationContext,
 	type QuestLogItem,
+	type QuestObjectiveProgress,
+	type QuestReward,
 	type QuestStatus,
 	type QuestTrackerItem,
 } from "@nullvector/game-logic";
@@ -286,19 +288,30 @@ function rowToBindings(row: Doc<"playerQuestStates"> | null | undefined): QuestB
 	return row?.bindings ?? {};
 }
 
+function deriveQuestStatus(args: {
+	evaluation: ReturnType<typeof evaluateQuestDefinition>;
+	row: Doc<"playerQuestStates">;
+}): QuestStatus {
+	if (args.row.status === "claimed") {
+		return "claimed";
+	}
+	return args.evaluation.complete ? "claimable" : "active";
+}
+
 function toQuestLogItem(args: {
 	evaluation: ReturnType<typeof evaluateQuestDefinition>;
 	row: Doc<"playerQuestStates">;
 }): QuestLogItem {
 	const definition = requireQuestDefinition(args.row.questId);
+	const status = deriveQuestStatus(args);
 	return {
 		id: definition.id,
 		title: definition.title,
 		description: definition.description,
 		category: definition.category,
 		order: definition.order,
-		status: args.row.status as QuestStatus,
-		claimable: args.row.status === "claimable",
+		status,
+		claimable: status === "claimable",
 		version: definition.version,
 		bindings: rowToBindings(args.row),
 		rewards: definition.rewards,
@@ -661,5 +674,144 @@ export const claim = mutation({
 			claimedQuestId: definition.id,
 			status: "claimed" as const,
 		};
+	},
+});
+
+type TimelineStatus = QuestStatus | "upcoming" | "locked";
+
+type TimelineItem = {
+	id: string;
+	title: string;
+	description: string;
+	category: "main" | "system" | "side";
+	order: number;
+	status: TimelineStatus;
+	claimable: boolean;
+	rewards: QuestReward[];
+	objectives: QuestObjectiveProgress[];
+	prerequisites: Array<{ questId: string; title: string; satisfied: boolean }>;
+};
+
+const timelineStatusValidator = v.union(
+	v.literal("active"),
+	v.literal("claimable"),
+	v.literal("claimed"),
+	v.literal("upcoming"),
+	v.literal("locked"),
+);
+
+const timelineItemValidator = v.object({
+	id: v.string(),
+	title: v.string(),
+	description: v.string(),
+	category: v.union(v.literal("main"), v.literal("system"), v.literal("side")),
+	order: v.number(),
+	status: timelineStatusValidator,
+	claimable: v.boolean(),
+	rewards: v.array(questRewardValidator),
+	objectives: v.array(objectiveProgressValidator),
+	prerequisites: v.array(
+		v.object({
+			questId: v.string(),
+			title: v.string(),
+			satisfied: v.boolean(),
+		}),
+	),
+});
+
+const timelineValidator = v.object({
+	items: v.array(timelineItemValidator),
+});
+
+export const getTimeline = query({
+	args: {},
+	returns: timelineValidator,
+	handler: async (ctx) => {
+		const playerResult = await resolveCurrentPlayer(ctx);
+		if (!playerResult?.player) {
+			throw new ConvexError("Authentication required");
+		}
+		const playerId = playerResult.player._id;
+		const player = playerResult.player;
+
+		const [allRows, questContext] = await Promise.all([
+			readQuestRowsByPlayer({ ctx, playerId }),
+			buildQuestEvaluationContext({ ctx, playerId }),
+		]);
+
+		const progression = await buildProgressionOverview({ ctx, player });
+
+		const rowsByQuestId = new Map(allRows.map((row) => [row.questId, row]));
+		const claimedQuestIds = new Set(
+			allRows.filter((row) => row.status === "claimed").map((row) => row.questId),
+		);
+
+		// Build a lookup from quest id to title
+		const questTitleById = new Map(QUEST_DEFINITIONS.map((def) => [def.id, def.title]));
+
+		const items: TimelineItem[] = QUEST_DEFINITIONS.map((definition) => {
+			const row = rowsByQuestId.get(definition.id);
+
+			const prerequisites = definition.prerequisites.map((prereq) => {
+				if (prereq.kind === "questClaimed") {
+					return {
+						questId: prereq.questId,
+						title: questTitleById.get(prereq.questId) ?? prereq.questId,
+						satisfied: claimedQuestIds.has(prereq.questId),
+					};
+				}
+				return {
+					questId: `rank:${prereq.rank}`,
+					title: `Rank ${prereq.rank}`,
+					satisfied: progression.rank >= prereq.rank,
+				};
+			});
+
+			const prerequisitesSatisfied = prerequisites.every((p) => p.satisfied);
+
+			if (row) {
+				const bindings = rowToBindings(row);
+				const evaluation =
+					row.status === "claimed"
+						? null
+						: evaluateQuestDefinition({
+								quest: definition,
+								context: questContext,
+								bindings,
+							});
+				const status = evaluation ? deriveQuestStatus({ evaluation, row }) : ("claimed" as const);
+				return {
+					id: definition.id,
+					title: definition.title,
+					description: definition.description,
+					category: definition.category,
+					order: definition.order,
+					status,
+					claimable: status === "claimable",
+					rewards: definition.rewards,
+					objectives: evaluation?.objectives ?? [],
+					prerequisites,
+				};
+			}
+
+			// No row: determine upcoming vs locked
+			const status: TimelineStatus = prerequisitesSatisfied ? "upcoming" : "locked";
+			return {
+				id: definition.id,
+				title: definition.title,
+				description: definition.description,
+				category: definition.category,
+				order: definition.order,
+				status,
+				claimable: false,
+				rewards: definition.rewards,
+				objectives: [],
+				prerequisites,
+			};
+		});
+
+		items.sort((a, b) => a.order - b.order);
+
+		return { items };
 	},
 });

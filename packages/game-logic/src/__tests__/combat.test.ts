@@ -4,6 +4,7 @@ import {
 	COMBAT_MISSION_TYPE_KEYS,
 	generateContractSnapshot,
 	getConcurrentContractLimit,
+	generateTutorialNpcRaidSnapshot,
 	getVisibleContractSlotCount,
 	MISSION_TEMPLATES,
 	simulateCombat,
@@ -183,4 +184,24 @@ test("combat stalemates fail when enemies remain after round six", () => {
 	expect(result.success).toBe(false);
 	expect(result.roundsFought).toBe(6);
 	expect(result.defenderDefenseRemaining.shieldDome).toBeGreaterThan(0);
+});
+
+test("tutorial raid is defeated by five missile batteries", () => {
+	const tutorialRaid = generateTutorialNpcRaidSnapshot();
+	const result = simulateCombat({
+		attacker: {
+			ships: tutorialRaid.attackerFleet,
+			targetPriority: tutorialRaid.attackerTargetPriority,
+		},
+		defender: {
+			defenses: {
+				missileBattery: 5,
+			},
+			targetPriority: tutorialRaid.defenderTargetPriority,
+		},
+	});
+
+	expect(result.success).toBe(false);
+	expect(Object.values(result.attackerRemaining).every((count) => count === 0)).toBe(true);
+	expect(result.defenderDefenseRemaining.missileBattery).toBeGreaterThan(0);
 });
