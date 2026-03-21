@@ -7,34 +7,41 @@ import {
 	OctagonXIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { Toaster as Sonner } from "sonner";
 
 const Toaster = ({ ...props }: ToasterProps) => {
-	const { theme = "system" } = useTheme();
-
 	return (
 		<Sonner
-			theme={theme as ToasterProps["theme"]}
+			// Always dark — this is a game UI
+			theme="dark"
 			className="toaster group"
+			gap={8}
 			icons={{
-				success: <CircleCheckIcon className="size-4" />,
-				info: <InfoIcon className="size-4" />,
-				warning: <TriangleAlertIcon className="size-4" />,
-				error: <OctagonXIcon className="size-4" />,
-				loading: <Loader2Icon className="size-4 animate-spin" />,
+				success: <CircleCheckIcon className="size-4 text-emerald-400" />,
+				info: <InfoIcon className="size-4 text-cyan-400/80" />,
+				warning: <TriangleAlertIcon className="size-4 text-amber-400/80" />,
+				error: <OctagonXIcon className="size-4 text-rose-400/80" />,
+				loading: <Loader2Icon className="size-4 animate-spin text-white/40" />,
 			}}
 			style={
 				{
-					"--normal-bg": "var(--popover)",
-					"--normal-text": "var(--popover-foreground)",
-					"--normal-border": "var(--border)",
-					"--border-radius": "var(--radius)",
+					// Minimal variable overrides — the .nv-toast CSS class handles
+					// background, border, border-radius, shadow, and backdrop-filter
+					// via !important rules so these are mainly fallback/text color hints.
+					"--normal-text": "#edf5ff",
+					"--success-text": "#edf5ff",
+					"--error-text": "#edf5ff",
+					"--warning-text": "#edf5ff",
+					"--info-text": "#edf5ff",
+					"--border-radius": "10px",
+					"--font-size": "13px",
 				} as React.CSSProperties
 			}
 			toastOptions={{
 				classNames: {
-					toast: "cn-toast",
+					toast: "nv-toast",
+					title: "nv-toast-title",
+					description: "nv-toast-description",
 				},
 			}}
 			{...props}

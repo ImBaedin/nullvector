@@ -62,7 +62,11 @@ export {
 	getDefenseBuildDurationSeconds,
 	normalizeDefenseCounts,
 } from "./defenses";
-export { estimateColonyDefensePower, generateNpcRaidSnapshot } from "./raids";
+export {
+	estimateColonyDefensePower,
+	generateNpcRaidSnapshot,
+	generateTutorialNpcRaidSnapshot,
+} from "./raids";
 export {
 	COMBAT_MISSION_TYPE_KEYS,
 	CONTRACT_EXPIRY_MS,
@@ -187,6 +191,7 @@ export type {
 	FacilityAccessMap,
 	FeatureAccessState,
 	FeatureKey,
+	HighlightTarget,
 	MissionAccessMap,
 	MissionKey,
 	ObjectiveScope,
@@ -200,6 +205,7 @@ export type {
 	QuestEvaluationColony,
 	QuestEvaluationContext,
 	QuestEvaluationResult,
+	QuestHighlight,
 	QuestId,
 	QuestLogItem,
 	QuestObjectiveDefinition,

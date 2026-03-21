@@ -125,3 +125,13 @@ export function generateNpcRaidSnapshot(args: {
 		defenderTargetPriority: RAID_DEFENDER_TARGET_PRIORITY,
 	};
 }
+
+export function generateTutorialNpcRaidSnapshot() {
+	return {
+		attackerFleet: normalizeShipCounts({
+			interceptor: 2,
+		}),
+		attackerTargetPriority: RAID_ATTACKER_TARGET_PRIORITY,
+		defenderTargetPriority: RAID_DEFENDER_TARGET_PRIORITY,
+	};
+}
