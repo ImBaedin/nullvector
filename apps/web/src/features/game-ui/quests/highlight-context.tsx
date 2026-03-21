@@ -1,7 +1,7 @@
 import type { HighlightTarget } from "@nullvector/game-logic";
 
-import { QUEST_DEFINITIONS } from "@nullvector/game-logic";
 import { api } from "@nullvector/backend/convex/_generated/api";
+import { QUEST_DEFINITIONS } from "@nullvector/game-logic";
 import React, { createContext, useContext, useMemo } from "react";
 
 import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
@@ -14,7 +14,10 @@ const HighlightContext = createContext<HighlightContextValue>({
 	activeHighlights: new Map(),
 });
 
-const questHighlightsByIdCache = new Map<string, Array<{ target: HighlightTarget; hint?: string }>>();
+const questHighlightsByIdCache = new Map<
+	string,
+	Array<{ target: HighlightTarget; hint?: string }>
+>();
 for (const def of QUEST_DEFINITIONS) {
 	if (def.highlights) {
 		questHighlightsByIdCache.set(def.id, def.highlights);
@@ -46,9 +49,7 @@ export function HighlightProvider({ children }: { children: React.ReactNode }) {
 	}, [tracker]);
 
 	return (
-		<HighlightContext.Provider value={{ activeHighlights }}>
-			{children}
-		</HighlightContext.Provider>
+		<HighlightContext.Provider value={{ activeHighlights }}>{children}</HighlightContext.Provider>
 	);
 }
 

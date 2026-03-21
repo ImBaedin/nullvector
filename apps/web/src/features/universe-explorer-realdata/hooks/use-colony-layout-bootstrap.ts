@@ -34,16 +34,43 @@ export function useColonyLayoutBootstrap(args: {
 		prefetchedColonyIdsRef.current.add(args.colonyId);
 
 		void Promise.allSettled([
-			convex.query(api.colony.getColonySnapshot, {
+			convex.query(api.colony.getColonyIdentity, {
 				colonyId: args.colonyId,
 			}),
-			convex.query(api.colony.getColonySessionSnapshot, {
+			convex.query(api.colony.getColonyEconomy, {
+				colonyId: args.colonyId,
+			}),
+			convex.query(api.colony.getColonyInfrastructure, {
+				colonyId: args.colonyId,
+			}),
+			convex.query(api.colony.getColonyPolicy, {
+				colonyId: args.colonyId,
+			}),
+			convex.query(api.colony.getColonyQueueState, {
+				colonyId: args.colonyId,
+			}),
+			convex.query(api.colony.getColonyShips, {
+				colonyId: args.colonyId,
+			}),
+			convex.query(api.colony.getColonyDefenses, {
+				colonyId: args.colonyId,
+			}),
+			convex.query(api.colonyNav.getColonyNav, {
+				colonyId: args.colonyId,
+			}),
+			convex.query(api.colonyNav.getAllColonyQueueStatuses, {
 				colonyId: args.colonyId,
 			}),
 			convex.query(api.fleetV2.getFleetGarrison, {
 				colonyId: args.colonyId,
 			}),
-			convex.query(api.fleetV2.getFleetOperationsForColony, {
+			convex.query(api.fleetV2.getFleetOperationsForOriginColony, {
+				colonyId: args.colonyId,
+			}),
+			convex.query(api.fleetV2.getFleetOperationsForTargetColony, {
+				colonyId: args.colonyId,
+			}),
+			convex.query(api.fleetV2.getFleetOwnedOperationsHealth, {
 				colonyId: args.colonyId,
 			}),
 		]);

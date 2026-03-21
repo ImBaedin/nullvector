@@ -1,7 +1,7 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { useMutation, useQuery } from "@/lib/convex-hooks";
 
@@ -11,14 +11,47 @@ export function useSelfHealingFleetOperations(args: {
 	colonyId: Id<"colonies">;
 	isAuthenticated: boolean;
 }) {
-	const operations = useQuery(
-		api.fleetV2.getFleetOperationsForColony,
+	const originOperations = useQuery(
+		api.fleetV2.getFleetOperationsForOriginColony,
+		args.isAuthenticated ? { colonyId: args.colonyId } : "skip",
+	);
+	const targetOperations = useQuery(
+		api.fleetV2.getFleetOperationsForTargetColony,
+		args.isAuthenticated ? { colonyId: args.colonyId } : "skip",
+	);
+	const health = useQuery(
+		api.fleetV2.getFleetOwnedOperationsHealth,
 		args.isAuthenticated ? { colonyId: args.colonyId } : "skip",
 	);
 	const syncFleetState = useMutation(api.fleetV2.syncFleetState);
 	const lastAttemptKeyRef = useRef<string | null>(null);
 	const lastAttemptAtRef = useRef(0);
 	const inFlightRef = useRef(false);
+
+	const operations = useMemo(() => {
+		if (!originOperations || !targetOperations || !health) {
+			return undefined;
+		}
+
+		const merged = [
+			...originOperations.active.map((operation) => ({
+				...operation,
+				relation: "outgoing" as const,
+			})),
+			...targetOperations.active,
+		];
+		const unique = [...new Map(merged.map((operation) => [operation.id, operation])).values()].sort(
+			(left, right) => left.nextEventAt - right.nextEventAt,
+		);
+
+		return {
+			active: unique,
+			hasStaleOwnedOperations: health.hasStaleOwnedOperations,
+			nextEventAt:
+				unique[0]?.nextEventAt ?? targetOperations.nextEventAt ?? originOperations.nextEventAt,
+			serverNowMs: health.serverNowMs,
+		};
+	}, [health, originOperations, targetOperations]);
 
 	useEffect(() => {
 		if (!args.isAuthenticated || !operations?.hasStaleOwnedOperations) {

@@ -144,15 +144,6 @@ const DEFENSE_LABELS = {
 	shieldDome: "Shield Dome",
 } as const satisfies Record<DefenseKey, string>;
 
-type OwnerQueueDisplay = {
-	etaLabel: string;
-	id: string;
-	itemLabel: string;
-	lane: "BLD" | "DEF" | "SHP";
-	progressPercent: number;
-	sortAt: number;
-};
-
 type QueueLikeItem = {
 	completesAt: number;
 	id?: string;
@@ -368,10 +359,67 @@ function ColonyOverviewRoute() {
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 	const navigate = useNavigate();
-	const overview = useQuery(api.colonyOverview.getColonyOverview, {
+	const overviewHeader = useQuery(api.colonyOverview.getColonyOverviewHeader, {
+		colonyId: colonyIdAsId,
+	});
+	const overviewPlanet = useQuery(api.colonyOverview.getColonyOverviewPlanet, {
+		colonyId: colonyIdAsId,
+	});
+	const overviewInfrastructure = useQuery(api.colonyOverview.getColonyOverviewInfrastructure, {
+		colonyId: colonyIdAsId,
+	});
+	const overviewDefense = useQuery(api.colonyOverview.getColonyOverviewDefense, {
+		colonyId: colonyIdAsId,
+	});
+	const overviewFleet = useQuery(api.colonyOverview.getColonyOverviewFleet, {
+		colonyId: colonyIdAsId,
+	});
+	const overviewStrategic = useQuery(api.colonyOverview.getColonyOverviewStrategic, {
+		colonyId: colonyIdAsId,
+	});
+	const overviewActivity = useQuery(api.colonyOverview.getColonyOverviewActivity, {
+		colonyId: colonyIdAsId,
+	});
+	const overviewTiming = useQuery(api.colonyOverview.getColonyOverviewTiming, {
 		colonyId: colonyIdAsId,
 	});
 	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
+	const overview = useMemo(() => {
+		if (
+			!overviewHeader ||
+			!overviewPlanet ||
+			!overviewInfrastructure ||
+			!overviewDefense ||
+			!overviewFleet ||
+			!overviewStrategic ||
+			!overviewActivity ||
+			!overviewTiming
+		) {
+			return undefined;
+		}
+
+		return {
+			colonyId: overviewHeader.colonyId,
+			viewerRelation: overviewHeader.viewerRelation,
+			header: overviewHeader.header,
+			planet: overviewPlanet.planet,
+			infrastructure: overviewInfrastructure.infrastructure,
+			defense: overviewDefense.defense,
+			fleet: overviewFleet.fleet,
+			strategic: overviewStrategic.strategic,
+			activity: overviewActivity.activity,
+			timing: overviewTiming.timing,
+		};
+	}, [
+		overviewActivity,
+		overviewDefense,
+		overviewFleet,
+		overviewHeader,
+		overviewInfrastructure,
+		overviewPlanet,
+		overviewStrategic,
+		overviewTiming,
+	]);
 	const isOwnerView = overview?.viewerRelation === "owner";
 	const colonySelectors = useColonySelectors(isAuthenticated && isOwnerView ? colonyIdAsId : null);
 	const colonyResources = useColonyResources(isAuthenticated && isOwnerView ? colonyIdAsId : null);

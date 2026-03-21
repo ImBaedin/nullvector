@@ -54,8 +54,8 @@ export function useHeaderData() {
 	const colonySession = useColonySessionSnapshot(
 		colonyIdAsId && isAuthenticated ? colonyIdAsId : null,
 	);
-	const publicOverview = useQuery(
-		api.colonyOverview.getColonyOverview,
+	const publicOverviewHeader = useQuery(
+		api.colonyOverview.getColonyOverviewHeader,
 		colonyIdAsId ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const raidStatus = useQuery(
@@ -164,14 +164,14 @@ export function useHeaderData() {
 				),
 			};
 		});
-		if (publicOverview?.viewerRelation === "owner") {
+		if (publicOverviewHeader?.viewerRelation === "owner") {
 			return baseTabs;
 		}
 		return baseTabs.map((tab) => ({
 			...tab,
 			isDisabled: tab.id !== "overview",
 		}));
-	}, [config.contextTabs, publicOverview?.viewerRelation, raidStatus?.activeRaid]);
+	}, [config.contextTabs, publicOverviewHeader?.viewerRelation, raidStatus?.activeRaid]);
 
 	const drawerConfig = useMemo(
 		() => ({
@@ -199,11 +199,11 @@ export function useHeaderData() {
 		if (activeColony?.name) {
 			return activeColony.name;
 		}
-		if (publicOverview?.header.name) {
-			return publicOverview.header.name;
+		if (publicOverviewHeader?.header.name) {
+			return publicOverviewHeader.header.name;
 		}
 		return (config.title ?? "Colony Operations").replace(/ Resources$/, "");
-	}, [activeColony?.name, config.title, publicOverview?.header.name]);
+	}, [activeColony?.name, config.title, publicOverviewHeader?.header.name]);
 
 	const commitColonyRename = useCallback(
 		async (nextName: string) => {
@@ -277,7 +277,7 @@ export function useHeaderData() {
 		isSavingColonyName,
 		liveNotificationsCount,
 		progressionOverview,
-		publicOverview,
+		publicOverview: publicOverviewHeader,
 		raidStatus,
 		colonyResources,
 		handleColonyChange,

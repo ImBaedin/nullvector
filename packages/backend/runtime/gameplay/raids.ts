@@ -571,7 +571,9 @@ export const reconcileDueNpcRaids = internalMutation({
 		const now = Date.now();
 		const dueRaids = await ctx.db
 			.query("npcRaidOperations")
-			.withIndex("by_status_event", (q) => q.eq("status", RAID_STATUS_IN_TRANSIT).lte("nextEventAt", now))
+			.withIndex("by_status_event", (q) =>
+				q.eq("status", RAID_STATUS_IN_TRANSIT).lte("nextEventAt", now),
+			)
 			.take(RAID_RECONCILE_BATCH_SIZE);
 		let resolved = 0;
 		for (const raid of dueRaids) {

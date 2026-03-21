@@ -1,21 +1,17 @@
-import {
-	normalizeDefenseCounts,
-	normalizeShipCounts,
-	type ColonySnapshot,
-} from "@nullvector/game-logic";
-import { v } from "convex/values";
+import { normalizeDefenseCounts, normalizeShipCounts } from "@nullvector/game-logic";
+import { ConvexError, v } from "convex/values";
 
-import type { Id } from "../../convex/_generated/dataModel";
+import type { Doc, Id } from "../../convex/_generated/dataModel";
 
-import { type QueryCtx, query } from "../../convex/_generated/server";
+import { query, type QueryCtx } from "../../convex/_generated/server";
 import {
-	getOwnedColony,
 	listOpenColonyQueueItems,
-	listPlayerColonies,
-	listPlayerColonyPlanets,
+	queueEventsNextAt,
 	queueViewItemValidator,
 	readColonyDefenseCounts,
 	resourceBucketValidator,
+	resolveCurrentPlayer,
+	storedToWholeUnits,
 	toAddressLabel,
 	toQueueViewItem,
 } from "./shared";
@@ -50,54 +46,84 @@ const defenseCountsValidator = v.object({
 	shieldDome: v.number(),
 });
 
-export const colonySnapshotValidator = v.object({
+export const colonyIdentityValidator = v.object({
 	addressLabel: v.string(),
-	buildings: colonyBuildingsValidator,
 	colonyId: v.id("colonies"),
-	defenses: defenseCountsValidator,
-	lastAccruedAt: v.number(),
 	name: v.string(),
-	openQueues: v.array(queueViewItemValidator),
+});
+
+export const colonyEconomyValidator = v.object({
+	colonyId: v.id("colonies"),
+	lastAccruedAt: v.number(),
 	overflow: resourceBucketValidator,
 	planetMultipliers: v.object({
 		alloy: v.number(),
 		crystal: v.number(),
 		fuel: v.number(),
 	}),
-	policies: v.optional(
-		v.object({
-			inboundMissionPolicy: v.optional(
-				v.union(v.literal("allowAll"), v.literal("denyAll"), v.literal("alliesOnly")),
-			),
-		}),
-	),
 	resources: resourceBucketValidator,
+	serverNowMs: v.number(),
+	storageCaps: resourceBucketValidator,
+});
+
+export const colonyInfrastructureValidator = v.object({
+	buildings: colonyBuildingsValidator,
+	colonyId: v.id("colonies"),
+});
+
+export const colonyPolicyValidator = v.object({
+	colonyId: v.id("colonies"),
+	policies: v.object({
+		inboundMissionPolicy: v.optional(
+			v.union(v.literal("allowAll"), v.literal("denyAll"), v.literal("alliesOnly")),
+		),
+	}),
+});
+
+export const colonyQueueStateValidator = v.object({
+	colonyId: v.id("colonies"),
+	openQueues: v.array(queueViewItemValidator),
 	schedule: v.object({
 		nextEventAt: v.optional(v.number()),
 	}),
 	serverNowMs: v.number(),
+});
+
+export const colonyShipsValidator = v.object({
+	colonyId: v.id("colonies"),
 	ships: shipCountsValidator,
-	storageCaps: resourceBucketValidator,
 });
 
-const colonyStatusValidator = v.union(
-	v.literal("Upgrading"),
-	v.literal("Queued"),
-	v.literal("Stable"),
-);
-
-export const colonySessionSnapshotValidator = v.object({
-	activeColonyId: v.id("colonies"),
-	colonies: v.array(
-		v.object({
-			addressLabel: v.string(),
-			id: v.id("colonies"),
-			name: v.string(),
-			status: colonyStatusValidator,
-		}),
-	),
-	title: v.string(),
+export const colonyDefensesValidator = v.object({
+	colonyId: v.id("colonies"),
+	defenses: defenseCountsValidator,
 });
+
+async function getOwnedColonyBase(args: { ctx: QueryCtx; colonyId: Id<"colonies"> }) {
+	const playerResult = await resolveCurrentPlayer(args.ctx);
+	if (!playerResult?.player) {
+		throw new ConvexError("Authentication required");
+	}
+
+	const colony = await args.ctx.db.get(args.colonyId);
+	if (!colony) {
+		throw new ConvexError("Colony not found");
+	}
+	if (colony.playerId !== playerResult.player._id) {
+		throw new ConvexError("Colony access denied");
+	}
+
+	const planet = await args.ctx.db.get(colony.planetId);
+	if (!planet) {
+		throw new ConvexError("Planet not found for colony");
+	}
+
+	return {
+		colony,
+		planet,
+		player: playerResult.player,
+	};
+}
 
 async function loadShipCounts(ctx: QueryCtx["db"], colonyId: Id<"colonies">) {
 	const rows = await ctx
@@ -111,117 +137,206 @@ async function loadShipCounts(ctx: QueryCtx["db"], colonyId: Id<"colonies">) {
 	return counts;
 }
 
-export const getColonySnapshot = query({
+function normalizeBuildings(
+	infrastructure: Doc<"colonyInfrastructure">["buildings"],
+): typeof colonyBuildingsValidator.type {
+	return {
+		...infrastructure,
+		defenseGridLevel: infrastructure.defenseGridLevel ?? 0,
+		roboticsHubLevel: infrastructure.roboticsHubLevel ?? 0,
+	};
+}
+
+export const getColonyIdentity = query({
 	args: {
 		colonyId: v.id("colonies"),
 	},
-	returns: colonySnapshotValidator,
+	returns: colonyIdentityValidator,
 	handler: async (ctx, args) => {
-		const serverNowMs = Date.now();
-		const { colony, planet } = await getOwnedColony({
+		const { colony, planet } = await getOwnedColonyBase({
 			colonyId: args.colonyId,
 			ctx,
 		});
-		const [queueRows, shipCounts, defenseCounts] = await Promise.all([
-			listOpenColonyQueueItems({
-				colonyId: colony._id,
-				ctx,
-			}),
-			loadShipCounts(ctx.db, colony._id),
-			readColonyDefenseCounts({
-				colonyId: colony._id,
-				ctx,
-			}),
-		]);
 
 		return {
 			addressLabel: toAddressLabel(planet),
-			buildings: colony.buildings,
 			colonyId: colony._id,
-			defenses: defenseCounts,
-			lastAccruedAt: colony.lastAccruedAt,
 			name: colony.name,
-			openQueues: queueRows.map((row) => toQueueViewItem({ item: row, now: serverNowMs })),
+		};
+	},
+});
+
+export const getColonyEconomy = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyEconomyValidator,
+	handler: async (ctx, args) => {
+		const serverNowMs = Date.now();
+		const { colony, planet } = await getOwnedColonyBase({
+			colonyId: args.colonyId,
+			ctx,
+		});
+
+		const [economy, planetEconomy] = await Promise.all([
+			ctx.db
+				.query("colonyEconomy")
+				.withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
+				.unique(),
+			ctx.db
+				.query("planetEconomy")
+				.withIndex("by_planet_id", (q) => q.eq("planetId", planet._id))
+				.unique(),
+		]);
+
+		if (!economy) {
+			throw new ConvexError("Colony economy row missing");
+		}
+		if (!planetEconomy) {
+			throw new ConvexError("Planet economy row missing");
+		}
+
+		return {
+			colonyId: colony._id,
+			lastAccruedAt: economy.lastAccruedAt,
 			overflow: {
-				alloy: Math.floor(colony.overflow.alloy / 1_000),
-				crystal: Math.floor(colony.overflow.crystal / 1_000),
-				fuel: Math.floor(colony.overflow.fuel / 1_000),
+				alloy: storedToWholeUnits(economy.overflow.alloy),
+				crystal: storedToWholeUnits(economy.overflow.crystal),
+				fuel: storedToWholeUnits(economy.overflow.fuel),
 			},
 			planetMultipliers: {
-				alloy: planet.alloyMultiplier,
-				crystal: planet.crystalMultiplier,
-				fuel: planet.fuelMultiplier,
-			},
-			policies: {
-				inboundMissionPolicy: colony.inboundMissionPolicy,
+				alloy: planetEconomy.alloyMultiplier,
+				crystal: planetEconomy.crystalMultiplier,
+				fuel: planetEconomy.fuelMultiplier,
 			},
 			resources: {
-				alloy: Math.floor(colony.resources.alloy / 1_000),
-				crystal: Math.floor(colony.resources.crystal / 1_000),
-				fuel: Math.floor(colony.resources.fuel / 1_000),
-			},
-			schedule: {
-				nextEventAt:
-					queueRows.length > 0 ? Math.min(...queueRows.map((row) => row.completesAt)) : undefined,
+				alloy: storedToWholeUnits(economy.resources.alloy),
+				crystal: storedToWholeUnits(economy.resources.crystal),
+				fuel: storedToWholeUnits(economy.resources.fuel),
 			},
 			serverNowMs,
-			ships: shipCounts,
 			storageCaps: {
-				alloy: Math.floor(colony.storageCaps.alloy / 1_000),
-				crystal: Math.floor(colony.storageCaps.crystal / 1_000),
-				fuel: Math.floor(colony.storageCaps.fuel / 1_000),
+				alloy: storedToWholeUnits(economy.storageCaps.alloy),
+				crystal: storedToWholeUnits(economy.storageCaps.crystal),
+				fuel: storedToWholeUnits(economy.storageCaps.fuel),
 			},
 		};
 	},
 });
 
-async function getBuildingQueueStatus(
-	ctx: QueryCtx,
-	colonyId: Id<"colonies">,
-): Promise<"Queued" | "Stable" | "Upgrading"> {
-	const queueRows = await listOpenColonyQueueItems({
-		colonyId,
-		ctx,
-	});
-	const hasActive = queueRows.some((row) => row.status === "active");
-	const hasQueued = queueRows.some((row) => row.status === "queued");
-	return hasActive ? "Upgrading" : hasQueued ? "Queued" : "Stable";
-}
-
-export const getColonySessionSnapshot = query({
+export const getColonyInfrastructure = query({
 	args: {
 		colonyId: v.id("colonies"),
 	},
-	returns: colonySessionSnapshotValidator,
+	returns: colonyInfrastructureValidator,
 	handler: async (ctx, args) => {
-		const { colony, player } = await getOwnedColony({
+		const { colony } = await getOwnedColonyBase({
 			colonyId: args.colonyId,
 			ctx,
 		});
-		const playerColonies = await listPlayerColonies({
-			ctx,
-			playerId: player._id,
-		});
-		const planetsById = await listPlayerColonyPlanets({
-			colonies: playerColonies,
-			ctx,
-		});
-		const colonies = await Promise.all(
-			playerColonies.map(async (entry) => {
-				const planet = planetsById.get(entry.planetId);
-				const status = await getBuildingQueueStatus(ctx, entry._id);
-				return {
-					addressLabel: planet ? toAddressLabel(planet) : "Unknown",
-					id: entry._id,
-					name: entry.name,
-					status,
-				};
-			}),
-		);
+		const infrastructure = await ctx.db
+			.query("colonyInfrastructure")
+			.withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
+			.unique();
+		if (!infrastructure) {
+			throw new ConvexError("Colony infrastructure row missing");
+		}
+
 		return {
-			activeColonyId: colony._id,
-			colonies,
-			title: `${colony.name} Resources`,
+			buildings: normalizeBuildings(infrastructure.buildings),
+			colonyId: colony._id,
+		};
+	},
+});
+
+export const getColonyPolicy = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyPolicyValidator,
+	handler: async (ctx, args) => {
+		const { colony } = await getOwnedColonyBase({
+			colonyId: args.colonyId,
+			ctx,
+		});
+		const policy = await ctx.db
+			.query("colonyPolicy")
+			.withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
+			.unique();
+
+		return {
+			colonyId: colony._id,
+			policies: {
+				inboundMissionPolicy: policy?.inboundMissionPolicy,
+			},
+		};
+	},
+});
+
+export const getColonyQueueState = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyQueueStateValidator,
+	handler: async (ctx, args) => {
+		const serverNowMs = Date.now();
+		const { colony } = await getOwnedColonyBase({
+			colonyId: args.colonyId,
+			ctx,
+		});
+		const queueRows = await listOpenColonyQueueItems({
+			colonyId: colony._id,
+			ctx,
+		});
+
+		return {
+			colonyId: colony._id,
+			openQueues: queueRows.map((row) => toQueueViewItem({ item: row, now: serverNowMs })),
+			schedule: {
+				nextEventAt: queueEventsNextAt(queueRows) ?? undefined,
+			},
+			serverNowMs,
+		};
+	},
+});
+
+export const getColonyShips = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyShipsValidator,
+	handler: async (ctx, args) => {
+		const { colony } = await getOwnedColonyBase({
+			colonyId: args.colonyId,
+			ctx,
+		});
+
+		return {
+			colonyId: colony._id,
+			ships: await loadShipCounts(ctx.db, colony._id),
+		};
+	},
+});
+
+export const getColonyDefenses = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyDefensesValidator,
+	handler: async (ctx, args) => {
+		const { colony } = await getOwnedColonyBase({
+			colonyId: args.colonyId,
+			ctx,
+		});
+
+		return {
+			colonyId: colony._id,
+			defenses: normalizeDefenseCounts(
+				await readColonyDefenseCounts({
+					colonyId: colony._id,
+					ctx,
+				}),
+			),
 		};
 	},
 });

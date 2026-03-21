@@ -1,3 +1,21 @@
-import { getColonyOverview } from "../runtime/gameplay/colonyOverview";
+import {
+	getColonyOverviewActivity,
+	getColonyOverviewDefense,
+	getColonyOverviewFleet,
+	getColonyOverviewHeader,
+	getColonyOverviewInfrastructure,
+	getColonyOverviewPlanet,
+	getColonyOverviewStrategic,
+	getColonyOverviewTiming,
+} from "../runtime/gameplay/colonyOverview";
 
-export { getColonyOverview };
+export {
+	getColonyOverviewActivity,
+	getColonyOverviewDefense,
+	getColonyOverviewFleet,
+	getColonyOverviewHeader,
+	getColonyOverviewInfrastructure,
+	getColonyOverviewPlanet,
+	getColonyOverviewStrategic,
+	getColonyOverviewTiming,
+};

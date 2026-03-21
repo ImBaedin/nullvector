@@ -1,8 +1,8 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import { Dialog } from "@base-ui/react/dialog";
-import { QUEST_DEFINITIONS } from "@nullvector/game-logic";
 import { api } from "@nullvector/backend/convex/_generated/api";
+import { QUEST_DEFINITIONS } from "@nullvector/game-logic";
 import {
 	CheckCircle2,
 	ChevronDown,
@@ -56,9 +56,9 @@ function RewardChip({ reward }: { reward: QuestReward }) {
 		return (
 			<span
 				className="
-          inline-flex items-center gap-1 rounded-full border border-amber-400/25
-          bg-amber-400/8 px-2 py-0.5 text-[10px] font-semibold text-amber-300/80
-        "
+      inline-flex items-center gap-1 rounded-full border border-amber-400/25
+      bg-amber-400/8 px-2 py-0.5 text-[10px] font-semibold text-amber-300/80
+    "
 			>
 				<Trophy className="size-2.5" />
 				{reward.amount.toLocaleString()} XP
@@ -69,9 +69,9 @@ function RewardChip({ reward }: { reward: QuestReward }) {
 		return (
 			<span
 				className="
-          inline-flex items-center gap-1 rounded-full border border-cyan-400/25
-          bg-cyan-400/8 px-2 py-0.5 text-[10px] font-semibold text-cyan-300/70
-        "
+      inline-flex items-center gap-1 rounded-full border border-cyan-400/25
+      bg-cyan-400/8 px-2 py-0.5 text-[10px] font-semibold text-cyan-300/70
+    "
 			>
 				{reward.amount.toLocaleString()} CR
 			</span>
@@ -83,9 +83,9 @@ function RewardChip({ reward }: { reward: QuestReward }) {
 	return (
 		<span
 			className="
-        inline-flex items-center rounded-full border border-white/10 bg-white/4
-        px-2 py-0.5 text-[10px] font-medium text-(--nv-text-muted)
-      "
+     inline-flex items-center rounded-full border border-white/10 bg-white/4
+     px-2 py-0.5 text-[10px] font-medium text-(--nv-text-muted)
+   "
 		>
 			{parts.join(" · ")}
 		</span>
@@ -165,9 +165,10 @@ function ActiveQuestCard({
 			className={cn(
 				"relative overflow-hidden rounded-xl border transition-all",
 				"bg-[linear-gradient(170deg,rgba(11,20,36,0.9),rgba(7,12,22,0.96))]",
-				isClaimable
-					? "nv-quest-claimable-pulse border-emerald-400/25 shadow-[0_0_28px_rgba(52,211,153,0.08)]"
-					: "border-white/8",
+				isClaimable ? `
+      nv-quest-claimable-pulse border-emerald-400/25
+      shadow-[0_0_28px_rgba(52,211,153,0.08)]
+    ` : "border-white/8",
 				focused ? "ring-1 ring-cyan-300/40" : null,
 			)}
 		>
@@ -181,10 +182,14 @@ function ActiveQuestCard({
 				)}
 			/>
 
-			<div className="pl-5 pr-4 pt-4 pb-4">
+			<div className="py-4 pr-4 pl-5">
 				{/* Meta row */}
 				<div className="mb-1.5 flex items-center gap-2">
-					<span className="text-[10px] font-bold tracking-[0.12em] text-white/25 uppercase">
+					<span
+						className="
+        text-[10px] font-bold tracking-[0.12em] text-white/25 uppercase
+      "
+					>
 						{item.category === "main"
 							? "Main Quest"
 							: item.category === "system"
@@ -194,7 +199,11 @@ function ActiveQuestCard({
 					{isClaimable ? (
 						<>
 							<span className="text-white/15">·</span>
-							<span className="text-[10px] font-bold tracking-[0.08em] text-emerald-300/60 uppercase">
+							<span
+								className="
+          text-[10px] font-bold tracking-[0.08em] text-emerald-300/60 uppercase
+        "
+							>
 								Complete
 							</span>
 						</>
@@ -202,16 +211,26 @@ function ActiveQuestCard({
 				</div>
 
 				{/* Title + description */}
-				<h3 className="font-(family-name:--nv-font-display) text-[13px] font-bold leading-tight text-(--nv-text-primary)">
+				<h3
+					className="
+       font-(family-name:--nv-font-display) text-[13px] leading-tight font-bold
+       text-(--nv-text-primary)
+     "
+				>
 					{item.title}
 				</h3>
-				<p className="mt-1.5 text-xs leading-relaxed text-(--nv-text-muted)">{item.description}</p>
+				<p className="mt-1.5 text-xs/relaxed text-(--nv-text-muted)">{item.description}</p>
 
 				{/* Objectives */}
 				{item.objectives.length > 0 ? (
 					<div className="mt-4 space-y-3 border-t border-white/6 pt-3">
 						{item.objectives.map((obj, i) => (
-							<ObjectiveRow index={i} key={`${item.id}:obj:${i}`} objective={obj} questId={item.id} />
+							<ObjectiveRow
+								index={i}
+								key={`${item.id}:obj:${i}`}
+								objective={obj}
+								questId={item.id}
+							/>
 						))}
 					</div>
 				) : null}
@@ -275,14 +294,17 @@ function UpcomingQuestCard({ item }: { item: TimelineItem }) {
 	return (
 		<div
 			className="
-        rounded-xl border border-white/6 bg-white/[0.025] px-4 py-3
-        opacity-65
-      "
+     rounded-xl border border-white/6 bg-white/2.5 px-4 py-3 opacity-65
+   "
 		>
 			<div className="flex items-start gap-2.5">
 				<ChevronRight className="mt-0.5 size-3.5 shrink-0 text-white/20" />
 				<div className="min-w-0 flex-1">
-					<p className="text-[12px] font-semibold leading-tight text-(--nv-text-secondary)">
+					<p
+						className="
+        text-[12px] leading-tight font-semibold text-(--nv-text-secondary)
+      "
+					>
 						{item.title}
 					</p>
 					<p className="mt-1 text-[11px] leading-relaxed text-(--nv-text-muted)">
@@ -319,13 +341,15 @@ function ClaimedQuestRow({ item }: { item: TimelineItem }) {
 		<div className="flex items-center gap-3 py-1.5">
 			<div
 				className="
-          flex size-4 shrink-0 items-center justify-center rounded-full border
-          border-emerald-400/20 bg-emerald-400/8
-        "
+      flex size-4 shrink-0 items-center justify-center rounded-full border
+      border-emerald-400/20 bg-emerald-400/8
+    "
 			>
 				<CheckCircle2 className="size-2.5 text-emerald-400/60" />
 			</div>
-			<span className="min-w-0 flex-1 truncate text-[11px] text-(--nv-text-muted)">{item.title}</span>
+			<span className="min-w-0 flex-1 truncate text-[11px] text-(--nv-text-muted)">
+				{item.title}
+			</span>
 			{xpReward && xpReward.kind === "xp" ? (
 				<span className="shrink-0 text-[10px] text-amber-300/35">
 					+{xpReward.amount.toLocaleString()} XP
@@ -359,22 +383,29 @@ function CollapsibleSection({
 			>
 				<span className="h-px flex-1 bg-white/8" />
 				<div className="flex items-center gap-1.5">
-					<span className="text-[10px] font-bold tracking-[0.14em] text-white/30 uppercase">
+					<span
+						className="
+        text-[10px] font-bold tracking-[0.14em] text-white/30 uppercase
+      "
+					>
 						{label}
 					</span>
 					{badge !== undefined && badge > 0 ? (
 						<span
 							className="
-                flex h-4 min-w-4 items-center justify-center rounded-full bg-white/8
-                px-1 text-[9px] font-bold text-white/35
-              "
+         flex h-4 min-w-4 items-center justify-center rounded-full bg-white/8
+         px-1 text-[9px] font-bold text-white/35
+       "
 						>
 							{badge}
 						</span>
 					) : null}
 				</div>
 				<ChevronDown
-					className={cn("size-3 text-white/25 transition-transform duration-200", open ? "rotate-180" : "")}
+					className={cn(
+						"size-3 text-white/25 transition-transform duration-200",
+						open ? "rotate-180" : "",
+					)}
 				/>
 				<span className="h-px w-4 bg-white/8" />
 			</button>
@@ -492,43 +523,50 @@ export function QuestsModal({
 			<Dialog.Portal>
 				<Dialog.Backdrop
 					className="
-            fixed inset-0 z-95 bg-[rgba(3,6,12,0.75)] backdrop-blur-sm
-            transition-all duration-200
-            data-ending-style:opacity-0
-            data-starting-style:opacity-0
-          "
+       fixed inset-0 z-95 bg-[rgba(3,6,12,0.75)] backdrop-blur-sm transition-all
+       duration-200
+       data-ending-style:opacity-0
+       data-starting-style:opacity-0
+     "
 				/>
 				<Dialog.Popup
 					className="
-            fixed top-1/2 left-1/2 z-100 flex h-[min(90vh,780px)] w-[min(96vw,680px)]
-            -translate-1/2 flex-col overflow-hidden rounded-2xl border
-            border-white/10
-            bg-[linear-gradient(170deg,rgba(9,15,26,0.98),rgba(5,9,17,0.99))]
-            shadow-[0_28px_90px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.04)]
-            transition-all duration-200
-            data-ending-style:scale-95 data-ending-style:opacity-0
-            data-starting-style:scale-95 data-starting-style:opacity-0
-          "
+       fixed top-1/2 left-1/2 z-100 flex h-[min(90vh,780px)] w-[min(96vw,680px)]
+       -translate-1/2 flex-col overflow-hidden rounded-2xl border
+       border-white/10
+       bg-[linear-gradient(170deg,rgba(9,15,26,0.98),rgba(5,9,17,0.99))]
+       shadow-[0_28px_90px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.04)]
+       transition-all duration-200
+       data-ending-style:scale-95 data-ending-style:opacity-0
+       data-starting-style:scale-95 data-starting-style:opacity-0
+     "
 				>
 					{/* Header */}
-					<div className="flex items-center justify-between border-b border-white/7 px-6 py-4">
+					<div
+						className="
+        flex items-center justify-between border-b border-white/7 px-6 py-4
+      "
+					>
 						<div className="flex items-center gap-3">
 							<div
 								className="
-                  flex size-7 items-center justify-center rounded-lg border border-cyan-400/20
-                  bg-cyan-400/8
-                "
+          flex size-7 items-center justify-center rounded-lg border
+          border-cyan-400/20 bg-cyan-400/8
+        "
 							>
 								<ScrollText className="size-3.5 text-cyan-400/70" />
 							</div>
 							<div>
-								<Dialog.Title className="font-(family-name:--nv-font-display) text-sm font-bold text-(--nv-text-primary)">
+								<Dialog.Title
+									className="
+           font-(family-name:--nv-font-display) text-sm font-bold
+           text-(--nv-text-primary)
+         "
+								>
 									Quests
 								</Dialog.Title>
 								{activeTrackerCount > 0 ? (
-									<p className="text-[10px] text-(--nv-text-muted)">
-										{activeTrackerCount} active
-									</p>
+									<p className="text-[10px] text-(--nv-text-muted)">{activeTrackerCount} active</p>
 								) : null}
 							</div>
 						</div>
@@ -536,26 +574,24 @@ export function QuestsModal({
 							{syncing ? <LoaderCircle className="size-4 animate-spin text-white/30" /> : null}
 							<Dialog.Close
 								className="
-                  rounded-lg border border-white/10 bg-white/3 p-1.5 text-white/40
-                  transition hover:bg-white/7 hover:text-white/70
-                "
+          rounded-lg border border-white/10 bg-white/3 p-1.5 text-white/40
+          transition
+          hover:bg-white/7 hover:text-white/70
+        "
 							>
 								<X className="size-4" />
 							</Dialog.Close>
 						</div>
 					</div>
 
-					<NvScrollArea className="min-h-0 flex-1 px-6 py-6" ref={scrollAreaRef}>
+					<NvScrollArea className="min-h-0 flex-1 p-6" ref={scrollAreaRef}>
 						<div className="space-y-7">
 							{/* Active Section — no collapsible, always shown */}
 							<section>
 								{timeline === undefined ? (
 									<div className="space-y-3">
 										{[1, 2].map((i) => (
-											<div
-												className="h-32 animate-pulse rounded-xl bg-white/4"
-												key={i}
-											/>
+											<div className="h-32 animate-pulse rounded-xl bg-white/4" key={i} />
 										))}
 									</div>
 								) : activeItems.length > 0 ? (
@@ -574,9 +610,9 @@ export function QuestsModal({
 								) : (
 									<div
 										className="
-                      flex flex-col items-center justify-center rounded-xl border
-                      border-dashed border-white/10 py-10 text-center
-                    "
+            flex flex-col items-center justify-center rounded-xl border
+            border-dashed border-white/10 py-10 text-center
+          "
 									>
 										<ScrollText className="mb-3 size-6 text-white/15" />
 										<p className="text-sm font-medium text-(--nv-text-muted)">No active quests</p>

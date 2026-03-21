@@ -1367,6 +1367,13 @@ const fleetOperationColonySummaryValidator = v.object({
 	canCancel: v.boolean(),
 });
 
+const fleetOwnedOperationsHealthValidator = v.object({
+	colonyId: v.id("colonies"),
+	hasStaleOwnedOperations: v.boolean(),
+	nextEventAt: v.optional(v.number()),
+	serverNowMs: v.number(),
+});
+
 const missionKindValidator = v.union(v.literal("transport"), v.literal("colonize"));
 
 const resolveFleetTargetResultValidator = v.object({
@@ -1720,15 +1727,13 @@ export const getFleetOperationsForOriginColony = query({
 	},
 });
 
-export const getFleetOperationsForColony = query({
+export const getFleetOperationsForTargetColony = query({
 	args: {
 		colonyId: v.id("colonies"),
 	},
 	returns: v.object({
 		active: v.array(fleetOperationColonySummaryValidator),
-		hasStaleOwnedOperations: v.boolean(),
 		nextEventAt: v.optional(v.number()),
-		serverNowMs: v.number(),
 	}),
 	handler: async (ctx, args) => {
 		const { colony, player } = await getOwnedColony({
@@ -1745,21 +1750,8 @@ export const getFleetOperationsForColony = query({
 		) {
 			throw new ConvexError("Fleet is not available yet");
 		}
-		const now = Date.now();
 
-		const [ownedInTransit, ownedReturning, inboundInTransit, inboundReturning] = await Promise.all([
-			ctx.db
-				.query("fleetOperations")
-				.withIndex("by_owner_stat_evt", (q) =>
-					q.eq("ownerPlayerId", player._id).eq("status", "inTransit"),
-				)
-				.collect(),
-			ctx.db
-				.query("fleetOperations")
-				.withIndex("by_owner_stat_evt", (q) =>
-					q.eq("ownerPlayerId", player._id).eq("status", "returning"),
-				)
-				.collect(),
+		const [inboundInTransit, inboundReturning] = await Promise.all([
 			ctx.db
 				.query("fleetOperations")
 				.withIndex("by_tcol_st_evt", (q) =>
@@ -1776,14 +1768,9 @@ export const getFleetOperationsForColony = query({
 
 		const activeOps = [
 			...new Map(
-				[...ownedInTransit, ...ownedReturning, ...inboundInTransit, ...inboundReturning].map(
-					(operation) => [operation._id, operation],
-				),
+				[...inboundInTransit, ...inboundReturning].map((operation) => [operation._id, operation]),
 			).values(),
 		].sort((left, right) => left.nextEventAt - right.nextEventAt);
-		const hasStaleOwnedOperations = [...ownedInTransit, ...ownedReturning].some(
-			(operation) => operation.nextEventAt <= now,
-		);
 
 		const colonySummaryCache = new Map<Id<"colonies">, { addressLabel: string; name: string }>();
 		const getColonySummary = async (colonyId: Id<"colonies">) => {
@@ -1855,9 +1842,57 @@ export const getFleetOperationsForColony = query({
 
 		return {
 			active: rows.filter((row) => row !== null),
-			hasStaleOwnedOperations,
 			nextEventAt: rows.find((row) => row !== null)?.nextEventAt,
-			serverNowMs: now,
+		};
+	},
+});
+
+export const getFleetOwnedOperationsHealth = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: fleetOwnedOperationsHealthValidator,
+	handler: async (ctx, args) => {
+		const serverNowMs = Date.now();
+		const { colony, player } = await getOwnedColony({
+			ctx,
+			colonyId: args.colonyId,
+		});
+		const progression = await buildProgressionRules({
+			ctx,
+			playerId: player._id,
+		});
+		if (
+			progression.features.fleet !== "unlocked" &&
+			progression.features.contracts !== "unlocked"
+		) {
+			throw new ConvexError("Fleet is not available yet");
+		}
+
+		const [ownedInTransit, ownedReturning] = await Promise.all([
+			ctx.db
+				.query("fleetOperations")
+				.withIndex("by_owner_stat_evt", (q) =>
+					q.eq("ownerPlayerId", player._id).eq("status", "inTransit"),
+				)
+				.collect(),
+			ctx.db
+				.query("fleetOperations")
+				.withIndex("by_owner_stat_evt", (q) =>
+					q.eq("ownerPlayerId", player._id).eq("status", "returning"),
+				)
+				.collect(),
+		]);
+
+		const activeOps = [...ownedInTransit, ...ownedReturning].sort(
+			(left, right) => left.nextEventAt - right.nextEventAt,
+		);
+
+		return {
+			colonyId: colony._id,
+			hasStaleOwnedOperations: activeOps.some((operation) => operation.nextEventAt <= serverNowMs),
+			nextEventAt: activeOps[0]?.nextEventAt,
+			serverNowMs,
 		};
 	},
 });

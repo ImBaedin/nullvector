@@ -1,5 +1,5 @@
-import type { QuestTrackerItem } from "@nullvector/game-logic";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
+import type { QuestTrackerItem } from "@nullvector/game-logic";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { useEffect, useRef } from "react";
@@ -7,7 +7,11 @@ import { useEffect, useRef } from "react";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { requestQuestModalOpen } from "./quest-modal-events";
-import { showQuestActivatedToast, showQuestClaimableToast, showQuestProgressToast } from "./quest-toast";
+import {
+	showQuestActivatedToast,
+	showQuestClaimableToast,
+	showQuestProgressToast,
+} from "./quest-toast";
 
 type TrackerSnapshot = Map<string, QuestTrackerItem>;
 
