@@ -20,6 +20,7 @@ export type MissionKey = (typeof MISSION_KEYS)[number];
 export type FeatureAccessState = "hidden" | "locked" | "unlocked";
 export type QuestCategory = "main" | "system" | "side";
 export type QuestStatus = "active" | "claimable" | "claimed";
+export type QuestStateStatus = "active" | "claimed";
 export type QuestBindingStrategy = "none" | "activeColony" | "newestPlayerColony";
 export type ObjectiveScope = "player" | "boundColony";
 export type RaidProgressionMode = "off" | "tutorialOnly" | "full";
@@ -210,6 +211,39 @@ export type QuestEvaluationContext = {
 	transportDeliveryCountByColony: Record<string, number>;
 };
 
+export type QuestStateRowView = {
+	questId: QuestId;
+	status: QuestStateStatus;
+	questVersion: number;
+	bindings: QuestBindings;
+	activatedAt: number;
+	claimedAt?: number;
+};
+
+export type QuestClientColonyFacts = {
+	colonyId: string;
+	buildings: Partial<Record<BuildingKey, number>>;
+	facilities: Partial<Record<FacilityKey, number>>;
+	defenses: Partial<Record<DefenseKey, number>>;
+	ships: Partial<Record<ShipKey, number>>;
+};
+
+export type QuestClientColonyMetric = {
+	colonyId: string;
+	contractSuccessCount: number;
+	contractRewardResourcesTotal: number;
+	raidDefenseSuccessCount: number;
+	transportDeliveryCount: number;
+	transportDeliveredResourcesTotal: number;
+};
+
+export type QuestClientFacts = {
+	colonyCount: number;
+	colonizationSuccessCount: number;
+	colonies: QuestClientColonyFacts[];
+	colonyMetrics: QuestClientColonyMetric[];
+};
+
 export type QuestObjectiveProgress = {
 	complete: boolean;
 	current: number;
@@ -253,6 +287,27 @@ export type QuestTrackerItem = {
 export type QuestLogItem = QuestTrackerItem & {
 	bindings: QuestBindings;
 	version: number;
+};
+
+export type QuestTimelineStatus = QuestStatus | "upcoming" | "locked";
+
+export type QuestTimelinePrerequisite = {
+	questId: string;
+	title: string;
+	satisfied: boolean;
+};
+
+export type QuestTimelineItem = {
+	category: QuestCategory;
+	claimable: boolean;
+	description: string;
+	id: QuestId;
+	objectives: QuestObjectiveProgress[];
+	order: number;
+	prerequisites: QuestTimelinePrerequisite[];
+	rewards: QuestReward[];
+	status: QuestTimelineStatus;
+	title: string;
 };
 
 export const QUEST_IDS = [
@@ -1039,6 +1094,157 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 
 export function getQuestDefinition(questId: QuestId) {
 	return QUEST_DEFINITIONS.find((quest) => quest.id === questId) ?? null;
+}
+
+function normalizeQuestStateStatus(status: QuestStateStatus | QuestStatus): QuestStateStatus {
+	return status === "claimed" ? "claimed" : "active";
+}
+
+export function buildQuestEvaluationContextFromFacts(
+	facts: QuestClientFacts,
+): QuestEvaluationContext {
+	const contractSuccessCountByColony: Record<string, number> = {};
+	const contractRewardResourcesByColony: Record<string, number> = {};
+	const raidDefenseSuccessCountByColony: Record<string, number> = {};
+	const transportDeliveryCountByColony: Record<string, number> = {};
+	const transportDeliveredResourcesByColony: Record<string, number> = {};
+
+	for (const metric of facts.colonyMetrics) {
+		contractSuccessCountByColony[metric.colonyId] = metric.contractSuccessCount;
+		contractRewardResourcesByColony[metric.colonyId] = metric.contractRewardResourcesTotal;
+		raidDefenseSuccessCountByColony[metric.colonyId] = metric.raidDefenseSuccessCount;
+		transportDeliveryCountByColony[metric.colonyId] = metric.transportDeliveryCount;
+		transportDeliveredResourcesByColony[metric.colonyId] =
+			metric.transportDeliveredResourcesTotal;
+	}
+
+	return {
+		colonies: facts.colonies.map((colony) => ({
+			colonyId: colony.colonyId,
+			buildings: colony.buildings,
+			facilities: colony.facilities,
+			defenses: colony.defenses,
+			ships: colony.ships,
+		})),
+		colonyCount: facts.colonyCount,
+		colonizationSuccessCount: facts.colonizationSuccessCount,
+		contractRewardResourcesByColony,
+		contractSuccessCountByColony,
+		raidDefenseSuccessCountByColony,
+		transportDeliveredResourcesByColony,
+		transportDeliveryCountByColony,
+	};
+}
+
+function deriveQuestItemStatus(args: {
+	evaluation: QuestEvaluationResult;
+	row: QuestStateRowView;
+}): QuestStatus {
+	if (normalizeQuestStateStatus(args.row.status) === "claimed") {
+		return "claimed";
+	}
+	return args.evaluation.complete ? "claimable" : "active";
+}
+
+export function deriveQuestTrackerItems(args: {
+	facts: QuestClientFacts;
+	questDefinitions?: QuestDefinition[];
+	questRows: QuestStateRowView[];
+}): QuestTrackerItem[] {
+	const context = buildQuestEvaluationContextFromFacts(args.facts);
+	const definitions = args.questDefinitions ?? QUEST_DEFINITIONS;
+
+	return args.questRows
+		.filter((row) => normalizeQuestStateStatus(row.status) !== "claimed")
+		.map((row) => {
+			const definition = definitions.find((quest) => quest.id === row.questId);
+			if (!definition) {
+				return null;
+			}
+			const evaluation = evaluateQuestDefinition({
+				quest: definition,
+				context,
+				bindings: row.bindings,
+			});
+			const status = deriveQuestItemStatus({ evaluation, row });
+			return {
+				id: definition.id,
+				title: definition.title,
+				description: definition.description,
+				category: definition.category,
+				order: definition.order,
+				status,
+				claimable: status === "claimable",
+				rewards: definition.rewards,
+				objectives: evaluation.objectives,
+			} satisfies QuestTrackerItem;
+		})
+		.filter((item): item is QuestTrackerItem => item !== null)
+		.sort((left, right) => left.order - right.order);
+}
+
+export function deriveQuestTimelineItems(args: {
+	facts: QuestClientFacts;
+	playerRank: number;
+	questDefinitions?: QuestDefinition[];
+	questRows: QuestStateRowView[];
+}): QuestTimelineItem[] {
+	const definitions = args.questDefinitions ?? QUEST_DEFINITIONS;
+	const context = buildQuestEvaluationContextFromFacts(args.facts);
+	const rowsByQuestId = new Map(args.questRows.map((row) => [row.questId, row]));
+	const claimedQuestIds = new Set(
+		args.questRows
+			.filter((row) => normalizeQuestStateStatus(row.status) === "claimed")
+			.map((row) => row.questId),
+	);
+	const questTitleById = new Map(definitions.map((definition) => [definition.id, definition.title]));
+
+	return definitions
+		.map((definition) => {
+			const row = rowsByQuestId.get(definition.id);
+			const prerequisites = definition.prerequisites.map((prerequisite) => {
+				if (prerequisite.kind === "questClaimed") {
+					return {
+						questId: prerequisite.questId,
+						title: questTitleById.get(prerequisite.questId) ?? prerequisite.questId,
+						satisfied: claimedQuestIds.has(prerequisite.questId),
+					} satisfies QuestTimelinePrerequisite;
+				}
+				return {
+					questId: `rank:${prerequisite.rank}`,
+					title: `Reach rank ${prerequisite.rank}`,
+					satisfied: args.playerRank >= prerequisite.rank,
+				} satisfies QuestTimelinePrerequisite;
+			});
+			const prerequisitesSatisfied = prerequisites.every((prerequisite) => prerequisite.satisfied);
+			const evaluation = evaluateQuestDefinition({
+				quest: definition,
+				context,
+				bindings: row?.bindings ?? {},
+			});
+			const status: QuestTimelineStatus =
+				row !== undefined
+					? deriveQuestItemStatus({
+							evaluation,
+							row,
+						})
+					: prerequisitesSatisfied
+						? "upcoming"
+						: "locked";
+			return {
+				id: definition.id,
+				title: definition.title,
+				description: definition.description,
+				category: definition.category,
+				order: definition.order,
+				status,
+				claimable: status === "claimable",
+				rewards: definition.rewards,
+				objectives: evaluation.objectives,
+				prerequisites,
+			} satisfies QuestTimelineItem;
+		})
+		.sort((left, right) => left.order - right.order);
 }
 
 function clampProgress(current: number, required: number): QuestObjectiveProgress {

@@ -11,8 +11,9 @@ import {
 	useColonySessionSnapshot,
 	useOptimisticColonyMutation,
 } from "@/features/colony-state/hooks";
+import { useQuestProgress } from "@/features/game-ui/quests";
 import { useColonyResources } from "@/hooks/use-colony-resources";
-import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
+import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 
 import { getHeaderConfig, parseColonyId } from "./header-config";
 
@@ -64,24 +65,14 @@ export function useHeaderData() {
 	);
 	const colonyResources = useColonyResources(colonyIdAsId && isAuthenticated ? colonyIdAsId : null);
 	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
-	const syncQuestAvailability = useMutation(api.quests.syncAvailability);
 	const notificationSummary = useQuery(
 		api.notifications.getNotificationUnreadSummary,
 		isAuthenticated ? {} : "skip",
 	);
+	const { activeQuestCount } = useQuestProgress();
 	const [isRenamingColony, setIsRenamingColony] = useState(false);
 	const [isSavingColonyName, setIsSavingColonyName] = useState(false);
 	const isCompact = useCompactHeaderMode();
-
-	useEffect(() => {
-		if (!isAuthenticated || !colonyIdAsId) {
-			return;
-		}
-
-		void syncQuestAvailability({ activeColonyId: colonyIdAsId }).catch((error) => {
-			toast.error(error instanceof Error ? error.message : "Failed to sync quests");
-		});
-	}, [colonyIdAsId, isAuthenticated, syncQuestAvailability]);
 
 	const hud = useMemo<HeaderHudData | undefined>(() => {
 		if (!colonySession || !colonyResources.hudResources) {
@@ -178,6 +169,7 @@ export function useHeaderData() {
 			...config,
 			contextTabs,
 			notificationsCount: liveNotificationsCount,
+			questCount: activeQuestCount,
 			onOpenNotifications: () => {
 				// Handled by the header shell.
 			},
@@ -185,7 +177,7 @@ export function useHeaderData() {
 				// Handled by the header shell.
 			},
 		}),
-		[config, contextTabs, liveNotificationsCount],
+		[activeQuestCount, config, contextTabs, liveNotificationsCount],
 	);
 
 	const activeColony = useMemo(
@@ -264,6 +256,7 @@ export function useHeaderData() {
 
 	return {
 		activeColony,
+		activeQuestCount,
 		beginColonyRename,
 		colonyIdAsId,
 		colonySession,

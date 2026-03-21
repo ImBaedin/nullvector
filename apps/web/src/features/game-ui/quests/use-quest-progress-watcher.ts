@@ -1,10 +1,7 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import type { QuestTrackerItem } from "@nullvector/game-logic";
 
-import { api } from "@nullvector/backend/convex/_generated/api";
 import { useEffect, useRef } from "react";
-
-import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 import { requestQuestModalOpen } from "./quest-modal-events";
 import {
@@ -12,6 +9,7 @@ import {
 	showQuestClaimableToast,
 	showQuestProgressToast,
 } from "./quest-toast";
+import { useQuestProgress } from "./use-quest-progress";
 
 type TrackerSnapshot = Map<string, QuestTrackerItem>;
 
@@ -20,25 +18,20 @@ function buildSnapshot(items: QuestTrackerItem[]): TrackerSnapshot {
 }
 
 export function useQuestProgressWatcher(args: { activeColonyId: Id<"colonies"> | null }) {
-	const { isAuthenticated } = useConvexAuth();
-	const tracker = useQuery(api.quests.getTracker, isAuthenticated ? {} : "skip");
-	const claimQuest = useMutation(api.quests.claim);
+	void args.activeColonyId;
+	const { claimQuest, trackerItems } = useQuestProgress();
 
 	const previousSnapshotRef = useRef<TrackerSnapshot | null>(null);
 	const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const isFirstLoadRef = useRef(true);
 
 	useEffect(() => {
-		if (!tracker) {
-			return;
-		}
-
 		if (debounceTimerRef.current !== null) {
 			clearTimeout(debounceTimerRef.current);
 		}
 
 		debounceTimerRef.current = setTimeout(() => {
-			const currentItems = tracker.items;
+			const currentItems = trackerItems;
 			const prev = previousSnapshotRef.current;
 
 			if (prev === null) {
@@ -69,7 +62,7 @@ export function useQuestProgressWatcher(args: { activeColonyId: Id<"colonies"> |
 						questId: item.id,
 						title: item.title,
 						onClaim: async () => {
-							await claimQuest({ questId: item.id });
+							await claimQuest(item.id);
 						},
 					});
 					continue;
@@ -114,5 +107,5 @@ export function useQuestProgressWatcher(args: { activeColonyId: Id<"colonies"> |
 				clearTimeout(debounceTimerRef.current);
 			}
 		};
-	}, [tracker, claimQuest]);
+	}, [claimQuest, trackerItems]);
 }

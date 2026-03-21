@@ -7,6 +7,9 @@ export {
 } from "./curves";
 export { generateSciFiName } from "./object-names";
 export {
+	buildQuestEvaluationContextFromFacts,
+	deriveQuestTimelineItems,
+	deriveQuestTrackerItems,
 	FEATURE_KEYS,
 	QUEST_DEFINITIONS,
 	QUEST_IDS,
@@ -200,6 +203,9 @@ export type {
 	QuestBindingStrategy,
 	QuestBindings,
 	QuestCategory,
+	QuestClientColonyFacts,
+	QuestClientColonyMetric,
+	QuestClientFacts,
 	QuestDefinition,
 	QuestEffect,
 	QuestEvaluationColony,
@@ -212,7 +218,12 @@ export type {
 	QuestObjectiveProgress,
 	QuestPrerequisite,
 	QuestReward,
+	QuestStateRowView,
+	QuestStateStatus,
 	QuestStatus,
+	QuestTimelineItem,
+	QuestTimelinePrerequisite,
+	QuestTimelineStatus,
 	QuestTrackerItem,
 	RaidDefenseSuccessObjective,
 	RaidProgressionMode,

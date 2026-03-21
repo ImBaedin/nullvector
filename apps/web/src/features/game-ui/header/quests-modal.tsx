@@ -1,7 +1,7 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
+import type { QuestReward, QuestTimelineItem } from "@nullvector/game-logic";
 
 import { Dialog } from "@base-ui/react/dialog";
-import { api } from "@nullvector/backend/convex/_generated/api";
 import { QUEST_DEFINITIONS } from "@nullvector/game-logic";
 import {
 	CheckCircle2,
@@ -17,29 +17,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { NvButton, NvProgress, NvScrollArea } from "@/features/game-ui/primitives";
-import { formatObjectiveDescription } from "@/features/game-ui/quests";
-import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
+import { formatObjectiveDescription, useQuestProgress } from "@/features/game-ui/quests";
 import { cn } from "@/lib/utils";
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-type QuestReward =
-	| { kind: "credits"; amount: number }
-	| { kind: "xp"; amount: number }
-	| { kind: "resources"; resources: { alloy: number; crystal: number; fuel: number } };
-
-type TimelineItem = {
-	id: string;
-	title: string;
-	description: string;
-	category: "main" | "side" | "system";
-	order: number;
-	status: "active" | "claimable" | "claimed" | "upcoming" | "locked";
-	claimable: boolean;
-	rewards: QuestReward[];
-	objectives: Array<{ complete: boolean; current: number; required: number }>;
-	prerequisites: Array<{ questId: string; title: string; satisfied: boolean }>;
-};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -100,7 +79,7 @@ function ObjectiveRow({
 	questId,
 }: {
 	index: number;
-	objective: TimelineItem["objectives"][number];
+	objective: QuestTimelineItem["objectives"][number];
 	questId: string;
 }) {
 	const descriptions = getObjectiveDescriptions(questId);
@@ -153,7 +132,7 @@ function ActiveQuestCard({
 }: {
 	claimingQuestId: string | null;
 	focused: boolean;
-	item: TimelineItem;
+	item: QuestTimelineItem;
 	onClaim: (questId: string) => void;
 	syncing: boolean;
 }) {
@@ -266,7 +245,7 @@ function ActiveQuestCard({
 
 // ─── Upcoming quest card ──────────────────────────────────────────────────────
 
-function UpcomingQuestCard({ item }: { item: TimelineItem }) {
+function UpcomingQuestCard({ item }: { item: QuestTimelineItem }) {
 	const isLocked = item.status === "locked";
 
 	if (isLocked) {
@@ -334,7 +313,7 @@ function UpcomingQuestCard({ item }: { item: TimelineItem }) {
 
 // ─── Claimed quest row ────────────────────────────────────────────────────────
 
-function ClaimedQuestRow({ item }: { item: TimelineItem }) {
+function ClaimedQuestRow({ item }: { item: QuestTimelineItem }) {
 	const xpReward = item.rewards.find((r) => r.kind === "xp");
 
 	return (
@@ -435,48 +414,34 @@ export function QuestsModal({
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 }) {
-	const { isAuthenticated } = useConvexAuth();
 	const scrollAreaRef = useRef<HTMLDivElement | null>(null);
-	const timeline = useQuery(api.quests.getTimeline, isAuthenticated && open ? {} : "skip");
-	const syncAvailability = useMutation(api.quests.syncAvailability);
-	const claimQuest = useMutation(api.quests.claim);
+	const { claimQuest, ensureActivations, loading, timelineItems } = useQuestProgress();
 	const [claimingQuestId, setClaimingQuestId] = useState<string | null>(null);
-	const [syncing, setSyncing] = useState(false);
+	void activeColonyId;
 
 	useEffect(() => {
-		if (!open || !isAuthenticated) {
+		if (!open) {
 			return;
 		}
 
-		setSyncing(true);
-		void syncAvailability(activeColonyId ? { activeColonyId } : {})
-			.catch((error) => {
-				toast.error(error instanceof Error ? error.message : "Failed to sync quests");
-			})
-			.finally(() => {
-				setSyncing(false);
-			});
-	}, [activeColonyId, isAuthenticated, open, syncAvailability]);
+		void ensureActivations().catch((error) => {
+			toast.error(error instanceof Error ? error.message : "Failed to ensure quests");
+		});
+	}, [ensureActivations, open]);
 
 	const activeItems = useMemo(
-		() =>
-			(timeline?.items ?? []).filter(
-				(item) => item.status === "active" || item.status === "claimable",
-			),
-		[timeline?.items],
+		() => timelineItems.filter((item) => item.status === "active" || item.status === "claimable"),
+		[timelineItems],
 	);
 
 	const upcomingItems = useMemo(
-		() =>
-			(timeline?.items ?? []).filter(
-				(item) => item.status === "upcoming" || item.status === "locked",
-			),
-		[timeline?.items],
+		() => timelineItems.filter((item) => item.status === "upcoming" || item.status === "locked"),
+		[timelineItems],
 	);
 
 	const claimedItems = useMemo(
-		() => (timeline?.items ?? []).filter((item) => item.status === "claimed"),
-		[timeline?.items],
+		() => timelineItems.filter((item) => item.status === "claimed"),
+		[timelineItems],
 	);
 
 	const activeTrackerCount = activeItems.length;
@@ -499,14 +464,14 @@ export function QuestsModal({
 		return () => {
 			cancelAnimationFrame(frame);
 		};
-	}, [activeItems.length, focusQuestId, open, timeline]);
+	}, [activeItems.length, focusQuestId, open, timelineItems]);
 
 	function handleClaim(questId: string) {
-		if (syncing) {
+		if (loading) {
 			return;
 		}
 		setClaimingQuestId(questId);
-		void claimQuest({ questId })
+		void claimQuest(questId)
 			.then(() => {
 				toast.success("Quest claimed");
 			})
@@ -571,7 +536,7 @@ export function QuestsModal({
 							</div>
 						</div>
 						<div className="flex items-center gap-2">
-							{syncing ? <LoaderCircle className="size-4 animate-spin text-white/30" /> : null}
+							{loading ? <LoaderCircle className="size-4 animate-spin text-white/30" /> : null}
 							<Dialog.Close
 								className="
           rounded-lg border border-white/10 bg-white/3 p-1.5 text-white/40
@@ -588,7 +553,7 @@ export function QuestsModal({
 						<div className="space-y-7">
 							{/* Active Section — no collapsible, always shown */}
 							<section>
-								{timeline === undefined ? (
+								{loading ? (
 									<div className="space-y-3">
 										{[1, 2].map((i) => (
 											<div className="h-32 animate-pulse rounded-xl bg-white/4" key={i} />
@@ -600,10 +565,10 @@ export function QuestsModal({
 											<ActiveQuestCard
 												claimingQuestId={claimingQuestId}
 												focused={focusQuestId === item.id}
-												item={item as TimelineItem}
+												item={item}
 												key={item.id}
 												onClaim={handleClaim}
-												syncing={syncing}
+												syncing={loading}
 											/>
 										))}
 									</div>
@@ -628,7 +593,7 @@ export function QuestsModal({
 								<CollapsibleSection badge={upcomingItems.length} label="Upcoming">
 									<div className="space-y-2 pb-1">
 										{upcomingItems.map((item) => (
-											<UpcomingQuestCard item={item as TimelineItem} key={item.id} />
+											<UpcomingQuestCard item={item} key={item.id} />
 										))}
 									</div>
 								</CollapsibleSection>
@@ -643,7 +608,7 @@ export function QuestsModal({
 								>
 									<div className="divide-y divide-white/5 pb-1">
 										{claimedItems.map((item) => (
-											<ClaimedQuestRow item={item as TimelineItem} key={item.id} />
+											<ClaimedQuestRow item={item} key={item.id} />
 										))}
 									</div>
 								</CollapsibleSection>

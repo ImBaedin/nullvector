@@ -38,7 +38,13 @@ import {
 	requireFeatureAccess,
 	requireMissionAccess,
 } from "./progression";
-import { syncQuestAvailabilityForPlayer } from "./quests";
+import {
+	contractRewardResourcesTotal,
+	incrementColonizationSuccess,
+	incrementContractSuccess,
+	incrementTransportDelivery,
+	transportDeliveredResourcesTotal,
+} from "./questMetrics";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	cloneResourceBucket,
@@ -557,6 +563,14 @@ async function settleTransportAtTarget(args: {
 				resultCode: "delivered",
 			},
 		});
+		await incrementTransportDelivery({
+			ctx: args.ctx,
+			playerId: destination.playerId,
+			colonyId: destination._id,
+			resourceAmount: transportDeliveredResourcesTotal({
+				cargoDeliveredToStorage: delivery.deliveredToStorage,
+			}),
+		});
 
 		await appendFleetEvent({
 			ctx: args.ctx,
@@ -610,6 +624,14 @@ async function settleTransportAtTarget(args: {
 			cargoDeliveredToStorage: delivery.deliveredToStorage,
 			cargoDeliveredToOverflow: delivery.deliveredToOverflow,
 		},
+	});
+	await incrementTransportDelivery({
+		ctx: args.ctx,
+		playerId: destination.playerId,
+		colonyId: destination._id,
+		resourceAmount: transportDeliveredResourcesTotal({
+			cargoDeliveredToStorage: delivery.deliveredToStorage,
+		}),
 	});
 
 	await appendFleetEvent({
@@ -823,6 +845,10 @@ async function settleColonizeAtTarget(args: {
 			resultCode: "colonized",
 		},
 	});
+	await incrementColonizationSuccess({
+		ctx: args.ctx,
+		playerId: args.operation.ownerPlayerId,
+	});
 
 	await appendFleetEvent({
 		ctx: args.ctx,
@@ -930,19 +956,6 @@ async function settleContractAtTarget(args: {
 		ctx: args.ctx,
 		playerId: contract.playerId,
 	});
-	try {
-		await syncQuestAvailabilityForPlayer({
-			ctx: args.ctx,
-			playerId: contract.playerId,
-			activeColonyId: args.operation.originColonyId,
-		});
-	} catch (error) {
-		console.error("Quest sync after contract XP failed", {
-			contractId: contract._id,
-			error,
-			playerId: contract.playerId,
-		});
-	}
 
 	await args.ctx.db.patch(contract._id, {
 		status: combat.success ? "completed" : "failed",
@@ -971,6 +984,16 @@ async function settleContractAtTarget(args: {
 		createdAt: args.now,
 		updatedAt: args.now,
 	});
+	if (combat.success) {
+		await incrementContractSuccess({
+			ctx: args.ctx,
+			playerId: contract.playerId,
+			colonyId: contract.originColonyId ?? args.operation.originColonyId,
+			resourceAmount: contractRewardResourcesTotal({
+				rewardCargoLoaded: rewardCargoScaled,
+			}),
+		});
+	}
 
 	await args.ctx.db.patch(args.operation.fleetId, {
 		state: "returning",

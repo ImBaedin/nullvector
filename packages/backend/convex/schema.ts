@@ -479,6 +479,41 @@ export default defineSchema({
 		.index("by_player", ["playerId"])
 		.index("by_player_status", ["playerId", "status"]),
 
+	// Player-level counters for quest objectives that should not scan historical result tables.
+	playerQuestMetrics: defineTable({
+		playerId: v.id("players"),
+		colonizationSuccessCount: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_player_id", ["playerId"]),
+
+	// Colony-scoped counters for quest objectives derived from settled gameplay results.
+	colonyQuestMetrics: defineTable({
+		playerId: v.id("players"),
+		colonyId: v.id("colonies"),
+		contractSuccessCount: v.number(),
+		contractRewardResourcesTotal: v.number(),
+		raidDefenseSuccessCount: v.number(),
+		transportDeliveryCount: v.number(),
+		transportDeliveredResourcesTotal: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_player_id", ["playerId"])
+		.index("by_colony_id", ["colonyId"])
+		.index("by_player_colony", ["playerId", "colonyId"]),
+
+	// Idempotency ledger for quest-metric historical backfills.
+	questMetricBackfillMarks: defineTable({
+		sourceKind: v.union(
+			v.literal("contractResult"),
+			v.literal("npcRaidResult"),
+			v.literal("fleetOperationResult"),
+		),
+		sourceId: v.string(),
+		createdAt: v.number(),
+	}).index("by_source", ["sourceKind", "sourceId"]),
+
 	devConsoleActions: defineTable({
 		actorPlayerId: v.id("players"),
 		actionType: devConsoleActionTypeValidator,

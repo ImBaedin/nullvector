@@ -24,6 +24,7 @@ import {
 import { RESOURCE_SCALE } from "../../convex/schema";
 import { emitRaidIncomingNotification, emitRaidResolvedNotification } from "./notifications";
 import { buildProgressionRules } from "./progression";
+import { incrementRaidDefenseSuccess } from "./questMetrics";
 import {
 	computeNextNpcRaidAt,
 	computeNpcRaidTravelDurationMs,
@@ -804,6 +805,13 @@ export async function resolveNpcRaidNow(args: {
 		createdAt: now,
 		updatedAt: now,
 	});
+	if (combat.success === false) {
+		await incrementRaidDefenseSuccess({
+			ctx: args.ctx,
+			playerId: raid.targetPlayerId,
+			colonyId: raid.targetColonyId,
+		});
+	}
 	await emitRaidResolvedNotification({
 		ctx: args.ctx,
 		hostileFactionKey: raid.hostileFactionKey,
