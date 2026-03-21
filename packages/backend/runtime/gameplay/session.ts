@@ -8,6 +8,7 @@ import { authComponent } from "../../convex/auth";
 import { DEFAULT_UNIVERSE_SLUG } from "../../convex/lib/worldgen/config";
 import { ensureCoreCapacityPipeline } from "../../convex/lib/worldgen/pipeline";
 import { ensureUniverseHostilitySeeded, isPlanetCurrentlyColonizable } from "./hostility";
+import { computeNextNpcRaidAt, RAID_MIN_PLAYER_RANK } from "./raidScheduling";
 import { ensurePlayerProgression } from "./progression";
 import {
 	emptyResourceBucket,
@@ -75,7 +76,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	if (!player) {
 		throw new ConvexError("Failed to resolve player profile");
 	}
-	await ensurePlayerProgression({
+	const progression = await ensurePlayerProgression({
 		ctx,
 		playerId: player._id,
 	});
@@ -271,9 +272,15 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 		createdAt: now,
 		updatedAt: now,
 	});
-	await ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
-		colonyId,
-	});
+	if (progression.rank >= RAID_MIN_PLAYER_RANK) {
+		await ctx.db.patch(colonyId, {
+			nextNpcRaidAt: computeNextNpcRaidAt({
+				anchorAt: now,
+				colonyId,
+			}),
+			updatedAt: now,
+		});
+	}
 	await ctx.scheduler.runAfter(0, internal.contracts.rebuildContractDiscoveryForColony, {
 		colonyId,
 	});
