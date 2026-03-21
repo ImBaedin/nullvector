@@ -12,6 +12,7 @@ import { ConvexError, v } from "convex/values";
 
 import type { Id } from "../../convex/_generated/dataModel";
 
+import { internal } from "../../convex/_generated/api";
 import { mutation, query, type MutationCtx, type QueryCtx } from "../../convex/_generated/server";
 import { resolveCurrentPlayer } from "./shared";
 
@@ -90,6 +91,25 @@ function defaultPlayerProgression(playerId: Id<"players">) {
 	};
 }
 
+async function reconcileNpcRaidSchedulesAfterProgressionChange(args: {
+	ctx: MutationCtx;
+	nextRankXpTotal: number;
+	playerId: Id<"players">;
+	previousRankXpTotal: number;
+}) {
+	const previousOverview = getSharedProgressionOverview({
+		rankXpTotal: args.previousRankXpTotal,
+	});
+	const nextOverview = getSharedProgressionOverview({
+		rankXpTotal: args.nextRankXpTotal,
+	});
+	if (previousOverview.raidRules.mode === nextOverview.raidRules.mode) {
+		return;
+	}
+	await args.ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedulesForPlayer, {
+		playerId: args.playerId,
+	});
+}
 export async function ensurePlayerProgression(args: {
 	ctx: MutationCtx | QueryCtx;
 	playerId: Id<"players">;
@@ -144,9 +164,17 @@ export async function grantProgressionXp(args: {
 		ctx: args.ctx,
 		playerId: args.playerId,
 	});
+	const previousRankXpTotal = deriveRankXpTotal(args.playerId, progression);
+	const nextRankXpTotal = previousRankXpTotal + Math.max(0, Math.floor(args.amount));
 	await args.ctx.db.patch(progression._id, {
-		rankXpTotal: progression.rankXpTotal + Math.max(0, Math.floor(args.amount)),
+		rankXpTotal: nextRankXpTotal,
 		updatedAt: Date.now(),
+	});
+	await reconcileNpcRaidSchedulesAfterProgressionChange({
+		ctx: args.ctx,
+		nextRankXpTotal,
+		playerId: args.playerId,
+		previousRankXpTotal,
 	});
 }
 
