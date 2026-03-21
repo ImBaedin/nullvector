@@ -31,7 +31,8 @@ import {
 	emitTransportIncomingNotification,
 	emitTransportReturnedNotification,
 } from "./notifications";
-import { grantPlayerCredits, grantPlayerRankXp } from "./progression";
+import { grantPlayerCredits, grantPlayerRankXp, ensurePlayerProgression } from "./progression";
+import { computeNextNpcRaidAt, RAID_MIN_PLAYER_RANK } from "./raidScheduling";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	cloneResourceBucket,
@@ -727,9 +728,19 @@ async function settleColonizeAtTarget(args: {
 		createdAt: args.now,
 		updatedAt: args.now,
 	});
-	await args.ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
-		colonyId,
+	const playerProgression = await ensurePlayerProgression({
+		ctx: args.ctx,
+		playerId: args.operation.ownerPlayerId,
 	});
+	if (playerProgression.rank >= RAID_MIN_PLAYER_RANK) {
+		await args.ctx.db.patch(colonyId, {
+			nextNpcRaidAt: computeNextNpcRaidAt({
+				anchorAt: args.now,
+				colonyId,
+			}),
+			updatedAt: args.now,
+		});
+	}
 	await args.ctx.scheduler.runAfter(0, internal.contracts.rebuildContractDiscoveryForColony, {
 		colonyId,
 	});

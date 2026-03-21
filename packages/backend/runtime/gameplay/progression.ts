@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values";
 import type { Id } from "../../convex/_generated/dataModel";
 
 import { mutation, query, type MutationCtx, type QueryCtx } from "../../convex/_generated/server";
+import { computeNextNpcRaidAt, RAID_MIN_PLAYER_RANK } from "./raidScheduling";
 import { resolveCurrentPlayer } from "./shared";
 
 export const playerProgressionValidator = v.object({
@@ -23,6 +24,39 @@ function defaultPlayerProgression(playerId: Id<"players">) {
 
 function nextRankXpRequirement(rank: number) {
 	return Math.max(100, Math.round(100 * Math.pow(1.4, Math.max(0, rank - 1))));
+}
+
+async function reconcileNpcRaidSchedulesAfterRankChange(args: {
+	ctx: MutationCtx;
+	nextRank: number;
+	playerId: Id<"players">;
+	previousRank: number;
+}) {
+	const crossedRaidThreshold =
+		(args.previousRank < RAID_MIN_PLAYER_RANK) !== (args.nextRank < RAID_MIN_PLAYER_RANK);
+	if (!crossedRaidThreshold) {
+		return;
+	}
+
+	const colonies = await args.ctx.db
+		.query("colonies")
+		.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+		.collect();
+	const now = Date.now();
+	const raidsEnabled = args.nextRank >= RAID_MIN_PLAYER_RANK;
+	for (const colony of colonies) {
+		const nextNpcRaidAt = raidsEnabled
+			? colony.nextNpcRaidAt ??
+				computeNextNpcRaidAt({
+					anchorAt: now,
+					colonyId: colony._id,
+				})
+			: undefined;
+		await args.ctx.db.patch(colony._id, {
+			nextNpcRaidAt,
+			updatedAt: now,
+		});
+	}
 }
 
 export async function ensurePlayerProgression(args: {
@@ -93,6 +127,12 @@ export async function grantPlayerRankXp(args: {
 		rankXp,
 		updatedAt: Date.now(),
 	});
+	await reconcileNpcRaidSchedulesAfterRankChange({
+		ctx: args.ctx,
+		nextRank: rank,
+		playerId: args.playerId,
+		previousRank: progression.rank,
+	});
 }
 
 export async function changePlayerRankXp(args: {
@@ -123,6 +163,12 @@ export async function changePlayerRankXp(args: {
 		rank,
 		rankXp,
 		updatedAt: Date.now(),
+	});
+	await reconcileNpcRaidSchedulesAfterRankChange({
+		ctx: args.ctx,
+		nextRank: rank,
+		playerId: args.playerId,
+		previousRank: progression.rank,
 	});
 }
 
