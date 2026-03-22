@@ -28,6 +28,13 @@ function getObjectiveDescriptions(questId: string): string[] {
 	return def.objectives.map((obj) => formatObjectiveDescription(obj));
 }
 
+function escapeAttributeValue(value: string) {
+	if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+		return CSS.escape(value);
+	}
+	return value.replace(/["\\]/g, "\\$&");
+}
+
 // ─── Reward badge ─────────────────────────────────────────────────────────────
 
 function RewardChip({ reward }: { reward: QuestReward }) {
@@ -453,8 +460,9 @@ export function QuestsModal({
 		}
 
 		const frame = requestAnimationFrame(() => {
+			const escapedQuestId = escapeAttributeValue(focusQuestId);
 			const target = scrollAreaRef.current?.querySelector<HTMLElement>(
-				`[data-quest-id="${focusQuestId}"]`,
+				`[data-quest-id="${escapedQuestId}"]`,
 			);
 			target?.scrollIntoView({
 				block: "center",

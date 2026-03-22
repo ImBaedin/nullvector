@@ -489,9 +489,9 @@ function ResourcesRoute() {
 									<div className="flex items-center gap-2.5">
 										<span className="text-white/50">{groupVisual.icon}</span>
 										<div>
-											<h2
-												className="font-(family-name:--nv-font-display) text-sm font-bold"
-											>
+											<h2 className="
+             font-(family-name:--nv-font-display) text-sm font-bold
+           ">
 												{groupVisual.label}
 											</h2>
 											<p className="mt-0.5 text-[10px] text-white/35">{groupVisual.description}</p>

@@ -74,6 +74,9 @@ const wipeUniverseResultValidator = v.object({
 		playerNotificationPreferences: v.number(),
 		colonyQueueItems: v.number(),
 		colonyQueuePayloads: v.number(),
+		colonyAccess: v.number(),
+		colonyScheduling: v.number(),
+		colonyRaidScheduling: v.number(),
 		colonyEconomy: v.number(),
 		colonyInfrastructure: v.number(),
 		colonyPolicy: v.number(),
@@ -283,7 +286,7 @@ export const wipeUniverse = mutation({
 						.then((rows) =>
 							rows.filter(
 								(row) =>
-									playerIdSet.has(row.actorPlayerId) ||
+									exclusivePlayerIdSet.has(row.actorPlayerId) ||
 									(row.targetColonyId !== undefined && colonyIdSet.has(row.targetColonyId)),
 							),
 						),
@@ -446,6 +449,33 @@ export const wipeUniverse = mutation({
 						.query("colonyQueuePayloads")
 						.collect()
 						.then((rows) => rows.filter((row) => row.universeId === universe._id)),
+			}),
+			colonyAccess: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("colonyAccess")
+						.collect()
+						.then((rows) => rows.filter((row) => colonyIdSet.has(row.colonyId))),
+			}),
+			colonyScheduling: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("colonyScheduling")
+						.collect()
+						.then((rows) => rows.filter((row) => colonyIdSet.has(row.colonyId))),
+			}),
+			colonyRaidScheduling: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () =>
+					ctx.db
+						.query("colonyRaidScheduling")
+						.collect()
+						.then((rows) => rows.filter((row) => colonyIdSet.has(row.colonyId))),
 			}),
 			colonyEconomy: await deleteAllByQuery({
 				ctx,

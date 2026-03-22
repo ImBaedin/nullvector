@@ -22,6 +22,7 @@ test("progression overview derives onboarding gates from total xp", () => {
 	expect(rankZero.features.facilities).toBe("hidden");
 	expect(rankZero.features.defenses).toBe("hidden");
 	expect(rankZero.features.shipyard).toBe("hidden");
+	expect(rankZero.facilityAccess.shipyard).toBe("locked");
 	expect(rankZero.raidRules.mode).toBe("off");
 
 	const rankThree = getRankDefinition(3);
@@ -35,10 +36,10 @@ test("progression overview derives onboarding gates from total xp", () => {
 	expect(overview.features.contracts).toBe("unlocked");
 	expect(overview.shipAccess.interceptor).toBe("unlocked");
 	expect(overview.missionAccess.contracts).toBe("unlocked");
-	expect(overview.raidRules.mode).toBe("tutorialOnly");
+	expect(overview.raidRules.mode).toBe("off");
 
 	const rankFour = getRankDefinition(4);
-	expect(rankFour.raidRules.mode).toBe("tutorialOnly");
+	expect(rankFour.raidRules.mode).toBe("off");
 
 	const rankFive = getRankForXpTotal(1_000);
 	expect(rankFive.rank).toBeGreaterThanOrEqual(5);

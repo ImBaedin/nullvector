@@ -50,10 +50,7 @@ const SHELL: CSSProperties = {
 	fontFamily: "inherit",
 };
 
-function ClaimQuestButton(props: {
-	onClaim: () => Promise<void>;
-	toastId: string | number;
-}) {
+function ClaimQuestButton(props: { onClaim: () => Promise<void>; toastId: string | number }) {
 	const [isPending, setIsPending] = useState(false);
 
 	async function handleClick() {

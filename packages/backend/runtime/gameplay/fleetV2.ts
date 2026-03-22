@@ -1999,9 +1999,7 @@ export const getFleetOwnedOperationsHealth = query({
 					...incomingReturning,
 				].map((operation) => [operation._id, operation]),
 			).values(),
-		].sort(
-			(left, right) => left.nextEventAt - right.nextEventAt,
-		);
+		].sort((left, right) => left.nextEventAt - right.nextEventAt);
 
 		return {
 			colonyId: colony._id,
@@ -2284,30 +2282,18 @@ export const getFleetOperationTimeline = query({
 			.collect();
 		let rows = ownerRows;
 		if (args.colonyId) {
-			const [inboundInTransit, inboundReturning] = await Promise.all([
-				ctx.db
-					.query("fleetOperations")
-					.withIndex("by_tcol_st_evt", (q) =>
-						q.eq("target.colonyId", args.colonyId!).eq("status", "inTransit"),
-					)
-					.collect(),
-				ctx.db
-					.query("fleetOperations")
-					.withIndex("by_tcol_st_evt", (q) =>
-						q.eq("target.colonyId", args.colonyId!).eq("status", "returning"),
-					)
-					.collect(),
-			]);
+			const inboundOperations = await ctx.db
+				.query("fleetOperations")
+				.collect()
+				.then((operations) =>
+					operations.filter(
+						(operation) =>
+							operation.target.kind === "colony" && operation.target.colonyId === args.colonyId,
+					),
+				);
 			const inboundEventRows = (
 				await Promise.all(
-					[
-						...new Map(
-							[...inboundInTransit, ...inboundReturning].map((operation) => [
-								operation._id,
-								operation,
-							]),
-						).values(),
-					].map((operation) =>
+					inboundOperations.map((operation) =>
 						ctx.db
 							.query("fleetEvents")
 							.withIndex("by_operation_time", (q) => q.eq("operationId", operation._id))

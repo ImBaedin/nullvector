@@ -336,11 +336,12 @@ export const QUEST_IDS = [
 export type QuestId = (typeof QUEST_IDS)[number];
 
 const HIDDEN: FeatureAccessState = "hidden";
+const LOCKED: FeatureAccessState = "locked";
 const UNLOCKED: FeatureAccessState = "unlocked";
 
 const DEFAULT_FACILITY_ACCESS: FacilityAccessMap = {
 	robotics_hub: HIDDEN,
-	shipyard: HIDDEN,
+	shipyard: LOCKED,
 	defense_grid: HIDDEN,
 };
 
@@ -446,7 +447,7 @@ function createOnboardingRankDefinition(
 					...DEFAULT_MISSION_ACCESS,
 				},
 				raidRules: {
-					mode: "tutorialOnly",
+					mode: "off",
 					difficultyTier: 1,
 				},
 			};
@@ -475,7 +476,7 @@ function createOnboardingRankDefinition(
 					contracts: UNLOCKED,
 				},
 				raidRules: {
-					mode: "tutorialOnly",
+					mode: "off",
 					difficultyTier: 1,
 				},
 			};
@@ -507,7 +508,7 @@ function createOnboardingRankDefinition(
 					contracts: UNLOCKED,
 				},
 				raidRules: {
-					mode: "tutorialOnly",
+					mode: "off",
 					difficultyTier: 1,
 				},
 			};
@@ -830,7 +831,6 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 40 }],
-		effects: [{ kind: "spawnTutorialRaid" }],
 		highlights: [{ target: "tab-defenses" }],
 	},
 	{
@@ -1268,7 +1268,10 @@ function resolveObjectiveColonies(args: {
 	context: QuestEvaluationContext;
 	scope: ObjectiveScope | undefined;
 }) {
-	if (args.scope === "boundColony" && args.bindings.colonyId) {
+	if (args.scope === "boundColony") {
+		if (!args.bindings.colonyId) {
+			return [];
+		}
 		return args.context.colonies.filter((colony) => colony.colonyId === args.bindings.colonyId);
 	}
 	return args.context.colonies;

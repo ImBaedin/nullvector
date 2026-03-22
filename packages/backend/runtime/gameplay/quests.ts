@@ -166,7 +166,7 @@ function resolveQuestBindings(args: {
 	}
 	if (args.definition.bindingStrategy === "newestPlayerColony") {
 		const newestColony = args.colonies[args.colonies.length - 1];
-		return newestColony ? { colonyId: newestColony._id } : {};
+		return newestColony ? { colonyId: newestColony._id } : null;
 	}
 	return {};
 }

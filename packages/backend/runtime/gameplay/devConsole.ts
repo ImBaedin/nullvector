@@ -175,6 +175,33 @@ async function deleteAllByQuery(args: {
 	return deleted;
 }
 
+async function deleteAllTableRows(args: {
+	ctx: MutationCtx;
+	dryRun: boolean;
+	queryFactory: (limit: number) => Promise<Array<{ _id: Id<any> }>>;
+}) {
+	const batchSize = 128;
+	if (args.dryRun) {
+		return deleteAllByQuery({
+			ctx: args.ctx,
+			dryRun: true,
+			queryFactory: () => args.queryFactory(Number.MAX_SAFE_INTEGER),
+		});
+	}
+
+	let deleted = 0;
+	for (;;) {
+		const rows = await args.queryFactory(batchSize);
+		if (rows.length === 0) {
+			return deleted;
+		}
+		for (const row of rows) {
+			await args.ctx.db.delete(row._id);
+			deleted += 1;
+		}
+	}
+}
+
 const clearAllPlayerDataDeletedValidator = v.object({
 	playerProgression: v.number(),
 	playerQuestStates: v.number(),
@@ -1182,140 +1209,140 @@ export const clearAllPlayerData = internalMutation({
 		const dryRun = args.dryRun ?? false;
 
 		const deleted = {
-			playerProgression: await deleteAllByQuery({
+			playerProgression: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("playerProgression").collect(),
+				queryFactory: (limit) => ctx.db.query("playerProgression").take(limit),
 			}),
-			playerQuestStates: await deleteAllByQuery({
+			playerQuestStates: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("playerQuestStates").collect(),
+				queryFactory: (limit) => ctx.db.query("playerQuestStates").take(limit),
 			}),
-			playerQuestMetrics: await deleteAllByQuery({
+			playerQuestMetrics: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("playerQuestMetrics").collect(),
+				queryFactory: (limit) => ctx.db.query("playerQuestMetrics").take(limit),
 			}),
-			devConsoleActions: await deleteAllByQuery({
+			devConsoleActions: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("devConsoleActions").collect(),
+				queryFactory: (limit) => ctx.db.query("devConsoleActions").take(limit),
 			}),
-			playerNotificationPreferences: await deleteAllByQuery({
+			playerNotificationPreferences: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("playerNotificationPreferences").collect(),
+				queryFactory: (limit) => ctx.db.query("playerNotificationPreferences").take(limit),
 			}),
-			notifications: await deleteAllByQuery({
+			notifications: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("notifications").collect(),
+				queryFactory: (limit) => ctx.db.query("notifications").take(limit),
 			}),
-			colonyQuestMetrics: await deleteAllByQuery({
+			colonyQuestMetrics: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("colonyQuestMetrics").collect(),
+				queryFactory: (limit) => ctx.db.query("colonyQuestMetrics").take(limit),
 			}),
-			colonyContractCandidates: await deleteAllByQuery({
+			colonyContractCandidates: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("colonyContractCandidates").collect(),
+				queryFactory: (limit) => ctx.db.query("colonyContractCandidates").take(limit),
 			}),
-			colonyContractDiscoveryState: await deleteAllByQuery({
+			colonyContractDiscoveryState: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("colonyContractDiscoveryState").collect(),
+				queryFactory: (limit) => ctx.db.query("colonyContractDiscoveryState").take(limit),
 			}),
-			contractBoardState: await deleteAllByQuery({
+			contractBoardState: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("contractBoardState").collect(),
+				queryFactory: (limit) => ctx.db.query("contractBoardState").take(limit),
 			}),
-			contractResults: await deleteAllByQuery({
+			contractResults: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("contractResults").collect(),
+				queryFactory: (limit) => ctx.db.query("contractResults").take(limit),
 			}),
-			contracts: await deleteAllByQuery({
+			contracts: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("contracts").collect(),
+				queryFactory: (limit) => ctx.db.query("contracts").take(limit),
 			}),
-			fleetEvents: await deleteAllByQuery({
+			fleetEvents: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("fleetEvents").collect(),
+				queryFactory: (limit) => ctx.db.query("fleetEvents").take(limit),
 			}),
-			fleetOperationResults: await deleteAllByQuery({
+			fleetOperationResults: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("fleetOperationResults").collect(),
+				queryFactory: (limit) => ctx.db.query("fleetOperationResults").take(limit),
 			}),
-			fleetOperations: await deleteAllByQuery({
+			fleetOperations: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("fleetOperations").collect(),
+				queryFactory: (limit) => ctx.db.query("fleetOperations").take(limit),
 			}),
-			fleets: await deleteAllByQuery({
+			fleets: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("fleets").collect(),
+				queryFactory: (limit) => ctx.db.query("fleets").take(limit),
 			}),
-			npcRaidResults: await deleteAllByQuery({
+			npcRaidResults: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("npcRaidResults").collect(),
+				queryFactory: (limit) => ctx.db.query("npcRaidResults").take(limit),
 			}),
-			npcRaidOperations: await deleteAllByQuery({
+			npcRaidOperations: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("npcRaidOperations").collect(),
+				queryFactory: (limit) => ctx.db.query("npcRaidOperations").take(limit),
 			}),
-			colonyQueuePayloads: await deleteAllByQuery({
+			colonyQueuePayloads: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("colonyQueuePayloads").collect(),
+				queryFactory: (limit) => ctx.db.query("colonyQueuePayloads").take(limit),
 			}),
-			colonyQueueItems: await deleteAllByQuery({
+			colonyQueueItems: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("colonyQueueItems").collect(),
+				queryFactory: (limit) => ctx.db.query("colonyQueueItems").take(limit),
 			}),
-			colonyShips: await deleteAllByQuery({
+			colonyShips: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("colonyShips").collect(),
+				queryFactory: (limit) => ctx.db.query("colonyShips").take(limit),
 			}),
-			colonyDefenses: await deleteAllByQuery({
+			colonyDefenses: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("colonyDefenses").collect(),
+				queryFactory: (limit) => ctx.db.query("colonyDefenses").take(limit),
 			}),
-			colonyPolicy: await deleteAllByQuery({
+			colonyPolicy: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("colonyPolicy").collect(),
+				queryFactory: (limit) => ctx.db.query("colonyPolicy").take(limit),
 			}),
-			colonyInfrastructure: await deleteAllByQuery({
+			colonyInfrastructure: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("colonyInfrastructure").collect(),
+				queryFactory: (limit) => ctx.db.query("colonyInfrastructure").take(limit),
 			}),
-			colonyEconomy: await deleteAllByQuery({
+			colonyEconomy: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("colonyEconomy").collect(),
+				queryFactory: (limit) => ctx.db.query("colonyEconomy").take(limit),
 			}),
-			colonyRaidScheduling: await deleteAllByQuery({
+			colonyRaidScheduling: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("colonyRaidScheduling").collect(),
+				queryFactory: (limit) => ctx.db.query("colonyRaidScheduling").take(limit),
 			}),
-			colonies: await deleteAllByQuery({
+			colonies: await deleteAllTableRows({
 				ctx,
 				dryRun,
-				queryFactory: () => ctx.db.query("colonies").collect(),
+				queryFactory: (limit) => ctx.db.query("colonies").take(limit),
 			}),
 		};
 

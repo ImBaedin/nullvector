@@ -12,8 +12,11 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 
 import { query, type QueryCtx } from "../../convex/_generated/server";
 import {
+	getColonyRaidSchedulingState,
+	getColonySchedulingState,
 	getPublicColonyBaseOrThrow,
 	listOpenColonyQueueItemRows,
+	queueEventsNextAt,
 	readColonyDefenseCounts,
 	resolveCurrentPlayer,
 	toAddressLabel,
@@ -591,60 +594,86 @@ function getViewerRelation(args: {
 async function readColonyOperationalOverview(args: {
 	colonyId: Id<"colonies">;
 	ctx: QueryCtx;
+	includeRaidHistory?: boolean;
+	includeShipsAndDefenses?: boolean;
+	includeTraffic?: boolean;
 	ownerPlayerId: Id<"players">;
 }) {
+	const includeShipsAndDefenses = args.includeShipsAndDefenses ?? false;
+	const includeTraffic = args.includeTraffic ?? false;
+	const includeRaidHistory = args.includeRaidHistory ?? false;
 	const [
 		queueRows,
+		scheduling,
+		raidScheduling,
+		activeRaid,
 		dockedShips,
 		defenseCountsRaw,
 		originOps,
 		inboundOps,
-		activeRaid,
 		lastRaidResult,
 	] = await Promise.all([
 		listOpenColonyQueueItemRows({
 			colonyId: args.colonyId,
 			ctx: args.ctx,
 		}),
-		readColonyShipCounts({
+		getColonySchedulingState({
 			colonyId: args.colonyId,
 			ctx: args.ctx,
 		}),
-		readColonyDefenseCounts({
+		getColonyRaidSchedulingState({
 			colonyId: args.colonyId,
 			ctx: args.ctx,
 		}),
-		Promise.all([
-			args.ctx.db
-				.query("fleetOperations")
-				.withIndex("by_origin_stat_evt", (q) =>
-					q.eq("originColonyId", args.colonyId).eq("status", "inTransit"),
-				)
-				.collect(),
-			args.ctx.db
-				.query("fleetOperations")
-				.withIndex("by_origin_stat_evt", (q) =>
-					q.eq("originColonyId", args.colonyId).eq("status", "returning"),
-				)
-				.collect(),
-		]).then((rows) => rows.flat()),
-		args.ctx.db
-			.query("fleetOperations")
-			.withIndex("by_tcol_st_evt", (q) =>
-				q.eq("target.colonyId", args.colonyId).eq("status", "inTransit"),
-			)
-			.collect(),
 		args.ctx.db
 			.query("npcRaidOperations")
 			.withIndex("by_target_status_event", (q) =>
 				q.eq("targetColonyId", args.colonyId).eq("status", "inTransit"),
 			)
 			.first(),
-		args.ctx.db
-			.query("npcRaidResults")
-			.withIndex("by_target_colony_created_at", (q) => q.eq("targetColonyId", args.colonyId))
-			.order("desc")
-			.first(),
+		includeShipsAndDefenses
+			? readColonyShipCounts({
+					colonyId: args.colonyId,
+					ctx: args.ctx,
+				})
+			: Promise.resolve(normalizeShipCounts({})),
+		includeShipsAndDefenses
+			? readColonyDefenseCounts({
+					colonyId: args.colonyId,
+					ctx: args.ctx,
+				})
+			: Promise.resolve(normalizeDefenseCounts({})),
+		includeTraffic
+			? Promise.all([
+					args.ctx.db
+						.query("fleetOperations")
+						.withIndex("by_origin_stat_evt", (q) =>
+							q.eq("originColonyId", args.colonyId).eq("status", "inTransit"),
+						)
+						.collect(),
+					args.ctx.db
+						.query("fleetOperations")
+						.withIndex("by_origin_stat_evt", (q) =>
+							q.eq("originColonyId", args.colonyId).eq("status", "returning"),
+						)
+						.collect(),
+				]).then((rows) => rows.flat())
+			: Promise.resolve([]),
+		includeTraffic
+			? args.ctx.db
+					.query("fleetOperations")
+					.withIndex("by_tcol_st_evt", (q) =>
+						q.eq("target.colonyId", args.colonyId).eq("status", "inTransit"),
+					)
+					.collect()
+			: Promise.resolve([]),
+		includeRaidHistory
+			? args.ctx.db
+					.query("npcRaidResults")
+					.withIndex("by_target_colony_created_at", (q) => q.eq("targetColonyId", args.colonyId))
+					.order("desc")
+					.first()
+			: Promise.resolve(null),
 	]);
 
 	const defenseCounts = normalizeDefenseCounts(defenseCountsRaw);
@@ -654,7 +683,13 @@ async function readColonyOperationalOverview(args: {
 			isInboundOperationForColony({
 				colonyId: args.colonyId,
 				operation,
-			}) && operation.ownerPlayerId === args.ownerPlayerId,
+			}) &&
+			(operation.ownerPlayerId === args.ownerPlayerId ||
+				isAllowedCrossPlayerTransport({
+					colonyId: args.colonyId,
+					operation,
+					ownerPlayerId: args.ownerPlayerId,
+				})),
 	).length;
 	const inboundHostileCount = operations.filter(
 		(operation) =>
@@ -684,9 +719,12 @@ async function readColonyOperationalOverview(args: {
 		inboundFriendlyCount,
 		outboundCount,
 	});
+	const queueNextEventAt =
+		scheduling.queueResolutionScheduledAt ?? queueEventsNextAt(queueRows) ?? undefined;
 	const nextEventCandidates = [
 		activeRaid?.nextEventAt,
-		...queueRows.map((row) => row.completesAt),
+		queueNextEventAt,
+		raidScheduling.nextNpcRaidAt,
 		...operations.map((row) => row.nextEventAt),
 	].filter((value): value is number => typeof value === "number");
 	const nextEventAt = nextEventCandidates.length > 0 ? Math.min(...nextEventCandidates) : undefined;
@@ -769,6 +807,7 @@ export const getColonyOverviewOperationalState = query({
 		const { status } = await readColonyOperationalOverview({
 			colonyId: publicColony.colony._id,
 			ctx,
+			includeTraffic: true,
 			ownerPlayerId: publicColony.player._id,
 		});
 		const classification: "RESTRICTED" | "CLASSIFIED" =
@@ -891,6 +930,8 @@ export const getColonyOverviewDefense = query({
 		const operational = await readColonyOperationalOverview({
 			colonyId: publicColony.colony._id,
 			ctx,
+			includeRaidHistory: true,
+			includeShipsAndDefenses: true,
 			ownerPlayerId: publicColony.player._id,
 		});
 
@@ -929,6 +970,8 @@ export const getColonyOverviewFleet = query({
 		const operational = await readColonyOperationalOverview({
 			colonyId: publicColony.colony._id,
 			ctx,
+			includeTraffic: true,
+			includeShipsAndDefenses: true,
 			ownerPlayerId: publicColony.player._id,
 		});
 
@@ -971,6 +1014,7 @@ export const getColonyOverviewStrategic = query({
 		const operational = await readColonyOperationalOverview({
 			colonyId: publicColony.colony._id,
 			ctx,
+			includeTraffic: true,
 			ownerPlayerId: publicColony.player._id,
 		});
 
@@ -1021,6 +1065,8 @@ export const getColonyOverviewActivity = query({
 		const operational = await readColonyOperationalOverview({
 			colonyId: publicColony.colony._id,
 			ctx,
+			includeRaidHistory: true,
+			includeTraffic: true,
 			ownerPlayerId: publicColony.player._id,
 		});
 
@@ -1051,6 +1097,7 @@ export const getColonyOverviewTiming = query({
 		const operational = await readColonyOperationalOverview({
 			colonyId: publicColony.colony._id,
 			ctx,
+			includeTraffic: true,
 			ownerPlayerId: publicColony.player._id,
 		});
 

@@ -145,8 +145,11 @@ export const getActiveColonyNextEvent = query({
 				].map((operation) => [operation._id, operation.nextEventAt]),
 			).values(),
 		];
-		const nextEventCandidates = [queueNextEventAt, activeRaid?.nextEventAt, ...fleetNextEventCandidates]
-			.filter((value): value is number => typeof value === "number");
+		const nextEventCandidates = [
+			queueNextEventAt,
+			activeRaid?.nextEventAt,
+			...fleetNextEventCandidates,
+		].filter((value): value is number => typeof value === "number");
 		const nextEventAt =
 			nextEventCandidates.length > 0 ? Math.min(...nextEventCandidates) : undefined;
 

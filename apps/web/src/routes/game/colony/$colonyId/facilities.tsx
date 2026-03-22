@@ -83,19 +83,17 @@ function FacilitiesRoute(): ReactElement {
 	const canUseDevConsole = devConsole.canUseDevConsole;
 
 	const view = useMemo(() => {
-		if (!colonyView) {
+		if (!colonyView || progressionOverview === undefined) {
 			return undefined;
 		}
-		const visibleFacilities = progressionOverview?.facilityAccess
-			? colonyView.facilities.filter(
-					(facility) => progressionOverview.facilityAccess[facility.key] === "unlocked",
-				)
-			: colonyView.facilities;
+		const visibleFacilities = colonyView.facilities.filter(
+			(facility) => progressionOverview.facilityAccess[facility.key] === "unlocked",
+		);
 		return {
 			facilities: visibleFacilities,
 			queues: colonyView.queueLanes,
 		};
-	}, [colonyView, progressionOverview?.facilityAccess]);
+	}, [colonyView, progressionOverview]);
 
 	useEffect(() => {
 		if (
@@ -400,9 +398,9 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
             "
 												src={visual.image}
 											/>
-											<h3
-												className="font-(family-name:--nv-font-display) text-sm font-bold"
-											>
+											<h3 className="
+             font-(family-name:--nv-font-display) text-sm font-bold
+           ">
 												{facility.name}
 											</h3>
 										</div>
