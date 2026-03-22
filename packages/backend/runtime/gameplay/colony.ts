@@ -53,20 +53,32 @@ export const colonyIdentityValidator = v.object({
 	addressLabel: v.string(),
 	colonyId: v.id("colonies"),
 	name: v.string(),
+	planetId: v.id("planets"),
 });
 
 export const colonyEconomyValidator = v.object({
 	colonyId: v.id("colonies"),
 	lastAccruedAt: v.number(),
 	overflow: resourceBucketValidator,
-	planetMultipliers: v.object({
+	resources: resourceBucketValidator,
+	serverNowMs: v.number(),
+	storageCaps: resourceBucketValidator,
+});
+
+export const planetEconomyViewValidator = v.object({
+	planetId: v.id("planets"),
+	multipliers: v.object({
 		alloy: v.number(),
 		crystal: v.number(),
 		fuel: v.number(),
 	}),
-	resources: resourceBucketValidator,
-	serverNowMs: v.number(),
-	storageCaps: resourceBucketValidator,
+	compositionType: v.union(
+		v.literal("metallic"),
+		v.literal("silicate"),
+		v.literal("icy"),
+		v.literal("volatileRich"),
+	),
+	maxBuildingSlots: v.number(),
 });
 
 export const colonyInfrastructureValidator = v.object({
@@ -143,6 +155,7 @@ export const getColonyIdentity = query({
 			addressLabel: toAddressLabel(planet),
 			colonyId: colony._id,
 			name: colony.name,
+			planetId: planet._id,
 		};
 	},
 });
@@ -154,41 +167,27 @@ export const getColonyEconomy = query({
 	returns: colonyEconomyValidator,
 	handler: async (ctx, args) => {
 		const serverNowMs = Date.now();
-		const { colony } = await requireOwnedColonyRow({
+		const { colonyId } = await requireOwnedColonyAccess({
 			colonyId: args.colonyId,
 			ctx,
 		});
 
-		const [economy, planetEconomy] = await Promise.all([
-			ctx.db
-				.query("colonyEconomy")
-				.withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
-				.unique(),
-			ctx.db
-				.query("planetEconomy")
-				.withIndex("by_planet_id", (q) => q.eq("planetId", colony.planetId))
-				.unique(),
-		]);
+		const economy = await ctx.db
+			.query("colonyEconomy")
+			.withIndex("by_colony_id", (q) => q.eq("colonyId", colonyId))
+			.unique();
 
 		if (!economy) {
 			throw new ConvexError("Colony economy row missing");
 		}
-		if (!planetEconomy) {
-			throw new ConvexError("Planet economy row missing");
-		}
 
 		return {
-			colonyId: colony._id,
+			colonyId,
 			lastAccruedAt: economy.lastAccruedAt,
 			overflow: {
 				alloy: storedToWholeUnits(economy.overflow.alloy),
 				crystal: storedToWholeUnits(economy.overflow.crystal),
 				fuel: storedToWholeUnits(economy.overflow.fuel),
-			},
-			planetMultipliers: {
-				alloy: planetEconomy.alloyMultiplier,
-				crystal: planetEconomy.crystalMultiplier,
-				fuel: planetEconomy.fuelMultiplier,
 			},
 			resources: {
 				alloy: storedToWholeUnits(economy.resources.alloy),
@@ -201,6 +200,33 @@ export const getColonyEconomy = query({
 				crystal: storedToWholeUnits(economy.storageCaps.crystal),
 				fuel: storedToWholeUnits(economy.storageCaps.fuel),
 			},
+		};
+	},
+});
+
+export const getPlanetEconomy = query({
+	args: {
+		planetId: v.id("planets"),
+	},
+	returns: planetEconomyViewValidator,
+	handler: async (ctx, args) => {
+		const planetEconomy = await ctx.db
+			.query("planetEconomy")
+			.withIndex("by_planet_id", (q) => q.eq("planetId", args.planetId))
+			.unique();
+		if (!planetEconomy) {
+			throw new ConvexError("Planet economy row missing");
+		}
+
+		return {
+			planetId: args.planetId,
+			multipliers: {
+				alloy: planetEconomy.alloyMultiplier,
+				crystal: planetEconomy.crystalMultiplier,
+				fuel: planetEconomy.fuelMultiplier,
+			},
+			compositionType: planetEconomy.compositionType,
+			maxBuildingSlots: planetEconomy.maxBuildingSlots,
 		};
 	},
 });

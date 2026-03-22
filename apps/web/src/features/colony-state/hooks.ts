@@ -40,7 +40,6 @@ function buildColonySnapshot(args: {
 		| {
 				lastAccruedAt: number;
 				overflow: ColonySnapshot["overflow"];
-				planetMultipliers: ColonySnapshot["planetMultipliers"];
 				resources: ColonySnapshot["resources"];
 				serverNowMs: number;
 				storageCaps: ColonySnapshot["storageCaps"];
@@ -50,6 +49,12 @@ function buildColonySnapshot(args: {
 		| {
 				addressLabel: string;
 				name: string;
+				planetId: Id<"planets">;
+		  }
+		| undefined;
+	planetEconomy:
+		| {
+				multipliers: ColonySnapshot["planetMultipliers"];
 		  }
 		| undefined;
 	infrastructure:
@@ -79,6 +84,7 @@ function buildColonySnapshot(args: {
 	if (
 		!args.identity ||
 		!args.economy ||
+		!args.planetEconomy ||
 		!args.infrastructure ||
 		!args.policy ||
 		!args.queueState ||
@@ -97,7 +103,7 @@ function buildColonySnapshot(args: {
 		name: args.identity.name,
 		openQueues: args.queueState.openQueues,
 		overflow: args.economy.overflow,
-		planetMultipliers: args.economy.planetMultipliers,
+		planetMultipliers: args.planetEconomy.multipliers,
 		policies: args.policy.policies,
 		resources: args.economy.resources,
 		schedule: args.queueState.schedule,
@@ -152,6 +158,9 @@ function readSnapshotFromLocalStore(args: {
 		getQuery: (...queryArgs: any[]) => any;
 	};
 }) {
+	const identity = args.localStore.getQuery(api.colony.getColonyIdentity, {
+		colonyId: args.colonyId,
+	});
 	return buildColonySnapshot({
 		colonyId: args.colonyId,
 		defenses: args.localStore.getQuery(api.colony.getColonyDefenses, {
@@ -160,12 +169,15 @@ function readSnapshotFromLocalStore(args: {
 		economy: args.localStore.getQuery(api.colony.getColonyEconomy, {
 			colonyId: args.colonyId,
 		}),
-		identity: args.localStore.getQuery(api.colony.getColonyIdentity, {
-			colonyId: args.colonyId,
-		}),
+		identity,
 		infrastructure: args.localStore.getQuery(api.colony.getColonyInfrastructure, {
 			colonyId: args.colonyId,
 		}),
+		planetEconomy: identity?.planetId
+			? args.localStore.getQuery(api.colony.getPlanetEconomy, {
+					planetId: identity.planetId,
+				})
+			: undefined,
 		policy: args.localStore.getQuery(api.colony.getColonyPolicy, {
 			colonyId: args.colonyId,
 		}),
@@ -181,19 +193,26 @@ function readSnapshotFromLocalStore(args: {
 function writeSnapshotToLocalStore(args: {
 	colonyId: Id<"colonies">;
 	localStore: {
+		getQuery: (...queryArgs: any[]) => any;
 		setQuery: (...queryArgs: any[]) => void;
 	};
 	snapshot: ColonySnapshot;
 }) {
-	args.localStore.setQuery(
-		api.colony.getColonyIdentity,
-		{ colonyId: args.colonyId },
-		{
-			addressLabel: args.snapshot.addressLabel,
-			colonyId: args.colonyId,
-			name: args.snapshot.name,
-		},
-	);
+	const existingIdentity = args.localStore.getQuery(api.colony.getColonyIdentity, {
+		colonyId: args.colonyId,
+	});
+	if (existingIdentity) {
+		args.localStore.setQuery(
+			api.colony.getColonyIdentity,
+			{ colonyId: args.colonyId },
+			{
+				addressLabel: args.snapshot.addressLabel,
+				colonyId: args.colonyId,
+				name: args.snapshot.name,
+				planetId: existingIdentity.planetId,
+			},
+		);
+	}
 	args.localStore.setQuery(
 		api.colony.getColonyEconomy,
 		{ colonyId: args.colonyId },
@@ -201,12 +220,26 @@ function writeSnapshotToLocalStore(args: {
 			colonyId: args.colonyId,
 			lastAccruedAt: args.snapshot.lastAccruedAt,
 			overflow: args.snapshot.overflow,
-			planetMultipliers: args.snapshot.planetMultipliers,
 			resources: args.snapshot.resources,
 			serverNowMs: args.snapshot.serverNowMs,
 			storageCaps: args.snapshot.storageCaps,
 		},
 	);
+	if (existingIdentity?.planetId) {
+		const existingPlanetEconomy = args.localStore.getQuery(api.colony.getPlanetEconomy, {
+			planetId: existingIdentity.planetId,
+		});
+		args.localStore.setQuery(
+			api.colony.getPlanetEconomy,
+			{ planetId: existingIdentity.planetId },
+			{
+				planetId: existingIdentity.planetId,
+				multipliers: args.snapshot.planetMultipliers,
+				compositionType: existingPlanetEconomy?.compositionType ?? "metallic",
+				maxBuildingSlots: existingPlanetEconomy?.maxBuildingSlots ?? 0,
+			},
+		);
+	}
 	args.localStore.setQuery(
 		api.colony.getColonyInfrastructure,
 		{ colonyId: args.colonyId },
@@ -254,6 +287,10 @@ function writeSnapshotToLocalStore(args: {
 export function useColonySnapshot(colonyId: Id<"colonies"> | null) {
 	const identity = useQuery(api.colony.getColonyIdentity, colonyId ? { colonyId } : "skip");
 	const economy = useQuery(api.colony.getColonyEconomy, colonyId ? { colonyId } : "skip");
+	const planetEconomy = useQuery(
+		api.colony.getPlanetEconomy,
+		identity ? { planetId: identity.planetId } : "skip",
+	);
 	const infrastructure = useQuery(
 		api.colony.getColonyInfrastructure,
 		colonyId ? { colonyId } : "skip",
@@ -272,12 +309,23 @@ export function useColonySnapshot(colonyId: Id<"colonies"> | null) {
 						economy,
 						identity,
 						infrastructure,
+						planetEconomy,
 						policy,
 						queueState,
 						ships,
 					})
 				: undefined,
-		[colonyId, defenses, economy, identity, infrastructure, policy, queueState, ships],
+		[
+			colonyId,
+			defenses,
+			economy,
+			identity,
+			infrastructure,
+			planetEconomy,
+			policy,
+			queueState,
+			ships,
+		],
 	);
 }
 

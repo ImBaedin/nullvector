@@ -6,6 +6,7 @@ import {
 	getColonyPolicy,
 	getColonyQueueState,
 	getColonyShips,
+	getPlanetEconomy,
 } from "../runtime/gameplay/colony";
 
 export {
@@ -16,4 +17,5 @@ export {
 	getColonyPolicy,
 	getColonyQueueState,
 	getColonyShips,
+	getPlanetEconomy,
 };
