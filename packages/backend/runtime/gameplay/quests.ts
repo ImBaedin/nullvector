@@ -183,9 +183,7 @@ function sanitizeQuestBindings(args: {
 	if (!args.bindings.colonyId) {
 		return null;
 	}
-	return colonyIds.has(args.bindings.colonyId as Id<"colonies">)
-		? args.bindings
-		: null;
+	return colonyIds.has(args.bindings.colonyId as Id<"colonies">) ? args.bindings : null;
 }
 
 function toQuestColonyFacts(

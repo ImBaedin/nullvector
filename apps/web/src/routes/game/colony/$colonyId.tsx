@@ -44,7 +44,7 @@ function ColonyLayoutContent() {
 
 	return (
 		<QuestProgressProvider activeColonyId={colonyIdAsId}>
-							<QuestProgressEffects />
+			<QuestProgressEffects />
 			<HighlightProvider>
 				<div
 					className="relative h-full overflow-y-auto"
@@ -88,8 +88,8 @@ function ColonyLayoutContent() {
          relative min-h-full transition-[clip-path,opacity,transform]
          duration-500 ease-out
          ${layout.shouldCollapseContent ? `
-          pointer-events-none -translate-y-3 opacity-0
-        ` : `translate-y-0 opacity-100`}
+           pointer-events-none -translate-y-3 opacity-0
+         ` : `translate-y-0 opacity-100`}
        `}
 							style={{
 								clipPath: layout.shouldCollapseContent

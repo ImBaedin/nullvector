@@ -1802,7 +1802,7 @@ export const getFleetOperationsForOriginColony = query({
 					arriveAt: operation.arriveAt,
 					nextEventAt: operation.nextEventAt,
 					distance: operation.distance,
-						canCancel: operation.status === "inTransit",
+					canCancel: operation.status === "inTransit",
 				};
 			}),
 		);
@@ -1922,7 +1922,7 @@ export const getFleetOperationsForTargetColony = query({
 					arriveAt: operation.arriveAt,
 					nextEventAt: operation.nextEventAt,
 					distance: operation.distance,
-						canCancel: operation.status === "inTransit" && relation === "outgoing",
+					canCancel: operation.status === "inTransit" && relation === "outgoing",
 				};
 			}),
 		);

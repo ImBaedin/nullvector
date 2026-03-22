@@ -398,9 +398,9 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
             "
 												src={visual.image}
 											/>
-											<h3 className="
-             font-(family-name:--nv-font-display) text-sm font-bold
-           ">
+											<h3
+												className="font-(family-name:--nv-font-display) text-sm font-bold"
+											>
 												{facility.name}
 											</h3>
 										</div>

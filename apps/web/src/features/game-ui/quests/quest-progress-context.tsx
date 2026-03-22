@@ -34,10 +34,7 @@ const questHighlightsById = new Map(
 	QUEST_DEFINITIONS.map((definition) => [definition.id, definition.highlights ?? []] as const),
 );
 
-export function QuestProgressProvider({
-	activeColonyId,
-	children,
-}: QuestProgressProviderProps) {
+export function QuestProgressProvider({ activeColonyId, children }: QuestProgressProviderProps) {
 	const { isAuthenticated } = useConvexAuth();
 	const clientState = useQuery(api.quests.getClientState, isAuthenticated ? {} : "skip");
 	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");

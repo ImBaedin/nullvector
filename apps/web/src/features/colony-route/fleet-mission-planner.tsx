@@ -78,9 +78,9 @@ export function MissionPlannerPanel(props: MissionPlannerPanelProps) {
       bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
     "
 			>
-				<header
-					className="flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5"
-				>
+				<header className="
+      flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
+    ">
 					<Rocket className="size-5 text-cyan-300" />
 					<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">
 						Plan Expedition
