@@ -11,6 +11,7 @@ import {
 	useColonySessionSnapshot,
 	useOptimisticColonyMutation,
 } from "@/features/colony-state/hooks";
+import { useQuestProgress } from "@/features/game-ui/quests";
 import { useColonyResources } from "@/hooks/use-colony-resources";
 import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 
@@ -54,8 +55,8 @@ export function useHeaderData() {
 	const colonySession = useColonySessionSnapshot(
 		colonyIdAsId && isAuthenticated ? colonyIdAsId : null,
 	);
-	const publicOverview = useQuery(
-		api.colonyOverview.getColonyOverview,
+	const publicOverviewHeader = useQuery(
+		api.colonyOverview.getColonyOverviewHeader,
 		colonyIdAsId ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const raidStatus = useQuery(
@@ -63,14 +64,12 @@ export function useHeaderData() {
 		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const colonyResources = useColonyResources(colonyIdAsId && isAuthenticated ? colonyIdAsId : null);
-	const playerProfile = useQuery(
-		api.playerProgression.getPlayerProfile,
-		isAuthenticated ? {} : "skip",
-	);
+	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
 	const notificationSummary = useQuery(
 		api.notifications.getNotificationUnreadSummary,
 		isAuthenticated ? {} : "skip",
 	);
+	const { activeQuestCount } = useQuestProgress();
 	const [isRenamingColony, setIsRenamingColony] = useState(false);
 	const [isSavingColonyName, setIsSavingColonyName] = useState(false);
 	const isCompact = useCompactHeaderMode();
@@ -100,8 +99,20 @@ export function useHeaderData() {
 							title: hud.title,
 						}
 					: undefined,
+				progressionOverview
+					? {
+							features: {
+								overview: progressionOverview.features.overview,
+								contracts: progressionOverview.features.contracts,
+								defenses: progressionOverview.features.defenses,
+								facilities: progressionOverview.features.facilities,
+								fleet: progressionOverview.features.fleet,
+								shipyard: progressionOverview.features.shipyard,
+							},
+						}
+					: undefined,
 			),
-		[hud, pathname],
+		[hud, pathname, progressionOverview],
 	);
 
 	const liveNotificationsCount = notificationSummary?.total ?? config.notificationsCount ?? 0;
@@ -144,20 +155,21 @@ export function useHeaderData() {
 				),
 			};
 		});
-		if (publicOverview?.viewerRelation === "owner") {
+		if (publicOverviewHeader?.viewerRelation === "owner") {
 			return baseTabs;
 		}
 		return baseTabs.map((tab) => ({
 			...tab,
 			isDisabled: tab.id !== "overview",
 		}));
-	}, [config.contextTabs, publicOverview?.viewerRelation, raidStatus?.activeRaid]);
+	}, [config.contextTabs, publicOverviewHeader?.viewerRelation, raidStatus?.activeRaid]);
 
 	const drawerConfig = useMemo(
 		() => ({
 			...config,
 			contextTabs,
 			notificationsCount: liveNotificationsCount,
+			questCount: activeQuestCount,
 			onOpenNotifications: () => {
 				// Handled by the header shell.
 			},
@@ -165,7 +177,7 @@ export function useHeaderData() {
 				// Handled by the header shell.
 			},
 		}),
-		[config, contextTabs, liveNotificationsCount],
+		[activeQuestCount, config, contextTabs, liveNotificationsCount],
 	);
 
 	const activeColony = useMemo(
@@ -179,11 +191,11 @@ export function useHeaderData() {
 		if (activeColony?.name) {
 			return activeColony.name;
 		}
-		if (publicOverview?.header.name) {
-			return publicOverview.header.name;
+		if (publicOverviewHeader?.header.name) {
+			return publicOverviewHeader.header.name;
 		}
 		return (config.title ?? "Colony Operations").replace(/ Resources$/, "");
-	}, [activeColony?.name, config.title, publicOverview?.header.name]);
+	}, [activeColony?.name, config.title, publicOverviewHeader?.header.name]);
 
 	const commitColonyRename = useCallback(
 		async (nextName: string) => {
@@ -244,6 +256,7 @@ export function useHeaderData() {
 
 	return {
 		activeColony,
+		activeQuestCount,
 		beginColonyRename,
 		colonyIdAsId,
 		colonySession,
@@ -256,8 +269,8 @@ export function useHeaderData() {
 		isRenamingColony,
 		isSavingColonyName,
 		liveNotificationsCount,
-		playerProfile,
-		publicOverview,
+		progressionOverview,
+		publicOverview: publicOverviewHeader,
 		raidStatus,
 		colonyResources,
 		handleColonyChange,

@@ -117,11 +117,6 @@ export const DEFAULT_FACILITIES: FacilityDefinition[] = [
 			baseSeconds: 240,
 			formula: makeExponentialUpgradeFormula(1.29),
 		},
-		unlock: {
-			type: "facility_level",
-			facilityId: "shipyard",
-			minLevel: 2,
-		},
 		buffs: [],
 	},
 ];

@@ -18,9 +18,7 @@ function Modal() {
 				<Surface variant="secondary" className="w-full max-w-sm rounded-lg p-5">
 					<View className="items-center">
 						<View
-							className="
-        mb-3 size-12 items-center justify-center rounded-lg bg-accent
-      "
+							className="mb-3 size-12 items-center justify-center rounded-lg bg-accent"
 						>
 							<Ionicons name="checkmark" size={24} color={accentForegroundColor} />
 						</View>

@@ -1,7 +1,7 @@
 import {
 	DEFAULT_SHIP_DEFINITIONS,
 	generateNpcRaidSnapshot,
-	getDifficultyTierForRank,
+	generateTutorialNpcRaidSnapshot,
 	getFleetCargoCapacity,
 	normalizeDefenseCounts,
 	normalizeShipCounts,
@@ -23,25 +23,27 @@ import {
 } from "../../convex/_generated/server";
 import { RESOURCE_SCALE } from "../../convex/schema";
 import { emitRaidIncomingNotification, emitRaidResolvedNotification } from "./notifications";
-import { changePlayerRankXp } from "./progression";
+import { buildProgressionRules } from "./progression";
+import { incrementRaidDefenseSuccess, markQuestMetricSourceProcessed } from "./questMetrics";
 import {
 	computeNextNpcRaidAt,
 	computeNpcRaidTravelDurationMs,
 	pickNpcRaidFaction,
-	RAID_MIN_PLAYER_RANK,
 } from "./raidScheduling";
 import {
 	cloneResourceBucket,
 	emptyResourceBucket,
-	getOwnedColony,
+	getColonyRaidSchedulingState,
 	incrementColonyShipCount,
 	loadColonyDefenseCounts,
 	loadColonyState,
 	loadPlanetState,
+	requireOwnedColonyAccess,
 	replaceColonyDefenseCounts,
 	settleColonyAndPersist,
 	settleDefenseQueue,
 	settleShipyardQueue,
+	upsertColonyRaidSchedulingState,
 	upsertColonyCompanionRows,
 } from "./shared";
 
@@ -49,11 +51,20 @@ const RAID_STATUS_IN_TRANSIT = "inTransit" as const;
 const RESOURCE_KEYS = ["alloy", "crystal", "fuel"] as const;
 const MAX_RAID_DIFFICULTY_TIER = 10;
 const DEFENSE_SALVAGE_FACTOR = 0.35;
-const RAID_FAILURE_RANK_XP_PER_TIER = 25;
 const RAID_RECONCILE_BATCH_SIZE = 64;
 
 function scaledUnits(unscaledUnits: number) {
 	return Math.round(Math.max(0, unscaledUnits) * RESOURCE_SCALE);
+}
+
+export function shouldSpawnNpcRaid(args: {
+	mode: "off" | "tutorialOnly" | "full";
+	spawnReason?: "tutorialRank2";
+}) {
+	if (args.spawnReason === "tutorialRank2") {
+		return true;
+	}
+	return args.mode === "full";
 }
 
 async function readColonyShipCounts(args: {
@@ -121,9 +132,13 @@ async function setNextNpcRaidAtForColony(args: {
 				colonyId: args.colony._id,
 			})
 		: undefined;
-	await args.ctx.db.patch(args.colony._id, {
-		nextNpcRaidAt,
-		updatedAt: args.now,
+	await upsertColonyRaidSchedulingState({
+		colonyId: args.colony._id,
+		ctx: args.ctx,
+		now: args.now,
+		patch: {
+			nextNpcRaidAt,
+		},
 	});
 	return nextNpcRaidAt ?? null;
 }
@@ -131,31 +146,34 @@ async function setNextNpcRaidAtForColony(args: {
 async function reconcileNpcRaidScheduleForColony(args: {
 	colony: Doc<"colonies">;
 	ctx: MutationCtx;
-	progressionRank?: number;
+	progression?: Awaited<ReturnType<typeof buildProgressionRules>>;
 }) {
+	const progression =
+		args.progression ??
+		(await buildProgressionRules({
+			ctx: args.ctx,
+			playerId: args.colony.playerId,
+		}));
 	const now = Date.now();
-	const progressionRank =
-		args.progressionRank ??
-		(
-			await args.ctx.db
-				.query("playerProgression")
-				.withIndex("by_player_id", (q) => q.eq("playerId", args.colony.playerId))
-				.unique()
-		)?.rank ??
-		1;
-	if (progressionRank < RAID_MIN_PLAYER_RANK) {
-		if (args.colony.nextNpcRaidAt === undefined) {
-			return null;
-		}
-		await args.ctx.db.patch(args.colony._id, {
-			nextNpcRaidAt: undefined,
-			updatedAt: now,
+	if (progression.raidRules.mode !== "full") {
+		await upsertColonyRaidSchedulingState({
+			colonyId: args.colony._id,
+			ctx: args.ctx,
+			now,
+			patch: {
+				nextNpcRaidAt: undefined,
+			},
 		});
 		return null;
 	}
 
-	if (args.colony.nextNpcRaidAt !== undefined) {
-		return args.colony.nextNpcRaidAt;
+	const scheduling = await getColonyRaidSchedulingState({
+		colonyId: args.colony._id,
+		ctx: args.ctx,
+	});
+
+	if (scheduling.nextNpcRaidAt !== undefined) {
+		return scheduling.nextNpcRaidAt;
 	}
 
 	return setNextNpcRaidAtForColony({
@@ -170,13 +188,19 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 	colony: Doc<"colonies">;
 	ctx: MutationCtx;
 	scheduledAt: number;
+	spawnReason?: "tutorialRank2";
 }) {
 	const now = Date.now();
-	const progression = await args.ctx.db
-		.query("playerProgression")
-		.withIndex("by_player_id", (q) => q.eq("playerId", args.colony.playerId))
-		.unique();
-	if ((progression?.rank ?? 1) < RAID_MIN_PLAYER_RANK) {
+	const progression = await buildProgressionRules({
+		ctx: args.ctx,
+		playerId: args.colony.playerId,
+	});
+	if (
+		!shouldSpawnNpcRaid({
+			mode: progression.raidRules.mode,
+			spawnReason: args.spawnReason,
+		})
+	) {
 		await setNextNpcRaidAtForColony({
 			colony: args.colony,
 			ctx: args.ctx,
@@ -189,19 +213,19 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 			stale: false,
 		};
 	}
-	const difficultyTier = Math.min(
-		MAX_RAID_DIFFICULTY_TIER,
-		getDifficultyTierForRank(progression?.rank ?? 1),
-	);
+	const difficultyTier = Math.min(MAX_RAID_DIFFICULTY_TIER, progression.raidRules.difficultyTier);
 	const hostileFactionKey = pickNpcRaidFaction({
 		colonyId: args.colony._id,
 		scheduledAt: args.scheduledAt,
 	});
-	const snapshot = generateNpcRaidSnapshot({
-		difficultyTier,
-		hostileFactionKey,
-		seed: `${args.colony._id}:${args.scheduledAt}`,
-	});
+	const snapshot =
+		args.spawnReason === "tutorialRank2"
+			? generateTutorialNpcRaidSnapshot()
+			: generateNpcRaidSnapshot({
+					difficultyTier,
+					hostileFactionKey,
+					seed: `${args.colony._id}:${args.scheduledAt}`,
+				});
 	const durationMs = computeNpcRaidTravelDurationMs({
 		colonyId: args.colony._id,
 		scheduledAt: args.scheduledAt,
@@ -211,6 +235,7 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 		targetColonyId: args.colony._id,
 		targetPlayerId: args.colony.playerId,
 		sourcePlanetId: undefined,
+		spawnReason: args.spawnReason,
 		hostileFactionKey,
 		status: RAID_STATUS_IN_TRANSIT,
 		difficultyTier,
@@ -242,7 +267,7 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 	await setNextNpcRaidAtForColony({
 		colony: args.colony,
 		ctx: args.ctx,
-		enabled: true,
+		enabled: progression.raidRules.mode === "full",
 		now,
 		scheduledAt: args.scheduledAt,
 	});
@@ -358,12 +383,16 @@ export const getRaidStatusForColony = query({
 	},
 	returns: raidStatusViewValidator,
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
+		const { colonyId } = await requireOwnedColonyAccess({
 			ctx,
 			colonyId: args.colonyId,
 		});
+		const scheduling = await getColonyRaidSchedulingState({
+			colonyId,
+			ctx,
+		});
 		const activeRaid = await findActiveRaidForColony({
-			colonyId: colony._id,
+			colonyId,
 			ctx,
 		});
 		const activeRaidView = activeRaid
@@ -378,8 +407,8 @@ export const getRaidStatusForColony = query({
 				}
 			: undefined;
 		return {
-			colonyId: colony._id,
-			nextNpcRaidAt: colony.nextNpcRaidAt,
+			colonyId,
+			nextNpcRaidAt: scheduling.nextNpcRaidAt,
 			activeRaid: activeRaidView,
 		};
 	},
@@ -408,20 +437,19 @@ export const getRaidHistoryForColony = query({
 					crystal: v.number(),
 					fuel: v.number(),
 				}),
-				rankXpDelta: v.number(),
 				createdAt: v.number(),
 			}),
 		),
 	}),
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
+		const { colonyId } = await requireOwnedColonyAccess({
 			ctx,
 			colonyId: args.colonyId,
 		});
 		const limit = Math.max(1, Math.min(20, Math.floor(args.limit ?? 10)));
 		const rows = await ctx.db
 			.query("npcRaidResults")
-			.withIndex("by_target_colony_id", (q) => q.eq("targetColonyId", colony._id))
+			.withIndex("by_target_colony_id", (q) => q.eq("targetColonyId", colonyId))
 			.collect();
 		return {
 			results: rows
@@ -435,7 +463,6 @@ export const getRaidHistoryForColony = query({
 					hostileFactionKey: row.hostileFactionKey,
 					resourcesLooted: row.resourcesLooted,
 					salvageGranted: row.salvageGranted,
-					rankXpDelta: row.rankXpDelta,
 					createdAt: row.createdAt,
 				})),
 		};
@@ -453,17 +480,17 @@ export const resolveOverdueRaidForColony = mutation({
 		stale: v.boolean(),
 	}),
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
+		const { colonyId } = await requireOwnedColonyAccess({
 			ctx,
 			colonyId: args.colonyId,
 		});
 		const activeRaid = await findActiveRaidForColony({
-			colonyId: colony._id,
+			colonyId,
 			ctx,
 		});
 		if (!activeRaid) {
 			return {
-				colonyId: colony._id,
+				colonyId,
 				raidOperationId: undefined,
 				resolved: false,
 				stale: false,
@@ -471,7 +498,7 @@ export const resolveOverdueRaidForColony = mutation({
 		}
 		if (activeRaid.arriveAt > Date.now()) {
 			return {
-				colonyId: colony._id,
+				colonyId,
 				raidOperationId: activeRaid._id,
 				resolved: false,
 				stale: false,
@@ -484,7 +511,7 @@ export const resolveOverdueRaidForColony = mutation({
 			scheduledAt: activeRaid.nextEventAt,
 		});
 		return {
-			colonyId: colony._id,
+			colonyId,
 			raidOperationId: activeRaid._id,
 			resolved: !result.stale,
 			stale: result.stale,
@@ -535,18 +562,17 @@ export const reconcileNpcRaidSchedulesForPlayer = internalMutation({
 			.query("colonies")
 			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
 			.collect();
-		const progression = await ctx.db
-			.query("playerProgression")
-			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
-			.unique();
-		const progressionRank = progression?.rank ?? 1;
+		const progression = await buildProgressionRules({
+			ctx,
+			playerId: args.playerId,
+		});
 		let scheduled = 0;
 		let cleared = 0;
 		for (const colony of colonies) {
 			const nextNpcRaidAt = await reconcileNpcRaidScheduleForColony({
 				colony,
 				ctx,
-				progressionRank,
+				progression,
 			});
 			if (nextNpcRaidAt === null) {
 				cleared += 1;
@@ -577,7 +603,9 @@ export const reconcileDueNpcRaids = internalMutation({
 		const now = Date.now();
 		const dueRaids = await ctx.db
 			.query("npcRaidOperations")
-			.withIndex("by_status_event", (q) => q.eq("status", RAID_STATUS_IN_TRANSIT).lte("nextEventAt", now))
+			.withIndex("by_status_event", (q) =>
+				q.eq("status", RAID_STATUS_IN_TRANSIT).lte("nextEventAt", now),
+			)
 			.take(RAID_RECONCILE_BATCH_SIZE);
 		let resolved = 0;
 		for (const raid of dueRaids) {
@@ -591,36 +619,47 @@ export const reconcileDueNpcRaids = internalMutation({
 			}
 		}
 		const dueColonies = await ctx.db
-			.query("colonies")
+			.query("colonyRaidScheduling")
 			.withIndex("by_next_npc_raid_at", (q) => q.lte("nextNpcRaidAt", now))
 			.take(RAID_RECONCILE_BATCH_SIZE);
 		let spawned = 0;
-		for (const colony of dueColonies) {
-			if (colony.nextNpcRaidAt === undefined || colony.nextNpcRaidAt > now) {
+		for (const schedule of dueColonies) {
+			if (schedule.nextNpcRaidAt === undefined || schedule.nextNpcRaidAt > now) {
+				continue;
+			}
+			const colony = await ctx.db.get(schedule.colonyId);
+			if (!colony) {
 				continue;
 			}
 			const activeRaid = await findActiveRaidForColony({
 				colonyId: colony._id,
 				ctx,
 			});
+			const progression = await buildProgressionRules({
+				ctx,
+				playerId: colony.playerId,
+			});
 			if (activeRaid) {
-				const progression = await ctx.db
-					.query("playerProgression")
-					.withIndex("by_player_id", (q) => q.eq("playerId", colony.playerId))
-					.unique();
+				if (activeRaid.status === RAID_STATUS_IN_TRANSIT && activeRaid.arriveAt <= now) {
+					await resolveNpcRaidNow({
+						ctx,
+						raidOperationId: activeRaid._id,
+						scheduledAt: activeRaid.nextEventAt,
+					});
+				}
 				await setNextNpcRaidAtForColony({
 					colony,
 					ctx,
-					enabled: (progression?.rank ?? 1) >= RAID_MIN_PLAYER_RANK,
+					enabled: progression.raidRules.mode === "full",
 					now,
-					scheduledAt: colony.nextNpcRaidAt,
+					scheduledAt: schedule.nextNpcRaidAt,
 				});
 				continue;
 			}
 			const result = await spawnNpcRaidImmediatelyForColony({
 				colony,
 				ctx,
-				scheduledAt: colony.nextNpcRaidAt,
+				scheduledAt: schedule.nextNpcRaidAt,
 			});
 			if (result.raidOperationId) {
 				spawned += 1;
@@ -737,7 +776,6 @@ export async function resolveNpcRaidNow(args: {
 
 	let resourcesLooted = emptyResourceBucket();
 	let salvageGranted = emptyResourceBucket();
-	let rankXpDelta = 0;
 	if (combat.success) {
 		const available = cloneResourceBucket(settledColony.resources);
 		const capacity = getFleetCargoCapacity(combat.attackerRemaining);
@@ -760,12 +798,6 @@ export async function resolveNpcRaidNow(args: {
 				now,
 			});
 		}
-		rankXpDelta = -Math.max(25, raid.difficultyTier * RAID_FAILURE_RANK_XP_PER_TIER);
-		await changePlayerRankXp({
-			amount: rankXpDelta,
-			ctx: args.ctx,
-			playerId: raid.targetPlayerId,
-		});
 	} else {
 		salvageGranted = salvageFromDestroyedAttackers({
 			initialFleet: normalizeShipCounts(raid.attackerFleet),
@@ -790,7 +822,7 @@ export async function resolveNpcRaidNow(args: {
 		status: "resolved",
 		updatedAt: now,
 	});
-	await args.ctx.db.insert("npcRaidResults", {
+	const raidResultId = await args.ctx.db.insert("npcRaidResults", {
 		raidOperationId: raid._id,
 		universeId: raid.universeId,
 		targetColonyId: raid.targetColonyId,
@@ -805,15 +837,28 @@ export async function resolveNpcRaidNow(args: {
 		},
 		resourcesLooted,
 		salvageGranted,
-		rankXpDelta,
 		createdAt: now,
 		updatedAt: now,
 	});
+	if (
+		combat.success === false &&
+		(await markQuestMetricSourceProcessed({
+			ctx: args.ctx,
+			now,
+			sourceKind: "npcRaidResult",
+			sourceId: String(raidResultId),
+		}))
+	) {
+		await incrementRaidDefenseSuccess({
+			ctx: args.ctx,
+			playerId: raid.targetPlayerId,
+			colonyId: raid.targetColonyId,
+		});
+	}
 	await emitRaidResolvedNotification({
 		ctx: args.ctx,
 		hostileFactionKey: raid.hostileFactionKey,
 		playerId: raid.targetPlayerId,
-		rankXpDelta,
 		raidOperationId: raid._id,
 		resolvedAt: now,
 		resourcesLooted,

@@ -150,9 +150,7 @@ export function SignIn() {
 								<Button
 									onPress={form.handleSubmit}
 									isDisabled={isSubmitting}
-									className="
-          mt-1
-        "
+									className="mt-1"
 								>
 									{isSubmitting ? (
 										<Spinner size="sm" color="default" />

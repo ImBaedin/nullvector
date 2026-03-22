@@ -1,9 +1,10 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import type { ShipKey } from "@nullvector/game-logic";
 
-import { createFileRoute } from "@tanstack/react-router";
+import { api } from "@nullvector/backend/convex/_generated/api";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Layers3, MapPin, Ship } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -18,6 +19,7 @@ import { FleetRouteSkeleton } from "@/features/colony-route/loading-skeletons";
 import { OperationTimelinePanel } from "@/features/colony-route/route-shared";
 import { getShipImagePath, SHIP_GROUPS } from "@/features/colony-route/shipyard-shared";
 import { useColonyStarMapPicker } from "@/features/colony-route/star-map-picker-context";
+import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 
 export const Route = createFileRoute("/game/colony/$colonyId/fleet")({
 	component: FleetRoute,
@@ -26,6 +28,12 @@ export const Route = createFileRoute("/game/colony/$colonyId/fleet")({
 function FleetRoute() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
+	const navigate = useNavigate();
+	const { isAuthenticated: isConvexAuthenticated } = useConvexAuth();
+	const progressionOverview = useQuery(
+		api.progression.getOverview,
+		isConvexAuthenticated ? {} : "skip",
+	);
 	const { consumedSelection, openPicker, selectedTarget } = useColonyStarMapPicker();
 	const [expandedOp, setExpandedOp] = useState<string | null>(null);
 
@@ -45,6 +53,20 @@ function FleetRoute() {
 		ships,
 		shipsByKey,
 	} = useFleetRouteData(colonyIdAsId);
+	useEffect(() => {
+		if (
+			!isConvexAuthenticated ||
+			!progressionOverview ||
+			progressionOverview.features.fleet === "unlocked"
+		) {
+			return;
+		}
+		void navigate({
+			params: { colonyId },
+			replace: true,
+			to: "/game/colony/$colonyId/resources",
+		});
+	}, [colonyId, isConvexAuthenticated, navigate, progressionOverview]);
 	const {
 		cargo,
 		colonyPickerOpen,
@@ -355,7 +377,9 @@ function FleetSummaryStrip(props: {
 												<span className="text-emerald-300/70">{ship.available} avail</span>
 												<span className="text-cyan-200/50">{ship.deployed} out</span>
 											</div>
-											<div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8">
+											<div
+												className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8"
+											>
 												<div
 													className="h-full rounded-full bg-cyan-400/40"
 													style={{

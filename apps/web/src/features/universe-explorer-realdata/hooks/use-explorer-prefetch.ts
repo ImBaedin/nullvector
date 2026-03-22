@@ -27,9 +27,7 @@ function prefetchBatch<TId extends string>(args: {
 	prefetchedMap: Map<string, number>;
 	queriesProvider: (id: TId) => Promise<unknown>[];
 }) {
-	const idsToPrefetch = args.ids
-		.filter((id) => !args.prefetchedMap.has(id))
-		.slice(0, args.limit);
+	const idsToPrefetch = args.ids.filter((id) => !args.prefetchedMap.has(id)).slice(0, args.limit);
 
 	if (idsToPrefetch.length === 0) {
 		return;
@@ -121,11 +119,5 @@ export function useExplorerPrefetch(args: {
 				convex.query(api.universeExplorer.getSystemPlanetsActiveOps, { systemId }),
 			],
 		});
-	}, [
-		args.level,
-		convex,
-		galaxyIdsKey,
-		sectorIdsKey,
-		systemIdsKey,
-	]);
+	}, [args.level, convex, galaxyIdsKey, sectorIdsKey, systemIdsKey]);
 }

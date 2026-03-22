@@ -485,7 +485,9 @@ export function ColonyStarMapLayer(props: {
 
 	return (
 		<>
-			<div className={cn("fixed inset-0 z-0", isOpen ? "pointer-events-auto" : "pointer-events-none")}>
+			<div className={cn("fixed inset-0 z-0", isOpen ? "pointer-events-auto" : `
+     pointer-events-none
+   `)}>
 				<ExplorerCanvas
 					antialias={antialiasEnabled}
 					dpr={canvasDpr}

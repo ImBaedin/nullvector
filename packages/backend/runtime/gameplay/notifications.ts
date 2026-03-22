@@ -33,7 +33,7 @@ import {
 	type TransportReceivedNotification,
 	type TransportReturnedNotification,
 } from "./notificationsModel";
-import { getOwnedColony, resolveCurrentPlayer } from "./shared";
+import { requireOwnedColonyRow, requirePlayer, resolveCurrentPlayer } from "./shared";
 
 const notificationFeedStatusFilterValidator = v.union(
 	v.literal("all"),
@@ -79,7 +79,7 @@ async function resolveNotificationPlayer(args: {
 	ctx: QueryCtx | MutationCtx;
 }) {
 	if (args.colonyId) {
-		const owned = await getOwnedColony({
+		const owned = await requireOwnedColonyRow({
 			ctx: args.ctx,
 			colonyId: args.colonyId,
 		});
@@ -89,14 +89,11 @@ async function resolveNotificationPlayer(args: {
 		};
 	}
 
-	const playerResult = await resolveCurrentPlayer(args.ctx);
-	if (!playerResult?.player) {
-		throw new ConvexError("Authentication required");
-	}
+	const player = await requirePlayer(args.ctx);
 
 	return {
 		colonyId: undefined,
-		playerId: playerResult.player._id,
+		playerId: player._id,
 	};
 }
 
@@ -261,7 +258,6 @@ export async function emitRaidResolvedNotification(args: {
 	ctx: MutationCtx;
 	hostileFactionKey: RaidResolvedNotification["hostileFactionKey"];
 	playerId: Id<"players">;
-	rankXpDelta: number;
 	raidOperationId: Id<"npcRaidOperations">;
 	resolvedAt: number;
 	resourcesLooted: RaidResolvedNotification["resourcesLooted"];
@@ -280,7 +276,6 @@ export async function emitRaidResolvedNotification(args: {
 		roundsFought: args.roundsFought,
 		resourcesLooted: args.resourcesLooted,
 		salvageGranted: args.salvageGranted,
-		rankXpDelta: args.rankXpDelta,
 	};
 	return insertNotificationIfMissing({
 		category: categoryForNotificationKind(payload.kind),
@@ -312,7 +307,7 @@ export async function emitContractResolvedNotification(args: {
 	rewardCargoLoaded: ContractResolvedNotification["rewardCargoLoaded"];
 	rewardCargoLostByCapacity: ContractResolvedNotification["rewardCargoLostByCapacity"];
 	rewardCreditsGranted: number;
-	rewardRankXpGranted: number;
+	rewardXpGranted: number;
 	roundsFought: number;
 	success: boolean;
 	contractId: Id<"contracts">;
@@ -327,7 +322,7 @@ export async function emitContractResolvedNotification(args: {
 		success: args.success,
 		roundsFought: args.roundsFought,
 		rewardCreditsGranted: args.rewardCreditsGranted,
-		rewardRankXpGranted: args.rewardRankXpGranted,
+		rewardXpGranted: args.rewardXpGranted,
 		rewardCargoLoaded: args.rewardCargoLoaded,
 		rewardCargoLostByCapacity: args.rewardCargoLostByCapacity,
 		controlReductionApplied: args.controlReductionApplied,
@@ -525,14 +520,11 @@ export const getNotificationPreferences = query({
 	args: {},
 	returns: notificationPreferencesViewValidator,
 	handler: async (ctx) => {
-		const playerResult = await resolveCurrentPlayer(ctx);
-		if (!playerResult?.player) {
-			throw new ConvexError("Authentication required");
-		}
+		const player = await requirePlayer(ctx);
 
 		return getResolvedNotificationPreferences({
 			ctx,
-			playerId: playerResult.player._id,
+			playerId: player._id,
 		});
 	},
 });
@@ -543,15 +535,12 @@ export const updateNotificationPreferences = mutation({
 	},
 	returns: notificationPreferencesViewValidator,
 	handler: async (ctx, args) => {
-		const playerResult = await resolveCurrentPlayer(ctx);
-		if (!playerResult?.player) {
-			throw new ConvexError("Authentication required");
-		}
+		const player = await requirePlayer(ctx);
 
 		const now = Date.now();
 		const existing = await getNotificationPreferenceRow({
 			ctx,
-			playerId: playerResult.player._id,
+			playerId: player._id,
 		});
 		const defaults = defaultNotificationPreferenceRecord();
 		const patch: {
@@ -588,7 +577,7 @@ export const updateNotificationPreferences = mutation({
 			await ctx.db.patch(existing._id, patch);
 		} else {
 			await ctx.db.insert("playerNotificationPreferences", {
-				playerId: playerResult.player._id,
+				playerId: player._id,
 				createdAt: now,
 				...patch,
 			});
@@ -596,10 +585,10 @@ export const updateNotificationPreferences = mutation({
 
 		const updated = await getNotificationPreferenceRow({
 			ctx,
-			playerId: playerResult.player._id,
+			playerId: player._id,
 		});
 		return buildNotificationPreferencesView({
-			playerId: playerResult.player._id,
+			playerId: player._id,
 			stored: updated,
 		});
 	},

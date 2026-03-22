@@ -6,6 +6,21 @@ export {
 	roundResourceMap,
 } from "./curves";
 export { generateSciFiName } from "./object-names";
+export {
+	buildQuestEvaluationContextFromFacts,
+	deriveQuestTimelineItems,
+	deriveQuestTrackerItems,
+	FEATURE_KEYS,
+	QUEST_DEFINITIONS,
+	QUEST_IDS,
+	RANK_DEFINITIONS,
+	evaluateQuestDefinition,
+	evaluateQuestObjective,
+	getProgressionOverview,
+	getQuestDefinition,
+	getRankDefinition,
+	getRankForXpTotal,
+} from "./progression";
 
 export {
 	createGeneratorRegistry,
@@ -50,7 +65,11 @@ export {
 	getDefenseBuildDurationSeconds,
 	normalizeDefenseCounts,
 } from "./defenses";
-export { estimateColonyDefensePower, generateNpcRaidSnapshot } from "./raids";
+export {
+	estimateColonyDefensePower,
+	generateNpcRaidSnapshot,
+	generateTutorialNpcRaidSnapshot,
+} from "./raids";
 export {
 	COMBAT_MISSION_TYPE_KEYS,
 	CONTRACT_EXPIRY_MS,
@@ -154,6 +173,7 @@ export type {
 export type {
 	BuildingKey,
 	BuildingUpgradeQueuePayload,
+	DefenseBuildQueuePayload,
 	FacilityKey,
 	FacilityUpgradeQueuePayload,
 	LaneQueueItem,
@@ -163,10 +183,56 @@ export type {
 	ResourceBucket,
 	ResourceBuildingCardData,
 	ResourceBuildingLevelRow,
-	DefenseBuildQueuePayload,
 	ShipBuildQueuePayload,
 	ShipKey,
 } from "./gameplay";
+export type {
+	ContractRewardResourcesObjective,
+	ContractProgressionRules,
+	ContractSuccessObjective,
+	DefenseCountObjective,
+	FacilityAccessMap,
+	FeatureAccessState,
+	FeatureKey,
+	HighlightTarget,
+	MissionAccessMap,
+	MissionKey,
+	ObjectiveScope,
+	ProgressionFeatureMap,
+	ProgressionOverview,
+	QuestBindingStrategy,
+	QuestBindings,
+	QuestCategory,
+	QuestClientColonyFacts,
+	QuestClientColonyMetric,
+	QuestClientFacts,
+	QuestDefinition,
+	QuestEffect,
+	QuestEvaluationColony,
+	QuestEvaluationContext,
+	QuestEvaluationResult,
+	QuestHighlight,
+	QuestId,
+	QuestLogItem,
+	QuestObjectiveDefinition,
+	QuestObjectiveProgress,
+	QuestPrerequisite,
+	QuestReward,
+	QuestStateRowView,
+	QuestStateStatus,
+	QuestStatus,
+	QuestTimelineItem,
+	QuestTimelinePrerequisite,
+	QuestTimelineStatus,
+	QuestTrackerItem,
+	RaidDefenseSuccessObjective,
+	RaidProgressionMode,
+	RaidProgressionRules,
+	RankDefinition,
+	ShipAccessMap,
+	TransportDeliveredResourcesObjective,
+	TransportDeliveryObjective,
+} from "./progression";
 export type { ShipCounts, ShipDefinition } from "./ships";
 export type { DefenseCounts, DefenseDefinition, DefenseKey } from "./defenses";
 export type {

@@ -22,7 +22,7 @@ import {
 	type ShipBuildQueueRow,
 } from "@/features/colony-ui/queue-items";
 import { getQueueProgress } from "@/features/colony-ui/queue-state";
-import { useConvexAuth } from "@/lib/convex-hooks";
+import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 
 export const Route = createFileRoute("/game/colony/$colonyId/shipyard")({
 	component: ShipyardRoute,
@@ -35,6 +35,7 @@ function ShipyardRoute() {
 
 	const shipCatalog = useMemo(() => selectShipCatalog(), []);
 	const colonyView = useColonyView(isAuthenticated ? colonyIdAsId : null);
+	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
 	const devConsole = useColonyDevConsole(isAuthenticated ? colonyIdAsId : null);
 	const enqueueShipBuild = useOptimisticColonyMutation({
 		intentFromArgs: (args: { colonyId: Id<"colonies">; quantity: number; shipKey: ShipKey }) => ({
@@ -57,6 +58,7 @@ function ShipyardRoute() {
 		null,
 	);
 	const [isCompletingQueueItem, setIsCompletingQueueItem] = useState(false);
+	const [fallbackNowMs] = useState(() => Date.now());
 	const quantityInput = useBoundedQuantityInput<ShipKey>();
 	const shipEditor = useInlineNumberEditor<ShipKey>();
 
@@ -64,30 +66,32 @@ function ShipyardRoute() {
 	const canUseDevConsole = devConsole.canUseDevConsole;
 	const projectedResources = colonyView?.projected?.resources ?? { alloy: 0, crystal: 0, fuel: 0 };
 	const view = useMemo(() => {
-		if (!colonyView) {
+		if (!colonyView || progressionOverview === undefined) {
 			return undefined;
 		}
 
 		const stateByShipKey = new Map(
 			colonyView.shipyardState.shipStates.map((state) => [state.key, state]),
 		);
-		const ships = shipCatalog.map((ship) => {
-			const state = stateByShipKey.get(ship.key);
-			return {
-				...ship,
-				owned: state?.owned ?? 0,
-				perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
-				queued: state?.queued ?? 0,
-			};
-		});
+		const ships = shipCatalog
+			.map((ship) => {
+				const state = stateByShipKey.get(ship.key);
+				return {
+					...ship,
+					owned: state?.owned ?? 0,
+					perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
+					queued: state?.queued ?? 0,
+				};
+			})
+			.filter((ship) => progressionOverview.shipAccess[ship.key] === "unlocked");
 
 		return {
 			...colonyView.shipyardState,
 			ships,
 		};
-	}, [colonyView, shipCatalog]);
+	}, [colonyView, progressionOverview, shipCatalog]);
 
-	const nowMs = colonyView?.nowMs ?? Date.now();
+	const nowMs = colonyView?.nowMs ?? fallbackNowMs;
 
 	const shipsByKey = useMemo(
 		() => new Map((view?.ships ?? []).map((ship) => [ship.key, ship])),

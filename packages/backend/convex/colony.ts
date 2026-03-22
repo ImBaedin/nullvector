@@ -1,3 +1,21 @@
-import { getColonySessionSnapshot, getColonySnapshot } from "../runtime/gameplay/colony";
+import {
+	getColonyDefenses,
+	getColonyEconomy,
+	getColonyIdentity,
+	getColonyInfrastructure,
+	getColonyPolicy,
+	getColonyQueueState,
+	getColonyShips,
+	getPlanetEconomy,
+} from "../runtime/gameplay/colony";
 
-export { getColonySessionSnapshot, getColonySnapshot };
+export {
+	getColonyDefenses,
+	getColonyEconomy,
+	getColonyIdentity,
+	getColonyInfrastructure,
+	getColonyPolicy,
+	getColonyQueueState,
+	getColonyShips,
+	getPlanetEconomy,
+};

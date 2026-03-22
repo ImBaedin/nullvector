@@ -1,64 +1,115 @@
+import {
+	getProgressionOverview as getSharedProgressionOverview,
+	getQuestDefinition,
+	getRankDefinition,
+	type FeatureAccessState,
+	type FeatureKey,
+	type FacilityKey,
+	type MissionKey,
+	type ShipKey,
+} from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
 import type { Id } from "../../convex/_generated/dataModel";
 
+import { internal } from "../../convex/_generated/api";
 import { mutation, query, type MutationCtx, type QueryCtx } from "../../convex/_generated/server";
-import { computeNextNpcRaidAt, RAID_MIN_PLAYER_RANK } from "./raidScheduling";
 import { resolveCurrentPlayer } from "./shared";
 
-export const playerProgressionValidator = v.object({
+const featureAccessStateValidator = v.union(
+	v.literal("hidden"),
+	v.literal("locked"),
+	v.literal("unlocked"),
+);
+
+const featureMapValidator = v.object({
+	overview: featureAccessStateValidator,
+	contracts: featureAccessStateValidator,
+	raids: featureAccessStateValidator,
+	colonization: featureAccessStateValidator,
+	facilities: featureAccessStateValidator,
+	fleet: featureAccessStateValidator,
+	shipyard: featureAccessStateValidator,
+	defenses: featureAccessStateValidator,
+	notifications: featureAccessStateValidator,
+});
+
+const facilityAccessValidator = v.object({
+	robotics_hub: featureAccessStateValidator,
+	shipyard: featureAccessStateValidator,
+	defense_grid: featureAccessStateValidator,
+});
+
+const shipAccessValidator = v.object({
+	smallCargo: featureAccessStateValidator,
+	largeCargo: featureAccessStateValidator,
+	colonyShip: featureAccessStateValidator,
+	interceptor: featureAccessStateValidator,
+	frigate: featureAccessStateValidator,
+	cruiser: featureAccessStateValidator,
+	bomber: featureAccessStateValidator,
+});
+
+const missionAccessValidator = v.object({
+	contracts: featureAccessStateValidator,
+	colonize: featureAccessStateValidator,
+	transport: featureAccessStateValidator,
+});
+
+const progressionOverviewValidator = v.object({
 	playerId: v.id("players"),
+	displayName: v.string(),
 	credits: v.number(),
 	rank: v.number(),
-	rankXp: v.number(),
+	rankXpTotal: v.number(),
+	xpIntoCurrentRank: v.number(),
+	xpToNextRank: v.union(v.number(), v.null()),
+	nextRank: v.union(v.number(), v.null()),
+	nextRankXpRequired: v.union(v.number(), v.null()),
+	colonyCap: v.number(),
+	questTrackerCount: v.number(),
+	features: featureMapValidator,
+	facilityAccess: facilityAccessValidator,
+	shipAccess: shipAccessValidator,
+	missionAccess: missionAccessValidator,
+	contractRules: v.object({
+		visibleSlots: v.number(),
+		activeLimit: v.number(),
+		difficultyTier: v.number(),
+	}),
+	raidRules: v.object({
+		mode: v.union(v.literal("off"), v.literal("tutorialOnly"), v.literal("full")),
+		difficultyTier: v.number(),
+	}),
 });
 
 function defaultPlayerProgression(playerId: Id<"players">) {
 	return {
 		playerId,
 		credits: 0,
-		rank: 1,
-		rankXp: 0,
+		rankXpTotal: 0,
 	};
 }
 
-function nextRankXpRequirement(rank: number) {
-	return Math.max(100, Math.round(100 * Math.pow(1.4, Math.max(0, rank - 1))));
-}
-
-async function reconcileNpcRaidSchedulesAfterRankChange(args: {
+async function reconcileNpcRaidSchedulesAfterProgressionChange(args: {
 	ctx: MutationCtx;
-	nextRank: number;
+	nextRankXpTotal: number;
 	playerId: Id<"players">;
-	previousRank: number;
+	previousRankXpTotal: number;
 }) {
-	const crossedRaidThreshold =
-		(args.previousRank < RAID_MIN_PLAYER_RANK) !== (args.nextRank < RAID_MIN_PLAYER_RANK);
-	if (!crossedRaidThreshold) {
+	const previousOverview = getSharedProgressionOverview({
+		rankXpTotal: args.previousRankXpTotal,
+	});
+	const nextOverview = getSharedProgressionOverview({
+		rankXpTotal: args.nextRankXpTotal,
+	});
+	if (previousOverview.raidRules.mode === nextOverview.raidRules.mode) {
 		return;
 	}
-
-	const colonies = await args.ctx.db
-		.query("colonies")
-		.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
-		.collect();
-	const now = Date.now();
-	const raidsEnabled = args.nextRank >= RAID_MIN_PLAYER_RANK;
-	for (const colony of colonies) {
-		const nextNpcRaidAt = raidsEnabled
-			? colony.nextNpcRaidAt ??
-				computeNextNpcRaidAt({
-					anchorAt: now,
-					colonyId: colony._id,
-				})
-			: undefined;
-		await args.ctx.db.patch(colony._id, {
-			nextNpcRaidAt,
-			updatedAt: now,
-		});
-	}
+	await args.ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedulesForPlayer, {
+		playerId: args.playerId,
+	});
 }
-
 export async function ensurePlayerProgression(args: {
 	ctx: MutationCtx | QueryCtx;
 	playerId: Id<"players">;
@@ -77,8 +128,7 @@ export async function ensurePlayerProgression(args: {
 	const progressionId = await args.ctx.db.insert("playerProgression", {
 		playerId: args.playerId,
 		credits: 0,
-		rank: 1,
-		rankXp: 0,
+		rankXpTotal: 0,
 		createdAt: now,
 		updatedAt: now,
 	});
@@ -105,7 +155,7 @@ export async function grantPlayerCredits(args: {
 	});
 }
 
-export async function grantPlayerRankXp(args: {
+export async function grantProgressionXp(args: {
 	amount: number;
 	ctx: MutationCtx;
 	playerId: Id<"players">;
@@ -114,111 +164,207 @@ export async function grantPlayerRankXp(args: {
 		ctx: args.ctx,
 		playerId: args.playerId,
 	});
-	let rank = progression.rank;
-	let rankXp = progression.rankXp + Math.max(0, Math.floor(args.amount));
-
-	while (rankXp >= nextRankXpRequirement(rank)) {
-		rankXp -= nextRankXpRequirement(rank);
-		rank += 1;
-	}
-
+	const previousRankXpTotal = deriveRankXpTotal(args.playerId, progression);
+	const nextRankXpTotal = previousRankXpTotal + Math.max(0, Math.floor(args.amount));
 	await args.ctx.db.patch(progression._id, {
-		rank,
-		rankXp,
+		rankXpTotal: nextRankXpTotal,
 		updatedAt: Date.now(),
 	});
-	await reconcileNpcRaidSchedulesAfterRankChange({
+	await reconcileNpcRaidSchedulesAfterProgressionChange({
 		ctx: args.ctx,
-		nextRank: rank,
+		nextRankXpTotal,
 		playerId: args.playerId,
-		previousRank: progression.rank,
+		previousRankXpTotal,
 	});
+	const previousOverview = getSharedProgressionOverview({
+		rankXpTotal: previousRankXpTotal,
+	});
+	const nextOverview = getSharedProgressionOverview({
+		rankXpTotal: nextRankXpTotal,
+	});
+	if (nextOverview.rank !== previousOverview.rank) {
+		await args.ctx.scheduler.runAfter(0, internal.quests.ensureActivationsForPlayerInternal, {
+			playerId: args.playerId,
+		});
+	}
 }
 
-export async function changePlayerRankXp(args: {
-	amount: number;
-	ctx: MutationCtx;
+async function getQuestTrackerCount(args: {
+	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
-	const progression = await ensurePlayerProgression({
-		ctx: args.ctx,
-		playerId: args.playerId,
-	});
-	let rank = progression.rank;
-	let rankXp = progression.rankXp + Math.floor(args.amount);
+	const [activeRows, claimableRows] = await Promise.all([
+		args.ctx.db
+			.query("playerQuestStates")
+			.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "active"))
+			.collect(),
+		args.ctx.db
+			.query("playerQuestStates")
+			.withIndex("by_player_status", (q) =>
+				q.eq("playerId", args.playerId).eq("status", "claimable"),
+			)
+			.collect(),
+	]);
+	return activeRows.length + claimableRows.length;
+}
 
-	while (rankXp >= nextRankXpRequirement(rank)) {
-		rankXp -= nextRankXpRequirement(rank);
-		rank += 1;
+function mapFeatures(features: Record<FeatureKey, FeatureAccessState>) {
+	return {
+		overview: features.overview,
+		contracts: features.contracts,
+		raids: features.raids,
+		colonization: features.colonization,
+		facilities: features.facilities,
+		fleet: features.fleet,
+		shipyard: features.shipyard,
+		defenses: features.defenses,
+		notifications: features.notifications,
+	};
+}
+
+function formatAccessError(label: string, access: FeatureAccessState) {
+	return access === "hidden" ? `${label} is not available yet` : `${label} is locked`;
+}
+
+function deriveRankXpTotal(
+	playerId: Id<"players">,
+	progression:
+		| {
+				rankXpTotal?: number;
+				rank?: number;
+				rankXp?: number;
+		  }
+		| null
+		| undefined,
+) {
+	if (typeof progression?.rankXpTotal === "number" && Number.isFinite(progression.rankXpTotal)) {
+		return Math.max(0, Math.floor(progression.rankXpTotal));
 	}
-
-	while (rankXp < 0 && rank > 1) {
-		rank -= 1;
-		rankXp += nextRankXpRequirement(rank);
+	if (typeof progression?.rank === "number" || typeof progression?.rankXp === "number") {
+		const legacyRank = Math.max(0, Math.floor(progression?.rank ?? 0));
+		const legacyXp = Math.max(0, Math.floor(progression?.rankXp ?? 0));
+		return getRankDefinition(legacyRank).totalXpRequired + legacyXp;
 	}
+	return defaultPlayerProgression(playerId).rankXpTotal;
+}
 
-	rankXp = Math.max(0, rankXp);
+async function loadProgressionState(args: {
+	ctx: QueryCtx | MutationCtx;
+	playerId: Id<"players">;
+}) {
+	const progression = await args.ctx.db
+		.query("playerProgression")
+		.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+		.unique();
+	const current = progression ?? defaultPlayerProgression(args.playerId);
+	return {
+		current,
+		rankXpTotal: deriveRankXpTotal(args.playerId, progression),
+	};
+}
 
-	await args.ctx.db.patch(progression._id, {
-		rank,
-		rankXp,
-		updatedAt: Date.now(),
-	});
-	await reconcileNpcRaidSchedulesAfterRankChange({
-		ctx: args.ctx,
-		nextRank: rank,
-		playerId: args.playerId,
-		previousRank: progression.rank,
+export async function buildProgressionRules(args: {
+	ctx: QueryCtx | MutationCtx;
+	playerId: Id<"players">;
+}) {
+	const { rankXpTotal } = await loadProgressionState(args);
+	return getSharedProgressionOverview({
+		rankXpTotal,
 	});
 }
 
-export const getPlayerProgression = query({
-	args: {},
-	returns: playerProgressionValidator,
-	handler: async (ctx) => {
-		const playerResult = await resolveCurrentPlayer(ctx);
-		if (!playerResult?.player) {
-			throw new ConvexError("Authentication required");
-		}
-		const progression = await ctx.db
-			.query("playerProgression")
-			.withIndex("by_player_id", (q) => q.eq("playerId", playerResult.player._id))
-			.unique();
-		if (!progression) {
-			return defaultPlayerProgression(playerResult.player._id);
-		}
-		return {
-			playerId: progression.playerId,
-			credits: progression.credits,
-			rank: progression.rank,
-			rankXp: progression.rankXp,
-		};
-	},
-});
+export async function buildProgressionOverview(args: {
+	ctx: QueryCtx | MutationCtx;
+	player: { _id: Id<"players">; displayName: string };
+}) {
+	const [{ current, rankXpTotal }, questTrackerCount] = await Promise.all([
+		loadProgressionState({
+			ctx: args.ctx,
+			playerId: args.player._id,
+		}),
+		getQuestTrackerCount({ ctx: args.ctx, playerId: args.player._id }),
+	]);
+	const overview = getSharedProgressionOverview({
+		rankXpTotal,
+		questTrackerCount,
+	});
+	return {
+		playerId: args.player._id,
+		displayName: args.player.displayName,
+		credits: current.credits,
+		rank: overview.rank,
+		rankXpTotal: overview.rankXpTotal,
+		xpIntoCurrentRank: overview.xpIntoCurrentRank,
+		xpToNextRank: overview.xpToNextRank,
+		nextRank: overview.nextRank,
+		nextRankXpRequired: overview.nextRankXpRequired,
+		colonyCap: overview.colonyCap,
+		questTrackerCount: overview.questTrackerCount,
+		features: mapFeatures(overview.features),
+		facilityAccess: overview.facilityAccess,
+		shipAccess: overview.shipAccess,
+		missionAccess: overview.missionAccess,
+		contractRules: overview.contractRules,
+		raidRules: overview.raidRules,
+	};
+}
 
-export const getPlayerProfile = query({
+export function requireFeatureAccess(args: {
+	featureKey: FeatureKey;
+	label: string;
+	progression: Awaited<ReturnType<typeof buildProgressionRules>>;
+}) {
+	const access = args.progression.features[args.featureKey];
+	if (access !== "unlocked") {
+		throw new ConvexError(formatAccessError(args.label, access));
+	}
+}
+
+export function requireFacilityAccess(args: {
+	facilityKey: FacilityKey;
+	label: string;
+	progression: Awaited<ReturnType<typeof buildProgressionRules>>;
+}) {
+	const access = args.progression.facilityAccess[args.facilityKey];
+	if (access !== "unlocked") {
+		throw new ConvexError(formatAccessError(args.label, access));
+	}
+}
+
+export function requireShipAccess(args: {
+	label: string;
+	progression: Awaited<ReturnType<typeof buildProgressionRules>>;
+	shipKey: ShipKey;
+}) {
+	const access = args.progression.shipAccess[args.shipKey];
+	if (access !== "unlocked") {
+		throw new ConvexError(formatAccessError(args.label, access));
+	}
+}
+
+export function requireMissionAccess(args: {
+	label: string;
+	missionKey: MissionKey;
+	progression: Awaited<ReturnType<typeof buildProgressionRules>>;
+}) {
+	const access = args.progression.missionAccess[args.missionKey];
+	if (access !== "unlocked") {
+		throw new ConvexError(formatAccessError(args.label, access));
+	}
+}
+
+export const getOverview = query({
 	args: {},
-	returns: v.object({
-		displayName: v.string(),
-		rank: v.number(),
-		rankXp: v.number(),
-		credits: v.number(),
-	}),
+	returns: progressionOverviewValidator,
 	handler: async (ctx) => {
 		const playerResult = await resolveCurrentPlayer(ctx);
 		if (!playerResult?.player) {
 			throw new ConvexError("Authentication required");
 		}
-		const progression = await ctx.db
-			.query("playerProgression")
-			.withIndex("by_player_id", (q) => q.eq("playerId", playerResult.player._id))
-			.unique();
-		return {
-			displayName: playerResult.player.displayName,
-			rank: progression?.rank ?? 1,
-			rankXp: progression?.rankXp ?? 0,
-			credits: progression?.credits ?? 0,
-		};
+		return buildProgressionOverview({
+			ctx,
+			player: playerResult.player,
+		});
 	},
 });
 
@@ -256,3 +402,11 @@ export const backfillPlayerProgression = mutation({
 		return { created };
 	},
 });
+
+export function requireQuestDefinition(questId: string) {
+	const definition = getQuestDefinition(questId as never);
+	if (!definition) {
+		throw new ConvexError(`Unknown quest definition: ${questId}`);
+	}
+	return definition;
+}

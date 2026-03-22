@@ -1,9 +1,11 @@
 import { Tooltip } from "@base-ui/react/tooltip";
-import { Bell, ChevronDown, Earth, Menu, Settings, Trophy } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { Bell, ChevronDown, Compass, Earth, Menu, Settings, Trophy } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdata/types";
 
+import { QUEST_MODAL_OPEN_EVENT } from "@/features/game-ui/quests/quest-modal-events";
+import { useHighlightTarget } from "@/features/game-ui/quests/use-highlight-target";
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { NotificationsModal } from "@/features/game-ui/shell/notifications-modal";
@@ -12,6 +14,7 @@ import { SettingsModal } from "@/features/game-ui/shell/settings-modal";
 import { cn } from "@/lib/utils";
 
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";
+import { QuestsModal } from "./quests-modal";
 import { useHeaderData } from "./use-header-data";
 
 type AppHeaderProps = {
@@ -59,12 +62,15 @@ export function AppHeader({
 }: AppHeaderProps = {}) {
 	const header = useHeaderData();
 	const [drawerOpen, setDrawerOpen] = useState(false);
+	const [questsOpen, setQuestsOpen] = useState(false);
+	const [focusedQuestId, setFocusedQuestId] = useState<string | null>(null);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [notificationsOpen, setNotificationsOpen] = useState(false);
 	const [starMapEntitiesOpen, setStarMapEntitiesOpen] = useState(false);
 	const [starMapQualityOpen, setStarMapQualityOpen] = useState(false);
 	const {
 		activeColony,
+		activeQuestCount,
 		beginColonyRename,
 		colonyIdAsId,
 		colonySession,
@@ -77,11 +83,13 @@ export function AppHeader({
 		isRenamingColony,
 		isSavingColonyName,
 		liveNotificationsCount,
-		playerProfile,
+		progressionOverview,
 		handleColonyChange,
 		setIsRenamingColony,
 	} = header;
 	const handleStarMapToggle = onToggleStarMap ?? config.onOpenStarMap ?? (() => {});
+	const starMapHighlight = useHighlightTarget("star-map-button");
+	const questButtonHighlight = useHighlightTarget("quest-button");
 	const drawerConfig = useMemo(
 		() => ({
 			...headerDrawerConfig,
@@ -92,6 +100,23 @@ export function AppHeader({
 		}),
 		[contextTabs, headerDrawerConfig, liveNotificationsCount],
 	);
+
+	useEffect(() => {
+		const handleQuestModalOpen = (event: Event) => {
+			const detail = (event as CustomEvent<{ questId?: string }>).detail;
+			setFocusedQuestId(detail?.questId ?? null);
+			setQuestsOpen(true);
+		};
+
+		window.addEventListener(QUEST_MODAL_OPEN_EVENT, handleQuestModalOpen);
+		return () => {
+			window.removeEventListener(QUEST_MODAL_OPEN_EVENT, handleQuestModalOpen);
+		};
+	}, []);
+	const openQuests = useCallback((questId?: string) => {
+		setFocusedQuestId(questId ?? null);
+		setQuestsOpen(true);
+	}, []);
 
 	if (config.mode !== "game") {
 		return null;
@@ -380,7 +405,7 @@ export function AppHeader({
         ` : `
           border-white/12 bg-white/4 text-white/60
           hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100
-        `, isCompact ? "h-8" : "h-9")} onClick={handleStarMapToggle} type="button">
+        `, isCompact ? "h-8" : "h-9", starMapHighlight.highlightProps.className)} onClick={handleStarMapToggle} title={starMapHighlight.highlightProps.title} type="button">
 									<span className="nv-starmap-stars" />
 									<span className="nv-starmap-stars is-slower" />
 									<img
@@ -403,12 +428,10 @@ export function AppHeader({
          lg:flex
        "
 						>
-							{playerProfile ? (
-								<div
-									className="
+							{progressionOverview ? (
+								<div className="
           mr-1 flex items-center gap-2 border-r border-white/8 pr-3
-        "
-								>
+        ">
 									<div className="flex items-center gap-2">
 										<div
 											className="
@@ -420,17 +443,66 @@ export function AppHeader({
 										</div>
 										<div className="leading-tight">
 											<p className="text-[11px] font-semibold text-white/80">
-												{playerProfile.displayName}
+												{progressionOverview.displayName}
 											</p>
 											<p
 												className="
               font-(family-name:--nv-font-mono) text-[9px] text-amber-200/50
             "
 											>
-												Rank {playerProfile.rank}
+												Rank {progressionOverview.rank}
 											</p>
 										</div>
 									</div>
+									{progressionOverview.nextRankXpRequired ? (
+										<div
+											className="
+             hidden min-w-28
+             lg:block
+           "
+										>
+											{(() => {
+												const rankXpSpan =
+													progressionOverview.xpIntoCurrentRank +
+													(progressionOverview.xpToNextRank ?? 0);
+												return (
+													<>
+														<p
+															className="text-[8px] tracking-[0.12em] text-white/25 uppercase"
+														>
+															XP
+														</p>
+														<div
+															className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/8"
+														>
+															<div
+																className="
+                  h-full rounded-full
+                  bg-[linear-gradient(90deg,#fbbf24,#fde68a)]
+                "
+																style={{
+																	width: `${Math.max(
+																		0,
+																		Math.min(
+																			100,
+																			progressivePercent({
+																				rankXpSpan,
+																				xpIntoCurrentRank: progressionOverview.xpIntoCurrentRank,
+																			}) ?? 0,
+																		),
+																	)}%`,
+																}}
+															/>
+														</div>
+														<p className="mt-1 text-[8px] text-white/35">
+															{progressionOverview.xpIntoCurrentRank.toLocaleString()} /{" "}
+															{rankXpSpan.toLocaleString()}
+														</p>
+													</>
+												);
+											})()}
+										</div>
+									) : null}
 									<div
 										className="
             flex items-center gap-1 rounded-md border border-white/8 bg-white/3
@@ -443,7 +515,7 @@ export function AppHeader({
              text-amber-200/80
            "
 										>
-											{playerProfile.credits.toLocaleString()}
+											{progressionOverview.credits.toLocaleString()}
 										</span>
 										<span className="text-[8px] text-white/25 uppercase">CR</span>
 									</div>
@@ -458,6 +530,25 @@ export function AppHeader({
 									onColonyChange={config.onColonyChange ?? handleColonyChange}
 								/>
 							) : null}
+							<button aria-label="Quests" className={cn(`
+         relative flex size-8 items-center justify-center rounded-lg
+         text-cyan-300/50 transition-all duration-200
+         hover:bg-cyan-400/10 hover:text-cyan-200/90
+         hover:shadow-[0_0_8px_rgba(34,211,238,0.15)]
+       `, questButtonHighlight.highlightProps.className)} onClick={() => openQuests()} title={questButtonHighlight.highlightProps.title} type="button">
+								<Compass className="size-4" />
+								{activeQuestCount > 0 ? (
+									<span
+										className="
+            absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center
+            justify-center rounded-full bg-cyan-400/25 px-1 text-[8px] font-bold
+            text-cyan-100 shadow-[0_0_6px_rgba(34,211,238,0.3)]
+          "
+									>
+										{activeQuestCount}
+									</span>
+								) : null}
+							</button>
 							<button
 								aria-label="Notifications"
 								className="
@@ -558,8 +649,22 @@ export function AppHeader({
 			<AppHeaderMobileDrawer
 				config={drawerConfig}
 				onOpenStarMap={handleStarMapToggle}
+				onOpenQuests={() => openQuests()}
 				onClose={() => setDrawerOpen(false)}
+				questCount={activeQuestCount}
 				open={drawerOpen}
+			/>
+
+			<QuestsModal
+				activeColonyId={colonyIdAsId}
+				focusQuestId={focusedQuestId}
+				onOpenChange={(open) => {
+					setQuestsOpen(open);
+					if (!open) {
+						setFocusedQuestId(null);
+					}
+				}}
+				open={questsOpen}
 			/>
 
 			<NotificationsModal
@@ -579,6 +684,14 @@ export function AppHeader({
 			/>
 		</>
 	);
+}
+
+function progressivePercent(args: { rankXpSpan: number; xpIntoCurrentRank: number }) {
+	if (args.rankXpSpan <= 0) {
+		return null;
+	}
+
+	return (args.xpIntoCurrentRank / args.rankXpSpan) * 100;
 }
 
 function ColonyRenameInput(props: {

@@ -34,7 +34,7 @@ export type CombatPriorityProfile = {
 export type MissionTemplate = {
 	baseControlReduction: number;
 	baseCredits: number;
-	baseRankXp: number;
+	baseXp: number;
 	baseResourceReward: ResourceBucket;
 	combatBudgetMultiplier: number;
 	defenseWeight: number;
@@ -55,8 +55,8 @@ export type ContractSnapshot = {
 	priorityProfile: CombatPriorityProfile;
 	requiredRank: number;
 	rewardCredits: number;
-	rewardRankXpFailure: number;
-	rewardRankXpSuccess: number;
+	rewardXpFailure: number;
+	rewardXpSuccess: number;
 	rewardResources: ResourceBucket;
 };
 
@@ -72,7 +72,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		combatBudgetMultiplier: 0.6,
 		baseControlReduction: 45,
 		baseCredits: 50,
-		baseRankXp: 90,
+		baseXp: 90,
 		baseResourceReward: { alloy: 720, crystal: 325, fuel: 195 },
 		priorityProfile: {
 			attackerTargetPriority: [
@@ -108,7 +108,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		combatBudgetMultiplier: 1,
 		baseControlReduction: 120,
 		baseCredits: 360,
-		baseRankXp: 175,
+		baseXp: 175,
 		baseResourceReward: { alloy: 455, crystal: 585, fuel: 285 },
 		priorityProfile: {
 			attackerTargetPriority: [
@@ -144,7 +144,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		combatBudgetMultiplier: 0.72,
 		baseControlReduction: 52,
 		baseCredits: 70,
-		baseRankXp: 100,
+		baseXp: 100,
 		baseResourceReward: { alloy: 415, crystal: 415, fuel: 285 },
 		priorityProfile: {
 			attackerTargetPriority: [
@@ -180,7 +180,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		combatBudgetMultiplier: 1,
 		baseControlReduction: 110,
 		baseCredits: 320,
-		baseRankXp: 160,
+		baseXp: 160,
 		baseResourceReward: { alloy: 910, crystal: 650, fuel: 235 },
 		priorityProfile: {
 			attackerTargetPriority: [
@@ -216,7 +216,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		combatBudgetMultiplier: 0.9,
 		baseControlReduction: 100,
 		baseCredits: 290,
-		baseRankXp: 140,
+		baseXp: 140,
 		baseResourceReward: { alloy: 1_105, crystal: 845, fuel: 155 },
 		priorityProfile: {
 			attackerTargetPriority: [
@@ -252,7 +252,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		combatBudgetMultiplier: 1,
 		baseControlReduction: 85,
 		baseCredits: 310,
-		baseRankXp: 150,
+		baseXp: 150,
 		baseResourceReward: { alloy: 650, crystal: 520, fuel: 585 },
 		priorityProfile: {
 			attackerTargetPriority: [
@@ -288,7 +288,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		combatBudgetMultiplier: 0.25,
 		baseControlReduction: 16,
 		baseCredits: 10,
-		baseRankXp: 45,
+		baseXp: 45,
 		baseResourceReward: { alloy: 415, crystal: 235, fuel: 235 },
 		priorityProfile: {
 			attackerTargetPriority: [
@@ -324,7 +324,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		combatBudgetMultiplier: 0.28,
 		baseControlReduction: 18,
 		baseCredits: 0,
-		baseRankXp: 55,
+		baseXp: 55,
 		baseResourceReward: { alloy: 1_235, crystal: 340, fuel: 145 },
 		priorityProfile: {
 			attackerTargetPriority: [
@@ -360,7 +360,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		combatBudgetMultiplier: 0.34,
 		baseControlReduction: 24,
 		baseCredits: 20,
-		baseRankXp: 60,
+		baseXp: 60,
 		baseResourceReward: { alloy: 625, crystal: 310, fuel: 805 },
 		priorityProfile: {
 			attackerTargetPriority: [
@@ -396,7 +396,7 @@ export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = 
 		combatBudgetMultiplier: 0.5,
 		baseControlReduction: 32,
 		baseCredits: 35,
-		baseRankXp: 75,
+		baseXp: 75,
 		baseResourceReward: { alloy: 585, crystal: 325, fuel: 585 },
 		priorityProfile: {
 			attackerTargetPriority: [
@@ -555,7 +555,7 @@ export function generateContractSnapshot(args: {
 		crystal: scaleValue(template.baseResourceReward.crystal, difficultyTier),
 		fuel: scaleValue(template.baseResourceReward.fuel, difficultyTier),
 	};
-	const rewardRankXpSuccess = scaleValue(template.baseRankXp, difficultyTier);
+	const rewardXpSuccess = scaleValue(template.baseXp, difficultyTier);
 
 	return {
 		controlReduction: Math.min(
@@ -570,8 +570,8 @@ export function generateContractSnapshot(args: {
 		priorityProfile: template.priorityProfile,
 		requiredRank: template.minRank,
 		rewardCredits: scaleValue(template.baseCredits, difficultyTier),
-		rewardRankXpFailure: Math.floor(rewardRankXpSuccess * 0.2),
-		rewardRankXpSuccess,
+		rewardXpFailure: Math.floor(rewardXpSuccess * 0.2),
+		rewardXpSuccess,
 		rewardResources,
 	} satisfies ContractSnapshot;
 }
