@@ -34,12 +34,13 @@ test("progression overview derives onboarding gates from total xp", () => {
 	expect(rankThree.totalXpRequired).toBe(RANK_DEFINITIONS[3]!.totalXpRequired);
 	expect(overview.features.shipyard).toBe("unlocked");
 	expect(overview.features.contracts).toBe("unlocked");
+	expect(overview.features.raids).toBe("unlocked");
 	expect(overview.shipAccess.interceptor).toBe("unlocked");
 	expect(overview.missionAccess.contracts).toBe("unlocked");
-	expect(overview.raidRules.mode).toBe("off");
+	expect(overview.raidRules.mode).toBe("full");
 
-	const rankFour = getRankDefinition(4);
-	expect(rankFour.raidRules.mode).toBe("off");
+	const rankTwo = getRankDefinition(2);
+	expect(rankTwo.raidRules.mode).toBe("off");
 
 	const rankFive = getRankForXpTotal(1_000);
 	expect(rankFive.rank).toBeGreaterThanOrEqual(5);
@@ -181,6 +182,17 @@ test("event-based objectives resolve from derived progression metrics", () => {
 		current: 1,
 		required: 1,
 	});
+});
+
+test("missile battery quest triggers the tutorial raid effect", () => {
+	const quest = QUEST_DEFINITIONS.find(
+		(definition) => definition.id === "main_arm_missile_batteries",
+	);
+	if (!quest) {
+		throw new Error("Missing missile battery quest definition");
+	}
+
+	expect(quest.effects).toContainEqual({ kind: "spawnTutorialRaid" });
 });
 
 test("quest evaluation context builds from raw client facts", () => {

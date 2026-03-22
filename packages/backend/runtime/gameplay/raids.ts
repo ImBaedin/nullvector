@@ -57,6 +57,16 @@ function scaledUnits(unscaledUnits: number) {
 	return Math.round(Math.max(0, unscaledUnits) * RESOURCE_SCALE);
 }
 
+export function shouldSpawnNpcRaid(args: {
+	mode: "off" | "tutorialOnly" | "full";
+	spawnReason?: "tutorialRank2";
+}) {
+	if (args.spawnReason === "tutorialRank2") {
+		return true;
+	}
+	return args.mode === "full";
+}
+
 async function readColonyShipCounts(args: {
 	colonyId: Id<"colonies">;
 	ctx: QueryCtx | MutationCtx;
@@ -186,8 +196,10 @@ export async function spawnNpcRaidImmediatelyForColony(args: {
 		playerId: args.colony.playerId,
 	});
 	if (
-		progression.raidRules.mode === "off" ||
-		(progression.raidRules.mode === "tutorialOnly" && args.spawnReason !== "tutorialRank2")
+		!shouldSpawnNpcRaid({
+			mode: progression.raidRules.mode,
+			spawnReason: args.spawnReason,
+		})
 	) {
 		await setNextNpcRaidAtForColony({
 			colony: args.colony,

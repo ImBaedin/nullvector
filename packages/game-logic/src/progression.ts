@@ -460,6 +460,7 @@ function createOnboardingRankDefinition(
 					defenses: UNLOCKED,
 					shipyard: UNLOCKED,
 					contracts: UNLOCKED,
+					raids: UNLOCKED,
 				},
 				facilityAccess: {
 					...DEFAULT_FACILITY_ACCESS,
@@ -476,7 +477,7 @@ function createOnboardingRankDefinition(
 					contracts: UNLOCKED,
 				},
 				raidRules: {
-					mode: "off",
+					mode: "full",
 					difficultyTier: 1,
 				},
 			};
@@ -490,6 +491,7 @@ function createOnboardingRankDefinition(
 					shipyard: UNLOCKED,
 					contracts: UNLOCKED,
 					fleet: UNLOCKED,
+					raids: UNLOCKED,
 				},
 				facilityAccess: {
 					...DEFAULT_FACILITY_ACCESS,
@@ -523,6 +525,7 @@ function createOnboardingRankDefinition(
 					contracts: UNLOCKED,
 					fleet: UNLOCKED,
 					colonization: UNLOCKED,
+					raids: UNLOCKED,
 				},
 				facilityAccess: {
 					robotics_hub: UNLOCKED,
@@ -558,6 +561,7 @@ function createOnboardingRankDefinition(
 					contracts: UNLOCKED,
 					fleet: UNLOCKED,
 					colonization: UNLOCKED,
+					raids: UNLOCKED,
 				},
 				facilityAccess: {
 					robotics_hub: UNLOCKED,
@@ -831,6 +835,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 40 }],
+		effects: [{ kind: "spawnTutorialRaid" }],
 		highlights: [{ target: "tab-defenses" }],
 	},
 	{
@@ -890,7 +895,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 30 }],
-		highlights: [{ target: "tab-shipyard" }],
+		highlights: [{ target: "tab-facilities" }],
 	},
 	{
 		id: "main_assemble_interceptors",
@@ -1026,9 +1031,7 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
 			},
 		],
 		rewards: [{ kind: "xp", amount: 80 }],
-		highlights: [
-			{ target: "star-map-button", hint: "Open Star Map to find a new colony location" },
-		],
+		highlights: [{ target: "tab-fleet" }],
 	},
 	{
 		id: "main_stabilize_new_outpost",

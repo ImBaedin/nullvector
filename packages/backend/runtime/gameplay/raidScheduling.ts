@@ -2,7 +2,7 @@ import { HOSTILE_FACTION_KEYS, type HostileFactionKey } from "@nullvector/game-l
 
 import type { Id } from "../../convex/_generated/dataModel";
 
-export const RAID_MIN_PLAYER_RANK = 5;
+export const RAID_MIN_PLAYER_RANK = 3;
 const RAID_INTERVAL_MS = 12 * 60 * 60 * 1_000;
 const RAID_SCHEDULE_JITTER_MS = 30 * 60 * 1_000;
 const RAID_TRAVEL_BASE_MS = 45 * 60 * 1_000;

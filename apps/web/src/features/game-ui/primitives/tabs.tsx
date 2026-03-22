@@ -19,9 +19,9 @@ function TabItem({ activeId, item }: { activeId: string; item: ContextNavItem })
    group inline-flex items-center gap-1.5 border-b-2 px-3 pt-1.5 pb-2
    text-[11px] font-semibold transition-all
  `, item.isDisabled ? `
-    border-transparent text-white/20
-    [&_img]:opacity-30
-  ` : item.id === activeId ? `
+   border-transparent text-white/20
+   [&_img]:opacity-30
+ ` : item.id === activeId ? `
     border-cyan-400/80 text-cyan-50
     [&_img]:opacity-90
   ` : `
