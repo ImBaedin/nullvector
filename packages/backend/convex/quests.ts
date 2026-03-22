@@ -1,3 +1,15 @@
-import { claim, getLog, getTimeline, getTracker, syncAvailability } from "../runtime/gameplay/quests";
+import { backfillQuestMetricsBatch } from "../runtime/gameplay/questMetrics";
+import {
+	claim,
+	ensureActivations,
+	ensureActivationsForPlayerInternal,
+	getClientState,
+} from "../runtime/gameplay/quests";
 
-export { claim, getLog, getTimeline, getTracker, syncAvailability };
+export {
+	backfillQuestMetricsBatch,
+	claim,
+	ensureActivations,
+	ensureActivationsForPlayerInternal,
+	getClientState,
+};

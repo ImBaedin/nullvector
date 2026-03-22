@@ -11,11 +11,13 @@ import {
 	rescheduleColonyQueueResolution,
 } from "./scheduling";
 import {
+	getColonySchedulingState,
 	loadColonyState,
 	loadPlanetState,
 	settleColonyAndPersist,
 	settleDefenseQueue,
 	settleShipyardQueue,
+	upsertColonySchedulingState,
 } from "./shared";
 
 export const resolveColonyQueues = internalMutation({
@@ -31,17 +33,32 @@ export const resolveColonyQueues = internalMutation({
 	handler: async (ctx, args) => {
 		const colony = await ctx.db.get(args.colonyId);
 		const now = Date.now();
-		if (!colony || colony.queueResolutionScheduledAt !== args.scheduledAt) {
+		if (!colony) {
 			return {
 				colonyId: args.colonyId,
 				resolvedAt: now,
 				stale: true,
 			};
 		}
-		await ctx.db.patch(colony._id, {
-			queueResolutionJobId: undefined,
-			queueResolutionScheduledAt: undefined,
-			updatedAt: now,
+		const scheduling = await getColonySchedulingState({
+			colonyId: args.colonyId,
+			ctx,
+		});
+		if (scheduling.queueResolutionScheduledAt !== args.scheduledAt) {
+			return {
+				colonyId: args.colonyId,
+				resolvedAt: now,
+				stale: true,
+			};
+		}
+		await upsertColonySchedulingState({
+			colonyId: colony._id,
+			ctx,
+			now,
+			patch: {
+				queueResolutionJobId: undefined,
+				queueResolutionScheduledAt: undefined,
+			},
 		});
 
 		const planet = await ctx.db.get(colony.planetId);

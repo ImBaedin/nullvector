@@ -176,17 +176,36 @@ export async function grantProgressionXp(args: {
 		playerId: args.playerId,
 		previousRankXpTotal,
 	});
+	const previousOverview = getSharedProgressionOverview({
+		rankXpTotal: previousRankXpTotal,
+	});
+	const nextOverview = getSharedProgressionOverview({
+		rankXpTotal: nextRankXpTotal,
+	});
+	if (nextOverview.rank !== previousOverview.rank) {
+		await args.ctx.scheduler.runAfter(0, internal.quests.ensureActivationsForPlayerInternal, {
+			playerId: args.playerId,
+		});
+	}
 }
 
 async function getQuestTrackerCount(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
-	const rows = await args.ctx.db
-		.query("playerQuestStates")
-		.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId))
-		.collect();
-	return rows.filter((row) => row.status === "active" || row.status === "claimable").length;
+	const [activeRows, claimableRows] = await Promise.all([
+		args.ctx.db
+			.query("playerQuestStates")
+			.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "active"))
+			.collect(),
+		args.ctx.db
+			.query("playerQuestStates")
+			.withIndex("by_player_status", (q) =>
+				q.eq("playerId", args.playerId).eq("status", "claimable"),
+			)
+			.collect(),
+	]);
+	return activeRows.length + claimableRows.length;
 }
 
 function mapFeatures(features: Record<FeatureKey, FeatureAccessState>) {

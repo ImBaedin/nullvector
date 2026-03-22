@@ -2,11 +2,15 @@ import { expect, test } from "bun:test";
 
 import {
 	QUEST_DEFINITIONS,
+	buildQuestEvaluationContextFromFacts,
+	deriveQuestTimelineItems,
+	deriveQuestTrackerItems,
 	evaluateQuestDefinition,
 	getProgressionOverview,
 	getRankDefinition,
 	getRankForXpTotal,
 	RANK_DEFINITIONS,
+	type QuestClientFacts,
 } from "../progression";
 
 test("progression overview derives onboarding gates from total xp", () => {
@@ -171,4 +175,107 @@ test("event-based objectives resolve from derived progression metrics", () => {
 		current: 1,
 		required: 1,
 	});
+});
+
+test("quest evaluation context builds from raw client facts", () => {
+	const context = buildQuestEvaluationContextFromFacts({
+		colonyCount: 2,
+		colonizationSuccessCount: 1,
+		colonies: [
+			{
+				colonyId: "starter",
+				buildings: { alloyMineLevel: 3 },
+				facilities: { robotics_hub: 1 },
+				defenses: { missileBattery: 2 },
+				ships: { interceptor: 4 },
+			},
+			{
+				colonyId: "newest",
+				buildings: { alloyMineLevel: 1 },
+				facilities: { shipyard: 1 },
+				defenses: {},
+				ships: { smallCargo: 1 },
+			},
+		],
+		colonyMetrics: [
+			{
+				colonyId: "starter",
+				contractSuccessCount: 2,
+				contractRewardResourcesTotal: 500,
+				raidDefenseSuccessCount: 1,
+				transportDeliveryCount: 0,
+				transportDeliveredResourcesTotal: 0,
+			},
+		],
+	});
+
+	expect(context.colonyCount).toBe(2);
+	expect(context.colonizationSuccessCount).toBe(1);
+	expect(context.colonies[0]?.buildings.alloyMineLevel).toBe(3);
+	expect(context.contractSuccessCountByColony.starter).toBe(2);
+	expect(context.contractRewardResourcesByColony.starter).toBe(500);
+	expect(context.raidDefenseSuccessCountByColony.starter).toBe(1);
+});
+
+test("tracker and timeline derive local claimable and locked states", () => {
+	const facts = {
+		colonyCount: 1,
+		colonizationSuccessCount: 0,
+		colonies: [
+			{
+				colonyId: "starter",
+				buildings: {
+					alloyMineLevel: 4,
+					crystalMineLevel: 4,
+					fuelRefineryLevel: 4,
+				},
+				facilities: {},
+				defenses: {},
+				ships: {},
+			},
+		],
+		colonyMetrics: [],
+	} satisfies QuestClientFacts;
+
+	const trackerItems = deriveQuestTrackerItems({
+		facts,
+		questRows: [
+			{
+				questId: "main_scaling_production",
+				status: "active",
+				questVersion: 1,
+				bindings: { colonyId: "starter" },
+				activatedAt: 1,
+			},
+		],
+	});
+	expect(trackerItems[0]?.id).toBe("main_scaling_production");
+	expect(trackerItems[0]?.claimable).toBe(true);
+
+	const timelineItems = deriveQuestTimelineItems({
+		facts,
+		playerRank: 0,
+		questRows: [
+			{
+				questId: "main_welcome_to_nullvector",
+				status: "claimed",
+				questVersion: 1,
+				bindings: { colonyId: "starter" },
+				activatedAt: 1,
+				claimedAt: 2,
+			},
+		],
+	});
+	expect(timelineItems.find((item) => item.id === "main_welcome_to_nullvector")?.status).toBe(
+		"claimed",
+	);
+	expect(timelineItems.find((item) => item.id === "main_scaling_production")?.status).toBe(
+		"upcoming",
+	);
+	expect(timelineItems.find((item) => item.id === "main_increasing_storage_capacity")?.status).toBe(
+		"locked",
+	);
+	expect(timelineItems.find((item) => item.id === "main_restore_power_balance")?.status).toBe(
+		"locked",
+	);
 });

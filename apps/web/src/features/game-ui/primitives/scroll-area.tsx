@@ -8,20 +8,11 @@ export const NvScrollArea = forwardRef<HTMLDivElement, NvScrollAreaProps>(functi
 	{ className, ...props },
 	ref,
 ) {
-	return (
-		<div
-			className={cn(
-				`
+	return <div className={cn(`
    overflow-auto pr-1 [scrollbar-color:rgba(126,201,255,0.55)_transparent]
    [scrollbar-width:thin]
    [&::-webkit-scrollbar]:size-2
    [&::-webkit-scrollbar-thumb]:rounded-full
    [&::-webkit-scrollbar-thumb]:bg-[rgba(126,201,255,0.42)]
- `,
-				className,
-			)}
-			ref={ref}
-			{...props}
-		/>
-	);
+ `, className)} ref={ref} {...props} />;
 });

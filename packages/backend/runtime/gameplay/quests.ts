@@ -1,21 +1,25 @@
 import {
 	QUEST_DEFINITIONS,
+	buildQuestEvaluationContextFromFacts,
 	evaluateQuestDefinition,
-	type QuestDefinition,
 	type QuestBindings,
-	type QuestEvaluationContext,
-	type QuestLogItem,
-	type QuestObjectiveProgress,
-	type QuestReward,
-	type QuestStatus,
-	type QuestTrackerItem,
+	type QuestClientColonyFacts,
+	type QuestClientColonyMetric,
+	type QuestClientFacts,
+	type QuestDefinition,
+	type QuestStateRowView,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 
-import { mutation, query, type MutationCtx, type QueryCtx } from "../../convex/_generated/server";
-import { RESOURCE_SCALE } from "../../convex/schema";
+import {
+	internalMutation,
+	mutation,
+	query,
+	type MutationCtx,
+	type QueryCtx,
+} from "../../convex/_generated/server";
 import {
 	buildProgressionOverview,
 	ensurePlayerProgression,
@@ -29,78 +33,80 @@ import {
 	cloneResourceBucket,
 	listPlayerColonies,
 	loadColonyState,
-	readColonyDefenseCounts,
 	resolveCurrentPlayer,
 	scaledUnits,
 	upsertColonyCompanionRows,
 } from "./shared";
 
-const questRewardValidator = v.union(
-	v.object({
-		kind: v.literal("credits"),
-		amount: v.number(),
-	}),
-	v.object({
-		kind: v.literal("xp"),
-		amount: v.number(),
-	}),
-	v.object({
-		kind: v.literal("resources"),
-		resources: v.object({
-			alloy: v.number(),
-			crystal: v.number(),
-			fuel: v.number(),
-		}),
-	}),
-);
-
-const objectiveProgressValidator = v.object({
-	complete: v.boolean(),
-	current: v.number(),
-	required: v.number(),
+const questBindingsValidator = v.object({
+	colonyId: v.optional(v.string()),
 });
 
-const questStatusValidator = v.union(
-	v.literal("active"),
-	v.literal("claimable"),
-	v.literal("claimed"),
-);
+const questStateRowViewValidator = v.object({
+	questId: v.string(),
+	status: v.union(v.literal("active"), v.literal("claimed")),
+	questVersion: v.number(),
+	bindings: questBindingsValidator,
+	activatedAt: v.number(),
+	claimedAt: v.optional(v.number()),
+});
 
-const questItemValidator = v.object({
-	id: v.string(),
-	title: v.string(),
-	description: v.string(),
-	category: v.union(v.literal("main"), v.literal("system"), v.literal("side")),
-	order: v.number(),
-	status: questStatusValidator,
-	claimable: v.boolean(),
-	version: v.number(),
-	bindings: v.object({
-		colonyId: v.optional(v.string()),
+const questClientColonyFactsValidator = v.object({
+	colonyId: v.string(),
+	buildings: v.object({
+		alloyMineLevel: v.optional(v.number()),
+		crystalMineLevel: v.optional(v.number()),
+		fuelRefineryLevel: v.optional(v.number()),
+		powerPlantLevel: v.optional(v.number()),
+		alloyStorageLevel: v.optional(v.number()),
+		crystalStorageLevel: v.optional(v.number()),
+		fuelStorageLevel: v.optional(v.number()),
 	}),
-	rewards: v.array(questRewardValidator),
-	objectives: v.array(objectiveProgressValidator),
+	facilities: v.object({
+		robotics_hub: v.optional(v.number()),
+		shipyard: v.optional(v.number()),
+		defense_grid: v.optional(v.number()),
+	}),
+	defenses: v.object({
+		missileBattery: v.optional(v.number()),
+		laserTurret: v.optional(v.number()),
+		gaussCannon: v.optional(v.number()),
+		shieldDome: v.optional(v.number()),
+	}),
+	ships: v.object({
+		smallCargo: v.optional(v.number()),
+		largeCargo: v.optional(v.number()),
+		colonyShip: v.optional(v.number()),
+		interceptor: v.optional(v.number()),
+		frigate: v.optional(v.number()),
+		cruiser: v.optional(v.number()),
+		bomber: v.optional(v.number()),
+	}),
 });
 
-const trackerValidator = v.object({
-	items: v.array(
-		v.object({
-			id: v.string(),
-			title: v.string(),
-			description: v.string(),
-			category: v.union(v.literal("main"), v.literal("system"), v.literal("side")),
-			order: v.number(),
-			status: questStatusValidator,
-			claimable: v.boolean(),
-			rewards: v.array(questRewardValidator),
-			objectives: v.array(objectiveProgressValidator),
-		}),
-	),
+const questClientColonyMetricValidator = v.object({
+	colonyId: v.string(),
+	contractSuccessCount: v.number(),
+	contractRewardResourcesTotal: v.number(),
+	raidDefenseSuccessCount: v.number(),
+	transportDeliveryCount: v.number(),
+	transportDeliveredResourcesTotal: v.number(),
 });
 
-const syncResultValidator = v.object({
+const questClientFactsValidator = v.object({
+	colonyCount: v.number(),
+	colonizationSuccessCount: v.number(),
+	colonies: v.array(questClientColonyFactsValidator),
+	colonyMetrics: v.array(questClientColonyMetricValidator),
+});
+
+const getClientStateResultValidator = v.object({
+	questRows: v.array(questStateRowViewValidator),
+	facts: questClientFactsValidator,
+});
+
+const ensureActivationsResultValidator = v.object({
 	activatedQuestIds: v.array(v.string()),
-	claimableQuestIds: v.array(v.string()),
 });
 
 const claimResultValidator = v.object({
@@ -108,131 +114,18 @@ const claimResultValidator = v.object({
 	status: v.literal("claimed"),
 });
 
-async function buildQuestEvaluationContext(args: {
-	ctx: QueryCtx | MutationCtx;
-	playerId: Id<"players">;
-}): Promise<QuestEvaluationContext> {
-	const colonies = await listPlayerColonies({
-		ctx: args.ctx,
-		playerId: args.playerId,
-	});
-	const [contractResults, raidResults, fleetOperationResults] = await Promise.all([
-		args.ctx.db
-			.query("contractResults")
-			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
-			.collect(),
-		args.ctx.db
-			.query("npcRaidResults")
-			.withIndex("by_target_player_id", (q) => q.eq("targetPlayerId", args.playerId))
-			.collect(),
-		args.ctx.db
-			.query("fleetOperationResults")
-			.withIndex("by_owner_id", (q) => q.eq("ownerPlayerId", args.playerId))
-			.collect(),
-	]);
-	const contextColonies = await Promise.all(
-		colonies.map(async (colony) => {
-			const state = await loadColonyState({
-				colony,
-				ctx: args.ctx,
-			});
-			const shipRows = await args.ctx.db
-				.query("colonyShips")
-				.withIndex("by_colony", (q) => q.eq("colonyId", colony._id))
-				.collect();
-			const ships = shipRows.reduce<Record<string, number>>((acc, row) => {
-				acc[row.shipKey] = row.count;
-				return acc;
-			}, {});
-			const defenses = await readColonyDefenseCounts({
-				colonyId: colony._id,
-				ctx: args.ctx,
-			});
-			return {
-				colonyId: colony._id,
-				buildings: {
-					alloyMineLevel: state.buildings.alloyMineLevel,
-					crystalMineLevel: state.buildings.crystalMineLevel,
-					fuelRefineryLevel: state.buildings.fuelRefineryLevel,
-					powerPlantLevel: state.buildings.powerPlantLevel,
-					alloyStorageLevel: state.buildings.alloyStorageLevel,
-					crystalStorageLevel: state.buildings.crystalStorageLevel,
-					fuelStorageLevel: state.buildings.fuelStorageLevel,
-				},
-				facilities: {
-					robotics_hub: state.buildings.roboticsHubLevel ?? 0,
-					shipyard: state.buildings.shipyardLevel ?? 0,
-					defense_grid: state.buildings.defenseGridLevel ?? 0,
-				},
-				defenses,
-				ships,
-			};
-		}),
-	);
+function normalizeQuestRowStatus(status: Doc<"playerQuestStates">["status"]): "active" | "claimed" {
+	return status === "claimed" ? "claimed" : "active";
+}
 
-	const contractSuccessCountByColony: Record<string, number> = {};
-	const contractRewardResourcesByColony: Record<string, number> = {};
-	for (const result of contractResults) {
-		const originColonyId = result.originColonyId;
-		if (!originColonyId || !result.success) {
-			continue;
-		}
-		contractSuccessCountByColony[originColonyId] =
-			(contractSuccessCountByColony[originColonyId] ?? 0) + 1;
-		contractRewardResourcesByColony[originColonyId] =
-			(contractRewardResourcesByColony[originColonyId] ?? 0) +
-			Math.floor(
-				(result.rewardCargoLoaded.alloy +
-					result.rewardCargoLoaded.crystal +
-					result.rewardCargoLoaded.fuel) /
-					RESOURCE_SCALE,
-			);
-	}
-
-	const raidDefenseSuccessCountByColony: Record<string, number> = {};
-	for (const result of raidResults) {
-		if (result.success) {
-			continue;
-		}
-		raidDefenseSuccessCountByColony[result.targetColonyId] =
-			(raidDefenseSuccessCountByColony[result.targetColonyId] ?? 0) + 1;
-	}
-
-	let colonizationSuccessCount = 0;
-	const transportDeliveryCountByColony: Record<string, number> = {};
-	const transportDeliveredResourcesByColony: Record<string, number> = {};
-	for (const result of fleetOperationResults) {
-		if (result.resultCode === "colonized" && result.operationKind === "colonize") {
-			colonizationSuccessCount += 1;
-		}
-		if (result.resultCode !== "delivered" || result.operationKind !== "transport") {
-			continue;
-		}
-		const targetColonyId = result.targetColonyId;
-		if (!targetColonyId) {
-			continue;
-		}
-		transportDeliveryCountByColony[targetColonyId] =
-			(transportDeliveryCountByColony[targetColonyId] ?? 0) + 1;
-		transportDeliveredResourcesByColony[targetColonyId] =
-			(transportDeliveredResourcesByColony[targetColonyId] ?? 0) +
-			Math.floor(
-				(result.cargoDeliveredToStorage.alloy +
-					result.cargoDeliveredToStorage.crystal +
-					result.cargoDeliveredToStorage.fuel) /
-					RESOURCE_SCALE,
-			);
-	}
-
+function toQuestStateRowView(row: Doc<"playerQuestStates">): QuestStateRowView {
 	return {
-		colonies: contextColonies,
-		colonyCount: contextColonies.length,
-		colonizationSuccessCount,
-		contractRewardResourcesByColony,
-		contractSuccessCountByColony,
-		raidDefenseSuccessCountByColony,
-		transportDeliveredResourcesByColony,
-		transportDeliveryCountByColony,
+		questId: row.questId as never,
+		status: normalizeQuestRowStatus(row.status),
+		questVersion: row.questVersion,
+		bindings: row.bindings ?? {},
+		activatedAt: row.activatedAt,
+		claimedAt: row.claimedAt,
 	};
 }
 
@@ -240,20 +133,16 @@ async function readQuestRowsByPlayer(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
-	const rows = await args.ctx.db
+	return args.ctx.db
 		.query("playerQuestStates")
 		.withIndex("by_player", (q) => q.eq("playerId", args.playerId))
 		.collect();
-	const active = rows.filter((row) => row.status === "active");
-	const claimable = rows.filter((row) => row.status === "claimable");
-	const claimed = rows.filter((row) => row.status === "claimed");
-	return [...active, ...claimable, ...claimed];
 }
 
 function arePrerequisitesSatisfied(args: {
 	claimedQuestIds: Set<string>;
 	playerRank: number;
-	prerequisites: (typeof QUEST_DEFINITIONS)[number]["prerequisites"];
+	prerequisites: QuestDefinition["prerequisites"];
 }) {
 	return args.prerequisites.every((prerequisite) => {
 		if (prerequisite.kind === "minimumRank") {
@@ -265,57 +154,275 @@ function arePrerequisitesSatisfied(args: {
 
 function resolveQuestBindings(args: {
 	activeColonyId?: Id<"colonies">;
-	colonies: QuestEvaluationContext["colonies"];
+	colonies: Array<Pick<Doc<"colonies">, "_id">>;
 	definition: QuestDefinition;
-	existing?: Doc<"playerQuestStates"> | null;
 }) {
-	if (args.existing?.bindings) {
-		return args.existing.bindings;
-	}
-	if (args.definition.bindingStrategy === "activeColony" && args.activeColonyId) {
+	const colonyIds = new Set(args.colonies.map((colony) => colony._id));
+	if (args.definition.bindingStrategy === "activeColony") {
+		if (!args.activeColonyId || !colonyIds.has(args.activeColonyId)) {
+			return null;
+		}
 		return { colonyId: args.activeColonyId };
 	}
 	if (args.definition.bindingStrategy === "newestPlayerColony") {
 		const newestColony = args.colonies[args.colonies.length - 1];
-		if (newestColony) {
-			return { colonyId: newestColony.colonyId };
-		}
+		return newestColony ? { colonyId: newestColony._id } : {};
 	}
 	return {};
 }
 
-function rowToBindings(row: Doc<"playerQuestStates"> | null | undefined): QuestBindings {
-	return row?.bindings ?? {};
-}
-
-function deriveQuestStatus(args: {
-	evaluation: ReturnType<typeof evaluateQuestDefinition>;
-	row: Doc<"playerQuestStates">;
-}): QuestStatus {
-	if (args.row.status === "claimed") {
-		return "claimed";
+function sanitizeQuestBindings(args: {
+	bindings: QuestBindings;
+	colonies: Array<Pick<Doc<"colonies">, "_id">>;
+	definition: QuestDefinition;
+}) {
+	if (args.definition.bindingStrategy === "none") {
+		return {};
 	}
-	return args.evaluation.complete ? "claimable" : "active";
+	const colonyIds = new Set(args.colonies.map((colony) => colony._id));
+	if (!args.bindings.colonyId) {
+		return null;
+	}
+	return colonyIds.has(args.bindings.colonyId as Id<"colonies">) ? args.bindings : null;
 }
 
-function toQuestLogItem(args: {
-	evaluation: ReturnType<typeof evaluateQuestDefinition>;
-	row: Doc<"playerQuestStates">;
-}): QuestLogItem {
-	const definition = requireQuestDefinition(args.row.questId);
-	const status = deriveQuestStatus(args);
+function toQuestColonyFacts(
+	colonyId: Id<"colonies">,
+	infrastructure: Doc<"colonyInfrastructure"> | null,
+	ships: Doc<"colonyShips">[],
+	defenses: Doc<"colonyDefenses">[],
+): QuestClientColonyFacts {
+	const shipCounts = ships.reduce<QuestClientColonyFacts["ships"]>((acc, row) => {
+		acc[row.shipKey] = row.count;
+		return acc;
+	}, {});
+	const defenseCounts = defenses.reduce<QuestClientColonyFacts["defenses"]>((acc, row) => {
+		acc[row.defenseKey] = row.count;
+		return acc;
+	}, {});
+	const buildings = infrastructure?.buildings;
+
 	return {
-		id: definition.id,
-		title: definition.title,
-		description: definition.description,
-		category: definition.category,
-		order: definition.order,
-		status,
-		claimable: status === "claimable",
-		version: definition.version,
-		bindings: rowToBindings(args.row),
-		rewards: definition.rewards,
-		objectives: args.evaluation.objectives,
+		colonyId,
+		buildings: {
+			alloyMineLevel: buildings?.alloyMineLevel,
+			crystalMineLevel: buildings?.crystalMineLevel,
+			fuelRefineryLevel: buildings?.fuelRefineryLevel,
+			powerPlantLevel: buildings?.powerPlantLevel,
+			alloyStorageLevel: buildings?.alloyStorageLevel,
+			crystalStorageLevel: buildings?.crystalStorageLevel,
+			fuelStorageLevel: buildings?.fuelStorageLevel,
+		},
+		facilities: {
+			robotics_hub: buildings?.roboticsHubLevel ?? 0,
+			shipyard: buildings?.shipyardLevel ?? 0,
+			defense_grid: buildings?.defenseGridLevel ?? 0,
+		},
+		defenses: defenseCounts,
+		ships: shipCounts,
+	};
+}
+
+async function loadQuestColonyFacts(args: {
+	colonyIds: Id<"colonies">[];
+	ctx: QueryCtx | MutationCtx;
+}) {
+	return Promise.all(
+		args.colonyIds.map(async (colonyId) => {
+			const [infrastructure, ships, defenses] = await Promise.all([
+				args.ctx.db
+					.query("colonyInfrastructure")
+					.withIndex("by_colony_id", (q) => q.eq("colonyId", colonyId))
+					.unique(),
+				args.ctx.db
+					.query("colonyShips")
+					.withIndex("by_colony", (q) => q.eq("colonyId", colonyId))
+					.collect(),
+				args.ctx.db
+					.query("colonyDefenses")
+					.withIndex("by_colony", (q) => q.eq("colonyId", colonyId))
+					.collect(),
+			]);
+			return toQuestColonyFacts(colonyId, infrastructure, ships, defenses);
+		}),
+	);
+}
+
+async function loadQuestClientFacts(args: {
+	ctx: QueryCtx | MutationCtx;
+	playerId: Id<"players">;
+}): Promise<QuestClientFacts> {
+	const colonies = await listPlayerColonies({
+		ctx: args.ctx,
+		playerId: args.playerId,
+	});
+	const colonyIds = colonies.map((colony) => colony._id);
+	const [colonyFacts, playerMetrics, colonyMetricRows] = await Promise.all([
+		loadQuestColonyFacts({
+			ctx: args.ctx,
+			colonyIds,
+		}),
+		args.ctx.db
+			.query("playerQuestMetrics")
+			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+			.unique(),
+		args.ctx.db
+			.query("colonyQuestMetrics")
+			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+			.collect(),
+	]);
+	const metricByColonyId = new Map(colonyMetricRows.map((row) => [row.colonyId, row]));
+	const colonyMetrics: QuestClientColonyMetric[] = colonyIds.map((colonyId) => {
+		const row = metricByColonyId.get(colonyId);
+		return {
+			colonyId,
+			contractSuccessCount: row?.contractSuccessCount ?? 0,
+			contractRewardResourcesTotal: row?.contractRewardResourcesTotal ?? 0,
+			raidDefenseSuccessCount: row?.raidDefenseSuccessCount ?? 0,
+			transportDeliveryCount: row?.transportDeliveryCount ?? 0,
+			transportDeliveredResourcesTotal: row?.transportDeliveredResourcesTotal ?? 0,
+		};
+	});
+
+	return {
+		colonyCount: colonies.length,
+		colonizationSuccessCount: playerMetrics?.colonizationSuccessCount ?? 0,
+		colonies: colonyFacts,
+		colonyMetrics,
+	};
+}
+
+function needsAnyColonyFacts(definition: QuestDefinition) {
+	return definition.objectives.some(
+		(objective) =>
+			objective.kind === "buildingLevelAtLeast" ||
+			objective.kind === "facilityLevelAtLeast" ||
+			objective.kind === "shipCountAtLeast" ||
+			objective.kind === "defenseCountAtLeast",
+	);
+}
+
+function needsAllColonyFacts(definition: QuestDefinition) {
+	return definition.objectives.some(
+		(objective) =>
+			(objective.kind === "buildingLevelAtLeast" ||
+				objective.kind === "facilityLevelAtLeast" ||
+				objective.kind === "shipCountAtLeast" ||
+				objective.kind === "defenseCountAtLeast") &&
+			objective.scope !== "boundColony",
+	);
+}
+
+function needsColonyMetrics(definition: QuestDefinition) {
+	return definition.objectives.some(
+		(objective) =>
+			objective.kind === "contractSuccessCountAtLeast" ||
+			objective.kind === "contractRewardResourcesAtLeast" ||
+			objective.kind === "raidDefenseSuccessCountAtLeast" ||
+			objective.kind === "transportDeliveryCountAtLeast" ||
+			objective.kind === "transportDeliveredResourcesAtLeast",
+	);
+}
+
+function needsAllColonyMetrics(definition: QuestDefinition) {
+	return definition.objectives.some(
+		(objective) =>
+			(objective.kind === "contractSuccessCountAtLeast" ||
+				objective.kind === "contractRewardResourcesAtLeast" ||
+				objective.kind === "raidDefenseSuccessCountAtLeast" ||
+				objective.kind === "transportDeliveryCountAtLeast" ||
+				objective.kind === "transportDeliveredResourcesAtLeast") &&
+			objective.scope !== "boundColony",
+	);
+}
+
+async function loadQuestFactsForClaim(args: {
+	bindings: QuestBindings;
+	ctx: MutationCtx;
+	definition: QuestDefinition;
+	playerId: Id<"players">;
+}): Promise<QuestClientFacts> {
+	const needsColonyCount = args.definition.objectives.some(
+		(objective) => objective.kind === "colonyCountAtLeast",
+	);
+	const needsPlayerMetric = args.definition.objectives.some(
+		(objective) => objective.kind === "colonizationSuccessCountAtLeast",
+	);
+	const shouldLoadColonies =
+		needsColonyCount ||
+		needsAllColonyFacts(args.definition) ||
+		needsAllColonyMetrics(args.definition);
+	const colonies = shouldLoadColonies
+		? await listPlayerColonies({
+				ctx: args.ctx,
+				playerId: args.playerId,
+			})
+		: [];
+	const colonyCount = shouldLoadColonies ? colonies.length : 0;
+	const boundColonyId = args.bindings.colonyId as Id<"colonies"> | undefined;
+
+	let colonyFacts: QuestClientColonyFacts[] = [];
+	if (needsAnyColonyFacts(args.definition)) {
+		if (needsAllColonyFacts(args.definition)) {
+			colonyFacts = await loadQuestColonyFacts({
+				ctx: args.ctx,
+				colonyIds: colonies.map((colony) => colony._id),
+			});
+		} else if (boundColonyId) {
+			colonyFacts = await loadQuestColonyFacts({
+				ctx: args.ctx,
+				colonyIds: [boundColonyId],
+			});
+		}
+	}
+
+	let colonyMetrics: QuestClientColonyMetric[] = [];
+	if (needsColonyMetrics(args.definition)) {
+		if (needsAllColonyMetrics(args.definition)) {
+			const rows = await args.ctx.db
+				.query("colonyQuestMetrics")
+				.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+				.collect();
+			colonyMetrics = rows.map((row) => ({
+				colonyId: row.colonyId,
+				contractSuccessCount: row.contractSuccessCount,
+				contractRewardResourcesTotal: row.contractRewardResourcesTotal,
+				raidDefenseSuccessCount: row.raidDefenseSuccessCount,
+				transportDeliveryCount: row.transportDeliveryCount,
+				transportDeliveredResourcesTotal: row.transportDeliveredResourcesTotal,
+			}));
+		} else if (boundColonyId) {
+			const row = await args.ctx.db
+				.query("colonyQuestMetrics")
+				.withIndex("by_colony_id", (q) => q.eq("colonyId", boundColonyId))
+				.unique();
+			if (row) {
+				colonyMetrics = [
+					{
+						colonyId: row.colonyId,
+						contractSuccessCount: row.contractSuccessCount,
+						contractRewardResourcesTotal: row.contractRewardResourcesTotal,
+						raidDefenseSuccessCount: row.raidDefenseSuccessCount,
+						transportDeliveryCount: row.transportDeliveryCount,
+						transportDeliveredResourcesTotal: row.transportDeliveredResourcesTotal,
+					},
+				];
+			}
+		}
+	}
+
+	const playerMetrics = needsPlayerMetric
+		? await args.ctx.db
+				.query("playerQuestMetrics")
+				.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+				.unique()
+		: null;
+
+	return {
+		colonyCount,
+		colonizationSuccessCount: playerMetrics?.colonizationSuccessCount ?? 0,
+		colonies: colonyFacts,
+		colonyMetrics,
 	};
 }
 
@@ -372,32 +479,7 @@ async function applyResourceRewards(args: {
 	});
 }
 
-async function evaluateQuestRows(args: {
-	ctx: QueryCtx | MutationCtx;
-	playerId: Id<"players">;
-	rows: Doc<"playerQuestStates">[];
-}) {
-	const context = await buildQuestEvaluationContext({
-		ctx: args.ctx,
-		playerId: args.playerId,
-	});
-	return args.rows
-		.map((row): QuestLogItem => {
-			const definition = requireQuestDefinition(row.questId);
-			const evaluation = evaluateQuestDefinition({
-				quest: definition,
-				context,
-				bindings: rowToBindings(row),
-			});
-			return toQuestLogItem({
-				evaluation,
-				row,
-			});
-		})
-		.sort((left: QuestLogItem, right: QuestLogItem) => left.order - right.order);
-}
-
-export async function syncQuestAvailabilityForPlayer(args: {
+export async function ensureQuestActivationsForPlayer(args: {
 	activeColonyId?: Id<"colonies">;
 	ctx: MutationCtx;
 	playerId: Id<"players">;
@@ -406,24 +488,24 @@ export async function syncQuestAvailabilityForPlayer(args: {
 		ctx: args.ctx,
 		playerId: args.playerId,
 	});
-	const [player, existingRows, questContext] = await Promise.all([
+	const [player, existingRows, colonies] = await Promise.all([
 		args.ctx.db.get(args.playerId),
 		readQuestRowsByPlayer({ ctx: args.ctx, playerId: args.playerId }),
-		buildQuestEvaluationContext({ ctx: args.ctx, playerId: args.playerId }),
+		listPlayerColonies({ ctx: args.ctx, playerId: args.playerId }),
 	]);
 	if (!player) {
 		throw new ConvexError("Player not found");
 	}
+
 	const progression = await buildProgressionOverview({
 		ctx: args.ctx,
 		player,
 	});
-	const rowsByQuestId = new Map(existingRows.map((row) => [row.questId, row]));
 	const claimedQuestIds = new Set(
 		existingRows.filter((row) => row.status === "claimed").map((row) => row.questId),
 	);
+	const rowsByQuestId = new Map(existingRows.map((row) => [row.questId, row]));
 	const activatedQuestIds: string[] = [];
-	const claimableQuestIds: string[] = [];
 	const now = Date.now();
 
 	for (const definition of QUEST_DEFINITIONS) {
@@ -436,75 +518,89 @@ export async function syncQuestAvailabilityForPlayer(args: {
 		) {
 			continue;
 		}
+
 		const existing = rowsByQuestId.get(definition.id);
-		const bindings: QuestBindings = resolveQuestBindings({
-			activeColonyId: args.activeColonyId,
-			colonies: questContext.colonies,
-			definition,
-			existing,
-		});
-		const evaluation = evaluateQuestDefinition({
-			quest: definition,
-			context: questContext,
-			bindings,
-		});
-		if (!existing) {
-			const status = evaluation.complete ? "claimable" : "active";
-			await args.ctx.db.insert("playerQuestStates", {
-				playerId: args.playerId,
-				questId: definition.id,
-				status,
-				questVersion: definition.version,
-				bindings,
-				activatedAt: now,
-				claimableAt: status === "claimable" ? now : undefined,
-				claimedAt: undefined,
-				createdAt: now,
-				updatedAt: now,
-			});
-			activatedQuestIds.push(definition.id);
-			if (status === "claimable") {
-				claimableQuestIds.push(definition.id);
+		if (existing) {
+			const patch: Partial<Doc<"playerQuestStates">> = {};
+			if (existing.questVersion !== definition.version) {
+				patch.questVersion = definition.version;
+			}
+			if (existing.status === "claimable") {
+				patch.status = "active";
+			}
+			if (Object.keys(patch).length > 0) {
+				await args.ctx.db.patch(existing._id, {
+					...patch,
+					updatedAt: now,
+				});
 			}
 			continue;
 		}
-		if (existing.status === "claimed") {
+
+		const bindings = resolveQuestBindings({
+			activeColonyId: args.activeColonyId,
+			colonies,
+			definition,
+		});
+		if (bindings === null) {
 			continue;
 		}
-		if (existing.status === "active" && evaluation.complete) {
-			await args.ctx.db.patch(existing._id, {
-				status: "claimable",
-				claimableAt: existing.claimableAt ?? now,
-				updatedAt: now,
-			});
-			claimableQuestIds.push(definition.id);
-			continue;
-		}
-		if (existing.questVersion !== definition.version) {
-			await args.ctx.db.patch(existing._id, {
-				questVersion: definition.version,
-				updatedAt: now,
-			});
-		}
+
+		await args.ctx.db.insert("playerQuestStates", {
+			playerId: args.playerId,
+			questId: definition.id,
+			status: "active",
+			questVersion: definition.version,
+			bindings,
+			activatedAt: now,
+			claimedAt: undefined,
+			createdAt: now,
+			updatedAt: now,
+		});
+		activatedQuestIds.push(definition.id);
 	}
 
 	return {
 		activatedQuestIds,
-		claimableQuestIds,
 	};
 }
 
-export const syncAvailability = mutation({
+export const getClientState = query({
+	args: {},
+	returns: getClientStateResultValidator,
+	handler: async (ctx) => {
+		const playerResult = await resolveCurrentPlayer(ctx);
+		if (!playerResult?.player) {
+			throw new ConvexError("Authentication required");
+		}
+		const [questRows, facts] = await Promise.all([
+			readQuestRowsByPlayer({
+				ctx,
+				playerId: playerResult.player._id,
+			}),
+			loadQuestClientFacts({
+				ctx,
+				playerId: playerResult.player._id,
+			}),
+		]);
+		return {
+			questRows: questRows.map(toQuestStateRowView),
+			facts,
+		};
+	},
+});
+
+export const ensureActivations = mutation({
 	args: {
 		activeColonyId: v.optional(v.id("colonies")),
 	},
-	returns: syncResultValidator,
+	returns: ensureActivationsResultValidator,
 	handler: async (ctx, args) => {
 		const playerResult = await resolveCurrentPlayer(ctx);
 		if (!playerResult?.player) {
 			throw new ConvexError("Authentication required");
 		}
-		return syncQuestAvailabilityForPlayer({
+		return ensureQuestActivationsForPlayer({
 			ctx,
 			playerId: playerResult.player._id,
 			activeColonyId: args.activeColonyId,
@@ -512,65 +608,24 @@ export const syncAvailability = mutation({
 	},
 });
 
-export const getLog = query({
-	args: {},
-	returns: v.object({
-		items: v.array(questItemValidator),
-	}),
-	handler: async (ctx) => {
-		const playerResult = await resolveCurrentPlayer(ctx);
-		if (!playerResult?.player) {
-			throw new ConvexError("Authentication required");
-		}
-		const rows = await readQuestRowsByPlayer({
-			ctx,
-			playerId: playerResult.player._id,
-		});
-		const items = await evaluateQuestRows({
-			ctx,
-			playerId: playerResult.player._id,
-			rows,
-		});
-		return { items };
+export const ensureActivationsForPlayerInternal = internalMutation({
+	args: {
+		playerId: v.id("players"),
+		activeColonyId: v.optional(v.id("colonies")),
 	},
-});
-
-export const getTracker = query({
-	args: {},
-	returns: trackerValidator,
-	handler: async (ctx) => {
-		const playerResult = await resolveCurrentPlayer(ctx);
-		if (!playerResult?.player) {
-			throw new ConvexError("Authentication required");
-		}
-		const rows = await readQuestRowsByPlayer({
+	returns: ensureActivationsResultValidator,
+	handler: async (ctx, args) =>
+		ensureQuestActivationsForPlayer({
 			ctx,
-			playerId: playerResult.player._id,
-		});
-		const items = (
-			await evaluateQuestRows({
-				ctx,
-				playerId: playerResult.player._id,
-				rows: rows.filter((row) => row.status !== "claimed"),
-			})
-		).map<QuestTrackerItem>((item: QuestLogItem) => ({
-			id: item.id,
-			title: item.title,
-			description: item.description,
-			category: item.category,
-			order: item.order,
-			status: item.status,
-			claimable: item.claimable,
-			rewards: item.rewards,
-			objectives: item.objectives,
-		}));
-		return { items };
-	},
+			playerId: args.playerId,
+			activeColonyId: args.activeColonyId,
+		}),
 });
 
 export const claim = mutation({
 	args: {
 		questId: v.string(),
+		activeColonyId: v.optional(v.id("colonies")),
 	},
 	returns: claimResultValidator,
 	handler: async (ctx, args) => {
@@ -580,7 +635,7 @@ export const claim = mutation({
 		}
 		const playerId = playerResult.player._id;
 		const definition = requireQuestDefinition(args.questId);
-		await syncQuestAvailabilityForPlayer({
+		const colonies = await listPlayerColonies({
 			ctx,
 			playerId,
 		});
@@ -597,18 +652,31 @@ export const claim = mutation({
 				status: "claimed" as const,
 			};
 		}
-		const questContext = await buildQuestEvaluationContext({
+		const bindings = sanitizeQuestBindings({
+			bindings: row.bindings ?? {},
+			colonies,
+			definition,
+		});
+		if (bindings === null) {
+			throw new ConvexError("Quest binding is no longer valid");
+		}
+
+		const facts = await loadQuestFactsForClaim({
 			ctx,
 			playerId,
+			definition,
+			bindings,
 		});
+		const context = buildQuestEvaluationContextFromFacts(facts);
 		const evaluation = evaluateQuestDefinition({
 			quest: definition,
-			context: questContext,
-			bindings: rowToBindings(row),
+			context,
+			bindings,
 		});
 		if (!evaluation.complete) {
 			throw new ConvexError("Quest objectives are not complete");
 		}
+
 		const now = Date.now();
 		for (const reward of definition.rewards) {
 			if (reward.kind === "xp") {
@@ -631,21 +699,22 @@ export const claim = mutation({
 				ctx,
 				playerId,
 				now,
-				bindings: rowToBindings(row),
+				bindings,
 				resources: reward.resources,
 			});
 		}
+
 		await ctx.db.patch(row._id, {
 			status: "claimed",
 			claimedAt: row.claimedAt ?? now,
-			claimableAt: row.claimableAt ?? now,
 			updatedAt: now,
 		});
+
 		for (const effect of definition.effects ?? []) {
-			if (effect.kind !== "spawnTutorialRaid" || !row.bindings.colonyId) {
+			if (effect.kind !== "spawnTutorialRaid" || !bindings.colonyId) {
 				continue;
 			}
-			const colony = await ctx.db.get(row.bindings.colonyId as Id<"colonies">);
+			const colony = await ctx.db.get(bindings.colonyId as Id<"colonies">);
 			if (!colony) {
 				continue;
 			}
@@ -655,7 +724,7 @@ export const claim = mutation({
 					q.eq("targetColonyId", colony._id).eq("status", "inTransit"),
 				)
 				.first();
-			if (existingRaid?.spawnReason === "tutorialRank2") {
+			if (existingRaid) {
 				continue;
 			}
 			await spawnNpcRaidImmediatelyForColony({
@@ -665,153 +734,16 @@ export const claim = mutation({
 				spawnReason: "tutorialRank2",
 			});
 		}
-		await syncQuestAvailabilityForPlayer({
+
+		await ensureQuestActivationsForPlayer({
 			ctx,
-			playerId: playerResult.player._id,
-			activeColonyId: row.bindings.colonyId as Id<"colonies"> | undefined,
+			playerId,
+			activeColonyId: args.activeColonyId ?? (bindings.colonyId as Id<"colonies"> | undefined),
 		});
+
 		return {
 			claimedQuestId: definition.id,
 			status: "claimed" as const,
 		};
-	},
-});
-
-type TimelineStatus = QuestStatus | "upcoming" | "locked";
-
-type TimelineItem = {
-	id: string;
-	title: string;
-	description: string;
-	category: "main" | "system" | "side";
-	order: number;
-	status: TimelineStatus;
-	claimable: boolean;
-	rewards: QuestReward[];
-	objectives: QuestObjectiveProgress[];
-	prerequisites: Array<{ questId: string; title: string; satisfied: boolean }>;
-};
-
-const timelineStatusValidator = v.union(
-	v.literal("active"),
-	v.literal("claimable"),
-	v.literal("claimed"),
-	v.literal("upcoming"),
-	v.literal("locked"),
-);
-
-const timelineItemValidator = v.object({
-	id: v.string(),
-	title: v.string(),
-	description: v.string(),
-	category: v.union(v.literal("main"), v.literal("system"), v.literal("side")),
-	order: v.number(),
-	status: timelineStatusValidator,
-	claimable: v.boolean(),
-	rewards: v.array(questRewardValidator),
-	objectives: v.array(objectiveProgressValidator),
-	prerequisites: v.array(
-		v.object({
-			questId: v.string(),
-			title: v.string(),
-			satisfied: v.boolean(),
-		}),
-	),
-});
-
-const timelineValidator = v.object({
-	items: v.array(timelineItemValidator),
-});
-
-export const getTimeline = query({
-	args: {},
-	returns: timelineValidator,
-	handler: async (ctx) => {
-		const playerResult = await resolveCurrentPlayer(ctx);
-		if (!playerResult?.player) {
-			throw new ConvexError("Authentication required");
-		}
-		const playerId = playerResult.player._id;
-		const player = playerResult.player;
-
-		const [allRows, questContext] = await Promise.all([
-			readQuestRowsByPlayer({ ctx, playerId }),
-			buildQuestEvaluationContext({ ctx, playerId }),
-		]);
-
-		const progression = await buildProgressionOverview({ ctx, player });
-
-		const rowsByQuestId = new Map(allRows.map((row) => [row.questId, row]));
-		const claimedQuestIds = new Set(
-			allRows.filter((row) => row.status === "claimed").map((row) => row.questId),
-		);
-
-		// Build a lookup from quest id to title
-		const questTitleById = new Map(QUEST_DEFINITIONS.map((def) => [def.id, def.title]));
-
-		const items: TimelineItem[] = QUEST_DEFINITIONS.map((definition) => {
-			const row = rowsByQuestId.get(definition.id);
-
-			const prerequisites = definition.prerequisites.map((prereq) => {
-				if (prereq.kind === "questClaimed") {
-					return {
-						questId: prereq.questId,
-						title: questTitleById.get(prereq.questId) ?? prereq.questId,
-						satisfied: claimedQuestIds.has(prereq.questId),
-					};
-				}
-				return {
-					questId: `rank:${prereq.rank}`,
-					title: `Rank ${prereq.rank}`,
-					satisfied: progression.rank >= prereq.rank,
-				};
-			});
-
-			const prerequisitesSatisfied = prerequisites.every((p) => p.satisfied);
-
-			if (row) {
-				const bindings = rowToBindings(row);
-				const evaluation =
-					row.status === "claimed"
-						? null
-						: evaluateQuestDefinition({
-								quest: definition,
-								context: questContext,
-								bindings,
-							});
-				const status = evaluation ? deriveQuestStatus({ evaluation, row }) : ("claimed" as const);
-				return {
-					id: definition.id,
-					title: definition.title,
-					description: definition.description,
-					category: definition.category,
-					order: definition.order,
-					status,
-					claimable: status === "claimable",
-					rewards: definition.rewards,
-					objectives: evaluation?.objectives ?? [],
-					prerequisites,
-				};
-			}
-
-			// No row: determine upcoming vs locked
-			const status: TimelineStatus = prerequisitesSatisfied ? "upcoming" : "locked";
-			return {
-				id: definition.id,
-				title: definition.title,
-				description: definition.description,
-				category: definition.category,
-				order: definition.order,
-				status,
-				claimable: false,
-				rewards: definition.rewards,
-				objectives: [],
-				prerequisites,
-			};
-		});
-
-		items.sort((a, b) => a.order - b.order);
-
-		return { items };
 	},
 });

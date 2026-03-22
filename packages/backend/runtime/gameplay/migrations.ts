@@ -1,6 +1,8 @@
 import { generateSciFiName } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
+import type { Id } from "../../convex/_generated/dataModel";
+
 import { mutation } from "../../convex/_generated/server";
 
 function galaxyAddress(galaxyIndex: number) {
@@ -175,6 +177,127 @@ export const backfillUniverseObjectNames = mutation({
 				systems: updatedSystems,
 				planets: updatedPlanets,
 			},
+		};
+	},
+});
+
+export const backfillColonyAccessAndScheduling = mutation({
+	args: {
+		token: v.string(),
+	},
+	returns: v.object({
+		scanned: v.number(),
+		inserted: v.object({
+			access: v.number(),
+			queueScheduling: v.number(),
+			raidScheduling: v.number(),
+		}),
+		cleanedColonies: v.number(),
+	}),
+	handler: async (ctx, args) => {
+		assertGenerationToken(args.token);
+
+		const colonies = await ctx.db.query("colonies").collect();
+		let insertedAccess = 0;
+		let insertedQueueScheduling = 0;
+		let insertedRaidScheduling = 0;
+		let cleanedColonies = 0;
+
+		for (const colony of colonies) {
+			const legacyColony = colony as typeof colony & {
+				queueResolutionJobId?: Id<"_scheduled_functions">;
+				queueResolutionScheduledAt?: number;
+				nextNpcRaidAt?: number;
+			};
+			const existingAccess = await ctx.db
+				.query("colonyAccess")
+				.withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
+				.unique();
+			if (!existingAccess) {
+				await ctx.db.insert("colonyAccess", {
+					colonyId: colony._id,
+					playerId: colony.playerId,
+					createdAt: colony.createdAt,
+					updatedAt: colony.updatedAt,
+				});
+				insertedAccess += 1;
+			}
+
+			const existingScheduling = await ctx.db
+				.query("colonyScheduling")
+				.withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
+				.unique();
+			if (!existingScheduling) {
+				await ctx.db.insert("colonyScheduling", {
+					colonyId: colony._id,
+					queueResolutionJobId: legacyColony.queueResolutionJobId,
+					queueResolutionScheduledAt: legacyColony.queueResolutionScheduledAt,
+					createdAt: colony.createdAt,
+					updatedAt: colony.updatedAt,
+				});
+				insertedQueueScheduling += 1;
+			} else if (
+				(legacyColony.queueResolutionJobId !== undefined &&
+					existingScheduling.queueResolutionJobId === undefined) ||
+				(legacyColony.queueResolutionScheduledAt !== undefined &&
+					existingScheduling.queueResolutionScheduledAt === undefined)
+			) {
+				await ctx.db.patch(existingScheduling._id, {
+					queueResolutionJobId:
+						existingScheduling.queueResolutionJobId ?? legacyColony.queueResolutionJobId,
+					queueResolutionScheduledAt:
+						existingScheduling.queueResolutionScheduledAt ??
+						legacyColony.queueResolutionScheduledAt,
+					updatedAt: colony.updatedAt,
+				});
+			}
+
+			const existingRaidScheduling = await ctx.db
+				.query("colonyRaidScheduling")
+				.withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
+				.unique();
+			if (!existingRaidScheduling) {
+				await ctx.db.insert("colonyRaidScheduling", {
+					colonyId: colony._id,
+					nextNpcRaidAt: legacyColony.nextNpcRaidAt,
+					createdAt: colony.createdAt,
+					updatedAt: colony.updatedAt,
+				});
+				insertedRaidScheduling += 1;
+			} else if (
+				legacyColony.nextNpcRaidAt !== undefined &&
+				existingRaidScheduling.nextNpcRaidAt === undefined
+			) {
+				await ctx.db.patch(existingRaidScheduling._id, {
+					nextNpcRaidAt: legacyColony.nextNpcRaidAt,
+					updatedAt: colony.updatedAt,
+				});
+			}
+
+			if (
+				legacyColony.queueResolutionJobId !== undefined ||
+				legacyColony.queueResolutionScheduledAt !== undefined ||
+				legacyColony.nextNpcRaidAt !== undefined
+			) {
+				const {
+					queueResolutionJobId: _queueResolutionJobId,
+					queueResolutionScheduledAt: _queueResolutionScheduledAt,
+					nextNpcRaidAt: _nextNpcRaidAt,
+					...cleanColony
+				} = legacyColony;
+				await ctx.db.replace(colony._id, cleanColony);
+				cleanedColonies += 1;
+			}
+		}
+
+		return {
+			scanned: colonies.length,
+			inserted: {
+				access: insertedAccess,
+				queueScheduling: insertedQueueScheduling,
+				raidScheduling: insertedRaidScheduling,
+			},
+			cleanedColonies,
 		};
 	},
 });

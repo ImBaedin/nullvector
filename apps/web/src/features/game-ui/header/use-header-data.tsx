@@ -11,8 +11,9 @@ import {
 	useColonySessionSnapshot,
 	useOptimisticColonyMutation,
 } from "@/features/colony-state/hooks";
+import { useQuestProgress } from "@/features/game-ui/quests";
 import { useColonyResources } from "@/hooks/use-colony-resources";
-import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
+import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 
 import { getHeaderConfig, parseColonyId } from "./header-config";
 
@@ -54,8 +55,8 @@ export function useHeaderData() {
 	const colonySession = useColonySessionSnapshot(
 		colonyIdAsId && isAuthenticated ? colonyIdAsId : null,
 	);
-	const publicOverview = useQuery(
-		api.colonyOverview.getColonyOverview,
+	const publicOverviewHeader = useQuery(
+		api.colonyOverview.getColonyOverviewHeader,
 		colonyIdAsId ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const raidStatus = useQuery(
@@ -64,24 +65,14 @@ export function useHeaderData() {
 	);
 	const colonyResources = useColonyResources(colonyIdAsId && isAuthenticated ? colonyIdAsId : null);
 	const progressionOverview = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
-	const syncQuestAvailability = useMutation(api.quests.syncAvailability);
 	const notificationSummary = useQuery(
 		api.notifications.getNotificationUnreadSummary,
 		isAuthenticated ? {} : "skip",
 	);
+	const { activeQuestCount } = useQuestProgress();
 	const [isRenamingColony, setIsRenamingColony] = useState(false);
 	const [isSavingColonyName, setIsSavingColonyName] = useState(false);
 	const isCompact = useCompactHeaderMode();
-
-	useEffect(() => {
-		if (!isAuthenticated || !colonyIdAsId) {
-			return;
-		}
-
-		void syncQuestAvailability({ activeColonyId: colonyIdAsId }).catch((error) => {
-			toast.error(error instanceof Error ? error.message : "Failed to sync quests");
-		});
-	}, [colonyIdAsId, isAuthenticated, syncQuestAvailability]);
 
 	const hud = useMemo<HeaderHudData | undefined>(() => {
 		if (!colonySession || !colonyResources.hudResources) {
@@ -164,20 +155,21 @@ export function useHeaderData() {
 				),
 			};
 		});
-		if (publicOverview?.viewerRelation === "owner") {
+		if (publicOverviewHeader?.viewerRelation === "owner") {
 			return baseTabs;
 		}
 		return baseTabs.map((tab) => ({
 			...tab,
 			isDisabled: tab.id !== "overview",
 		}));
-	}, [config.contextTabs, publicOverview?.viewerRelation, raidStatus?.activeRaid]);
+	}, [config.contextTabs, publicOverviewHeader?.viewerRelation, raidStatus?.activeRaid]);
 
 	const drawerConfig = useMemo(
 		() => ({
 			...config,
 			contextTabs,
 			notificationsCount: liveNotificationsCount,
+			questCount: activeQuestCount,
 			onOpenNotifications: () => {
 				// Handled by the header shell.
 			},
@@ -185,7 +177,7 @@ export function useHeaderData() {
 				// Handled by the header shell.
 			},
 		}),
-		[config, contextTabs, liveNotificationsCount],
+		[activeQuestCount, config, contextTabs, liveNotificationsCount],
 	);
 
 	const activeColony = useMemo(
@@ -199,11 +191,11 @@ export function useHeaderData() {
 		if (activeColony?.name) {
 			return activeColony.name;
 		}
-		if (publicOverview?.header.name) {
-			return publicOverview.header.name;
+		if (publicOverviewHeader?.header.name) {
+			return publicOverviewHeader.header.name;
 		}
 		return (config.title ?? "Colony Operations").replace(/ Resources$/, "");
-	}, [activeColony?.name, config.title, publicOverview?.header.name]);
+	}, [activeColony?.name, config.title, publicOverviewHeader?.header.name]);
 
 	const commitColonyRename = useCallback(
 		async (nextName: string) => {
@@ -264,6 +256,7 @@ export function useHeaderData() {
 
 	return {
 		activeColony,
+		activeQuestCount,
 		beginColonyRename,
 		colonyIdAsId,
 		colonySession,
@@ -277,7 +270,7 @@ export function useHeaderData() {
 		isSavingColonyName,
 		liveNotificationsCount,
 		progressionOverview,
-		publicOverview,
+		publicOverview: publicOverviewHeader,
 		raidStatus,
 		colonyResources,
 		handleColonyChange,

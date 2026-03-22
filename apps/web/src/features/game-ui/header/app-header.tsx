@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdata/types";
 
-import { useHighlightTarget } from "@/features/game-ui/quests/use-highlight-target";
 import { QUEST_MODAL_OPEN_EVENT } from "@/features/game-ui/quests/quest-modal-events";
+import { useHighlightTarget } from "@/features/game-ui/quests/use-highlight-target";
 import { ColonySwitcher } from "@/features/game-ui/shell/colony-switcher";
 import { ContextNav } from "@/features/game-ui/shell/context-nav";
 import { NotificationsModal } from "@/features/game-ui/shell/notifications-modal";
@@ -70,6 +70,7 @@ export function AppHeader({
 	const [starMapQualityOpen, setStarMapQualityOpen] = useState(false);
 	const {
 		activeColony,
+		activeQuestCount,
 		beginColonyRename,
 		colonyIdAsId,
 		colonySession,
@@ -530,19 +531,14 @@ export function AppHeader({
 									onColonyChange={config.onColonyChange ?? handleColonyChange}
 								/>
 							) : null}
-							<button
-								aria-label="Quests"
-								className={cn(`
-          relative flex size-8 items-center justify-center rounded-lg
-          text-cyan-300/50 transition-all duration-200
-          hover:bg-cyan-400/10 hover:text-cyan-200/90 hover:shadow-[0_0_8px_rgba(34,211,238,0.15)]
-        `, questButtonHighlight.highlightProps.className)}
-								onClick={() => openQuests()}
-								title={questButtonHighlight.highlightProps.title}
-								type="button"
-							>
+							<button aria-label="Quests" className={cn(`
+         relative flex size-8 items-center justify-center rounded-lg
+         text-cyan-300/50 transition-all duration-200
+         hover:bg-cyan-400/10 hover:text-cyan-200/90
+         hover:shadow-[0_0_8px_rgba(34,211,238,0.15)]
+       `, questButtonHighlight.highlightProps.className)} onClick={() => openQuests()} title={questButtonHighlight.highlightProps.title} type="button">
 								<Compass className="size-4" />
-								{progressionOverview?.questTrackerCount ? (
+								{activeQuestCount > 0 ? (
 									<span
 										className="
             absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center
@@ -550,7 +546,7 @@ export function AppHeader({
             text-cyan-100 shadow-[0_0_6px_rgba(34,211,238,0.3)]
           "
 									>
-										{progressionOverview.questTrackerCount}
+										{activeQuestCount}
 									</span>
 								) : null}
 							</button>
@@ -656,7 +652,7 @@ export function AppHeader({
 				onOpenStarMap={handleStarMapToggle}
 				onOpenQuests={() => openQuests()}
 				onClose={() => setDrawerOpen(false)}
-				questCount={progressionOverview?.questTrackerCount ?? 0}
+				questCount={activeQuestCount}
 				open={drawerOpen}
 			/>
 

@@ -151,10 +151,40 @@ export function showQuestProgressToast(args: QuestProgressToastArgs) {
 						marginTop: "1px",
 					}}
 				>
-					<svg fill="none" height="14" viewBox="0 0 14 14" width="14" xmlns="http://www.w3.org/2000/svg">
-						<rect height="12" rx="2" stroke="rgba(61,217,255,0.5)" strokeWidth="1.25" width="10" x="2" y="1" />
-						<line stroke="rgba(61,217,255,0.5)" strokeLinecap="round" strokeWidth="1.25" x1="4.5" x2="9.5" y1="5" y2="5" />
-						<line stroke="rgba(61,217,255,0.5)" strokeLinecap="round" strokeWidth="1.25" x1="4.5" x2="7.5" y1="8" y2="8" />
+					<svg
+						fill="none"
+						height="14"
+						viewBox="0 0 14 14"
+						width="14"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<rect
+							height="12"
+							rx="2"
+							stroke="rgba(61,217,255,0.5)"
+							strokeWidth="1.25"
+							width="10"
+							x="2"
+							y="1"
+						/>
+						<line
+							stroke="rgba(61,217,255,0.5)"
+							strokeLinecap="round"
+							strokeWidth="1.25"
+							x1="4.5"
+							x2="9.5"
+							y1="5"
+							y2="5"
+						/>
+						<line
+							stroke="rgba(61,217,255,0.5)"
+							strokeLinecap="round"
+							strokeWidth="1.25"
+							x1="4.5"
+							x2="7.5"
+							y1="8"
+							y2="8"
+						/>
 					</svg>
 				</div>
 
@@ -221,7 +251,13 @@ export function showQuestClaimableToast(args: QuestClaimableToastArgs) {
 						marginTop: "1px",
 					}}
 				>
-					<svg fill="none" height="14" viewBox="0 0 14 14" width="14" xmlns="http://www.w3.org/2000/svg">
+					<svg
+						fill="none"
+						height="14"
+						viewBox="0 0 14 14"
+						width="14"
+						xmlns="http://www.w3.org/2000/svg"
+					>
 						<circle cx="7" cy="7" r="5.5" stroke="rgba(52,211,153,0.6)" strokeWidth="1.25" />
 						<polyline
 							points="4.5,7 6.2,8.8 9.5,5.2"
@@ -295,7 +331,13 @@ export function showQuestActivatedToast(args: QuestActivatedToastArgs) {
 						marginTop: "1px",
 					}}
 				>
-					<svg fill="none" height="14" viewBox="0 0 14 14" width="14" xmlns="http://www.w3.org/2000/svg">
+					<svg
+						fill="none"
+						height="14"
+						viewBox="0 0 14 14"
+						width="14"
+						xmlns="http://www.w3.org/2000/svg"
+					>
 						<polygon
 							fill="rgba(61,217,255,0.7)"
 							points="4,2.5 11.5,7 4,11.5"

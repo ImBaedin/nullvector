@@ -3,10 +3,8 @@ import {
 	HOSTILE_FACTIONS,
 	normalizeDefenseCounts,
 	normalizeShipCounts,
-	type DefenseCounts,
 	type DefenseKey,
 	type ShipCounts,
-	type ShipKey,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
@@ -14,12 +12,10 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 
 import { query, type QueryCtx } from "../../convex/_generated/server";
 import {
-	listOpenColonyQueueItems,
-	loadColonyState,
-	loadPlanetState,
+	getPublicColonyBaseOrThrow,
+	listOpenColonyQueueItemRows,
 	readColonyDefenseCounts,
 	resolveCurrentPlayer,
-	storedToWholeUnits,
 	toAddressLabel,
 } from "./shared";
 
@@ -38,16 +34,6 @@ const FACILITY_LABELS = {
 	shipyard: "Shipyard",
 	defense_grid: "Defense Grid",
 } as const;
-
-const SHIP_LABELS = {
-	smallCargo: "Small Cargo",
-	largeCargo: "Large Cargo",
-	colonyShip: "Colony Ship",
-	interceptor: "Interceptor",
-	frigate: "Frigate",
-	cruiser: "Cruiser",
-	bomber: "Bomber",
-} as const satisfies Record<ShipKey, string>;
 
 const DEFENSE_LABELS = {
 	missileBattery: "Missile Battery",
@@ -82,13 +68,6 @@ const shipCountsValidator = v.object({
 	bomber: v.number(),
 });
 
-const defenseCountValidator = v.object({
-	missileBattery: v.number(),
-	laserTurret: v.number(),
-	gaussCannon: v.number(),
-	shieldDome: v.number(),
-});
-
 const activitySeverityValidator = v.union(
 	v.literal("critical"),
 	v.literal("warning"),
@@ -121,96 +100,146 @@ const lastRaidValidator = v.union(
 	v.null(),
 );
 
-export const colonyOverviewValidator = v.object({
+const overviewHeaderValidator = v.object({
+	name: v.string(),
+	ownerName: v.string(),
+	addressLabel: v.string(),
+	fileId: v.string(),
+	factionPlaceholder: v.string(),
+});
+
+const overviewOperationalStateValidator = v.object({
+	status: statusValidator,
+	classification: classificationValidator,
+});
+
+const overviewPlanetValidator = v.object({
+	compositionType: v.union(
+		v.literal("metallic"),
+		v.literal("silicate"),
+		v.literal("icy"),
+		v.literal("volatileRich"),
+	),
+	tierPlaceholder: v.string(),
+	usedSlots: v.number(),
+	maxSlots: v.number(),
+	multipliers: v.object({
+		alloy: v.number(),
+		crystal: v.number(),
+		fuel: v.number(),
+	}),
+	notes: v.array(v.string()),
+});
+
+const overviewInfrastructureValidator = v.object({
+	buildings: v.array(
+		v.object({
+			key: v.string(),
+			name: v.string(),
+			level: v.number(),
+		}),
+	),
+	facilities: v.array(
+		v.object({
+			key: v.union(v.literal("robotics_hub"), v.literal("shipyard"), v.literal("defense_grid")),
+			name: v.string(),
+			level: v.number(),
+		}),
+	),
+});
+
+const overviewDefenseValidator = v.object({
+	firepower: v.number(),
+	shieldLabel: v.string(),
+	units: v.array(
+		v.object({
+			key: v.union(
+				v.literal("missileBattery"),
+				v.literal("laserTurret"),
+				v.literal("gaussCannon"),
+				v.literal("shieldDome"),
+			),
+			name: v.string(),
+			count: v.number(),
+		}),
+	),
+	lastRaid: lastRaidValidator,
+});
+
+const overviewFleetValidator = v.object({
+	docked: shipCountsValidator,
+	totalDocked: v.number(),
+	inboundFriendly: v.number(),
+	inboundHostile: v.number(),
+	outbound: v.number(),
+});
+
+const overviewStrategicValidator = v.object({
+	tags: v.array(v.string()),
+	notesPlaceholder: v.string(),
+	diplomacyPolicy: v.union(
+		v.literal("allowAll"),
+		v.literal("denyAll"),
+		v.literal("alliesOnly"),
+		v.literal("unknown"),
+	),
+	threatStatus: v.string(),
+	visibilityPlaceholder: v.string(),
+	surveillance: v.object({
+		contactsPlaceholder: v.string(),
+		anomaliesPlaceholder: v.string(),
+	}),
+});
+
+const overviewTimingValidator = v.object({
+	nextEventAt: v.optional(v.number()),
+	serverNowMs: v.number(),
+});
+
+export const colonyOverviewHeaderViewValidator = v.object({
 	colonyId: v.id("colonies"),
 	viewerRelation: viewerRelationValidator,
-	header: v.object({
-		name: v.string(),
-		ownerName: v.string(),
-		addressLabel: v.string(),
-		fileId: v.string(),
-		status: statusValidator,
-		classification: classificationValidator,
-		factionPlaceholder: v.string(),
-	}),
-	planet: v.object({
-		compositionType: v.union(
-			v.literal("metallic"),
-			v.literal("silicate"),
-			v.literal("icy"),
-			v.literal("volatileRich"),
-		),
-		tierPlaceholder: v.string(),
-		usedSlots: v.number(),
-		maxSlots: v.number(),
-		multipliers: v.object({
-			alloy: v.number(),
-			crystal: v.number(),
-			fuel: v.number(),
-		}),
-		notes: v.array(v.string()),
-	}),
-	infrastructure: v.object({
-		buildings: v.array(
-			v.object({
-				key: v.string(),
-				name: v.string(),
-				level: v.number(),
-			}),
-		),
-		facilities: v.array(
-			v.object({
-				key: v.union(v.literal("robotics_hub"), v.literal("shipyard"), v.literal("defense_grid")),
-				name: v.string(),
-				level: v.number(),
-			}),
-		),
-	}),
-	defense: v.object({
-		firepower: v.number(),
-		shieldLabel: v.string(),
-		units: v.array(
-			v.object({
-				key: v.union(
-					v.literal("missileBattery"),
-					v.literal("laserTurret"),
-					v.literal("gaussCannon"),
-					v.literal("shieldDome"),
-				),
-				name: v.string(),
-				count: v.number(),
-			}),
-		),
-		lastRaid: lastRaidValidator,
-	}),
-	fleet: v.object({
-		docked: shipCountsValidator,
-		totalDocked: v.number(),
-		inboundFriendly: v.number(),
-		inboundHostile: v.number(),
-		outbound: v.number(),
-	}),
-	strategic: v.object({
-		tags: v.array(v.string()),
-		notesPlaceholder: v.string(),
-		diplomacyPolicy: v.union(
-			v.literal("allowAll"),
-			v.literal("denyAll"),
-			v.literal("alliesOnly"),
-			v.literal("unknown"),
-		),
-		threatStatus: v.string(),
-		visibilityPlaceholder: v.string(),
-		surveillance: v.object({
-			contactsPlaceholder: v.string(),
-			anomaliesPlaceholder: v.string(),
-		}),
-	}),
+	header: overviewHeaderValidator,
+});
+
+export const colonyOverviewOperationalStateViewValidator = v.object({
+	colonyId: v.id("colonies"),
+	operational: overviewOperationalStateValidator,
+});
+
+export const colonyOverviewPlanetViewValidator = v.object({
+	colonyId: v.id("colonies"),
+	planet: overviewPlanetValidator,
+});
+
+export const colonyOverviewInfrastructureViewValidator = v.object({
+	colonyId: v.id("colonies"),
+	infrastructure: overviewInfrastructureValidator,
+});
+
+export const colonyOverviewDefenseViewValidator = v.object({
+	colonyId: v.id("colonies"),
+	defense: overviewDefenseValidator,
+});
+
+export const colonyOverviewFleetViewValidator = v.object({
+	colonyId: v.id("colonies"),
+	fleet: overviewFleetValidator,
+});
+
+export const colonyOverviewStrategicViewValidator = v.object({
+	colonyId: v.id("colonies"),
+	strategic: overviewStrategicValidator,
+});
+
+export const colonyOverviewActivityViewValidator = v.object({
 	activity: v.array(activityEntryValidator),
-	timing: v.object({
-		nextEventAt: v.optional(v.number()),
-		serverNowMs: v.number(),
-	}),
+	colonyId: v.id("colonies"),
+});
+
+export const colonyOverviewTimingViewValidator = v.object({
+	colonyId: v.id("colonies"),
+	timing: overviewTimingValidator,
 });
 
 type OverviewStatus = "calm" | "active" | "under attack" | "upgrading" | "high traffic";
@@ -218,7 +247,14 @@ type ActivitySeverity = "critical" | "warning" | "info" | "success" | "neutral";
 
 type FleetActivityOperation = Pick<
 	Doc<"fleetOperations">,
-	"_id" | "arriveAt" | "nextEventAt" | "originColonyId" | "ownerPlayerId" | "status" | "target"
+	| "_id"
+	| "arriveAt"
+	| "kind"
+	| "nextEventAt"
+	| "originColonyId"
+	| "ownerPlayerId"
+	| "status"
+	| "target"
 >;
 
 function isInboundOperationForColony(args: {
@@ -229,6 +265,21 @@ function isInboundOperationForColony(args: {
 		(args.operation.target.colonyId === args.colonyId &&
 			args.operation.originColonyId !== args.colonyId) ||
 		(args.operation.status === "returning" && args.operation.originColonyId === args.colonyId)
+	);
+}
+
+function isAllowedCrossPlayerTransport(args: {
+	colonyId: Id<"colonies">;
+	operation: FleetActivityOperation;
+	ownerPlayerId: Id<"players">;
+}) {
+	return (
+		isInboundOperationForColony({
+			colonyId: args.colonyId,
+			operation: args.operation,
+		}) &&
+		args.operation.kind === "transport" &&
+		args.operation.ownerPlayerId !== args.ownerPlayerId
 	);
 }
 
@@ -519,177 +570,171 @@ async function readColonyShipCounts(args: { colonyId: Id<"colonies">; ctx: Query
 	return counts;
 }
 
-async function getPublicColonyOrThrow(args: { colonyId: Id<"colonies">; ctx: QueryCtx }) {
-	const colony = await args.ctx.db.get(args.colonyId);
-	if (!colony) {
-		throw new ConvexError("Colony not found");
-	}
-	const planet = await args.ctx.db.get(colony.planetId);
-	if (!planet) {
-		throw new ConvexError("Planet not found for colony");
-	}
-	const player = await args.ctx.db.get(colony.playerId);
-	if (!player) {
-		throw new ConvexError("Owner not found for colony");
-	}
-	const [colonyState, planetState] = await Promise.all([
-		loadColonyState({ colony, ctx: args.ctx }),
-		loadPlanetState({ planet, ctx: args.ctx }),
+function getViewerRelation(args: {
+	ownerPlayerId: Id<"players">;
+	viewerPlayerId?: Id<"players">;
+}): "anonymous" | "otherPlayer" | "owner" {
+	return args.viewerPlayerId === args.ownerPlayerId
+		? "owner"
+		: args.viewerPlayerId
+			? "otherPlayer"
+			: "anonymous";
+}
+
+async function readColonyOperationalOverview(args: {
+	colonyId: Id<"colonies">;
+	ctx: QueryCtx;
+	ownerPlayerId: Id<"players">;
+}) {
+	const [
+		queueRows,
+		dockedShips,
+		defenseCountsRaw,
+		originOps,
+		inboundOps,
+		activeRaid,
+		lastRaidResult,
+	] = await Promise.all([
+		listOpenColonyQueueItemRows({
+			colonyId: args.colonyId,
+			ctx: args.ctx,
+		}),
+		readColonyShipCounts({
+			colonyId: args.colonyId,
+			ctx: args.ctx,
+		}),
+		readColonyDefenseCounts({
+			colonyId: args.colonyId,
+			ctx: args.ctx,
+		}),
+		Promise.all([
+			args.ctx.db
+				.query("fleetOperations")
+				.withIndex("by_origin_stat_evt", (q) =>
+					q.eq("originColonyId", args.colonyId).eq("status", "inTransit"),
+				)
+				.collect(),
+			args.ctx.db
+				.query("fleetOperations")
+				.withIndex("by_origin_stat_evt", (q) =>
+					q.eq("originColonyId", args.colonyId).eq("status", "returning"),
+				)
+				.collect(),
+		]).then((rows) => rows.flat()),
+		args.ctx.db
+			.query("fleetOperations")
+			.withIndex("by_tcol_st_evt", (q) =>
+				q.eq("target.colonyId", args.colonyId).eq("status", "inTransit"),
+			)
+			.collect(),
+		args.ctx.db
+			.query("npcRaidOperations")
+			.withIndex("by_target_status_event", (q) =>
+				q.eq("targetColonyId", args.colonyId).eq("status", "inTransit"),
+			)
+			.first(),
+		args.ctx.db
+			.query("npcRaidResults")
+			.withIndex("by_target_colony_created_at", (q) => q.eq("targetColonyId", args.colonyId))
+			.order("desc")
+			.first(),
 	]);
+
+	const defenseCounts = normalizeDefenseCounts(defenseCountsRaw);
+	const operations = uniqueOperations([...originOps, ...inboundOps]);
+	const inboundFriendlyCount = operations.filter(
+		(operation) =>
+			isInboundOperationForColony({
+				colonyId: args.colonyId,
+				operation,
+			}) && operation.ownerPlayerId === args.ownerPlayerId,
+	).length;
+	const inboundHostileCount = operations.filter(
+		(operation) =>
+			isInboundOperationForColony({
+				colonyId: args.colonyId,
+				operation,
+			}) &&
+			operation.ownerPlayerId !== args.ownerPlayerId &&
+			!isAllowedCrossPlayerTransport({
+				colonyId: args.colonyId,
+				operation,
+				ownerPlayerId: args.ownerPlayerId,
+			}),
+	).length;
+	const outboundCount = operations.filter(
+		(operation) =>
+			operation.originColonyId === args.colonyId &&
+			!isInboundOperationForColony({
+				colonyId: args.colonyId,
+				operation,
+			}),
+	).length;
+	const status = deriveOverviewStatus({
+		activeRaid,
+		hasOpenQueue: queueRows.length > 0,
+		hostileInboundCount: inboundHostileCount,
+		inboundFriendlyCount,
+		outboundCount,
+	});
+	const nextEventCandidates = [
+		activeRaid?.nextEventAt,
+		...queueRows.map((row) => row.completesAt),
+		...operations.map((row) => row.nextEventAt),
+	].filter((value): value is number => typeof value === "number");
+	const nextEventAt = nextEventCandidates.length > 0 ? Math.min(...nextEventCandidates) : undefined;
+	const lastRaid = activeRaid
+		? ({
+				kind: "active",
+				factionName: HOSTILE_FACTIONS[activeRaid.hostileFactionKey].displayName,
+				outcomeLabel: "ONGOING",
+				occurredAt: activeRaid.departAt,
+			} as const)
+		: lastRaidResult
+			? ({
+					kind: "result",
+					factionName: HOSTILE_FACTIONS[lastRaidResult.hostileFactionKey].displayName,
+					outcomeLabel: lastRaidResult.success ? "BREACHED" : "REPELLED",
+					occurredAt: lastRaidResult.createdAt,
+				} as const)
+			: null;
+
 	return {
-		colony: colonyState,
-		planet: planetState,
-		player,
+		activeRaid,
+		defenseCounts,
+		dockedShips,
+		inboundFriendlyCount,
+		inboundHostileCount,
+		lastRaid,
+		lastRaidResult,
+		nextEventAt,
+		operations,
+		outboundCount,
+		queueRows,
+		status,
 	};
 }
 
-export const getColonyOverview = query({
+export const getColonyOverviewHeader = query({
 	args: {
 		colonyId: v.id("colonies"),
 	},
-	returns: colonyOverviewValidator,
+	returns: colonyOverviewHeaderViewValidator,
 	handler: async (ctx, args) => {
-		const serverNowMs = Date.now();
 		const [viewer, publicColony] = await Promise.all([
 			resolveCurrentPlayer(ctx),
-			getPublicColonyOrThrow({
+			getPublicColonyBaseOrThrow({
 				colonyId: args.colonyId,
 				ctx,
 			}),
 		]);
 
-		const [
-			queueRows,
-			dockedShips,
-			defenseCountsRaw,
-			originOps,
-			inboundOps,
-			activeRaid,
-			lastRaidResult,
-		] = await Promise.all([
-			listOpenColonyQueueItems({
-				colonyId: publicColony.colony._id,
-				ctx,
-			}),
-			readColonyShipCounts({
-				colonyId: publicColony.colony._id,
-				ctx,
-			}),
-			readColonyDefenseCounts({
-				colonyId: publicColony.colony._id,
-				ctx,
-			}),
-			Promise.all([
-				ctx.db
-					.query("fleetOperations")
-					.withIndex("by_origin_stat_evt", (q) =>
-						q.eq("originColonyId", publicColony.colony._id).eq("status", "inTransit"),
-					)
-					.collect(),
-				ctx.db
-					.query("fleetOperations")
-					.withIndex("by_origin_stat_evt", (q) =>
-						q.eq("originColonyId", publicColony.colony._id).eq("status", "returning"),
-					)
-					.collect(),
-			]).then((rows) => rows.flat()),
-			Promise.all([
-				ctx.db
-					.query("fleetOperations")
-					.withIndex("by_tcol_st_evt", (q) =>
-						q.eq("target.colonyId", publicColony.colony._id).eq("status", "inTransit"),
-					)
-					.collect(),
-			]).then((rows) => rows.flat()),
-			ctx.db
-				.query("npcRaidOperations")
-				.withIndex("by_target_status_event", (q) =>
-					q.eq("targetColonyId", publicColony.colony._id).eq("status", "inTransit"),
-				)
-				.first(),
-			ctx.db
-				.query("npcRaidResults")
-				.withIndex("by_target_colony_created_at", (q) =>
-					q.eq("targetColonyId", publicColony.colony._id),
-				)
-				.order("desc")
-				.first(),
-		]);
-
-		const viewerRelation: "anonymous" | "otherPlayer" | "owner" =
-			viewer?.player?._id === publicColony.player._id
-				? "owner"
-				: viewer?.player
-					? "otherPlayer"
-					: "anonymous";
-
-		const defenseCounts = normalizeDefenseCounts(defenseCountsRaw);
-		const operations = uniqueOperations([...originOps, ...inboundOps]);
-		const inboundFriendlyCount = operations.filter(
-			(operation) =>
-				isInboundOperationForColony({
-					colonyId: publicColony.colony._id,
-					operation,
-				}) && operation.ownerPlayerId === publicColony.player._id,
-		).length;
-		const inboundHostileCount = operations.filter(
-			(operation) =>
-				isInboundOperationForColony({
-					colonyId: publicColony.colony._id,
-					operation,
-				}) && operation.ownerPlayerId !== publicColony.player._id,
-		).length;
-		const outboundCount = operations.filter(
-			(operation) =>
-				operation.originColonyId === publicColony.colony._id &&
-				!isInboundOperationForColony({
-					colonyId: publicColony.colony._id,
-					operation,
-				}),
-		).length;
-		const status = deriveOverviewStatus({
-			activeRaid,
-			hasOpenQueue: queueRows.length > 0,
-			hostileInboundCount: inboundHostileCount,
-			inboundFriendlyCount,
-			outboundCount,
-		});
-		const defenseFirepower = estimateColonyDefensePower({
-			defenses: defenseCounts,
-			ships: dockedShips,
-		});
-		const nextEventCandidates = [
-			activeRaid?.nextEventAt,
-			...queueRows.map((row) => row.completesAt),
-			...operations.map((row) => row.nextEventAt),
-		].filter((value): value is number => typeof value === "number");
-		const nextEventAt =
-			nextEventCandidates.length > 0 ? Math.min(...nextEventCandidates) : undefined;
-
-		const classification: "RESTRICTED" | "CLASSIFIED" =
-			status === "under attack" || status === "high traffic" ? "CLASSIFIED" : "RESTRICTED";
-		const diplomacyPolicy: "allowAll" | "denyAll" | "alliesOnly" | "unknown" =
-			publicColony.colony.inboundMissionPolicy ?? "unknown";
-
-		const lastRaid = activeRaid
-			? ({
-					kind: "active",
-					factionName: HOSTILE_FACTIONS[activeRaid.hostileFactionKey].displayName,
-					outcomeLabel: "ONGOING",
-					occurredAt: activeRaid.departAt,
-				} as const)
-			: lastRaidResult
-				? ({
-						kind: "result",
-						factionName: HOSTILE_FACTIONS[lastRaidResult.hostileFactionKey].displayName,
-						outcomeLabel: lastRaidResult.success ? "BREACHED" : "REPELLED",
-						occurredAt: lastRaidResult.createdAt,
-					} as const)
-				: null;
-
 		return {
 			colonyId: publicColony.colony._id,
-			viewerRelation,
+			viewerRelation: getViewerRelation({
+				ownerPlayerId: publicColony.player._id,
+				viewerPlayerId: viewer?.player?._id,
+			}),
 			header: {
 				name: publicColony.colony.name,
 				ownerName: publicColony.player.displayName,
@@ -698,103 +743,314 @@ export const getColonyOverview = query({
 					addressLabel: toAddressLabel(publicColony.planet),
 					colonyId: publicColony.colony._id,
 				}),
-				status,
-				classification,
 				factionPlaceholder: "Frontier Coalition",
 			},
+		};
+	},
+});
+
+export const getColonyOverviewOperationalState = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyOverviewOperationalStateViewValidator,
+	handler: async (ctx, args) => {
+		const publicColony = await getPublicColonyBaseOrThrow({
+			colonyId: args.colonyId,
+			ctx,
+		});
+		const { status } = await readColonyOperationalOverview({
+			colonyId: publicColony.colony._id,
+			ctx,
+			ownerPlayerId: publicColony.player._id,
+		});
+		const classification: "RESTRICTED" | "CLASSIFIED" =
+			status === "under attack" || status === "high traffic" ? "CLASSIFIED" : "RESTRICTED";
+
+		return {
+			colonyId: publicColony.colony._id,
+			operational: {
+				status,
+				classification,
+			},
+		};
+	},
+});
+
+export const getColonyOverviewPlanet = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyOverviewPlanetViewValidator,
+	handler: async (ctx, args) => {
+		const publicColony = await getPublicColonyBaseOrThrow({
+			colonyId: args.colonyId,
+			ctx,
+		});
+		const [infrastructure, planetEconomy] = await Promise.all([
+			ctx.db
+				.query("colonyInfrastructure")
+				.withIndex("by_colony_id", (q) => q.eq("colonyId", publicColony.colony._id))
+				.unique(),
+			ctx.db
+				.query("planetEconomy")
+				.withIndex("by_planet_id", (q) => q.eq("planetId", publicColony.planet._id))
+				.unique(),
+		]);
+		if (!infrastructure) {
+			throw new ConvexError("Colony infrastructure row missing");
+		}
+		if (!planetEconomy) {
+			throw new ConvexError("Planet economy row missing");
+		}
+
+		return {
+			colonyId: publicColony.colony._id,
 			planet: {
-				compositionType: publicColony.planet.compositionType,
+				compositionType: planetEconomy.compositionType,
 				tierPlaceholder: "IV",
-				usedSlots: publicColony.colony.usedSlots,
-				maxSlots: publicColony.planet.maxBuildingSlots,
+				usedSlots: infrastructure.usedSlots,
+				maxSlots: planetEconomy.maxBuildingSlots,
 				multipliers: {
-					alloy: publicColony.planet.alloyMultiplier,
-					crystal: publicColony.planet.crystalMultiplier,
-					fuel: publicColony.planet.fuelMultiplier,
+					alloy: planetEconomy.alloyMultiplier,
+					crystal: planetEconomy.crystalMultiplier,
+					fuel: planetEconomy.fuelMultiplier,
 				},
 				notes: buildPlanetNotes({
-					alloyMultiplier: publicColony.planet.alloyMultiplier,
-					compositionType: publicColony.planet.compositionType,
-					crystalMultiplier: publicColony.planet.crystalMultiplier,
-					fuelMultiplier: publicColony.planet.fuelMultiplier,
+					alloyMultiplier: planetEconomy.alloyMultiplier,
+					compositionType: planetEconomy.compositionType,
+					crystalMultiplier: planetEconomy.crystalMultiplier,
+					fuelMultiplier: planetEconomy.fuelMultiplier,
 				}),
 			},
+		};
+	},
+});
+
+export const getColonyOverviewInfrastructure = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyOverviewInfrastructureViewValidator,
+	handler: async (ctx, args) => {
+		const infrastructure = await ctx.db
+			.query("colonyInfrastructure")
+			.withIndex("by_colony_id", (q) => q.eq("colonyId", args.colonyId))
+			.unique();
+		if (!infrastructure) {
+			throw new ConvexError("Colony infrastructure row missing");
+		}
+
+		return {
+			colonyId: args.colonyId,
 			infrastructure: {
 				buildings: Object.entries(BUILDING_LABELS).map(([key, name]) => ({
 					key,
+					level: infrastructure.buildings[key as keyof typeof BUILDING_LABELS] ?? 0,
 					name,
-					level: publicColony.colony.buildings[key as keyof typeof BUILDING_LABELS] ?? 0,
 				})),
 				facilities: [
 					{
 						key: "robotics_hub" as const,
+						level: infrastructure.buildings.roboticsHubLevel ?? 0,
 						name: FACILITY_LABELS.robotics_hub,
-						level: publicColony.colony.buildings.roboticsHubLevel ?? 0,
 					},
 					{
 						key: "shipyard" as const,
+						level: infrastructure.buildings.shipyardLevel ?? 0,
 						name: FACILITY_LABELS.shipyard,
-						level: publicColony.colony.buildings.shipyardLevel ?? 0,
 					},
 					{
 						key: "defense_grid" as const,
+						level: infrastructure.buildings.defenseGridLevel ?? 0,
 						name: FACILITY_LABELS.defense_grid,
-						level: publicColony.colony.buildings.defenseGridLevel ?? 0,
 					},
 				],
 			},
+		};
+	},
+});
+
+export const getColonyOverviewDefense = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyOverviewDefenseViewValidator,
+	handler: async (ctx, args) => {
+		const publicColony = await getPublicColonyBaseOrThrow({
+			colonyId: args.colonyId,
+			ctx,
+		});
+		const operational = await readColonyOperationalOverview({
+			colonyId: publicColony.colony._id,
+			ctx,
+			ownerPlayerId: publicColony.player._id,
+		});
+
+		return {
+			colonyId: publicColony.colony._id,
 			defense: {
-				firepower: defenseFirepower,
+				firepower: estimateColonyDefensePower({
+					defenses: operational.defenseCounts,
+					ships: operational.dockedShips,
+				}),
 				shieldLabel: deriveShieldLabel({
-					activeRaid,
-					lastRaidResult,
+					activeRaid: operational.activeRaid,
+					lastRaidResult: operational.lastRaidResult,
 				}),
 				units: Object.entries(DEFENSE_LABELS).map(([key, name]) => ({
 					key: key as DefenseKey,
 					name,
-					count: defenseCounts[key as DefenseKey] ?? 0,
+					count: operational.defenseCounts[key as DefenseKey] ?? 0,
 				})),
-				lastRaid,
+				lastRaid: operational.lastRaid,
 			},
+		};
+	},
+});
+
+export const getColonyOverviewFleet = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyOverviewFleetViewValidator,
+	handler: async (ctx, args) => {
+		const publicColony = await getPublicColonyBaseOrThrow({
+			colonyId: args.colonyId,
+			ctx,
+		});
+		const operational = await readColonyOperationalOverview({
+			colonyId: publicColony.colony._id,
+			ctx,
+			ownerPlayerId: publicColony.player._id,
+		});
+
+		return {
+			colonyId: publicColony.colony._id,
 			fleet: {
-				docked: dockedShips,
-				totalDocked: countFleetShips(dockedShips),
-				inboundFriendly: inboundFriendlyCount,
-				inboundHostile: inboundHostileCount,
-				outbound: outboundCount,
+				docked: operational.dockedShips,
+				totalDocked: countFleetShips(operational.dockedShips),
+				inboundFriendly: operational.inboundFriendlyCount,
+				inboundHostile: operational.inboundHostileCount,
+				outbound: operational.outboundCount,
 			},
+		};
+	},
+});
+
+export const getColonyOverviewStrategic = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyOverviewStrategicViewValidator,
+	handler: async (ctx, args) => {
+		const publicColony = await getPublicColonyBaseOrThrow({
+			colonyId: args.colonyId,
+			ctx,
+		});
+		const [planetEconomy, policy] = await Promise.all([
+			ctx.db
+				.query("planetEconomy")
+				.withIndex("by_planet_id", (q) => q.eq("planetId", publicColony.planet._id))
+				.unique(),
+			ctx.db
+				.query("colonyPolicy")
+				.withIndex("by_colony_id", (q) => q.eq("colonyId", publicColony.colony._id))
+				.unique(),
+		]);
+		if (!planetEconomy) {
+			throw new ConvexError("Planet economy row missing");
+		}
+		const operational = await readColonyOperationalOverview({
+			colonyId: publicColony.colony._id,
+			ctx,
+			ownerPlayerId: publicColony.player._id,
+		});
+
+		return {
+			colonyId: publicColony.colony._id,
 			strategic: {
 				tags: buildStrategicTags({
-					alloyMultiplier: publicColony.planet.alloyMultiplier,
-					crystalMultiplier: publicColony.planet.crystalMultiplier,
-					fuelMultiplier: publicColony.planet.fuelMultiplier,
-					status,
+					alloyMultiplier: planetEconomy.alloyMultiplier,
+					crystalMultiplier: planetEconomy.crystalMultiplier,
+					fuelMultiplier: planetEconomy.fuelMultiplier,
+					status: operational.status,
 				}),
 				notesPlaceholder:
 					"Strategic assessment pending expanded intelligence synthesis. Treat current dossier as a live operational snapshot.",
-				diplomacyPolicy,
+				diplomacyPolicy: (policy?.inboundMissionPolicy ?? "unknown") as
+					| "allowAll"
+					| "denyAll"
+					| "alliesOnly"
+					| "unknown",
 				threatStatus: buildThreatStatus({
-					activeRaid,
-					hostileInboundCount: inboundHostileCount,
-					inboundFriendlyCount,
-					outboundCount,
-					status,
+					activeRaid: operational.activeRaid,
+					hostileInboundCount: operational.inboundHostileCount,
+					inboundFriendlyCount: operational.inboundFriendlyCount,
+					outboundCount: operational.outboundCount,
+					status: operational.status,
 				}),
-				visibilityPlaceholder: status === "under attack" ? "CONTESTED" : "MONITORED",
+				visibilityPlaceholder: operational.status === "under attack" ? "CONTESTED" : "MONITORED",
 				surveillance: {
-					contactsPlaceholder: String(operations.length),
-					anomaliesPlaceholder: activeRaid ? "1" : "0",
+					contactsPlaceholder: String(operational.operations.length),
+					anomaliesPlaceholder: operational.activeRaid ? "1" : "0",
 				},
 			},
+		};
+	},
+});
+
+export const getColonyOverviewActivity = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyOverviewActivityViewValidator,
+	handler: async (ctx, args) => {
+		const serverNowMs = Date.now();
+		const publicColony = await getPublicColonyBaseOrThrow({
+			colonyId: args.colonyId,
+			ctx,
+		});
+		const operational = await readColonyOperationalOverview({
+			colonyId: publicColony.colony._id,
+			ctx,
+			ownerPlayerId: publicColony.player._id,
+		});
+
+		return {
 			activity: buildActivityFeed({
-				activeRaid,
+				activeRaid: operational.activeRaid,
 				colony: publicColony.colony,
-				lastRaidResult,
+				lastRaidResult: operational.lastRaidResult,
 				now: serverNowMs,
-				operations,
+				operations: operational.operations,
 			}),
+			colonyId: publicColony.colony._id,
+		};
+	},
+});
+
+export const getColonyOverviewTiming = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: colonyOverviewTimingViewValidator,
+	handler: async (ctx, args) => {
+		const serverNowMs = Date.now();
+		const publicColony = await getPublicColonyBaseOrThrow({
+			colonyId: args.colonyId,
+			ctx,
+		});
+		const operational = await readColonyOperationalOverview({
+			colonyId: publicColony.colony._id,
+			ctx,
+			ownerPlayerId: publicColony.player._id,
+		});
+
+		return {
+			colonyId: publicColony.colony._id,
 			timing: {
-				nextEventAt,
+				nextEventAt: operational.nextEventAt,
 				serverNowMs,
 			},
 		};

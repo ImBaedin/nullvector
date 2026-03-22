@@ -9,8 +9,9 @@ import { DEFAULT_UNIVERSE_SLUG } from "../../convex/lib/worldgen/config";
 import { ensureCoreCapacityPipeline } from "../../convex/lib/worldgen/pipeline";
 import { ensureUniverseHostilitySeeded, isPlanetCurrentlyColonizable } from "./hostility";
 import { ensurePlayerProgression } from "./progression";
-import { syncQuestAvailabilityForPlayer } from "./quests";
+import { ensureQuestActivationsForPlayer } from "./quests";
 import {
+	ensureColonyAccessRow,
 	emptyResourceBucket,
 	hashString,
 	listPlayerColonies,
@@ -19,6 +20,7 @@ import {
 	resolvedAuthUserId,
 	resolveUniverse,
 	storageCapsFromBuildings,
+	upsertColonySchedulingState,
 	usedSlotsFromBuildings,
 	sessionStateValidator,
 } from "./shared";
@@ -30,15 +32,15 @@ const bootstrapResponseValidator = v.object({
 	isNewColony: v.boolean(),
 });
 
-async function syncQuestAvailabilityBestEffort(args: {
+async function ensureQuestActivationsBestEffort(args: {
 	activeColonyId: Doc<"colonies">["_id"];
 	ctx: MutationCtx;
 	playerId: Doc<"players">["_id"];
 }) {
 	try {
-		await syncQuestAvailabilityForPlayer(args);
+		await ensureQuestActivationsForPlayer(args);
 	} catch (error) {
-		console.error("Session quest sync failed", {
+		console.error("Session quest activation ensure failed", {
 			activeColonyId: args.activeColonyId,
 			error,
 			playerId: args.playerId,
@@ -102,7 +104,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	});
 
 	if (existingColonies.length > 0 && existingColonies[0]) {
-		await syncQuestAvailabilityBestEffort({
+		await ensureQuestActivationsBestEffort({
 			ctx,
 			playerId: player._id,
 			activeColonyId: existingColonies[0]._id,
@@ -288,13 +290,28 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 		createdAt: now,
 		updatedAt: now,
 	});
+	const createdColony = await ctx.db.get(colonyId);
+	if (!createdColony) {
+		throw new ConvexError("Failed to create colony");
+	}
+	await ensureColonyAccessRow({
+		colony: createdColony,
+		ctx,
+		now,
+	});
+	await upsertColonySchedulingState({
+		colonyId,
+		ctx,
+		now,
+		patch: {},
+	});
 	await ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
 		colonyId,
 	});
 	await ctx.scheduler.runAfter(0, internal.contracts.rebuildContractDiscoveryForColony, {
 		colonyId,
 	});
-	await syncQuestAvailabilityBestEffort({
+	await ensureQuestActivationsBestEffort({
 		ctx,
 		playerId: player._id,
 		activeColonyId: colonyId,

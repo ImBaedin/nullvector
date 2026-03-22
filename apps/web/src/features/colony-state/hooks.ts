@@ -30,12 +30,322 @@ function deriveColonySessionStatus(snapshot: {
 	return hasActive ? "Upgrading" : hasQueued ? "Queued" : "Stable";
 }
 
+function buildColonySnapshot(args: {
+	defenses:
+		| {
+				defenses: ColonySnapshot["defenses"];
+		  }
+		| undefined;
+	economy:
+		| {
+				lastAccruedAt: number;
+				overflow: ColonySnapshot["overflow"];
+				resources: ColonySnapshot["resources"];
+				serverNowMs: number;
+				storageCaps: ColonySnapshot["storageCaps"];
+		  }
+		| undefined;
+	identity:
+		| {
+				addressLabel: string;
+				name: string;
+				planetId: Id<"planets">;
+		  }
+		| undefined;
+	planetEconomy:
+		| {
+				multipliers: ColonySnapshot["planetMultipliers"];
+		  }
+		| undefined;
+	infrastructure:
+		| {
+				buildings: ColonySnapshot["buildings"];
+		  }
+		| undefined;
+	policy:
+		| {
+				policies: ColonySnapshot["policies"];
+		  }
+		| undefined;
+	queueState:
+		| {
+				openQueues: ColonySnapshot["openQueues"];
+				schedule: ColonySnapshot["schedule"];
+				serverNowMs: number;
+		  }
+		| undefined;
+	ships:
+		| {
+				ships: ColonySnapshot["ships"];
+		  }
+		| undefined;
+	colonyId: Id<"colonies">;
+}): ColonySnapshot | undefined {
+	if (
+		!args.identity ||
+		!args.economy ||
+		!args.planetEconomy ||
+		!args.infrastructure ||
+		!args.policy ||
+		!args.queueState ||
+		!args.ships ||
+		!args.defenses
+	) {
+		return undefined;
+	}
+
+	return {
+		addressLabel: args.identity.addressLabel,
+		buildings: args.infrastructure.buildings,
+		colonyId: args.colonyId,
+		defenses: args.defenses.defenses,
+		lastAccruedAt: args.economy.lastAccruedAt,
+		name: args.identity.name,
+		openQueues: args.queueState.openQueues,
+		overflow: args.economy.overflow,
+		planetMultipliers: args.planetEconomy.multipliers,
+		policies: args.policy.policies,
+		resources: args.economy.resources,
+		schedule: args.queueState.schedule,
+		serverNowMs: Math.max(args.economy.serverNowMs, args.queueState.serverNowMs),
+		ships: args.ships.ships,
+		storageCaps: args.economy.storageCaps,
+	};
+}
+
+function buildColonySessionSnapshot(args: {
+	colonyNav:
+		| {
+				activeColonyId: Id<"colonies">;
+				colonies: Array<{
+					addressLabel: string;
+					id: Id<"colonies">;
+					name: string;
+				}>;
+				title: string;
+		  }
+		| undefined;
+	queueStatuses:
+		| {
+				statuses: Array<{
+					colonyId: Id<"colonies">;
+					status: "Queued" | "Stable" | "Upgrading";
+				}>;
+		  }
+		| undefined;
+}) {
+	if (!args.colonyNav || !args.queueStatuses) {
+		return undefined;
+	}
+
+	const statusByColonyId = new Map(
+		args.queueStatuses.statuses.map((entry) => [entry.colonyId, entry.status]),
+	);
+
+	return {
+		activeColonyId: args.colonyNav.activeColonyId,
+		colonies: args.colonyNav.colonies.map((colony) => ({
+			...colony,
+			status: statusByColonyId.get(colony.id) ?? "Stable",
+		})),
+		title: args.colonyNav.title,
+	};
+}
+
+function readSnapshotFromLocalStore(args: {
+	colonyId: Id<"colonies">;
+	localStore: {
+		getQuery: (...queryArgs: any[]) => any;
+	};
+}) {
+	const identity = args.localStore.getQuery(api.colony.getColonyIdentity, {
+		colonyId: args.colonyId,
+	});
+	return buildColonySnapshot({
+		colonyId: args.colonyId,
+		defenses: args.localStore.getQuery(api.colony.getColonyDefenses, {
+			colonyId: args.colonyId,
+		}),
+		economy: args.localStore.getQuery(api.colony.getColonyEconomy, {
+			colonyId: args.colonyId,
+		}),
+		identity,
+		infrastructure: args.localStore.getQuery(api.colony.getColonyInfrastructure, {
+			colonyId: args.colonyId,
+		}),
+		planetEconomy: identity?.planetId
+			? args.localStore.getQuery(api.colony.getPlanetEconomy, {
+					planetId: identity.planetId,
+				})
+			: undefined,
+		policy: args.localStore.getQuery(api.colony.getColonyPolicy, {
+			colonyId: args.colonyId,
+		}),
+		queueState: args.localStore.getQuery(api.colony.getColonyQueueState, {
+			colonyId: args.colonyId,
+		}),
+		ships: args.localStore.getQuery(api.colony.getColonyShips, {
+			colonyId: args.colonyId,
+		}),
+	});
+}
+
+function writeSnapshotToLocalStore(args: {
+	colonyId: Id<"colonies">;
+	localStore: {
+		getQuery: (...queryArgs: any[]) => any;
+		setQuery: (...queryArgs: any[]) => void;
+	};
+	snapshot: ColonySnapshot;
+}) {
+	const existingIdentity = args.localStore.getQuery(api.colony.getColonyIdentity, {
+		colonyId: args.colonyId,
+	});
+	if (existingIdentity) {
+		args.localStore.setQuery(
+			api.colony.getColonyIdentity,
+			{ colonyId: args.colonyId },
+			{
+				addressLabel: args.snapshot.addressLabel,
+				colonyId: args.colonyId,
+				name: args.snapshot.name,
+				planetId: existingIdentity.planetId,
+			},
+		);
+	}
+	args.localStore.setQuery(
+		api.colony.getColonyEconomy,
+		{ colonyId: args.colonyId },
+		{
+			colonyId: args.colonyId,
+			lastAccruedAt: args.snapshot.lastAccruedAt,
+			overflow: args.snapshot.overflow,
+			resources: args.snapshot.resources,
+			serverNowMs: args.snapshot.serverNowMs,
+			storageCaps: args.snapshot.storageCaps,
+		},
+	);
+	if (existingIdentity?.planetId) {
+		const existingPlanetEconomy = args.localStore.getQuery(api.colony.getPlanetEconomy, {
+			planetId: existingIdentity.planetId,
+		});
+		if (existingPlanetEconomy) {
+			args.localStore.setQuery(
+				api.colony.getPlanetEconomy,
+				{ planetId: existingIdentity.planetId },
+				{
+					planetId: existingIdentity.planetId,
+					multipliers: args.snapshot.planetMultipliers,
+					compositionType: existingPlanetEconomy.compositionType,
+					maxBuildingSlots: existingPlanetEconomy.maxBuildingSlots,
+				},
+			);
+		}
+	}
+	args.localStore.setQuery(
+		api.colony.getColonyInfrastructure,
+		{ colonyId: args.colonyId },
+		{
+			buildings: args.snapshot.buildings,
+			colonyId: args.colonyId,
+		},
+	);
+	args.localStore.setQuery(
+		api.colony.getColonyPolicy,
+		{ colonyId: args.colonyId },
+		{
+			colonyId: args.colonyId,
+			policies: args.snapshot.policies ?? {},
+		},
+	);
+	args.localStore.setQuery(
+		api.colony.getColonyQueueState,
+		{ colonyId: args.colonyId },
+		{
+			colonyId: args.colonyId,
+			openQueues: args.snapshot.openQueues,
+			schedule: args.snapshot.schedule,
+			serverNowMs: args.snapshot.serverNowMs,
+		},
+	);
+	args.localStore.setQuery(
+		api.colony.getColonyShips,
+		{ colonyId: args.colonyId },
+		{
+			colonyId: args.colonyId,
+			ships: args.snapshot.ships,
+		},
+	);
+	args.localStore.setQuery(
+		api.colony.getColonyDefenses,
+		{ colonyId: args.colonyId },
+		{
+			colonyId: args.colonyId,
+			defenses: args.snapshot.defenses,
+		},
+	);
+}
+
 export function useColonySnapshot(colonyId: Id<"colonies"> | null) {
-	return useQuery(api.colony.getColonySnapshot, colonyId ? { colonyId } : "skip");
+	const identity = useQuery(api.colony.getColonyIdentity, colonyId ? { colonyId } : "skip");
+	const economy = useQuery(api.colony.getColonyEconomy, colonyId ? { colonyId } : "skip");
+	const planetEconomy = useQuery(
+		api.colony.getPlanetEconomy,
+		identity ? { planetId: identity.planetId } : "skip",
+	);
+	const infrastructure = useQuery(
+		api.colony.getColonyInfrastructure,
+		colonyId ? { colonyId } : "skip",
+	);
+	const policy = useQuery(api.colony.getColonyPolicy, colonyId ? { colonyId } : "skip");
+	const queueState = useQuery(api.colony.getColonyQueueState, colonyId ? { colonyId } : "skip");
+	const ships = useQuery(api.colony.getColonyShips, colonyId ? { colonyId } : "skip");
+	const defenses = useQuery(api.colony.getColonyDefenses, colonyId ? { colonyId } : "skip");
+
+	return useMemo(
+		() =>
+			colonyId
+				? buildColonySnapshot({
+						colonyId,
+						defenses,
+						economy,
+						identity,
+						infrastructure,
+						planetEconomy,
+						policy,
+						queueState,
+						ships,
+					})
+				: undefined,
+		[
+			colonyId,
+			defenses,
+			economy,
+			identity,
+			infrastructure,
+			planetEconomy,
+			policy,
+			queueState,
+			ships,
+		],
+	);
 }
 
 export function useColonySessionSnapshot(colonyId: Id<"colonies"> | null) {
-	return useQuery(api.colony.getColonySessionSnapshot, colonyId ? { colonyId } : "skip");
+	const colonyNav = useQuery(api.colonyNav.getColonyNav, colonyId ? { colonyId } : "skip");
+	const queueStatuses = useQuery(
+		api.colonyNav.getAllColonyQueueStatuses,
+		colonyId ? { colonyId } : "skip",
+	);
+
+	return useMemo(
+		() =>
+			buildColonySessionSnapshot({
+				colonyNav,
+				queueStatuses,
+			}),
+		[colonyNav, queueStatuses],
+	);
 }
 
 export function useColonyView(colonyId: Id<"colonies"> | null) {
@@ -99,8 +409,9 @@ export function useOptimisticColonyMutation<TArgs extends { colonyId: Id<"coloni
 	mutation: FunctionReference<"mutation", "public", TArgs>;
 }) {
 	return useMutation(args.mutation).withOptimisticUpdate((localStore, mutationArgs) => {
-		const snapshot = localStore.getQuery(api.colony.getColonySnapshot, {
+		const snapshot = readSnapshotFromLocalStore({
 			colonyId: mutationArgs.colonyId,
+			localStore,
 		});
 		if (!snapshot) {
 			return;
@@ -115,35 +426,54 @@ export function useOptimisticColonyMutation<TArgs extends { colonyId: Id<"coloni
 			args.intentFromArgs(mutationArgs, optimisticNowMs),
 			optimisticNowMs,
 		);
-		localStore.setQuery(
-			api.colony.getColonySnapshot,
-			{ colonyId: mutationArgs.colonyId },
-			nextSnapshot as typeof snapshot,
-		);
-		const sessionSnapshot = localStore.getQuery(api.colony.getColonySessionSnapshot, {
+		writeSnapshotToLocalStore({
+			colonyId: mutationArgs.colonyId,
+			localStore,
+			snapshot: nextSnapshot,
+		});
+
+		const colonyNav = localStore.getQuery(api.colonyNav.getColonyNav, {
 			colonyId: mutationArgs.colonyId,
 		});
-		if (!sessionSnapshot) {
+		if (colonyNav) {
+			localStore.setQuery(
+				api.colonyNav.getColonyNav,
+				{ colonyId: mutationArgs.colonyId },
+				{
+					...colonyNav,
+					colonies: colonyNav.colonies.map(
+						(colony: { addressLabel: string; id: Id<"colonies">; name: string }) =>
+							colony.id === mutationArgs.colonyId ? { ...colony, name: nextSnapshot.name } : colony,
+					),
+					title:
+						colonyNav.activeColonyId === mutationArgs.colonyId
+							? `${nextSnapshot.name} Resources`
+							: colonyNav.title,
+				},
+			);
+		}
+
+		const queueStatuses = localStore.getQuery(api.colonyNav.getAllColonyQueueStatuses, {
+			colonyId: mutationArgs.colonyId,
+		});
+		if (!queueStatuses) {
 			return;
 		}
+
 		localStore.setQuery(
-			api.colony.getColonySessionSnapshot,
+			api.colonyNav.getAllColonyQueueStatuses,
 			{ colonyId: mutationArgs.colonyId },
 			{
-				...sessionSnapshot,
-				colonies: sessionSnapshot.colonies.map((colony) =>
-					colony.id === mutationArgs.colonyId
-						? {
-								...colony,
-								name: nextSnapshot.name,
-								status: deriveColonySessionStatus(nextSnapshot),
-							}
-						: colony,
+				...queueStatuses,
+				statuses: queueStatuses.statuses.map(
+					(entry: { colonyId: Id<"colonies">; status: "Queued" | "Stable" | "Upgrading" }) =>
+						entry.colonyId === mutationArgs.colonyId
+							? {
+									...entry,
+									status: deriveColonySessionStatus(nextSnapshot),
+								}
+							: entry,
 				),
-				title:
-					sessionSnapshot.activeColonyId === mutationArgs.colonyId
-						? `${nextSnapshot.name} Resources`
-						: sessionSnapshot.title,
 			},
 		);
 	});
