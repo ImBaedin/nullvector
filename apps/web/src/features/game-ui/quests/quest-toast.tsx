@@ -1,3 +1,4 @@
+import { type CSSProperties, type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,7 +34,7 @@ export type QuestActivatedToastArgs = {
 // left accent bar. The accent color is the only visual difference between
 // variants — cyan for progress/activated, emerald for claimable.
 
-const SHELL: React.CSSProperties = {
+const SHELL: CSSProperties = {
 	position: "relative",
 	overflow: "hidden",
 	width: "var(--width, 356px)",
@@ -48,6 +49,59 @@ const SHELL: React.CSSProperties = {
 	gap: "10px",
 	fontFamily: "inherit",
 };
+
+function ClaimQuestButton(props: {
+	onClaim: () => Promise<void>;
+	toastId: string | number;
+}) {
+	const [isPending, setIsPending] = useState(false);
+
+	async function handleClick() {
+		if (isPending) {
+			return;
+		}
+		setIsPending(true);
+		void props
+			.onClaim()
+			.then(() => {
+				toast.dismiss(props.toastId);
+			})
+			.catch((error) => {
+				toast.error(error instanceof Error ? error.message : "Failed to claim quest");
+			})
+			.finally(() => {
+				setIsPending(false);
+			});
+	}
+
+	return (
+		<button
+			disabled={isPending}
+			onClick={() => {
+				void handleClick();
+			}}
+			style={{
+				display: "inline-flex",
+				alignItems: "center",
+				gap: "4px",
+				padding: "4px 10px",
+				fontSize: "11px",
+				fontWeight: 600,
+				color: "rgba(52,211,153,0.9)",
+				background: "rgba(52,211,153,0.1)",
+				border: "1px solid rgba(52,211,153,0.25)",
+				borderRadius: "5px",
+				cursor: isPending ? "default" : "pointer",
+				letterSpacing: "0.01em",
+				opacity: isPending ? 0.6 : 1,
+				transition: "background 0.15s, border-color 0.15s",
+			}}
+			type="button"
+		>
+			{isPending ? "Claiming..." : "Claim →"}
+		</button>
+	);
+}
 
 function AccentBar({ color }: { color: string }) {
 	return (
@@ -64,7 +118,7 @@ function AccentBar({ color }: { color: string }) {
 	);
 }
 
-function ToastTitle({ children }: { children: React.ReactNode }) {
+function ToastTitle({ children }: { children: ReactNode }) {
 	return (
 		<p
 			style={{
@@ -80,7 +134,7 @@ function ToastTitle({ children }: { children: React.ReactNode }) {
 	);
 }
 
-function ToastDescription({ children, mb = 0 }: { children: React.ReactNode; mb?: number }) {
+function ToastDescription({ children, mb = 0 }: { children: ReactNode; mb?: number }) {
 	return (
 		<p
 			style={{
@@ -272,30 +326,7 @@ export function showQuestClaimableToast(args: QuestClaimableToastArgs) {
 				<div style={{ flex: 1, minWidth: 0 }}>
 					<ToastTitle>{title}</ToastTitle>
 					<ToastDescription mb={10}>Quest complete — claim your reward</ToastDescription>
-					<button
-						onClick={() => {
-							toast.dismiss(t);
-							void onClaim();
-						}}
-						style={{
-							display: "inline-flex",
-							alignItems: "center",
-							gap: "4px",
-							padding: "4px 10px",
-							fontSize: "11px",
-							fontWeight: 600,
-							color: "rgba(52,211,153,0.9)",
-							background: "rgba(52,211,153,0.1)",
-							border: "1px solid rgba(52,211,153,0.25)",
-							borderRadius: "5px",
-							cursor: "pointer",
-							letterSpacing: "0.01em",
-							transition: "background 0.15s, border-color 0.15s",
-						}}
-						type="button"
-					>
-						Claim →
-					</button>
+					<ClaimQuestButton onClaim={onClaim} toastId={t} />
 				</div>
 			</div>
 		),

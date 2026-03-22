@@ -35,12 +35,17 @@ test("progression overview derives onboarding gates from total xp", () => {
 	expect(overview.features.contracts).toBe("unlocked");
 	expect(overview.shipAccess.interceptor).toBe("unlocked");
 	expect(overview.missionAccess.contracts).toBe("unlocked");
+	expect(overview.raidRules.mode).toBe("tutorialOnly");
+
+	const rankFour = getRankDefinition(4);
+	expect(rankFour.raidRules.mode).toBe("tutorialOnly");
 
 	const rankFive = getRankForXpTotal(1_000);
 	expect(rankFive.rank).toBeGreaterThanOrEqual(5);
 	expect(rankFive.colonyCap).toBe(2);
 	expect(rankFive.missionAccess.colonize).toBe("unlocked");
 	expect(rankFive.missionAccess.transport).toBe("unlocked");
+	expect(rankFive.raidRules.mode).toBe("full");
 });
 
 test("bound-colony quest objectives only read the bound colony state", () => {

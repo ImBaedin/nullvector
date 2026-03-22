@@ -86,9 +86,11 @@ function FacilitiesRoute(): ReactElement {
 		if (!colonyView) {
 			return undefined;
 		}
-		const visibleFacilities = colonyView.facilities.filter(
-			(facility) => progressionOverview?.facilityAccess[facility.key] === "unlocked",
-		);
+		const visibleFacilities = progressionOverview?.facilityAccess
+			? colonyView.facilities.filter(
+					(facility) => progressionOverview.facilityAccess[facility.key] === "unlocked",
+				)
+			: colonyView.facilities;
 		return {
 			facilities: visibleFacilities,
 			queues: colonyView.queueLanes,

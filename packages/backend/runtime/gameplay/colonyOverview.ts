@@ -482,7 +482,14 @@ function buildActivityFeed(args: {
 			colonyId: args.colony._id,
 			operation,
 		});
-		const isHostile = operation.ownerPlayerId !== args.colony.playerId;
+		const isHostile =
+			isInbound &&
+			operation.ownerPlayerId !== args.colony.playerId &&
+			!isAllowedCrossPlayerTransport({
+				colonyId: args.colony._id,
+				operation,
+				ownerPlayerId: args.colony.playerId,
+			});
 		const severity: ActivitySeverity = isInbound ? (isHostile ? "warning" : "info") : "neutral";
 		const relationLabel = isInbound
 			? isHostile

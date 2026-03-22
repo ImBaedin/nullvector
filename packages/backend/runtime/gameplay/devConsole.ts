@@ -178,9 +178,11 @@ async function deleteAllByQuery(args: {
 const clearAllPlayerDataDeletedValidator = v.object({
 	playerProgression: v.number(),
 	playerQuestStates: v.number(),
+	playerQuestMetrics: v.number(),
 	devConsoleActions: v.number(),
 	playerNotificationPreferences: v.number(),
 	notifications: v.number(),
+	colonyQuestMetrics: v.number(),
 	colonyContractCandidates: v.number(),
 	colonyContractDiscoveryState: v.number(),
 	contractBoardState: v.number(),
@@ -199,6 +201,7 @@ const clearAllPlayerDataDeletedValidator = v.object({
 	colonyPolicy: v.number(),
 	colonyInfrastructure: v.number(),
 	colonyEconomy: v.number(),
+	colonyRaidScheduling: v.number(),
 	colonies: v.number(),
 });
 
@@ -1189,6 +1192,11 @@ export const clearAllPlayerData = internalMutation({
 				dryRun,
 				queryFactory: () => ctx.db.query("playerQuestStates").collect(),
 			}),
+			playerQuestMetrics: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("playerQuestMetrics").collect(),
+			}),
 			devConsoleActions: await deleteAllByQuery({
 				ctx,
 				dryRun,
@@ -1203,6 +1211,11 @@ export const clearAllPlayerData = internalMutation({
 				ctx,
 				dryRun,
 				queryFactory: () => ctx.db.query("notifications").collect(),
+			}),
+			colonyQuestMetrics: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("colonyQuestMetrics").collect(),
 			}),
 			colonyContractCandidates: await deleteAllByQuery({
 				ctx,
@@ -1293,6 +1306,11 @@ export const clearAllPlayerData = internalMutation({
 				ctx,
 				dryRun,
 				queryFactory: () => ctx.db.query("colonyEconomy").collect(),
+			}),
+			colonyRaidScheduling: await deleteAllByQuery({
+				ctx,
+				dryRun,
+				queryFactory: () => ctx.db.query("colonyRaidScheduling").collect(),
 			}),
 			colonies: await deleteAllByQuery({
 				ctx,

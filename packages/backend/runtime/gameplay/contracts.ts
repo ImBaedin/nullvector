@@ -1364,7 +1364,7 @@ export const launchContract = mutation({
 			expiresAt: undefined,
 			acceptedAt: now,
 			resolvedAt: undefined,
-			offerSequence: currentSequence,
+			offerSequence: offer.offerSequence,
 			originColonyId: latestOrigin._id,
 			operationId: undefined,
 			snapshot: offer.snapshot,

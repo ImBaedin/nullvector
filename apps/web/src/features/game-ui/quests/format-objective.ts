@@ -27,11 +27,23 @@ const SHIP_NAMES: Record<string, string> = {
 	bomber: "Bomber",
 };
 
-const DEFENSE_NAMES: Record<string, string> = {
-	missileBattery: "Missile Battery",
-	laserTurret: "Laser Turret",
-	gaussCannon: "Gauss Cannon",
-	shieldDome: "Shield Dome",
+const DEFENSE_LABELS: Record<string, { plural: string; singular: string }> = {
+	missileBattery: {
+		singular: "Missile Battery",
+		plural: "Missile Batteries",
+	},
+	laserTurret: {
+		singular: "Laser Turret",
+		plural: "Laser Turret Batteries",
+	},
+	gaussCannon: {
+		singular: "Gauss Cannon",
+		plural: "Gauss Cannon Batteries",
+	},
+	shieldDome: {
+		singular: "Shield Dome",
+		plural: "Shield Dome Batteries",
+	},
 };
 
 export function formatObjectiveDescription(objective: QuestObjectiveDefinition): string {
@@ -49,11 +61,12 @@ export function formatObjectiveDescription(objective: QuestObjectiveDefinition):
 			return `Build ${objective.minCount} ${name}${objective.minCount !== 1 ? "s" : ""}`;
 		}
 		case "defenseCountAtLeast": {
-			const name = DEFENSE_NAMES[objective.defenseKey] ?? objective.defenseKey;
-			return `Build ${objective.minCount} ${name}${objective.minCount !== 1 ? " Batteries" : ""}`.replace(
-				"Missile Battery Batteries",
-				"Missile Batteries",
-			);
+			const labels = DEFENSE_LABELS[objective.defenseKey];
+			const name =
+				objective.minCount === 1
+					? (labels?.singular ?? objective.defenseKey)
+					: (labels?.plural ?? objective.defenseKey);
+			return `Build ${objective.minCount} ${name}`;
 		}
 		case "colonyCountAtLeast":
 			return `Found ${objective.minCount} ${objective.minCount === 1 ? "Colony" : "Colonies"}`;

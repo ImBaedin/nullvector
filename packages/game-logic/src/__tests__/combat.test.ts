@@ -188,6 +188,7 @@ test("combat stalemates fail when enemies remain after round six", () => {
 
 test("tutorial raid is defeated by five missile batteries", () => {
 	const tutorialRaid = generateTutorialNpcRaidSnapshot();
+	expect(Object.values(tutorialRaid.attackerFleet).some((count) => count > 0)).toBe(true);
 	const result = simulateCombat({
 		attacker: {
 			ships: tutorialRaid.attackerFleet,

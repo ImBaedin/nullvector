@@ -101,19 +101,54 @@ export const getActiveColonyNextEvent = query({
 			colonyId: colony._id,
 			ctx,
 		});
-		const activeRaid = await ctx.db
-			.query("npcRaidOperations")
-			.withIndex("by_target_status_event", (q) =>
-				q.eq("targetColonyId", colony._id).eq("status", "inTransit"),
-			)
-			.first();
+		const [activeRaid, outgoingInTransit, outgoingReturning, incomingInTransit, incomingReturning] =
+			await Promise.all([
+				ctx.db
+					.query("npcRaidOperations")
+					.withIndex("by_target_status_event", (q) =>
+						q.eq("targetColonyId", colony._id).eq("status", "inTransit"),
+					)
+					.first(),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_origin_stat_evt", (q) =>
+						q.eq("originColonyId", colony._id).eq("status", "inTransit"),
+					)
+					.collect(),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_origin_stat_evt", (q) =>
+						q.eq("originColonyId", colony._id).eq("status", "returning"),
+					)
+					.collect(),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_tcol_st_evt", (q) =>
+						q.eq("target.colonyId", colony._id).eq("status", "inTransit"),
+					)
+					.collect(),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_tcol_st_evt", (q) =>
+						q.eq("target.colonyId", colony._id).eq("status", "returning"),
+					)
+					.collect(),
+			]);
 		const queueNextEventAt = queueEventsNextAt(colonyQueueRows) ?? undefined;
+		const fleetNextEventCandidates = [
+			...new Map(
+				[
+					...outgoingInTransit,
+					...outgoingReturning,
+					...incomingInTransit,
+					...incomingReturning,
+				].map((operation) => [operation._id, operation.nextEventAt]),
+			).values(),
+		];
+		const nextEventCandidates = [queueNextEventAt, activeRaid?.nextEventAt, ...fleetNextEventCandidates]
+			.filter((value): value is number => typeof value === "number");
 		const nextEventAt =
-			queueNextEventAt === undefined
-				? activeRaid?.nextEventAt
-				: activeRaid?.nextEventAt === undefined
-					? queueNextEventAt
-					: Math.min(queueNextEventAt, activeRaid.nextEventAt);
+			nextEventCandidates.length > 0 ? Math.min(...nextEventCandidates) : undefined;
 
 		return {
 			activeColonyId: colony._id,

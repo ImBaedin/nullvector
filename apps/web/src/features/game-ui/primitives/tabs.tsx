@@ -15,23 +15,31 @@ type NvTabsProps = {
 
 function TabItem({ activeId, item }: { activeId: string; item: ContextNavItem }) {
 	const { highlightProps } = useHighlightTarget(`tab-${item.id}` as HighlightTarget);
-
-	return (
-		<Link className={cn(`
+	const className = cn(
+		`
     group inline-flex items-center gap-1.5 border-b-2 px-3 pt-1.5 pb-2
     text-[11px] font-semibold transition-all
-  `, item.isDisabled ? `
-    pointer-events-none border-transparent text-white/20
+  `,
+		item.isDisabled
+			? `
+    border-transparent text-white/20
     [&_img]:opacity-30
-  ` : item.id === activeId ? `
+  `
+			: item.id === activeId
+				? `
     border-cyan-400/80 text-cyan-50
     [&_img]:opacity-90
-  ` : `
+  `
+				: `
     border-transparent text-white/35
     hover:border-white/15 hover:text-white/60
     [&_img]:opacity-40
     [&_img]:hover:opacity-60
-  `, highlightProps.className)} title={highlightProps.title} to={item.to}>
+  `,
+		highlightProps.className,
+	);
+	const content = (
+		<>
 			{item.icon}
 			<span>{item.label}</span>
 			{item.badgeCount ? (
@@ -44,6 +52,20 @@ function TabItem({ activeId, item }: { activeId: string; item: ContextNavItem })
 					{item.badgeCount}
 				</span>
 			) : null}
+		</>
+	);
+
+	if (item.isDisabled) {
+		return (
+			<span aria-disabled="true" className={className} tabIndex={-1} title={highlightProps.title}>
+				{content}
+			</span>
+		);
+	}
+
+	return (
+		<Link className={className} title={highlightProps.title} to={item.to}>
+			{content}
 		</Link>
 	);
 }

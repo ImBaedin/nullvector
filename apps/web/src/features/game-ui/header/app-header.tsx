@@ -1,6 +1,6 @@
 import { Tooltip } from "@base-ui/react/tooltip";
 import { Bell, ChevronDown, Compass, Earth, Menu, Settings, Trophy } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdata/types";
 
@@ -113,14 +113,13 @@ export function AppHeader({
 			window.removeEventListener(QUEST_MODAL_OPEN_EVENT, handleQuestModalOpen);
 		};
 	}, []);
+	const openQuests = useCallback((questId?: string) => {
+		setFocusedQuestId(questId ?? null);
+		setQuestsOpen(true);
+	}, []);
 
 	if (config.mode !== "game") {
 		return null;
-	}
-
-	function openQuests(questId?: string) {
-		setFocusedQuestId(questId ?? null);
-		setQuestsOpen(true);
 	}
 
 	return (

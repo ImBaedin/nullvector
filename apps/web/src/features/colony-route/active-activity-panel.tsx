@@ -61,6 +61,7 @@ export function ActivityTimelinePanel(props: ActivityTimelinePanelProps) {
 			<div className="mt-3 space-y-2">
 				{props.items.map((item) => {
 					const isExpanded = props.expandedId === item.id;
+					const panelId = `activity-details-${item.id}`;
 
 					return (
 						<div
@@ -71,6 +72,8 @@ export function ActivityTimelinePanel(props: ActivityTimelinePanelProps) {
 							key={item.id}
 						>
 							<button
+								aria-controls={panelId}
+								aria-expanded={isExpanded}
 								className="
           flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors
           hover:bg-white/2
@@ -139,6 +142,7 @@ export function ActivityTimelinePanel(props: ActivityTimelinePanelProps) {
           grid transition-[grid-template-rows] duration-300
           ease-[cubic-bezier(0.25,0.8,0.25,1)]
         "
+								id={panelId}
 								style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
 							>
 								<div className="overflow-hidden">

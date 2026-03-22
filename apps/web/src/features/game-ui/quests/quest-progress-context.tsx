@@ -79,8 +79,14 @@ export function QuestProgressProvider({ activeColonyId, children }: QuestProgres
 			inFlightKeysRef.current.clear();
 			return;
 		}
-		void ensureForCurrentContext();
-	}, [ensureForCurrentContext, isAuthenticated]);
+		void ensureForCurrentContext().catch((error) => {
+			console.error("Quest activation ensure failed", {
+				activeColonyId,
+				error,
+				progressionVersion,
+			});
+		});
+	}, [activeColonyId, ensureForCurrentContext, isAuthenticated, progressionVersion]);
 
 	const trackerItems = useMemo(() => {
 		if (!clientState) {

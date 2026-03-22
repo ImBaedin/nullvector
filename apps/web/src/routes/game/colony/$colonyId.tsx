@@ -44,7 +44,7 @@ function ColonyLayoutContent() {
 
 	return (
 		<QuestProgressProvider activeColonyId={colonyIdAsId}>
-			<QuestProgressEffects />
+			<QuestProgressEffects key={colonyIdAsId} />
 			<HighlightProvider>
 				<div
 					className="relative h-full overflow-y-auto"

@@ -522,6 +522,17 @@ export async function ensureQuestActivationsForPlayer(args: {
 		const existing = rowsByQuestId.get(definition.id);
 		if (existing) {
 			const patch: Partial<Doc<"playerQuestStates">> = {};
+			if (
+				existing.bindings.colonyId &&
+				sanitizeQuestBindings({
+					bindings: existing.bindings,
+					colonies,
+					definition,
+				}) === null
+			) {
+				patch.bindings = {};
+				patch.status = "active";
+			}
 			if (existing.questVersion !== definition.version) {
 				patch.questVersion = definition.version;
 			}

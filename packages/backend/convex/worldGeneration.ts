@@ -200,6 +200,20 @@ export const wipeUniverse = mutation({
 				q.eq("universeId", universe._id),
 			)
 			.collect();
+		const planetIdSet = new Set(planetsInUniverse.map((row) => row._id));
+		const exclusivePlayerIdSet = new Set(
+			(
+				await Promise.all(
+					Array.from(playerIdSet).map(async (playerId) => {
+						const playerColonies = await ctx.db
+							.query("colonies")
+							.withIndex("by_player_id", (q) => q.eq("playerId", playerId))
+							.collect();
+						return playerColonies.every((row) => row.universeId === universe._id) ? playerId : null;
+					}),
+				)
+			).filter((playerId): playerId is Id<"players"> => playerId !== null),
+		);
 
 		const deleted = {
 			universeGeneration: await deleteAllByQuery({
@@ -235,7 +249,7 @@ export const wipeUniverse = mutation({
 				queryFactory: async () =>
 					(
 						await Promise.all(
-							Array.from(playerIdSet).map((playerId) =>
+							Array.from(exclusivePlayerIdSet).map((playerId) =>
 								ctx.db
 									.query("playerProgression")
 									.withIndex("by_player_id", (q) => q.eq("playerId", playerId))
@@ -250,7 +264,7 @@ export const wipeUniverse = mutation({
 				queryFactory: async () =>
 					(
 						await Promise.all(
-							Array.from(playerIdSet).map((playerId) =>
+							Array.from(exclusivePlayerIdSet).map((playerId) =>
 								ctx.db
 									.query("playerQuestStates")
 									.withIndex("by_player", (q) => q.eq("playerId", playerId))
@@ -344,7 +358,13 @@ export const wipeUniverse = mutation({
 					ctx.db
 						.query("contractResults")
 						.collect()
-						.then((rows) => rows.filter((row) => playerIdSet.has(row.playerId))),
+						.then((rows) =>
+							rows.filter(
+								(row) =>
+									planetIdSet.has(row.planetId) ||
+									(row.originColonyId !== undefined && colonyIdSet.has(row.originColonyId)),
+							),
+						),
 			}),
 			colonyContractCandidates: await deleteAllByQuery({
 				ctx,
@@ -389,7 +409,7 @@ export const wipeUniverse = mutation({
 					ctx.db
 						.query("playerNotificationPreferences")
 						.collect()
-						.then((rows) => rows.filter((row) => playerIdSet.has(row.playerId))),
+						.then((rows) => rows.filter((row) => exclusivePlayerIdSet.has(row.playerId))),
 			}),
 			colonyShips: await deleteAllByQuery({
 				ctx,

@@ -475,7 +475,7 @@ function createOnboardingRankDefinition(
 					contracts: UNLOCKED,
 				},
 				raidRules: {
-					mode: "full",
+					mode: "tutorialOnly",
 					difficultyTier: 1,
 				},
 			};
@@ -507,7 +507,7 @@ function createOnboardingRankDefinition(
 					contracts: UNLOCKED,
 				},
 				raidRules: {
-					mode: "full",
+					mode: "tutorialOnly",
 					difficultyTier: 1,
 				},
 			};

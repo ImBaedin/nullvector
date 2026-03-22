@@ -7,6 +7,11 @@ import { useMutation, useQuery } from "@/lib/convex-hooks";
 
 const SELF_HEAL_RETRY_MS = 15_000;
 
+function minDefined(values: Array<number | undefined>) {
+	const defined = values.filter((value): value is number => typeof value === "number");
+	return defined.length > 0 ? Math.min(...defined) : undefined;
+}
+
 export function useSelfHealingFleetOperations(args: {
 	colonyId: Id<"colonies">;
 	isAuthenticated: boolean;
@@ -64,7 +69,8 @@ export function useSelfHealingFleetOperations(args: {
 			active: unique,
 			hasStaleOwnedOperations: health.hasStaleOwnedOperations,
 			nextEventAt:
-				unique[0]?.nextEventAt ?? targetOperations.nextEventAt ?? originOperations.nextEventAt,
+				unique[0]?.nextEventAt ??
+				minDefined([originOperations.nextEventAt, targetOperations.nextEventAt]),
 			serverNowMs: health.serverNowMs,
 		};
 	}, [health, originOperations, targetOperations]);

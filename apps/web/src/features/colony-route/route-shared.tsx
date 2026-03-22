@@ -281,14 +281,11 @@ export function OperationTimelinePanel(props: {
 				subtitle: targetPreview?.address,
 				title: targetPreview?.name ?? operation.targetPreview.label,
 			},
-			transitIcon: isContract ? <Swords className={`
-     size-3
-     ${accent.iconText}
-   `} /> : <Ship className={`
-     size-3
-     ${isReturning ? "rotate-180" : ""}
-     ${accent.iconText}
-   `} />,
+			transitIcon: isContract ? (
+				<Swords className={`size-3 ${accent.iconText}`} />
+			) : (
+				<Ship className={`size-3 ${isReturning ? "rotate-180" : ""} ${accent.iconText}`} />
+			),
 			transitIconBorderClassName: `${accent.iconBorder}`,
 			transitIconFillClassName: `${accent.iconFill}`,
 			transitLineClassName: `${accent.line}`,

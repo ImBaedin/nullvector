@@ -417,6 +417,7 @@ export function QuestsModal({
 	const scrollAreaRef = useRef<HTMLDivElement | null>(null);
 	const { claimQuest, ensureActivations, loading, timelineItems } = useQuestProgress();
 	const [claimingQuestId, setClaimingQuestId] = useState<string | null>(null);
+	// TODO: keep activeColonyId reserved for future colony-scoped quest actions.
 	void activeColonyId;
 
 	useEffect(() => {
@@ -464,7 +465,7 @@ export function QuestsModal({
 		return () => {
 			cancelAnimationFrame(frame);
 		};
-	}, [activeItems.length, focusQuestId, open, timelineItems]);
+	}, [activeItems.length, focusQuestId, open]);
 
 	function handleClaim(questId: string) {
 		if (loading) {

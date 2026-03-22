@@ -2,8 +2,8 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import { selectShipCatalog, type ShipKey } from "@nullvector/game-logic";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { ShipyardRouteSkeleton } from "@/features/colony-route/loading-skeletons";
@@ -32,7 +32,6 @@ function ShipyardRoute() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
-	const navigate = useNavigate();
 
 	const shipCatalog = useMemo(() => selectShipCatalog(), []);
 	const colonyView = useColonyView(isAuthenticated ? colonyIdAsId : null);
@@ -59,6 +58,7 @@ function ShipyardRoute() {
 		null,
 	);
 	const [isCompletingQueueItem, setIsCompletingQueueItem] = useState(false);
+	const [fallbackNowMs] = useState(() => Date.now());
 	const quantityInput = useBoundedQuantityInput<ShipKey>();
 	const shipEditor = useInlineNumberEditor<ShipKey>();
 
@@ -66,7 +66,7 @@ function ShipyardRoute() {
 	const canUseDevConsole = devConsole.canUseDevConsole;
 	const projectedResources = colonyView?.projected?.resources ?? { alloy: 0, crystal: 0, fuel: 0 };
 	const view = useMemo(() => {
-		if (!colonyView) {
+		if (!colonyView || progressionOverview === undefined) {
 			return undefined;
 		}
 
@@ -83,30 +83,15 @@ function ShipyardRoute() {
 					queued: state?.queued ?? 0,
 				};
 			})
-			.filter((ship) => progressionOverview?.shipAccess[ship.key] === "unlocked");
+			.filter((ship) => progressionOverview.shipAccess[ship.key] === "unlocked");
 
 		return {
 			...colonyView.shipyardState,
 			ships,
 		};
-	}, [colonyView, progressionOverview?.shipAccess, shipCatalog]);
+	}, [colonyView, progressionOverview, shipCatalog]);
 
-	useEffect(() => {
-		if (
-			!isAuthenticated ||
-			!progressionOverview ||
-			progressionOverview.features.shipyard === "unlocked"
-		) {
-			return;
-		}
-		void navigate({
-			params: { colonyId },
-			replace: true,
-			to: "/game/colony/$colonyId/resources",
-		});
-	}, [colonyId, isAuthenticated, navigate, progressionOverview]);
-
-	const nowMs = colonyView?.nowMs ?? Date.now();
+	const nowMs = colonyView?.nowMs ?? fallbackNowMs;
 
 	const shipsByKey = useMemo(
 		() => new Map((view?.ships ?? []).map((ship) => [ship.key, ship])),

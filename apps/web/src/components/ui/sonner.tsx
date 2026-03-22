@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { ToasterProps } from "sonner";
 
 import {
@@ -35,7 +36,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
 					"--info-text": "#edf5ff",
 					"--border-radius": "10px",
 					"--font-size": "13px",
-				} as React.CSSProperties
+				} as CSSProperties
 			}
 			toastOptions={{
 				classNames: {

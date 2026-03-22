@@ -60,21 +60,23 @@ export function AppHeaderMobileDrawer({
 					>
 						Star Map
 					</NvButton>
-					<NvButton
-						className="w-full justify-start"
-						onClick={() => {
-							onOpenQuests?.();
-							onClose();
-						}}
-						variant="ghost"
-					>
-						Quests
-						{questCount > 0 ? (
-							<NvBadge className="ml-auto" tone="info">
-								{questCount}
-							</NvBadge>
-						) : null}
-					</NvButton>
+					{onOpenQuests ? (
+						<NvButton
+							className="w-full justify-start"
+							onClick={() => {
+								onOpenQuests();
+								onClose();
+							}}
+							variant="ghost"
+						>
+							Quests
+							{questCount > 0 ? (
+								<NvBadge className="ml-auto" tone="info">
+									{questCount}
+								</NvBadge>
+							) : null}
+						</NvButton>
+					) : null}
 					<NvButton
 						className="w-full justify-start"
 						onClick={() => {

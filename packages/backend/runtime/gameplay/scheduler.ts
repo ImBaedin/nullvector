@@ -60,39 +60,41 @@ export const resolveColonyQueues = internalMutation({
 				queueResolutionScheduledAt: undefined,
 			},
 		});
+		try {
+			const planet = await ctx.db.get(colony.planetId);
+			if (!planet) {
+				throw new Error("Planet not found for scheduled colony resolution");
+			}
 
-		const planet = await ctx.db.get(colony.planetId);
-		if (!planet) {
-			throw new Error("Planet not found for scheduled colony resolution");
+			const colonyState = await loadColonyState({
+				colony,
+				ctx,
+			});
+			const planetState = await loadPlanetState({
+				ctx,
+				planet,
+			});
+			const settledColony = await settleColonyAndPersist({
+				ctx,
+				colony: colonyState,
+				planet: planetState,
+				now,
+			});
+			await settleShipyardQueue({
+				colony: settledColony,
+				ctx,
+				now,
+			});
+			await settleDefenseQueue({
+				colony: settledColony,
+				ctx,
+				now,
+			});
+		} finally {
+			await ctx.scheduler.runAfter(0, internal.scheduler.rearmColonyQueueResolution, {
+				colonyId: colony._id,
+			});
 		}
-
-		const colonyState = await loadColonyState({
-			colony,
-			ctx,
-		});
-		const planetState = await loadPlanetState({
-			ctx,
-			planet,
-		});
-		const settledColony = await settleColonyAndPersist({
-			ctx,
-			colony: colonyState,
-			planet: planetState,
-			now,
-		});
-		await settleShipyardQueue({
-			colony: settledColony,
-			ctx,
-			now,
-		});
-		await settleDefenseQueue({
-			colony: settledColony,
-			ctx,
-			now,
-		});
-		await ctx.scheduler.runAfter(0, internal.scheduler.rearmColonyQueueResolution, {
-			colonyId: colony._id,
-		});
 
 		return {
 			colonyId: colony._id,

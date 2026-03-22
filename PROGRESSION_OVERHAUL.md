@@ -57,7 +57,7 @@ New players should no longer start in a state that assumes full-system access. I
 - Starting buildings/facilities/queues
 - Starting fleet and ship availability
 - Starting contract availability
-- Raid eligibility
+- NPC raids must not begin before the defending player reaches `Rank 5`. This follows the Colony raid design clarification from 2026-03-11.
 - Colonization eligibility
 - Notification defaults
 - Tutorial/quest bootstrap state
@@ -191,8 +191,8 @@ The unlock model should support at least three states:
 - Contract visibility rules
 - Concurrent contract limit, if no longer rank-based
 - Raid participation/eligibility
-- Shipyard/fleet access
-- Social feature access
+- Shipyard/fleet access should not be hard-gated by player rank in this phase. Default facility definitions are still placeholders, so keep the existing shipyard-level-only unlock checks in place until non-shipyard facilities exist.
+- Social feature access remains rank-gated separately; the shipyard clarification above does not change those social unlock decisions.
 - Defense system visibility and eligibility
 
 ### Second-Colony Requirement

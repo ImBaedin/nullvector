@@ -181,6 +181,59 @@ export const backfillUniverseObjectNames = mutation({
 	},
 });
 
+export const backfillContractRewardXpFields = mutation({
+	args: {
+		token: v.string(),
+	},
+	returns: v.object({
+		scanned: v.number(),
+		updated: v.number(),
+	}),
+	handler: async (ctx, args) => {
+		assertGenerationToken(args.token);
+
+		const contracts = await ctx.db.query("contracts").collect();
+		let updated = 0;
+
+		for (const contract of contracts) {
+			const legacySnapshot = contract.snapshot as typeof contract.snapshot & {
+				rewardRankXpFailure?: number;
+				rewardRankXpSuccess?: number;
+			};
+			const {
+				rewardRankXpFailure: _legacyRewardXpFailure,
+				rewardRankXpSuccess: _legacyRewardXpSuccess,
+				...snapshotWithoutLegacy
+			} = legacySnapshot;
+			const needsFailureBackfill =
+				legacySnapshot.rewardXpFailure === undefined &&
+				typeof legacySnapshot.rewardRankXpFailure === "number";
+			const needsSuccessBackfill =
+				legacySnapshot.rewardXpSuccess === undefined &&
+				typeof legacySnapshot.rewardRankXpSuccess === "number";
+			if (!needsFailureBackfill && !needsSuccessBackfill) {
+				continue;
+			}
+
+			await ctx.db.patch(contract._id, {
+				snapshot: {
+					...snapshotWithoutLegacy,
+					rewardXpFailure:
+						legacySnapshot.rewardXpFailure ?? legacySnapshot.rewardRankXpFailure ?? 0,
+					rewardXpSuccess:
+						legacySnapshot.rewardXpSuccess ?? legacySnapshot.rewardRankXpSuccess ?? 0,
+				},
+			});
+			updated += 1;
+		}
+
+		return {
+			scanned: contracts.length,
+			updated,
+		};
+	},
+});
+
 export const backfillColonyAccessAndScheduling = mutation({
 	args: {
 		token: v.string(),

@@ -709,6 +709,9 @@ export default defineSchema({
 		targetColonyId: v.id("colonies"),
 		targetPlayerId: v.id("players"),
 		sourcePlanetId: v.optional(v.id("planets")),
+		// Rollout marker for the scripted rank-2 tutorial raid only. Keep this literal stable
+		// until that onboarding path is retired; if analytics or migration semantics need to
+		// change, coordinate with gameplay/progression owners before widening or renaming it.
 		spawnReason: v.optional(v.literal("tutorialRank2")),
 		hostileFactionKey: hostileFactionKeyValidator,
 		status: v.union(

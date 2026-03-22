@@ -583,12 +583,14 @@ async function settleTransportAtTarget(args: {
 				colonyId: args.operation.originColonyId,
 				resourceAmount,
 			});
-			await incrementTransportDelivery({
-				ctx: args.ctx,
-				playerId: destination.playerId,
-				colonyId: destination._id,
-				resourceAmount,
-			});
+			if (destination._id !== args.operation.originColonyId) {
+				await incrementTransportDelivery({
+					ctx: args.ctx,
+					playerId: destination.playerId,
+					colonyId: destination._id,
+					resourceAmount,
+				});
+			}
 		}
 
 		await appendFleetEvent({
@@ -661,12 +663,14 @@ async function settleTransportAtTarget(args: {
 			colonyId: args.operation.originColonyId,
 			resourceAmount,
 		});
-		await incrementTransportDelivery({
-			ctx: args.ctx,
-			playerId: destination.playerId,
-			colonyId: destination._id,
-			resourceAmount,
-		});
+		if (destination._id !== args.operation.originColonyId) {
+			await incrementTransportDelivery({
+				ctx: args.ctx,
+				playerId: destination.playerId,
+				colonyId: destination._id,
+				resourceAmount,
+			});
+		}
 	}
 
 	await appendFleetEvent({
@@ -1956,22 +1960,46 @@ export const getFleetOwnedOperationsHealth = query({
 			throw new ConvexError("Fleet is not available yet");
 		}
 
-		const [ownedInTransit, ownedReturning] = await Promise.all([
-			ctx.db
-				.query("fleetOperations")
-				.withIndex("by_owner_stat_evt", (q) =>
-					q.eq("ownerPlayerId", player._id).eq("status", "inTransit"),
-				)
-				.collect(),
-			ctx.db
-				.query("fleetOperations")
-				.withIndex("by_owner_stat_evt", (q) =>
-					q.eq("ownerPlayerId", player._id).eq("status", "returning"),
-				)
-				.collect(),
-		]);
+		const [outgoingInTransit, outgoingReturning, incomingInTransit, incomingReturning] =
+			await Promise.all([
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_origin_stat_evt", (q) =>
+						q.eq("originColonyId", colony._id).eq("status", "inTransit"),
+					)
+					.collect()
+					.then((rows) => rows.filter((operation) => operation.ownerPlayerId === player._id)),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_origin_stat_evt", (q) =>
+						q.eq("originColonyId", colony._id).eq("status", "returning"),
+					)
+					.collect()
+					.then((rows) => rows.filter((operation) => operation.ownerPlayerId === player._id)),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_tcol_st_evt", (q) =>
+						q.eq("target.colonyId", colony._id).eq("status", "inTransit"),
+					)
+					.collect(),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_tcol_st_evt", (q) =>
+						q.eq("target.colonyId", colony._id).eq("status", "returning"),
+					)
+					.collect(),
+			]);
 
-		const activeOps = [...ownedInTransit, ...ownedReturning].sort(
+		const activeOps = [
+			...new Map(
+				[
+					...outgoingInTransit,
+					...outgoingReturning,
+					...incomingInTransit,
+					...incomingReturning,
+				].map((operation) => [operation._id, operation]),
+			).values(),
+		].sort(
 			(left, right) => left.nextEventAt - right.nextEventAt,
 		);
 
@@ -2057,7 +2085,11 @@ export const resolveFleetTarget = query({
 				colony: targetColony,
 				ctx,
 			});
-			if ((targetColonyState.inboundMissionPolicy ?? "allowAll") === "denyAll") {
+			const targetPolicy = targetColonyState.inboundMissionPolicy ?? "allowAll";
+			if (
+				targetPolicy === "denyAll" ||
+				(targetPolicy === "alliesOnly" && targetColony.playerId !== origin.player._id)
+			) {
 				return {
 					ok: false,
 					reason: "Destination colony does not accept inbound missions",
@@ -2245,11 +2277,49 @@ export const getFleetOperationTimeline = query({
 		}
 
 		const limit = Math.max(1, Math.min(200, Math.floor(args.limit ?? 50)));
-		const rows = await ctx.db
+		const ownerRows = await ctx.db
 			.query("fleetEvents")
 			.withIndex("by_owner_time", (q) => q.eq("ownerPlayerId", player._id))
 			.order("desc")
 			.collect();
+		let rows = ownerRows;
+		if (args.colonyId) {
+			const [inboundInTransit, inboundReturning] = await Promise.all([
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_tcol_st_evt", (q) =>
+						q.eq("target.colonyId", args.colonyId!).eq("status", "inTransit"),
+					)
+					.collect(),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_tcol_st_evt", (q) =>
+						q.eq("target.colonyId", args.colonyId!).eq("status", "returning"),
+					)
+					.collect(),
+			]);
+			const inboundEventRows = (
+				await Promise.all(
+					[
+						...new Map(
+							[...inboundInTransit, ...inboundReturning].map((operation) => [
+								operation._id,
+								operation,
+							]),
+						).values(),
+					].map((operation) =>
+						ctx.db
+							.query("fleetEvents")
+							.withIndex("by_operation_time", (q) => q.eq("operationId", operation._id))
+							.order("desc")
+							.take(limit),
+					),
+				)
+			).flat();
+			rows = [
+				...new Map([...ownerRows, ...inboundEventRows].map((row) => [row._id, row])).values(),
+			].sort((left, right) => right.occurredAt - left.occurredAt);
+		}
 		const filteredRows =
 			args.colonyId === undefined
 				? rows
@@ -2257,7 +2327,14 @@ export const getFleetOperationTimeline = query({
 						await Promise.all(
 							rows.map(async (row) => {
 								const operation = await ctx.db.get(row.operationId);
-								return operation?.originColonyId === args.colonyId ? row : null;
+								if (!operation) {
+									return null;
+								}
+								return operation.originColonyId === args.colonyId ||
+									(operation.target.kind === "colony" &&
+										operation.target.colonyId === args.colonyId)
+									? row
+									: null;
 							}),
 						)
 					).filter((row): row is (typeof rows)[number] => row !== null);
@@ -2418,7 +2495,10 @@ export const createOperation = mutation({
 				.withIndex("by_colony_id", (q) => q.eq("colonyId", destination._id))
 				.unique();
 			const targetPolicy = destinationPolicy?.inboundMissionPolicy ?? "allowAll";
-			if (targetPolicy === "denyAll") {
+			if (
+				targetPolicy === "denyAll" ||
+				(targetPolicy === "alliesOnly" && destination.playerId !== origin.player._id)
+			) {
 				throw new ConvexError("Destination colony does not accept inbound missions");
 			}
 			if (
