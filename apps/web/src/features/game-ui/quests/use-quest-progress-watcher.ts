@@ -1,4 +1,3 @@
-import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import type { QuestTrackerItem } from "@nullvector/game-logic";
 
 import { useEffect, useRef } from "react";
@@ -17,8 +16,7 @@ function buildSnapshot(items: QuestTrackerItem[]): TrackerSnapshot {
 	return new Map(items.map((item) => [item.id, item]));
 }
 
-export function useQuestProgressWatcher(args: { activeColonyId: Id<"colonies"> | null }) {
-	void args.activeColonyId;
+export function useQuestProgressWatcher() {
 	const { claimQuest, trackerItems } = useQuestProgress();
 
 	const previousSnapshotRef = useRef<TrackerSnapshot | null>(null);

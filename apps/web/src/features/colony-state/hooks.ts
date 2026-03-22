@@ -229,16 +229,18 @@ function writeSnapshotToLocalStore(args: {
 		const existingPlanetEconomy = args.localStore.getQuery(api.colony.getPlanetEconomy, {
 			planetId: existingIdentity.planetId,
 		});
-		args.localStore.setQuery(
-			api.colony.getPlanetEconomy,
-			{ planetId: existingIdentity.planetId },
-			{
-				planetId: existingIdentity.planetId,
-				multipliers: args.snapshot.planetMultipliers,
-				compositionType: existingPlanetEconomy?.compositionType ?? "metallic",
-				maxBuildingSlots: existingPlanetEconomy?.maxBuildingSlots ?? 0,
-			},
-		);
+		if (existingPlanetEconomy) {
+			args.localStore.setQuery(
+				api.colony.getPlanetEconomy,
+				{ planetId: existingIdentity.planetId },
+				{
+					planetId: existingIdentity.planetId,
+					multipliers: args.snapshot.planetMultipliers,
+					compositionType: existingPlanetEconomy.compositionType,
+					maxBuildingSlots: existingPlanetEconomy.maxBuildingSlots,
+				},
+			);
+		}
 	}
 	args.localStore.setQuery(
 		api.colony.getColonyInfrastructure,

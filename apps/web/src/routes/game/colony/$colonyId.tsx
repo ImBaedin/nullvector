@@ -44,7 +44,7 @@ function ColonyLayoutContent() {
 
 	return (
 		<QuestProgressProvider activeColonyId={colonyIdAsId}>
-			<QuestProgressEffects activeColonyId={colonyIdAsId} />
+							<QuestProgressEffects />
 			<HighlightProvider>
 				<div
 					className="relative h-full overflow-y-auto"
@@ -108,7 +108,7 @@ function ColonyLayoutContent() {
 	);
 }
 
-function QuestProgressEffects({ activeColonyId }: { activeColonyId: Id<"colonies"> }) {
-	useQuestProgressWatcher({ activeColonyId });
+function QuestProgressEffects() {
+	useQuestProgressWatcher();
 	return null;
 }

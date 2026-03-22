@@ -28,7 +28,6 @@ const QuestProgressContext = createContext<QuestProgressContextValue | null>(nul
 type QuestProgressProviderProps = {
 	activeColonyId: Id<"colonies"> | null;
 	children: React.ReactNode;
-	openTimeline?: boolean;
 };
 
 const questHighlightsById = new Map(
@@ -38,7 +37,6 @@ const questHighlightsById = new Map(
 export function QuestProgressProvider({
 	activeColonyId,
 	children,
-	openTimeline = false,
 }: QuestProgressProviderProps) {
 	const { isAuthenticated } = useConvexAuth();
 	const clientState = useQuery(api.quests.getClientState, isAuthenticated ? {} : "skip");
@@ -104,7 +102,7 @@ export function QuestProgressProvider({
 			questRows: clientState.questRows,
 			facts: clientState.facts,
 		});
-	}, [clientState, openTimeline, progressionOverview]);
+	}, [clientState, progressionOverview]);
 
 	const claimableQuestCount = useMemo(
 		() => trackerItems.filter((item) => item.claimable).length,

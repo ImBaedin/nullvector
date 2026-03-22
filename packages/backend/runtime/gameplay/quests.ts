@@ -693,7 +693,7 @@ export const claim = mutation({
 					q.eq("targetColonyId", colony._id).eq("status", "inTransit"),
 				)
 				.first();
-			if (existingRaid?.spawnReason === "tutorialRank2") {
+			if (existingRaid) {
 				continue;
 			}
 			await spawnNpcRaidImmediatelyForColony({

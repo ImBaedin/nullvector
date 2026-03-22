@@ -33,16 +33,32 @@ export function useSelfHealingFleetOperations(args: {
 			return undefined;
 		}
 
-		const merged = [
-			...originOperations.active.map((operation) => ({
-				...operation,
-				relation: "outgoing" as const,
-			})),
-			...targetOperations.active,
-		];
-		const unique = [...new Map(merged.map((operation) => [operation.id, operation])).values()].sort(
-			(left, right) => left.nextEventAt - right.nextEventAt,
-		);
+		const unique = [
+			...[
+				...originOperations.active.map((operation) => ({
+					...operation,
+					relation: "outgoing" as const,
+				})),
+				...targetOperations.active,
+			].reduce((operationsById, operation) => {
+				const existing = operationsById.get(operation.id);
+				if (!existing) {
+					operationsById.set(operation.id, operation);
+					return operationsById;
+				}
+				operationsById.set(operation.id, {
+					...existing,
+					...operation,
+					relation:
+						existing.relation === "outgoing" || operation.relation === "outgoing"
+							? "outgoing"
+							: "incoming",
+				});
+				return operationsById;
+			}, new Map()),
+		]
+			.map(([, operation]) => operation)
+			.sort((left, right) => left.nextEventAt - right.nextEventAt);
 
 		return {
 			active: unique,
