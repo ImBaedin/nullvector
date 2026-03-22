@@ -247,7 +247,14 @@ type ActivitySeverity = "critical" | "warning" | "info" | "success" | "neutral";
 
 type FleetActivityOperation = Pick<
 	Doc<"fleetOperations">,
-	"_id" | "arriveAt" | "nextEventAt" | "originColonyId" | "ownerPlayerId" | "status" | "target"
+	| "_id"
+	| "arriveAt"
+	| "kind"
+	| "nextEventAt"
+	| "originColonyId"
+	| "ownerPlayerId"
+	| "status"
+	| "target"
 >;
 
 function isInboundOperationForColony(args: {
@@ -258,6 +265,21 @@ function isInboundOperationForColony(args: {
 		(args.operation.target.colonyId === args.colonyId &&
 			args.operation.originColonyId !== args.colonyId) ||
 		(args.operation.status === "returning" && args.operation.originColonyId === args.colonyId)
+	);
+}
+
+function isAllowedCrossPlayerTransport(args: {
+	colonyId: Id<"colonies">;
+	operation: FleetActivityOperation;
+	ownerPlayerId: Id<"players">;
+}) {
+	return (
+		isInboundOperationForColony({
+			colonyId: args.colonyId,
+			operation: args.operation,
+		}) &&
+		args.operation.kind === "transport" &&
+		args.operation.ownerPlayerId !== args.ownerPlayerId
 	);
 }
 
@@ -632,7 +654,13 @@ async function readColonyOperationalOverview(args: {
 			isInboundOperationForColony({
 				colonyId: args.colonyId,
 				operation,
-			}) && operation.ownerPlayerId !== args.ownerPlayerId,
+			}) &&
+			operation.ownerPlayerId !== args.ownerPlayerId &&
+			!isAllowedCrossPlayerTransport({
+				colonyId: args.colonyId,
+				operation,
+				ownerPlayerId: args.ownerPlayerId,
+			}),
 	).length;
 	const outboundCount = operations.filter(
 		(operation) =>

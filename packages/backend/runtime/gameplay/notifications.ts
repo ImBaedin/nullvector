@@ -89,14 +89,11 @@ async function resolveNotificationPlayer(args: {
 		};
 	}
 
-	const playerResult = await resolveCurrentPlayer(args.ctx);
-	if (!playerResult?.player) {
-		throw new ConvexError("Authentication required");
-	}
+	const player = await requirePlayer(args.ctx);
 
 	return {
 		colonyId: undefined,
-		playerId: playerResult.player._id,
+		playerId: player._id,
 	};
 }
 

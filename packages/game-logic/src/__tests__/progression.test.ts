@@ -10,6 +10,7 @@ import {
 	getRankDefinition,
 	getRankForXpTotal,
 	RANK_DEFINITIONS,
+	type QuestClientFacts,
 } from "../progression";
 
 test("progression overview derives onboarding gates from total xp", () => {
@@ -234,7 +235,7 @@ test("tracker and timeline derive local claimable and locked states", () => {
 			},
 		],
 		colonyMetrics: [],
-	} as const;
+	} satisfies QuestClientFacts;
 
 	const trackerItems = deriveQuestTrackerItems({
 		facts,

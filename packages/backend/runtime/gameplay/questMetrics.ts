@@ -166,6 +166,15 @@ async function markSourceProcessed(args: {
 	return true;
 }
 
+export async function markQuestMetricSourceProcessed(args: {
+	ctx: MutationCtx;
+	now: number;
+	sourceId: string;
+	sourceKind: BackfillSourceKind;
+}) {
+	return markSourceProcessed(args);
+}
+
 async function processContractResults(args: {
 	cursor: string | null;
 	ctx: MutationCtx;
@@ -275,13 +284,27 @@ async function processFleetOperationResults(args: {
 			});
 		}
 
-		if (row.operationKind === "transport" && row.resultCode === "delivered" && row.targetColonyId) {
-			await incrementTransportDelivery({
-				ctx: args.ctx,
-				playerId: row.ownerPlayerId,
-				colonyId: row.targetColonyId,
-				resourceAmount: wholeUnitsFromScaledBucket(row.cargoDeliveredToStorage),
-			});
+		if (row.operationKind === "transport" && row.resultCode === "delivered") {
+			const resourceAmount = wholeUnitsFromScaledBucket(row.cargoDeliveredToStorage);
+			if (row.originColonyId) {
+				await incrementTransportDelivery({
+					ctx: args.ctx,
+					playerId: row.ownerPlayerId,
+					colonyId: row.originColonyId,
+					resourceAmount,
+				});
+			}
+			if (row.targetColonyId) {
+				const targetColony = await args.ctx.db.get(row.targetColonyId);
+				if (targetColony) {
+					await incrementTransportDelivery({
+						ctx: args.ctx,
+						playerId: targetColony.playerId,
+						colonyId: targetColony._id,
+						resourceAmount,
+					});
+				}
+			}
 		}
 
 		processed += 1;

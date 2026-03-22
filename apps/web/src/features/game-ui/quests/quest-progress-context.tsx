@@ -45,13 +45,17 @@ export function QuestProgressProvider({
 	const claimMutation = useMutation(api.quests.claim);
 	const ensuredKeysRef = useRef(new Set<string>());
 	const inFlightKeysRef = useRef(new Map<string, Promise<void>>());
+	const progressionVersion =
+		progressionOverview === undefined
+			? "unknown"
+			: `${progressionOverview.rank}:${progressionOverview.rankXpTotal}`;
 
 	const ensureForCurrentContext = useCallback(
 		async (force = false) => {
 			if (!isAuthenticated) {
 				return;
 			}
-			const key = activeColonyId ?? "none";
+			const key = `${activeColonyId ?? "none"}:${progressionVersion}`;
 			if (!force && ensuredKeysRef.current.has(key)) {
 				return;
 			}
@@ -69,7 +73,7 @@ export function QuestProgressProvider({
 			inFlightKeysRef.current.set(key, next);
 			return next;
 		},
-		[activeColonyId, ensureActivationsMutation, isAuthenticated],
+		[activeColonyId, ensureActivationsMutation, isAuthenticated, progressionVersion],
 	);
 
 	useEffect(() => {

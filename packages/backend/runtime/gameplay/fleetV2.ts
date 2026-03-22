@@ -43,6 +43,7 @@ import {
 	incrementColonizationSuccess,
 	incrementContractSuccess,
 	incrementTransportDelivery,
+	markQuestMetricSourceProcessed,
 	transportDeliveredResourcesTotal,
 } from "./questMetrics";
 import { reconcileFleetOperationSchedule } from "./scheduling";
@@ -427,10 +428,10 @@ async function upsertOperationResult(args: {
 
 	if (existing) {
 		await args.ctx.db.patch(existing._id, base);
-		return;
+		return existing._id;
 	}
 
-	await args.ctx.db.insert("fleetOperationResults", {
+	return args.ctx.db.insert("fleetOperationResults", {
 		operationId: args.operation._id,
 		createdAt: args.now,
 		...base,
@@ -554,7 +555,7 @@ async function settleTransportAtTarget(args: {
 			nextEventAt: args.now,
 			updatedAt: args.now,
 		});
-		await upsertOperationResult({
+		const operationResultId = await upsertOperationResult({
 			ctx: args.ctx,
 			operation: args.operation,
 			now: args.now,
@@ -565,14 +566,30 @@ async function settleTransportAtTarget(args: {
 				resultCode: "delivered",
 			},
 		});
-		await incrementTransportDelivery({
-			ctx: args.ctx,
-			playerId: destination.playerId,
-			colonyId: destination._id,
-			resourceAmount: transportDeliveredResourcesTotal({
+		if (
+			await markQuestMetricSourceProcessed({
+				ctx: args.ctx,
+				now: args.now,
+				sourceKind: "fleetOperationResult",
+				sourceId: String(operationResultId),
+			})
+		) {
+			const resourceAmount = transportDeliveredResourcesTotal({
 				cargoDeliveredToStorage: delivery.deliveredToStorage,
-			}),
-		});
+			});
+			await incrementTransportDelivery({
+				ctx: args.ctx,
+				playerId: args.operation.ownerPlayerId,
+				colonyId: args.operation.originColonyId,
+				resourceAmount,
+			});
+			await incrementTransportDelivery({
+				ctx: args.ctx,
+				playerId: destination.playerId,
+				colonyId: destination._id,
+				resourceAmount,
+			});
+		}
 
 		await appendFleetEvent({
 			ctx: args.ctx,
@@ -618,7 +635,7 @@ async function settleTransportAtTarget(args: {
 		nextEventAt: args.now + returnDuration,
 		updatedAt: args.now,
 	});
-	await upsertOperationResult({
+	const operationResultId = await upsertOperationResult({
 		ctx: args.ctx,
 		operation: args.operation,
 		now: args.now,
@@ -627,14 +644,30 @@ async function settleTransportAtTarget(args: {
 			cargoDeliveredToOverflow: delivery.deliveredToOverflow,
 		},
 	});
-	await incrementTransportDelivery({
-		ctx: args.ctx,
-		playerId: destination.playerId,
-		colonyId: destination._id,
-		resourceAmount: transportDeliveredResourcesTotal({
+	if (
+		await markQuestMetricSourceProcessed({
+			ctx: args.ctx,
+			now: args.now,
+			sourceKind: "fleetOperationResult",
+			sourceId: String(operationResultId),
+		})
+	) {
+		const resourceAmount = transportDeliveredResourcesTotal({
 			cargoDeliveredToStorage: delivery.deliveredToStorage,
-		}),
-	});
+		});
+		await incrementTransportDelivery({
+			ctx: args.ctx,
+			playerId: args.operation.ownerPlayerId,
+			colonyId: args.operation.originColonyId,
+			resourceAmount,
+		});
+		await incrementTransportDelivery({
+			ctx: args.ctx,
+			playerId: destination.playerId,
+			colonyId: destination._id,
+			resourceAmount,
+		});
+	}
 
 	await appendFleetEvent({
 		ctx: args.ctx,
@@ -846,7 +879,7 @@ async function settleColonizeAtTarget(args: {
 		nextEventAt: args.now,
 		updatedAt: args.now,
 	});
-	await upsertOperationResult({
+	const operationResultId = await upsertOperationResult({
 		ctx: args.ctx,
 		operation: args.operation,
 		now: args.now,
@@ -857,10 +890,19 @@ async function settleColonizeAtTarget(args: {
 			resultCode: "colonized",
 		},
 	});
-	await incrementColonizationSuccess({
-		ctx: args.ctx,
-		playerId: args.operation.ownerPlayerId,
-	});
+	if (
+		await markQuestMetricSourceProcessed({
+			ctx: args.ctx,
+			now: args.now,
+			sourceKind: "fleetOperationResult",
+			sourceId: String(operationResultId),
+		})
+	) {
+		await incrementColonizationSuccess({
+			ctx: args.ctx,
+			playerId: args.operation.ownerPlayerId,
+		});
+	}
 
 	await appendFleetEvent({
 		ctx: args.ctx,
@@ -975,7 +1017,7 @@ async function settleContractAtTarget(args: {
 		updatedAt: args.now,
 	});
 
-	await args.ctx.db.insert("contractResults", {
+	const contractResultId = await args.ctx.db.insert("contractResults", {
 		contractId: contract._id,
 		operationId: args.operation._id,
 		playerId: contract.playerId,
@@ -996,7 +1038,15 @@ async function settleContractAtTarget(args: {
 		createdAt: args.now,
 		updatedAt: args.now,
 	});
-	if (combat.success) {
+	if (
+		combat.success &&
+		(await markQuestMetricSourceProcessed({
+			ctx: args.ctx,
+			now: args.now,
+			sourceKind: "contractResult",
+			sourceId: String(contractResultId),
+		}))
+	) {
 		await incrementContractSuccess({
 			ctx: args.ctx,
 			playerId: contract.playerId,
@@ -1752,7 +1802,7 @@ export const getFleetOperationsForOriginColony = query({
 					arriveAt: operation.arriveAt,
 					nextEventAt: operation.nextEventAt,
 					distance: operation.distance,
-					canCancel: operation.status === "inTransit",
+						canCancel: operation.status === "inTransit",
 				};
 			}),
 		);
@@ -1872,7 +1922,7 @@ export const getFleetOperationsForTargetColony = query({
 					arriveAt: operation.arriveAt,
 					nextEventAt: operation.nextEventAt,
 					distance: operation.distance,
-					canCancel: operation.status === "inTransit",
+						canCancel: operation.status === "inTransit" && relation === "outgoing",
 				};
 			}),
 		);
@@ -2199,10 +2249,21 @@ export const getFleetOperationTimeline = query({
 			.query("fleetEvents")
 			.withIndex("by_owner_time", (q) => q.eq("ownerPlayerId", player._id))
 			.order("desc")
-			.take(limit);
+			.collect();
+		const filteredRows =
+			args.colonyId === undefined
+				? rows
+				: (
+						await Promise.all(
+							rows.map(async (row) => {
+								const operation = await ctx.db.get(row.operationId);
+								return operation?.originColonyId === args.colonyId ? row : null;
+							}),
+						)
+					).filter((row): row is (typeof rows)[number] => row !== null);
 
 		return {
-			events: rows.map((row) => ({
+			events: filteredRows.slice(0, limit).map((row) => ({
 				id: row._id,
 				operationId: row.operationId,
 				fleetId: row.fleetId,

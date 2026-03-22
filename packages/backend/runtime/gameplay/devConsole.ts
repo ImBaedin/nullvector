@@ -203,13 +203,18 @@ const clearAllPlayerDataDeletedValidator = v.object({
 });
 
 async function getDevAuthorizedOwnedColony(args: { colonyId: Id<"colonies">; ctx: MutationCtx }) {
+	const ownedAccess = await requireOwnedColonyAccess({
+		ctx: args.ctx,
+		colonyId: args.colonyId,
+	});
+	if (!ownedAccess.player.devConsoleEnabled) {
+		throw new ConvexError("Dev console access denied");
+	}
+
 	const owned = await getOwnedColony({
 		ctx: args.ctx,
 		colonyId: args.colonyId,
 	});
-	if (!owned.player.devConsoleEnabled) {
-		throw new ConvexError("Dev console access denied");
-	}
 	return owned;
 }
 

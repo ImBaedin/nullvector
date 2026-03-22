@@ -157,14 +157,35 @@ function resolveQuestBindings(args: {
 	colonies: Array<Pick<Doc<"colonies">, "_id">>;
 	definition: QuestDefinition;
 }) {
+	const colonyIds = new Set(args.colonies.map((colony) => colony._id));
 	if (args.definition.bindingStrategy === "activeColony") {
-		return args.activeColonyId ? { colonyId: args.activeColonyId } : null;
+		if (!args.activeColonyId || !colonyIds.has(args.activeColonyId)) {
+			return null;
+		}
+		return { colonyId: args.activeColonyId };
 	}
 	if (args.definition.bindingStrategy === "newestPlayerColony") {
 		const newestColony = args.colonies[args.colonies.length - 1];
 		return newestColony ? { colonyId: newestColony._id } : {};
 	}
 	return {};
+}
+
+function sanitizeQuestBindings(args: {
+	bindings: QuestBindings;
+	colonies: Array<Pick<Doc<"colonies">, "_id">>;
+	definition: QuestDefinition;
+}) {
+	if (args.definition.bindingStrategy === "none") {
+		return {};
+	}
+	const colonyIds = new Set(args.colonies.map((colony) => colony._id));
+	if (!args.bindings.colonyId) {
+		return null;
+	}
+	return colonyIds.has(args.bindings.colonyId as Id<"colonies">)
+		? args.bindings
+		: null;
 }
 
 function toQuestColonyFacts(
@@ -616,6 +637,10 @@ export const claim = mutation({
 		}
 		const playerId = playerResult.player._id;
 		const definition = requireQuestDefinition(args.questId);
+		const colonies = await listPlayerColonies({
+			ctx,
+			playerId,
+		});
 		const row = await ctx.db
 			.query("playerQuestStates")
 			.withIndex("by_player_quest", (q) => q.eq("playerId", playerId).eq("questId", definition.id))
@@ -629,18 +654,26 @@ export const claim = mutation({
 				status: "claimed" as const,
 			};
 		}
+		const bindings = sanitizeQuestBindings({
+			bindings: row.bindings ?? {},
+			colonies,
+			definition,
+		});
+		if (bindings === null) {
+			throw new ConvexError("Quest binding is no longer valid");
+		}
 
 		const facts = await loadQuestFactsForClaim({
 			ctx,
 			playerId,
 			definition,
-			bindings: row.bindings ?? {},
+			bindings,
 		});
 		const context = buildQuestEvaluationContextFromFacts(facts);
 		const evaluation = evaluateQuestDefinition({
 			quest: definition,
 			context,
-			bindings: row.bindings ?? {},
+			bindings,
 		});
 		if (!evaluation.complete) {
 			throw new ConvexError("Quest objectives are not complete");
@@ -668,7 +701,7 @@ export const claim = mutation({
 				ctx,
 				playerId,
 				now,
-				bindings: row.bindings ?? {},
+				bindings,
 				resources: reward.resources,
 			});
 		}
@@ -680,10 +713,10 @@ export const claim = mutation({
 		});
 
 		for (const effect of definition.effects ?? []) {
-			if (effect.kind !== "spawnTutorialRaid" || !row.bindings.colonyId) {
+			if (effect.kind !== "spawnTutorialRaid" || !bindings.colonyId) {
 				continue;
 			}
-			const colony = await ctx.db.get(row.bindings.colonyId as Id<"colonies">);
+			const colony = await ctx.db.get(bindings.colonyId as Id<"colonies">);
 			if (!colony) {
 				continue;
 			}
@@ -707,7 +740,7 @@ export const claim = mutation({
 		await ensureQuestActivationsForPlayer({
 			ctx,
 			playerId,
-			activeColonyId: args.activeColonyId ?? (row.bindings.colonyId as Id<"colonies"> | undefined),
+			activeColonyId: args.activeColonyId ?? (bindings.colonyId as Id<"colonies"> | undefined),
 		});
 
 		return {

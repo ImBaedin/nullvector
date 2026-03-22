@@ -24,7 +24,7 @@ import {
 import { RESOURCE_SCALE } from "../../convex/schema";
 import { emitRaidIncomingNotification, emitRaidResolvedNotification } from "./notifications";
 import { buildProgressionRules } from "./progression";
-import { incrementRaidDefenseSuccess } from "./questMetrics";
+import { incrementRaidDefenseSuccess, markQuestMetricSourceProcessed } from "./questMetrics";
 import {
 	computeNextNpcRaidAt,
 	computeNpcRaidTravelDurationMs,
@@ -810,7 +810,7 @@ export async function resolveNpcRaidNow(args: {
 		status: "resolved",
 		updatedAt: now,
 	});
-	await args.ctx.db.insert("npcRaidResults", {
+	const raidResultId = await args.ctx.db.insert("npcRaidResults", {
 		raidOperationId: raid._id,
 		universeId: raid.universeId,
 		targetColonyId: raid.targetColonyId,
@@ -828,7 +828,15 @@ export async function resolveNpcRaidNow(args: {
 		createdAt: now,
 		updatedAt: now,
 	});
-	if (combat.success === false) {
+	if (
+		combat.success === false &&
+		(await markQuestMetricSourceProcessed({
+			ctx: args.ctx,
+			now,
+			sourceKind: "npcRaidResult",
+			sourceId: String(raidResultId),
+		}))
+	) {
 		await incrementRaidDefenseSuccess({
 			ctx: args.ctx,
 			playerId: raid.targetPlayerId,

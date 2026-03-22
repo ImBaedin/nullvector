@@ -237,6 +237,10 @@ export const getColonyInfrastructure = query({
 	},
 	returns: colonyInfrastructureValidator,
 	handler: async (ctx, args) => {
+		await requireOwnedColonyAccess({
+			colonyId: args.colonyId,
+			ctx,
+		});
 		const infrastructure = await ctx.db
 			.query("colonyInfrastructure")
 			.withIndex("by_colony_id", (q) => q.eq("colonyId", args.colonyId))
@@ -258,6 +262,10 @@ export const getColonyPolicy = query({
 	},
 	returns: colonyPolicyValidator,
 	handler: async (ctx, args) => {
+		await requireOwnedColonyAccess({
+			colonyId: args.colonyId,
+			ctx,
+		});
 		const policy = await ctx.db
 			.query("colonyPolicy")
 			.withIndex("by_colony_id", (q) => q.eq("colonyId", args.colonyId))

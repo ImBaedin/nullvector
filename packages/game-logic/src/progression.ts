@@ -1218,10 +1218,17 @@ export function deriveQuestTimelineItems(args: {
 				} satisfies QuestTimelinePrerequisite;
 			});
 			const prerequisitesSatisfied = prerequisites.every((prerequisite) => prerequisite.satisfied);
+			const previewBindings =
+				row?.bindings ??
+				(definition.bindingStrategy === "newestPlayerColony"
+					? { colonyId: args.facts.colonies[args.facts.colonies.length - 1]?.colonyId }
+					: definition.bindingStrategy === "activeColony"
+						? null
+						: {});
 			const evaluation = evaluateQuestDefinition({
 				quest: definition,
 				context,
-				bindings: row?.bindings ?? {},
+				bindings: previewBindings ?? undefined,
 			});
 			const status: QuestTimelineStatus =
 				row !== undefined
@@ -1398,10 +1405,28 @@ export function evaluateQuestObjective(args: {
 }
 
 export function evaluateQuestDefinition(args: {
-	bindings?: QuestBindings;
+	bindings?: QuestBindings | null;
 	context: QuestEvaluationContext;
 	quest: QuestDefinition;
 }): QuestEvaluationResult {
+	if (args.bindings === null) {
+		const objectives = args.quest.objectives.map((objective) =>
+			clampProgress(
+				0,
+				"minAmount" in objective
+					? objective.minAmount
+					: "minCount" in objective
+						? objective.minCount
+						: "minLevel" in objective
+							? objective.minLevel
+							: 1,
+			),
+		);
+		return {
+			objectives,
+			complete: false,
+		};
+	}
 	const bindings = args.bindings ?? {};
 	const objectives = args.quest.objectives.map((objective) =>
 		evaluateQuestObjective({

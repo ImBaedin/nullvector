@@ -236,6 +236,20 @@ export const backfillColonyAccessAndScheduling = mutation({
 					updatedAt: colony.updatedAt,
 				});
 				insertedQueueScheduling += 1;
+			} else if (
+				(legacyColony.queueResolutionJobId !== undefined &&
+					existingScheduling.queueResolutionJobId === undefined) ||
+				(legacyColony.queueResolutionScheduledAt !== undefined &&
+					existingScheduling.queueResolutionScheduledAt === undefined)
+			) {
+				await ctx.db.patch(existingScheduling._id, {
+					queueResolutionJobId:
+						existingScheduling.queueResolutionJobId ?? legacyColony.queueResolutionJobId,
+					queueResolutionScheduledAt:
+						existingScheduling.queueResolutionScheduledAt ??
+						legacyColony.queueResolutionScheduledAt,
+					updatedAt: colony.updatedAt,
+				});
 			}
 
 			const existingRaidScheduling = await ctx.db
@@ -250,6 +264,14 @@ export const backfillColonyAccessAndScheduling = mutation({
 					updatedAt: colony.updatedAt,
 				});
 				insertedRaidScheduling += 1;
+			} else if (
+				legacyColony.nextNpcRaidAt !== undefined &&
+				existingRaidScheduling.nextNpcRaidAt === undefined
+			) {
+				await ctx.db.patch(existingRaidScheduling._id, {
+					nextNpcRaidAt: legacyColony.nextNpcRaidAt,
+					updatedAt: colony.updatedAt,
+				});
 			}
 
 			if (
