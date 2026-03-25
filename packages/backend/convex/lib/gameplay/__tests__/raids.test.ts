@@ -11,6 +11,14 @@ describe("raid spawn policy", () => {
 		).toBe(false);
 	});
 
+	it("does not allow tutorial-only raids without the scripted spawn reason", () => {
+		expect(
+			shouldSpawnNpcRaid({
+				mode: "tutorialOnly",
+			}),
+		).toBe(false);
+	});
+
 	it("allows the scripted tutorial raid even before ambient raids unlock", () => {
 		expect(
 			shouldSpawnNpcRaid({

@@ -846,7 +846,7 @@ export async function resolveNpcRaidNow(args: {
 			ctx: args.ctx,
 			now,
 			sourceKind: "npcRaidResult",
-			sourceId: String(raidResultId),
+			sourceId: String(raid._id),
 		}))
 	) {
 		await incrementRaidDefenseSuccess({
