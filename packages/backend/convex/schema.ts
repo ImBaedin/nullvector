@@ -99,8 +99,8 @@ const contractSnapshotValidator = v.object({
 	priorityProfile: combatPriorityProfileValidator,
 	requiredRank: v.number(),
 	rewardCredits: v.number(),
-	rewardRankXpFailure: v.number(),
-	rewardRankXpSuccess: v.number(),
+	rewardXpFailure: v.number(),
+	rewardXpSuccess: v.number(),
 	rewardResources: resourceBucketValidator,
 });
 
@@ -455,11 +455,64 @@ export default defineSchema({
 	playerProgression: defineTable({
 		playerId: v.id("players"),
 		credits: v.number(),
-		rank: v.number(),
-		rankXp: v.number(),
+		rankXpTotal: v.number(),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	}).index("by_player_id", ["playerId"]),
+
+	// Player-owned quest lifecycle rows for code-defined progression quests.
+	playerQuestStates: defineTable({
+		playerId: v.id("players"),
+		questId: v.string(),
+		status: v.union(v.literal("active"), v.literal("claimable"), v.literal("claimed")),
+		questVersion: v.number(),
+		bindings: v.object({
+			colonyId: v.optional(v.string()),
+		}),
+		activatedAt: v.number(),
+		claimableAt: v.optional(v.number()),
+		claimedAt: v.optional(v.number()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_player_quest", ["playerId", "questId"])
+		.index("by_player", ["playerId"])
+		.index("by_player_status", ["playerId", "status"]),
+
+	// Player-level counters for quest objectives that should not scan historical result tables.
+	playerQuestMetrics: defineTable({
+		playerId: v.id("players"),
+		colonizationSuccessCount: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_player_id", ["playerId"]),
+
+	// Colony-scoped counters for quest objectives derived from settled gameplay results.
+	colonyQuestMetrics: defineTable({
+		playerId: v.id("players"),
+		colonyId: v.id("colonies"),
+		contractSuccessCount: v.number(),
+		contractRewardResourcesTotal: v.number(),
+		raidDefenseSuccessCount: v.number(),
+		transportDeliveryCount: v.number(),
+		transportDeliveredResourcesTotal: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_player_id", ["playerId"])
+		.index("by_colony_id", ["colonyId"])
+		.index("by_player_colony", ["playerId", "colonyId"]),
+
+	// Idempotency ledger for quest-metric historical backfills.
+	questMetricBackfillMarks: defineTable({
+		sourceKind: v.union(
+			v.literal("contractResult"),
+			v.literal("npcRaidResult"),
+			v.literal("fleetOperationResult"),
+		),
+		sourceId: v.string(),
+		createdAt: v.number(),
+	}).index("by_source", ["sourceKind", "sourceId"]),
 
 	devConsoleActions: defineTable({
 		actorPlayerId: v.id("players"),
@@ -476,16 +529,41 @@ export default defineSchema({
 		playerId: v.id("players"),
 		planetId: v.id("planets"),
 		name: v.string(),
-		queueResolutionScheduledAt: v.optional(v.number()),
-		queueResolutionJobId: v.optional(v.id("_scheduled_functions")),
-		nextNpcRaidAt: v.optional(v.number()),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	})
 		.index("by_player_id", ["playerId"])
 		.index("by_planet_id", ["planetId"])
 		.index("by_player_universe", ["playerId", "universeId"])
-		.index("by_universe_id", ["universeId"])
+		.index("by_universe_id", ["universeId"]),
+
+	// Stable one-row-per-colony ownership mapping for narrow auth checks without reading `colonies`.
+	colonyAccess: defineTable({
+		colonyId: v.id("colonies"),
+		playerId: v.id("players"),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_colony_id", ["colonyId"])
+		.index("by_player_id", ["playerId"]),
+
+	// Scheduler-only colony metadata isolated from the primary colony row to reduce invalidation churn.
+	colonyScheduling: defineTable({
+		colonyId: v.id("colonies"),
+		queueResolutionScheduledAt: v.optional(v.number()),
+		queueResolutionJobId: v.optional(v.id("_scheduled_functions")),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_colony_id", ["colonyId"]),
+
+	// Raid timing is isolated from queue scheduling so raid status queries do not churn on queue updates.
+	colonyRaidScheduling: defineTable({
+		colonyId: v.id("colonies"),
+		nextNpcRaidAt: v.optional(v.number()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_colony_id", ["colonyId"])
 		.index("by_next_npc_raid_at", ["nextNpcRaidAt"]),
 
 	colonyEconomy: defineTable({
@@ -590,6 +668,15 @@ export default defineSchema({
 		operationId: v.id("fleetOperations"),
 		universeId: v.id("universes"),
 		ownerPlayerId: v.id("players"),
+		operationKind: v.union(
+			v.literal("transport"),
+			v.literal("colonize"),
+			v.literal("contract"),
+			v.literal("combat"),
+		),
+		originColonyId: v.id("colonies"),
+		targetColonyId: v.optional(v.id("colonies")),
+		targetPlanetId: v.optional(v.id("planets")),
 		cargoDeliveredToStorage: resourceBucketValidator,
 		cargoDeliveredToOverflow: resourceBucketValidator,
 		fuelWaived: v.optional(v.number()),
@@ -622,6 +709,10 @@ export default defineSchema({
 		targetColonyId: v.id("colonies"),
 		targetPlayerId: v.id("players"),
 		sourcePlanetId: v.optional(v.id("planets")),
+		// Rollout marker for the scripted rank-2 tutorial raid only. Keep this literal stable
+		// until that onboarding path is retired; if analytics or migration semantics need to
+		// change, coordinate with gameplay/progression owners before widening or renaming it.
+		spawnReason: v.optional(v.literal("tutorialRank2")),
 		hostileFactionKey: hostileFactionKeyValidator,
 		status: v.union(
 			v.literal("scheduled"),
@@ -660,7 +751,6 @@ export default defineSchema({
 		}),
 		resourcesLooted: resourceBucketValidator,
 		salvageGranted: resourceBucketValidator,
-		rankXpDelta: v.number(),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	})
@@ -703,6 +793,7 @@ export default defineSchema({
 		operationId: v.id("fleetOperations"),
 		playerId: v.id("players"),
 		planetId: v.id("planets"),
+		originColonyId: v.optional(v.id("colonies")),
 		success: v.boolean(),
 		roundsFought: v.number(),
 		attackerSurvivors: shipCountsValidator,
@@ -711,7 +802,7 @@ export default defineSchema({
 			defenses: defenseCountsValidator,
 		}),
 		rewardCreditsGranted: v.number(),
-		rewardRankXpGranted: v.number(),
+		rewardXpGranted: v.number(),
 		rewardCargoLoaded: resourceBucketValidator,
 		rewardCargoLostByCapacity: resourceBucketValidator,
 		controlReductionApplied: v.number(),

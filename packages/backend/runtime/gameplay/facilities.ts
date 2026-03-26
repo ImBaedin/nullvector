@@ -9,6 +9,7 @@ import {
 import { ConvexError, v } from "convex/values";
 
 import { mutation } from "../../convex/_generated/server";
+import { buildProgressionRules, requireFacilityAccess, requireFeatureAccess } from "./progression";
 import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	EMPTY_RESEARCH_LEVELS,
@@ -93,6 +94,20 @@ export const enqueueFacilityUpgrade = mutation({
 		const { colony, planet, player } = await getOwnedColony({
 			ctx,
 			colonyId: args.colonyId,
+		});
+		const progression = await buildProgressionRules({
+			ctx,
+			playerId: player._id,
+		});
+		requireFeatureAccess({
+			featureKey: "facilities",
+			label: "Facilities",
+			progression,
+		});
+		requireFacilityAccess({
+			facilityKey: args.facilityKey,
+			label: "Facility",
+			progression,
 		});
 
 		const settledColony = await settleColonyAndPersist({

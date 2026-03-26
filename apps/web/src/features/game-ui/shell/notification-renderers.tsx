@@ -318,7 +318,6 @@ function RaidResolvedNotification({
 				label="Resources looted"
 				value={<ResourceInlineList bucket={payload.resourcesLooted} />}
 			/>
-			<NotificationStat label="Rank XP delta" value={payload.rankXpDelta.toLocaleString()} />
 		</NotificationDetailLayout>
 	);
 }
@@ -343,8 +342,8 @@ function ContractResolvedNotification({
 				notification={notification}
 				summary={
 					payload.success
-						? `Granted ${payload.rewardCreditsGranted.toLocaleString()} credits and ${payload.rewardRankXpGranted.toLocaleString()} XP.`
-						: `Granted ${payload.rewardRankXpGranted.toLocaleString()} XP after failure.`
+						? `Granted ${payload.rewardCreditsGranted.toLocaleString()} credits and ${payload.rewardXpGranted.toLocaleString()} XP.`
+						: `Granted ${payload.rewardXpGranted.toLocaleString()} XP after failure.`
 				}
 				title={titleWithColony({
 					baseTitle: payload.success ? "Contract completed" : "Contract failed",
@@ -360,7 +359,7 @@ function ContractResolvedNotification({
 			<NotificationStat label="Outcome" value={payload.success ? "Success" : "Failed"} />
 			<NotificationStat label="Rounds fought" value={payload.roundsFought} />
 			<NotificationStat label="Credits" value={payload.rewardCreditsGranted.toLocaleString()} />
-			<NotificationStat label="Rank XP" value={payload.rewardRankXpGranted.toLocaleString()} />
+			<NotificationStat label="XP" value={payload.rewardXpGranted.toLocaleString()} />
 			<NotificationStat
 				label="Cargo loaded"
 				value={<ResourceInlineList bucket={payload.rewardCargoLoaded} />}

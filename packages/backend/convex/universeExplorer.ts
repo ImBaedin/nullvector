@@ -254,6 +254,15 @@ async function resolveGalaxyContext(ctx: QueryCtx, galaxyId: Id<"galaxies">) {
 	return { galaxy, universe };
 }
 
+async function getGalaxyRowOrThrow(ctx: QueryCtx, galaxyId: Id<"galaxies">) {
+	const galaxy = await ctx.db.get(galaxyId);
+	if (!galaxy) {
+		throw new ConvexError("Galaxy not found");
+	}
+
+	return galaxy;
+}
+
 async function resolveSectorContext(ctx: QueryCtx, sectorId: Id<"sectors">) {
 	const sector = await ctx.db.get(sectorId);
 	if (!sector) {
@@ -392,7 +401,7 @@ export const getGalaxySectorList = query({
 		sectors: v.array(sectorSummaryValidator),
 	}),
 	handler: async (ctx, args) => {
-		const { galaxy } = await resolveGalaxyContext(ctx, args.galaxyId);
+		const galaxy = await getGalaxyRowOrThrow(ctx, args.galaxyId);
 
 		const sectors = await ctx.db
 			.query("sectors")

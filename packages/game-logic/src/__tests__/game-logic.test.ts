@@ -176,13 +176,7 @@ test("facilities are unlock/buff structures", () => {
 	expect(getFacilityBuffs(shipyard).some((buff) => buff.type === "ship_unlock")).toBe(true);
 	expect(
 		isFacilityUnlocked(defenseGrid, {
-			facilityLevels: { shipyard: 1 },
-			researchLevels: {},
-		}),
-	).toBe(false);
-	expect(
-		isFacilityUnlocked(defenseGrid, {
-			facilityLevels: { shipyard: 2 },
+			facilityLevels: {},
 			researchLevels: {},
 		}),
 	).toBe(true);

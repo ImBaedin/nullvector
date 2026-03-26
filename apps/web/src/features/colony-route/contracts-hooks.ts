@@ -27,10 +27,7 @@ export function useContractsRouteData(args: {
 	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 	const nowMs = useNowMs(isAuthenticated);
 	const shipCatalog = useMemo(() => selectShipCatalog(), []);
-	const progression = useQuery(
-		api.playerProgression.getPlayerProgression,
-		isAuthenticated ? {} : "skip",
-	);
+	const progression = useQuery(api.progression.getOverview, isAuthenticated ? {} : "skip");
 	const recommendedResult = useQuery(
 		api.contracts.getRecommendedContracts,
 		isAuthenticated ? { colonyId: args.colonyId } : "skip",
@@ -91,11 +88,11 @@ export function useContractsRouteData(args: {
 		isAuthenticated &&
 		Boolean(
 			recommendedResult &&
-				progression &&
-				historySummary &&
-				garrison &&
-				operations &&
-				(!args.historyExpanded || history !== undefined),
+			progression &&
+			historySummary &&
+			garrison &&
+			operations &&
+			(!args.historyExpanded || history !== undefined),
 		);
 
 	return {

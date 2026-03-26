@@ -8,9 +8,10 @@ import { authComponent } from "../../convex/auth";
 import { DEFAULT_UNIVERSE_SLUG } from "../../convex/lib/worldgen/config";
 import { ensureCoreCapacityPipeline } from "../../convex/lib/worldgen/pipeline";
 import { ensureUniverseHostilitySeeded, isPlanetCurrentlyColonizable } from "./hostility";
-import { computeNextNpcRaidAt, RAID_MIN_PLAYER_RANK } from "./raidScheduling";
 import { ensurePlayerProgression } from "./progression";
+import { ensureQuestActivationsForPlayer } from "./quests";
 import {
+	ensureColonyAccessRow,
 	emptyResourceBucket,
 	hashString,
 	listPlayerColonies,
@@ -18,8 +19,8 @@ import {
 	resolveDisplayName,
 	resolvedAuthUserId,
 	resolveUniverse,
-	scaledUnits,
 	storageCapsFromBuildings,
+	upsertColonySchedulingState,
 	usedSlotsFromBuildings,
 	sessionStateValidator,
 } from "./shared";
@@ -30,6 +31,22 @@ const bootstrapResponseValidator = v.object({
 	isNewPlayer: v.boolean(),
 	isNewColony: v.boolean(),
 });
+
+async function ensureQuestActivationsBestEffort(args: {
+	activeColonyId: Doc<"colonies">["_id"];
+	ctx: MutationCtx;
+	playerId: Doc<"players">["_id"];
+}) {
+	try {
+		await ensureQuestActivationsForPlayer(args);
+	} catch (error) {
+		console.error("Session quest activation ensure failed", {
+			activeColonyId: args.activeColonyId,
+			error,
+			playerId: args.playerId,
+		});
+	}
+}
 
 async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	const authUser = await authComponent.safeGetAuthUser(ctx);
@@ -76,7 +93,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	if (!player) {
 		throw new ConvexError("Failed to resolve player profile");
 	}
-	const progression = await ensurePlayerProgression({
+	await ensurePlayerProgression({
 		ctx,
 		playerId: player._id,
 	});
@@ -87,6 +104,11 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	});
 
 	if (existingColonies.length > 0 && existingColonies[0]) {
+		await ensureQuestActivationsBestEffort({
+			ctx,
+			playerId: player._id,
+			activeColonyId: existingColonies[0]._id,
+		});
 		return {
 			playerId: player._id,
 			defaultColonyId: existingColonies[0]._id,
@@ -232,11 +254,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 	} satisfies Doc<"colonyInfrastructure">["buildings"];
 
 	const storageCaps = storageCapsFromBuildings(starterBuildings);
-	const resources = {
-		alloy: Math.min(storageCaps.alloy, scaledUnits(5_000)),
-		crystal: Math.min(storageCaps.crystal, scaledUnits(3_000)),
-		fuel: Math.min(storageCaps.fuel, scaledUnits(1_000)),
-	};
+	const resources = emptyResourceBucket();
 
 	if (!selectedPlanet) {
 		throw new ConvexError("No colonizable planet selected");
@@ -272,17 +290,31 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 		createdAt: now,
 		updatedAt: now,
 	});
-	if (progression.rank >= RAID_MIN_PLAYER_RANK) {
-		await ctx.db.patch(colonyId, {
-			nextNpcRaidAt: computeNextNpcRaidAt({
-				anchorAt: now,
-				colonyId,
-			}),
-			updatedAt: now,
-		});
+	const createdColony = await ctx.db.get(colonyId);
+	if (!createdColony) {
+		throw new ConvexError("Failed to create colony");
 	}
+	await ensureColonyAccessRow({
+		colony: createdColony,
+		ctx,
+		now,
+	});
+	await upsertColonySchedulingState({
+		colonyId,
+		ctx,
+		now,
+		patch: {},
+	});
+	await ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
+		colonyId,
+	});
 	await ctx.scheduler.runAfter(0, internal.contracts.rebuildContractDiscoveryForColony, {
 		colonyId,
+	});
+	await ensureQuestActivationsBestEffort({
+		ctx,
+		playerId: player._id,
+		activeColonyId: colonyId,
 	});
 	return {
 		playerId: player._id,

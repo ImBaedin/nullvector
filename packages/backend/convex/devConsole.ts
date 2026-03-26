@@ -1,4 +1,5 @@
 import {
+	clearAllPlayerData,
 	completeActiveMission,
 	completeActiveRaidAtCurrentColony,
 	completeActiveQueueItem,
@@ -13,6 +14,7 @@ import {
 } from "../runtime/gameplay/devConsole";
 
 export {
+	clearAllPlayerData,
 	getDevConsoleState,
 	setDevConsoleUiEnabled,
 	setColonyResources,

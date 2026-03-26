@@ -7,7 +7,12 @@ import { ConvexError, v } from "convex/values";
 
 import type { Id } from "../../convex/_generated/dataModel";
 
-import { mutation, query, type MutationCtx } from "../../convex/_generated/server";
+import {
+	internalMutation,
+	mutation,
+	query,
+	type MutationCtx,
+} from "../../convex/_generated/server";
 import { settleDueFleetOperations } from "./fleetV2";
 import { resolveNpcRaidNow, spawnNpcRaidImmediatelyForColony } from "./raids";
 import { reconcileFleetOperationSchedule, rescheduleColonyQueueResolution } from "./scheduling";
@@ -26,6 +31,7 @@ import {
 	readColonyDefenseCounts,
 	replaceColonyDefenseCounts,
 	replaceColonyShipCounts,
+	requireOwnedColonyAccess,
 	resolveCurrentPlayer,
 	scaledUnits,
 	settleColonyAndPersist,
@@ -151,14 +157,94 @@ async function logDevAction(args: {
 	});
 }
 
+async function deleteAllByQuery(args: {
+	ctx: MutationCtx;
+	dryRun: boolean;
+	queryFactory: () => Promise<Array<{ _id: Id<any> }>>;
+}) {
+	const rows = await args.queryFactory();
+	let deleted = 0;
+
+	for (const row of rows) {
+		if (!args.dryRun) {
+			await args.ctx.db.delete(row._id);
+		}
+		deleted += 1;
+	}
+
+	return deleted;
+}
+
+async function deleteAllTableRows(args: {
+	ctx: MutationCtx;
+	dryRun: boolean;
+	queryFactory: (limit: number) => Promise<Array<{ _id: Id<any> }>>;
+}) {
+	const batchSize = 128;
+	if (args.dryRun) {
+		return deleteAllByQuery({
+			ctx: args.ctx,
+			dryRun: true,
+			queryFactory: () => args.queryFactory(Number.MAX_SAFE_INTEGER),
+		});
+	}
+
+	let deleted = 0;
+	for (;;) {
+		const rows = await args.queryFactory(batchSize);
+		if (rows.length === 0) {
+			return deleted;
+		}
+		for (const row of rows) {
+			await args.ctx.db.delete(row._id);
+			deleted += 1;
+		}
+	}
+}
+
+const clearAllPlayerDataDeletedValidator = v.object({
+	playerProgression: v.number(),
+	playerQuestStates: v.number(),
+	playerQuestMetrics: v.number(),
+	devConsoleActions: v.number(),
+	playerNotificationPreferences: v.number(),
+	notifications: v.number(),
+	colonyQuestMetrics: v.number(),
+	colonyContractCandidates: v.number(),
+	colonyContractDiscoveryState: v.number(),
+	contractBoardState: v.number(),
+	contractResults: v.number(),
+	contracts: v.number(),
+	fleetEvents: v.number(),
+	fleetOperationResults: v.number(),
+	fleetOperations: v.number(),
+	fleets: v.number(),
+	npcRaidResults: v.number(),
+	npcRaidOperations: v.number(),
+	colonyQueuePayloads: v.number(),
+	colonyQueueItems: v.number(),
+	colonyShips: v.number(),
+	colonyDefenses: v.number(),
+	colonyPolicy: v.number(),
+	colonyInfrastructure: v.number(),
+	colonyEconomy: v.number(),
+	colonyRaidScheduling: v.number(),
+	colonies: v.number(),
+});
+
 async function getDevAuthorizedOwnedColony(args: { colonyId: Id<"colonies">; ctx: MutationCtx }) {
+	const ownedAccess = await requireOwnedColonyAccess({
+		ctx: args.ctx,
+		colonyId: args.colonyId,
+	});
+	if (!ownedAccess.player.devConsoleEnabled) {
+		throw new ConvexError("Dev console access denied");
+	}
+
 	const owned = await getOwnedColony({
 		ctx: args.ctx,
 		colonyId: args.colonyId,
 	});
-	if (!owned.player.devConsoleEnabled) {
-		throw new ConvexError("Dev console access denied");
-	}
 	return owned;
 }
 
@@ -217,7 +303,7 @@ export const getDevConsoleState = query({
 	}),
 	handler: async (ctx, args) => {
 		try {
-			const owned = await getOwnedColony({
+			const owned = await requireOwnedColonyAccess({
 				ctx,
 				colonyId: args.colonyId,
 			});
@@ -1107,6 +1193,162 @@ export const completeActiveRaidAtCurrentColony = mutation({
 		return {
 			colonyId: owned.colony._id,
 			raidOperationId: activeRaid._id,
+		};
+	},
+});
+
+export const clearAllPlayerData = internalMutation({
+	args: {
+		dryRun: v.optional(v.boolean()),
+	},
+	returns: v.object({
+		deleted: clearAllPlayerDataDeletedValidator,
+		dryRun: v.boolean(),
+	}),
+	handler: async (ctx, args) => {
+		const dryRun = args.dryRun ?? false;
+
+		const deleted = {
+			playerProgression: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerProgression").take(limit),
+			}),
+			playerQuestStates: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerQuestStates").take(limit),
+			}),
+			playerQuestMetrics: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerQuestMetrics").take(limit),
+			}),
+			devConsoleActions: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("devConsoleActions").take(limit),
+			}),
+			playerNotificationPreferences: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerNotificationPreferences").take(limit),
+			}),
+			notifications: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("notifications").take(limit),
+			}),
+			colonyQuestMetrics: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyQuestMetrics").take(limit),
+			}),
+			colonyContractCandidates: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyContractCandidates").take(limit),
+			}),
+			colonyContractDiscoveryState: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyContractDiscoveryState").take(limit),
+			}),
+			contractBoardState: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("contractBoardState").take(limit),
+			}),
+			contractResults: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("contractResults").take(limit),
+			}),
+			contracts: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("contracts").take(limit),
+			}),
+			fleetEvents: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("fleetEvents").take(limit),
+			}),
+			fleetOperationResults: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("fleetOperationResults").take(limit),
+			}),
+			fleetOperations: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("fleetOperations").take(limit),
+			}),
+			fleets: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("fleets").take(limit),
+			}),
+			npcRaidResults: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("npcRaidResults").take(limit),
+			}),
+			npcRaidOperations: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("npcRaidOperations").take(limit),
+			}),
+			colonyQueuePayloads: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyQueuePayloads").take(limit),
+			}),
+			colonyQueueItems: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyQueueItems").take(limit),
+			}),
+			colonyShips: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyShips").take(limit),
+			}),
+			colonyDefenses: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyDefenses").take(limit),
+			}),
+			colonyPolicy: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyPolicy").take(limit),
+			}),
+			colonyInfrastructure: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyInfrastructure").take(limit),
+			}),
+			colonyEconomy: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyEconomy").take(limit),
+			}),
+			colonyRaidScheduling: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyRaidScheduling").take(limit),
+			}),
+			colonies: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonies").take(limit),
+			}),
+		};
+
+		return {
+			deleted,
+			dryRun,
 		};
 	},
 });

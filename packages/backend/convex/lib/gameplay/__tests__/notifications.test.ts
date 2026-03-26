@@ -42,7 +42,6 @@ describe("notification helpers", () => {
 					crystal: 0,
 					fuel: 0,
 				},
-				rankXpDelta: 0,
 			}),
 		).toEqual({
 			kind: "colonyTab",

@@ -2,7 +2,12 @@ import type { Id } from "../../convex/_generated/dataModel";
 
 import { internal } from "../../convex/_generated/api";
 import { type MutationCtx } from "../../convex/_generated/server";
-import { listOpenColonyQueueItems, queueEventsNextAt } from "./shared";
+import {
+	getColonySchedulingState,
+	listOpenColonyQueueItems,
+	queueEventsNextAt,
+	upsertColonySchedulingState,
+} from "./shared";
 
 const ACTIVE_FLEET_OPERATION_STATUSES = new Set(["inTransit", "returning"]);
 
@@ -28,9 +33,13 @@ export async function rescheduleColonyQueueResolution(args: {
 	if (!colony) {
 		return { colonyExists: false, nextDueAt: null as number | null };
 	}
+	const scheduling = await getColonySchedulingState({
+		colonyId: args.colonyId,
+		ctx: args.ctx,
+	});
 
 	const queueRows = await listOpenColonyQueueItems({
-		colonyId: colony._id,
+		colonyId: args.colonyId,
 		ctx: args.ctx,
 	});
 	const nextDueAt = queueEventsNextAt(queueRows);
@@ -39,14 +48,21 @@ export async function rescheduleColonyQueueResolution(args: {
 		if (!args.skipCancel) {
 			await cancelScheduledFunctionIfPresent({
 				ctx: args.ctx,
-				jobId: colony.queueResolutionJobId,
+				jobId: scheduling.queueResolutionJobId,
 			});
 		}
-		if (colony.queueResolutionJobId || colony.queueResolutionScheduledAt !== undefined) {
-			await args.ctx.db.patch(colony._id, {
-				queueResolutionJobId: undefined,
-				queueResolutionScheduledAt: undefined,
-				updatedAt: Date.now(),
+		if (
+			scheduling.queueResolutionJobId !== undefined ||
+			scheduling.queueResolutionScheduledAt !== undefined
+		) {
+			await upsertColonySchedulingState({
+				colonyId: args.colonyId,
+				ctx: args.ctx,
+				now: Date.now(),
+				patch: {
+					queueResolutionJobId: undefined,
+					queueResolutionScheduledAt: undefined,
+				},
 			});
 		}
 		return { colonyExists: true, nextDueAt: null as number | null };
@@ -54,8 +70,8 @@ export async function rescheduleColonyQueueResolution(args: {
 
 	if (
 		!args.force &&
-		colony.queueResolutionScheduledAt === nextDueAt &&
-		colony.queueResolutionJobId !== undefined
+		scheduling.queueResolutionScheduledAt === nextDueAt &&
+		scheduling.queueResolutionJobId !== undefined
 	) {
 		return { colonyExists: true, nextDueAt };
 	}
@@ -63,20 +79,24 @@ export async function rescheduleColonyQueueResolution(args: {
 	if (!args.skipCancel) {
 		await cancelScheduledFunctionIfPresent({
 			ctx: args.ctx,
-			jobId: colony.queueResolutionJobId,
+			jobId: scheduling.queueResolutionJobId,
 		});
 	}
 
 	const runAt = Math.max(Date.now(), nextDueAt);
 	const jobId = await args.ctx.scheduler.runAt(runAt, internal.scheduler.resolveColonyQueues, {
-		colonyId: colony._id,
+		colonyId: args.colonyId,
 		scheduledAt: nextDueAt,
 	});
 
-	await args.ctx.db.patch(colony._id, {
-		queueResolutionJobId: jobId,
-		queueResolutionScheduledAt: nextDueAt,
-		updatedAt: Date.now(),
+	await upsertColonySchedulingState({
+		colonyId: args.colonyId,
+		ctx: args.ctx,
+		now: Date.now(),
+		patch: {
+			queueResolutionJobId: jobId,
+			queueResolutionScheduledAt: nextDueAt,
+		},
 	});
 
 	return { colonyExists: true, nextDueAt };

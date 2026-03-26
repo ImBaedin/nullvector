@@ -6,11 +6,13 @@ import { mutation, query } from "../../convex/_generated/server";
 import {
 	colonyCoordinatesValidator,
 	colonyStatusValidator,
-	getOwnedColony,
-	listOpenColonyQueueItems,
+	getColonyRowOrThrow,
+	getPlanetRowOrThrow,
+	listOpenColonyQueueItemRows,
 	listPlayerColonies,
 	listPlayerColonyPlanets,
 	queueEventsNextAt,
+	requireOwnedColonyRow,
 	sessionColonyValidator,
 	toAddressLabel,
 } from "./shared";
@@ -53,7 +55,7 @@ export const getColonyNav = query({
 		colonies: v.array(sessionColonyValidator),
 	}),
 	handler: async (ctx, args) => {
-		const { colony, player } = await getOwnedColony({
+		const { colony, player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -91,27 +93,65 @@ export const getActiveColonyNextEvent = query({
 		nextEventAt: v.optional(v.number()),
 	}),
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
+		const { colony } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
-		const colonyQueueRows = await listOpenColonyQueueItems({
+		const colonyQueueRows = await listOpenColonyQueueItemRows({
 			colonyId: colony._id,
 			ctx,
 		});
-		const activeRaid = await ctx.db
-			.query("npcRaidOperations")
-			.withIndex("by_target_status_event", (q) =>
-				q.eq("targetColonyId", colony._id).eq("status", "inTransit"),
-			)
-			.first();
+		const [activeRaid, outgoingInTransit, outgoingReturning, incomingInTransit, incomingReturning] =
+			await Promise.all([
+				ctx.db
+					.query("npcRaidOperations")
+					.withIndex("by_target_status_event", (q) =>
+						q.eq("targetColonyId", colony._id).eq("status", "inTransit"),
+					)
+					.first(),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_origin_stat_evt", (q) =>
+						q.eq("originColonyId", colony._id).eq("status", "inTransit"),
+					)
+					.collect(),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_origin_stat_evt", (q) =>
+						q.eq("originColonyId", colony._id).eq("status", "returning"),
+					)
+					.collect(),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_tcol_st_evt", (q) =>
+						q.eq("target.colonyId", colony._id).eq("status", "inTransit"),
+					)
+					.collect(),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_tcol_st_evt", (q) =>
+						q.eq("target.colonyId", colony._id).eq("status", "returning"),
+					)
+					.collect(),
+			]);
 		const queueNextEventAt = queueEventsNextAt(colonyQueueRows) ?? undefined;
+		const fleetNextEventCandidates = [
+			...new Map(
+				[
+					...outgoingInTransit,
+					...outgoingReturning,
+					...incomingInTransit,
+					...incomingReturning,
+				].map((operation) => [operation._id, operation.nextEventAt]),
+			).values(),
+		];
+		const nextEventCandidates = [
+			queueNextEventAt,
+			activeRaid?.nextEventAt,
+			...fleetNextEventCandidates,
+		].filter((value): value is number => typeof value === "number");
 		const nextEventAt =
-			queueNextEventAt === undefined
-				? activeRaid?.nextEventAt
-				: activeRaid?.nextEventAt === undefined
-					? queueNextEventAt
-					: Math.min(queueNextEventAt, activeRaid.nextEventAt);
+			nextEventCandidates.length > 0 ? Math.min(...nextEventCandidates) : undefined;
 
 		return {
 			activeColonyId: colony._id,
@@ -129,7 +169,7 @@ export const getAllColonyQueueStatuses = query({
 		statuses: v.array(colonyStatusValidator),
 	}),
 	handler: async (ctx, args) => {
-		const { colony, player } = await getOwnedColony({
+		const { colony, player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -172,9 +212,13 @@ export const getColonyCoordinates = query({
 	},
 	returns: colonyCoordinatesValidator,
 	handler: async (ctx, args) => {
-		const { colony, planet } = await getOwnedColony({
+		const colony = await getColonyRowOrThrow({
 			ctx,
 			colonyId: args.colonyId,
+		});
+		const planet = await getPlanetRowOrThrow({
+			ctx,
+			planetId: colony.planetId,
 		});
 		const system = await ctx.db.get(planet.systemId);
 		if (!system) {
@@ -211,7 +255,7 @@ export const renameColony = mutation({
 		name: v.string(),
 	}),
 	handler: async (ctx, args) => {
-		const { colony } = await getOwnedColony({
+		const { colony } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});

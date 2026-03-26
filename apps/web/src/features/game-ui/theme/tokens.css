@@ -72,3 +72,59 @@
 	box-shadow: var(--nv-shadow-0), var(--nv-shadow-1);
 	backdrop-filter: blur(var(--nv-blur-sm));
 }
+
+/* ─── Sonner toast overrides ──────────────────────────────────────────────── */
+
+/*
+ * All toasts get the NV dark glass shell. overflow:hidden clips the ::before
+ * accent bar to the border-radius. position:relative is set by Sonner already,
+ * but we ensure it for the ::before anchor. !important overrides Sonner's
+ * CSS-variable-driven inline styles.
+ */
+[data-sonner-toast].nv-toast {
+	overflow: hidden;
+	background: linear-gradient(170deg, rgba(10, 17, 30, 0.97), rgba(6, 11, 20, 0.99)) !important;
+	border: 1px solid rgba(123, 173, 255, 0.12) !important;
+	border-radius: 10px !important;
+	box-shadow:
+		0 8px 28px rgba(0, 0, 0, 0.55),
+		0 0 0 1px rgba(255, 255, 255, 0.03) !important;
+	backdrop-filter: blur(14px);
+	font-family: inherit;
+}
+
+/* Left accent bar — default cyan for normal/info/loading */
+[data-sonner-toast].nv-toast::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 3px;
+	background: rgba(61, 217, 255, 0.55);
+}
+
+/* Per-type accent colors */
+[data-sonner-toast][data-type="success"].nv-toast::before {
+	background: rgba(52, 211, 153, 0.7);
+}
+
+[data-sonner-toast][data-type="error"].nv-toast::before {
+	background: rgba(255, 111, 136, 0.65);
+}
+
+[data-sonner-toast][data-type="warning"].nv-toast::before {
+	background: rgba(255, 209, 102, 0.65);
+}
+
+/* Toast typography */
+[data-sonner-toast].nv-toast .nv-toast-title {
+	font-size: 13px;
+	font-weight: 600;
+	color: #edf5ff;
+}
+
+[data-sonner-toast].nv-toast .nv-toast-description {
+	font-size: 12px;
+	color: #7f94af;
+}

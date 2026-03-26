@@ -28,16 +28,6 @@ const DEFAULT_HEADER_CONFIG: HeaderConfig = {
 	title: "Nullvector",
 };
 
-const PLACEHOLDER_TAB_IDS: Array<ContextNavItem["id"]> = [
-	"overview",
-	"resources",
-	"facilities",
-	"shipyard",
-	"defenses",
-	"fleet",
-	"contracts",
-];
-
 const PLACEHOLDER_TAB_ICON_SRC: Record<ContextNavItem["id"], string> = {
 	overview: "/game-icons/nav/overview.png",
 	resources: "/game-icons/nav/resources.png",
@@ -48,25 +38,28 @@ const PLACEHOLDER_TAB_ICON_SRC: Record<ContextNavItem["id"], string> = {
 	contracts: "/game-icons/nav/contracts.png",
 };
 
-function buildPlaceholderTabs(basePaths: {
-	overview: string;
-	contracts: string;
-	defenses: string;
-	facilities: string;
-	fleet: string;
-	resources: string;
-	shipyard: string;
+function buildTabs(args: {
+	visibleTabIds: ContextNavItem["id"][];
+	basePaths: {
+		overview: string;
+		contracts: string;
+		defenses: string;
+		facilities: string;
+		fleet: string;
+		resources: string;
+		shipyard: string;
+	};
 }): ContextNavItem[] {
 	const routeMap: Record<string, string> = {
-		overview: basePaths.overview,
-		resources: basePaths.resources,
-		facilities: basePaths.facilities,
-		defenses: basePaths.defenses,
-		fleet: basePaths.fleet,
-		shipyard: basePaths.shipyard,
-		contracts: basePaths.contracts,
+		overview: args.basePaths.overview,
+		resources: args.basePaths.resources,
+		facilities: args.basePaths.facilities,
+		defenses: args.basePaths.defenses,
+		fleet: args.basePaths.fleet,
+		shipyard: args.basePaths.shipyard,
+		contracts: args.basePaths.contracts,
 	};
-	return PLACEHOLDER_TAB_IDS.map((id) => ({
+	return args.visibleTabIds.map((id) => ({
 		id,
 		label: id[0].toUpperCase() + id.slice(1),
 		to: routeMap[id] ?? `/style-lab`,
@@ -118,7 +111,22 @@ type HudData = {
 	}>;
 };
 
-export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
+type ProgressionTabState = {
+	features: {
+		overview: "hidden" | "locked" | "unlocked";
+		contracts: "hidden" | "locked" | "unlocked";
+		defenses: "hidden" | "locked" | "unlocked";
+		facilities: "hidden" | "locked" | "unlocked";
+		fleet: "hidden" | "locked" | "unlocked";
+		shipyard: "hidden" | "locked" | "unlocked";
+	};
+};
+
+export function getHeaderConfig(
+	pathname: string,
+	hud?: HudData,
+	progression?: ProgressionTabState | null,
+): HeaderConfig {
 	const colonyId = parseColonyId(pathname);
 	if (!colonyId) {
 		return DEFAULT_HEADER_CONFIG;
@@ -151,7 +159,7 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
 						? "shipyard"
 						: isContractsRoute
 							? "contracts"
-							: "overview";
+							: "resources";
 
 	const tabPaths = {
 		overview: overviewPath,
@@ -162,13 +170,35 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
 		resources: resourcesPath,
 		shipyard: shipyardPath,
 	};
+	const visibleTabIds: ContextNavItem["id"][] = ["resources"];
+	if (progression?.features.overview === "unlocked") {
+		visibleTabIds.unshift("overview");
+	}
+	if (progression?.features.facilities === "unlocked") {
+		visibleTabIds.push("facilities");
+	}
+	if (progression?.features.shipyard === "unlocked") {
+		visibleTabIds.push("shipyard");
+	}
+	if (progression?.features.defenses === "unlocked") {
+		visibleTabIds.push("defenses");
+	}
+	if (progression?.features.fleet === "unlocked") {
+		visibleTabIds.push("fleet");
+	}
+	if (progression?.features.contracts === "unlocked") {
+		visibleTabIds.push("contracts");
+	}
 
 	if (!hud) {
 		return {
 			mode: "game",
 			title: isResourcesRoute ? `Colony ${colonyId} Resources` : `Colony ${colonyId}`,
 			activeTabId,
-			contextTabs: buildPlaceholderTabs(tabPaths),
+			contextTabs: buildTabs({
+				basePaths: tabPaths,
+				visibleTabIds,
+			}),
 			notificationsCount: 0,
 		};
 	}
@@ -184,7 +214,10 @@ export function getHeaderConfig(pathname: string, hud?: HudData): HeaderConfig {
 			addressLabel: colony.addressLabel,
 			status: colony.status,
 		})),
-		contextTabs: buildPlaceholderTabs(tabPaths),
+		contextTabs: buildTabs({
+			basePaths: tabPaths,
+			visibleTabIds,
+		}),
 		notificationsCount: 0,
 		resources: hud.resources,
 	};

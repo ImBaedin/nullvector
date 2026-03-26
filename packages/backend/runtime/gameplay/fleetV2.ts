@@ -31,22 +31,39 @@ import {
 	emitTransportIncomingNotification,
 	emitTransportReturnedNotification,
 } from "./notifications";
-import { grantPlayerCredits, grantPlayerRankXp, ensurePlayerProgression } from "./progression";
-import { computeNextNpcRaidAt, RAID_MIN_PLAYER_RANK } from "./raidScheduling";
+import {
+	buildProgressionRules,
+	grantPlayerCredits,
+	grantProgressionXp,
+	requireFeatureAccess,
+	requireMissionAccess,
+} from "./progression";
+import {
+	contractRewardResourcesTotal,
+	incrementColonizationSuccess,
+	incrementContractSuccess,
+	incrementTransportDelivery,
+	markQuestMetricSourceProcessed,
+	transportDeliveredResourcesTotal,
+} from "./questMetrics";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	cloneResourceBucket,
+	ensureColonyAccessRow,
 	emptyResourceBucket,
 	getOwnedColony,
 	incrementColonyShipCount,
 	loadColonyState,
 	loadPlanetState,
-	resolveCurrentPlayer,
+	requireOwnedColonyRow,
+	requirePlayer,
 	resourceBucketValidator,
+	resolveCurrentPlayer,
 	settleDefenseQueue,
 	settleShipyardQueue,
 	toAddressLabel,
 	upsertColonyCompanionRows,
+	upsertColonySchedulingState,
 } from "./shared";
 
 const RESOURCE_KEYS = ["alloy", "crystal", "fuel"] as const;
@@ -389,6 +406,10 @@ async function upsertOperationResult(args: {
 	const base = {
 		universeId: args.operation.universeId,
 		ownerPlayerId: args.operation.ownerPlayerId,
+		operationKind: args.operation.kind,
+		originColonyId: args.operation.originColonyId,
+		targetColonyId: args.operation.target.colonyId,
+		targetPlanetId: args.operation.target.planetId,
 		cargoDeliveredToStorage:
 			args.patch.cargoDeliveredToStorage ??
 			existing?.cargoDeliveredToStorage ??
@@ -407,10 +428,10 @@ async function upsertOperationResult(args: {
 
 	if (existing) {
 		await args.ctx.db.patch(existing._id, base);
-		return;
+		return existing._id;
 	}
 
-	await args.ctx.db.insert("fleetOperationResults", {
+	return args.ctx.db.insert("fleetOperationResults", {
 		operationId: args.operation._id,
 		createdAt: args.now,
 		...base,
@@ -522,6 +543,7 @@ async function settleTransportAtTarget(args: {
 
 		await args.ctx.db.patch(args.operation.fleetId, {
 			state: "stationed",
+			cargo: emptyResourceBucket(),
 			locationKind: "colony",
 			locationColonyId: destination._id,
 			routeOperationId: undefined,
@@ -533,7 +555,7 @@ async function settleTransportAtTarget(args: {
 			nextEventAt: args.now,
 			updatedAt: args.now,
 		});
-		await upsertOperationResult({
+		const operationResultId = await upsertOperationResult({
 			ctx: args.ctx,
 			operation: args.operation,
 			now: args.now,
@@ -544,6 +566,32 @@ async function settleTransportAtTarget(args: {
 				resultCode: "delivered",
 			},
 		});
+		if (
+			await markQuestMetricSourceProcessed({
+				ctx: args.ctx,
+				now: args.now,
+				sourceKind: "fleetOperationResult",
+				sourceId: String(operationResultId),
+			})
+		) {
+			const resourceAmount = transportDeliveredResourcesTotal({
+				cargoDeliveredToStorage: delivery.deliveredToStorage,
+			});
+			await incrementTransportDelivery({
+				ctx: args.ctx,
+				playerId: args.operation.ownerPlayerId,
+				colonyId: args.operation.originColonyId,
+				resourceAmount,
+			});
+			if (destination._id !== args.operation.originColonyId) {
+				await incrementTransportDelivery({
+					ctx: args.ctx,
+					playerId: destination.playerId,
+					colonyId: destination._id,
+					resourceAmount,
+				});
+			}
+		}
 
 		await appendFleetEvent({
 			ctx: args.ctx,
@@ -575,6 +623,7 @@ async function settleTransportAtTarget(args: {
 
 	await args.ctx.db.patch(args.operation.fleetId, {
 		state: "returning",
+		cargo: emptyResourceBucket(),
 		locationKind: "route",
 		routeOperationId: args.operation._id,
 		updatedAt: args.now,
@@ -588,7 +637,7 @@ async function settleTransportAtTarget(args: {
 		nextEventAt: args.now + returnDuration,
 		updatedAt: args.now,
 	});
-	await upsertOperationResult({
+	const operationResultId = await upsertOperationResult({
 		ctx: args.ctx,
 		operation: args.operation,
 		now: args.now,
@@ -597,6 +646,32 @@ async function settleTransportAtTarget(args: {
 			cargoDeliveredToOverflow: delivery.deliveredToOverflow,
 		},
 	});
+	if (
+		await markQuestMetricSourceProcessed({
+			ctx: args.ctx,
+			now: args.now,
+			sourceKind: "fleetOperationResult",
+			sourceId: String(operationResultId),
+		})
+	) {
+		const resourceAmount = transportDeliveredResourcesTotal({
+			cargoDeliveredToStorage: delivery.deliveredToStorage,
+		});
+		await incrementTransportDelivery({
+			ctx: args.ctx,
+			playerId: args.operation.ownerPlayerId,
+			colonyId: args.operation.originColonyId,
+			resourceAmount,
+		});
+		if (destination._id !== args.operation.originColonyId) {
+			await incrementTransportDelivery({
+				ctx: args.ctx,
+				playerId: destination.playerId,
+				colonyId: destination._id,
+				resourceAmount,
+			});
+		}
+	}
 
 	await appendFleetEvent({
 		ctx: args.ctx,
@@ -693,6 +768,27 @@ async function settleColonizeAtTarget(args: {
 		return;
 	}
 
+	const [progression, playerColonies] = await Promise.all([
+		buildProgressionRules({
+			ctx: args.ctx,
+			playerId: args.operation.ownerPlayerId,
+		}),
+		args.ctx.db
+			.query("colonies")
+			.withIndex("by_player_id", (q) => q.eq("playerId", args.operation.ownerPlayerId))
+			.collect(),
+	]);
+	if (playerColonies.length >= progression.colonyCap) {
+		await failOperationAndNotify({
+			ctx: args.ctx,
+			now: args.now,
+			operation: args.operation,
+			resultCode: "failed",
+			resultMessage: "Colony cap reached before colonization completed",
+		});
+		return;
+	}
+
 	const starterBuildings = starterColonyBuildings();
 	const storageCaps = storageCapsFromBuildings(starterBuildings);
 	const colonyId = await args.ctx.db.insert("colonies", {
@@ -728,27 +824,27 @@ async function settleColonizeAtTarget(args: {
 		createdAt: args.now,
 		updatedAt: args.now,
 	});
-	const playerProgression = await ensurePlayerProgression({
-		ctx: args.ctx,
-		playerId: args.operation.ownerPlayerId,
-	});
-	if (playerProgression.rank >= RAID_MIN_PLAYER_RANK) {
-		await args.ctx.db.patch(colonyId, {
-			nextNpcRaidAt: computeNextNpcRaidAt({
-				anchorAt: args.now,
-				colonyId,
-			}),
-			updatedAt: args.now,
-		});
-	}
-	await args.ctx.scheduler.runAfter(0, internal.contracts.rebuildContractDiscoveryForColony, {
-		colonyId,
-	});
-
 	const createdColonyBase = await args.ctx.db.get(colonyId);
 	if (!createdColonyBase) {
 		throw new ConvexError("Failed to create colony");
 	}
+	await ensureColonyAccessRow({
+		colony: createdColonyBase,
+		ctx: args.ctx,
+		now: args.now,
+	});
+	await upsertColonySchedulingState({
+		colonyId,
+		ctx: args.ctx,
+		now: args.now,
+		patch: {},
+	});
+	await args.ctx.scheduler.runAfter(0, internal.raids.reconcileNpcRaidSchedule, {
+		colonyId,
+	});
+	await args.ctx.scheduler.runAfter(0, internal.contracts.rebuildContractDiscoveryForColony, {
+		colonyId,
+	});
 	const createdColony = await loadColonyState({
 		colony: createdColonyBase,
 		ctx: args.ctx,
@@ -787,7 +883,7 @@ async function settleColonizeAtTarget(args: {
 		nextEventAt: args.now,
 		updatedAt: args.now,
 	});
-	await upsertOperationResult({
+	const operationResultId = await upsertOperationResult({
 		ctx: args.ctx,
 		operation: args.operation,
 		now: args.now,
@@ -798,6 +894,19 @@ async function settleColonizeAtTarget(args: {
 			resultCode: "colonized",
 		},
 	});
+	if (
+		await markQuestMetricSourceProcessed({
+			ctx: args.ctx,
+			now: args.now,
+			sourceKind: "fleetOperationResult",
+			sourceId: String(operationResultId),
+		})
+	) {
+		await incrementColonizationSuccess({
+			ctx: args.ctx,
+			playerId: args.operation.ownerPlayerId,
+		});
+	}
 
 	await appendFleetEvent({
 		ctx: args.ctx,
@@ -889,9 +998,9 @@ async function settleContractAtTarget(args: {
 				})
 			).applied
 		: 0;
-	const rankXpGranted = combat.success
-		? contract.snapshot.rewardRankXpSuccess
-		: contract.snapshot.rewardRankXpFailure;
+	const xpGranted = combat.success
+		? contract.snapshot.rewardXpSuccess
+		: contract.snapshot.rewardXpFailure;
 
 	if (combat.success) {
 		await grantPlayerCredits({
@@ -900,8 +1009,8 @@ async function settleContractAtTarget(args: {
 			playerId: contract.playerId,
 		});
 	}
-	await grantPlayerRankXp({
-		amount: rankXpGranted,
+	await grantProgressionXp({
+		amount: xpGranted,
 		ctx: args.ctx,
 		playerId: contract.playerId,
 	});
@@ -912,11 +1021,12 @@ async function settleContractAtTarget(args: {
 		updatedAt: args.now,
 	});
 
-	await args.ctx.db.insert("contractResults", {
+	const contractResultId = await args.ctx.db.insert("contractResults", {
 		contractId: contract._id,
 		operationId: args.operation._id,
 		playerId: contract.playerId,
 		planetId: contract.planetId,
+		originColonyId: args.operation.originColonyId,
 		success: combat.success,
 		roundsFought: combat.roundsFought,
 		attackerSurvivors: combat.attackerRemaining,
@@ -925,13 +1035,31 @@ async function settleContractAtTarget(args: {
 			defenses: combat.defenderDefenseRemaining,
 		},
 		rewardCreditsGranted: combat.success ? contract.snapshot.rewardCredits : 0,
-		rewardRankXpGranted: rankXpGranted,
+		rewardXpGranted: xpGranted,
 		rewardCargoLoaded: rewardCargoScaled,
 		rewardCargoLostByCapacity: rewardCargoLostScaled,
 		controlReductionApplied,
 		createdAt: args.now,
 		updatedAt: args.now,
 	});
+	if (
+		combat.success &&
+		(await markQuestMetricSourceProcessed({
+			ctx: args.ctx,
+			now: args.now,
+			sourceKind: "contractResult",
+			sourceId: String(contractResultId),
+		}))
+	) {
+		await incrementContractSuccess({
+			ctx: args.ctx,
+			playerId: contract.playerId,
+			colonyId: contract.originColonyId ?? args.operation.originColonyId,
+			resourceAmount: contractRewardResourcesTotal({
+				rewardCargoLoaded: rewardCargoScaled,
+			}),
+		});
+	}
 
 	await args.ctx.db.patch(args.operation.fleetId, {
 		state: "returning",
@@ -985,7 +1113,7 @@ async function settleContractAtTarget(args: {
 		rewardCargoLoaded: rewardCargoScaled,
 		rewardCargoLostByCapacity: rewardCargoLostScaled,
 		rewardCreditsGranted: combat.success ? contract.snapshot.rewardCredits : 0,
-		rewardRankXpGranted: rankXpGranted,
+		rewardXpGranted: xpGranted,
 		roundsFought: combat.roundsFought,
 		success: combat.success,
 		contractId: contract._id,
@@ -1330,6 +1458,13 @@ const fleetOperationColonySummaryValidator = v.object({
 	canCancel: v.boolean(),
 });
 
+const fleetOwnedOperationsHealthValidator = v.object({
+	colonyId: v.id("colonies"),
+	hasStaleOwnedOperations: v.boolean(),
+	nextEventAt: v.optional(v.number()),
+	serverNowMs: v.number(),
+});
+
 const missionKindValidator = v.union(v.literal("transport"), v.literal("colonize"));
 
 const resolveFleetTargetResultValidator = v.object({
@@ -1495,10 +1630,20 @@ export const getFleetGarrison = query({
 		garrisonShips: shipCountsValidator,
 	}),
 	handler: async (ctx, args) => {
-		await getOwnedColony({
+		const owned = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
+		const progression = await buildProgressionRules({
+			ctx,
+			playerId: owned.player._id,
+		});
+		if (
+			progression.features.fleet !== "unlocked" &&
+			progression.features.contracts !== "unlocked"
+		) {
+			throw new ConvexError("Fleet is not available yet");
+		}
 
 		const shipRows = await ctx.db
 			.query("colonyShips")
@@ -1525,7 +1670,7 @@ export const getFleetActiveOperations = query({
 		nextEventAt: v.optional(v.number()),
 	}),
 	handler: async (ctx, args) => {
-		const { player } = await getOwnedColony({
+		const { player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -1583,7 +1728,7 @@ export const getFleetOperationsForOriginColony = query({
 		nextEventAt: v.optional(v.number()),
 	}),
 	handler: async (ctx, args) => {
-		const { colony, player } = await getOwnedColony({
+		const { colony, player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -1673,36 +1818,31 @@ export const getFleetOperationsForOriginColony = query({
 	},
 });
 
-export const getFleetOperationsForColony = query({
+export const getFleetOperationsForTargetColony = query({
 	args: {
 		colonyId: v.id("colonies"),
 	},
 	returns: v.object({
 		active: v.array(fleetOperationColonySummaryValidator),
-		hasStaleOwnedOperations: v.boolean(),
 		nextEventAt: v.optional(v.number()),
-		serverNowMs: v.number(),
 	}),
 	handler: async (ctx, args) => {
-		const { colony, player } = await getOwnedColony({
+		const { colony, player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
-		const now = Date.now();
+		const progression = await buildProgressionRules({
+			ctx,
+			playerId: player._id,
+		});
+		if (
+			progression.features.fleet !== "unlocked" &&
+			progression.features.contracts !== "unlocked"
+		) {
+			throw new ConvexError("Fleet is not available yet");
+		}
 
-		const [ownedInTransit, ownedReturning, inboundInTransit, inboundReturning] = await Promise.all([
-			ctx.db
-				.query("fleetOperations")
-				.withIndex("by_owner_stat_evt", (q) =>
-					q.eq("ownerPlayerId", player._id).eq("status", "inTransit"),
-				)
-				.collect(),
-			ctx.db
-				.query("fleetOperations")
-				.withIndex("by_owner_stat_evt", (q) =>
-					q.eq("ownerPlayerId", player._id).eq("status", "returning"),
-				)
-				.collect(),
+		const [inboundInTransit, inboundReturning] = await Promise.all([
 			ctx.db
 				.query("fleetOperations")
 				.withIndex("by_tcol_st_evt", (q) =>
@@ -1719,14 +1859,9 @@ export const getFleetOperationsForColony = query({
 
 		const activeOps = [
 			...new Map(
-				[...ownedInTransit, ...ownedReturning, ...inboundInTransit, ...inboundReturning].map(
-					(operation) => [operation._id, operation],
-				),
+				[...inboundInTransit, ...inboundReturning].map((operation) => [operation._id, operation]),
 			).values(),
 		].sort((left, right) => left.nextEventAt - right.nextEventAt);
-		const hasStaleOwnedOperations = [...ownedInTransit, ...ownedReturning].some(
-			(operation) => operation.nextEventAt <= now,
-		);
 
 		const colonySummaryCache = new Map<Id<"colonies">, { addressLabel: string; name: string }>();
 		const getColonySummary = async (colonyId: Id<"colonies">) => {
@@ -1791,16 +1926,86 @@ export const getFleetOperationsForColony = query({
 					arriveAt: operation.arriveAt,
 					nextEventAt: operation.nextEventAt,
 					distance: operation.distance,
-					canCancel: operation.status === "inTransit",
+					canCancel: operation.status === "inTransit" && relation === "outgoing",
 				};
 			}),
 		);
 
 		return {
 			active: rows.filter((row) => row !== null),
-			hasStaleOwnedOperations,
 			nextEventAt: rows.find((row) => row !== null)?.nextEventAt,
-			serverNowMs: now,
+		};
+	},
+});
+
+export const getFleetOwnedOperationsHealth = query({
+	args: {
+		colonyId: v.id("colonies"),
+	},
+	returns: fleetOwnedOperationsHealthValidator,
+	handler: async (ctx, args) => {
+		const serverNowMs = Date.now();
+		const { colony, player } = await requireOwnedColonyRow({
+			ctx,
+			colonyId: args.colonyId,
+		});
+		const progression = await buildProgressionRules({
+			ctx,
+			playerId: player._id,
+		});
+		if (
+			progression.features.fleet !== "unlocked" &&
+			progression.features.contracts !== "unlocked"
+		) {
+			throw new ConvexError("Fleet is not available yet");
+		}
+
+		const [outgoingInTransit, outgoingReturning, incomingInTransit, incomingReturning] =
+			await Promise.all([
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_origin_stat_evt", (q) =>
+						q.eq("originColonyId", colony._id).eq("status", "inTransit"),
+					)
+					.collect()
+					.then((rows) => rows.filter((operation) => operation.ownerPlayerId === player._id)),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_origin_stat_evt", (q) =>
+						q.eq("originColonyId", colony._id).eq("status", "returning"),
+					)
+					.collect()
+					.then((rows) => rows.filter((operation) => operation.ownerPlayerId === player._id)),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_tcol_st_evt", (q) =>
+						q.eq("target.colonyId", colony._id).eq("status", "inTransit"),
+					)
+					.collect(),
+				ctx.db
+					.query("fleetOperations")
+					.withIndex("by_tcol_st_evt", (q) =>
+						q.eq("target.colonyId", colony._id).eq("status", "returning"),
+					)
+					.collect(),
+			]);
+
+		const activeOps = [
+			...new Map(
+				[
+					...outgoingInTransit,
+					...outgoingReturning,
+					...incomingInTransit,
+					...incomingReturning,
+				].map((operation) => [operation._id, operation]),
+			).values(),
+		].sort((left, right) => left.nextEventAt - right.nextEventAt);
+
+		return {
+			colonyId: colony._id,
+			hasStaleOwnedOperations: activeOps.some((operation) => operation.nextEventAt <= serverNowMs),
+			nextEventAt: activeOps[0]?.nextEventAt,
+			serverNowMs,
 		};
 	},
 });
@@ -1823,9 +2028,23 @@ export const resolveFleetTarget = query({
 		const systemIndex = safeIndex(args.systemIndex);
 		const planetIndex = safeIndex(args.planetIndex);
 
-		const origin = await getOwnedColony({
+		const origin = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.originColonyId,
+		});
+		const progression = await buildProgressionRules({
+			ctx,
+			playerId: origin.player._id,
+		});
+		requireFeatureAccess({
+			featureKey: "fleet",
+			label: "Fleet",
+			progression,
+		});
+		requireMissionAccess({
+			label: args.missionKind === "transport" ? "Transport missions" : "Colonization missions",
+			missionKey: args.missionKind,
+			progression,
 		});
 
 		const planet = await ctx.db
@@ -1864,7 +2083,11 @@ export const resolveFleetTarget = query({
 				colony: targetColony,
 				ctx,
 			});
-			if ((targetColonyState.inboundMissionPolicy ?? "allowAll") === "denyAll") {
+			const targetPolicy = targetColonyState.inboundMissionPolicy ?? "allowAll";
+			if (
+				targetPolicy === "denyAll" ||
+				(targetPolicy === "alliesOnly" && targetColony.playerId !== origin.player._id)
+			) {
 				return {
 					ok: false,
 					reason: "Destination colony does not accept inbound missions",
@@ -1986,13 +2209,10 @@ export const getFleetOperation = query({
 		resultMessage: v.optional(v.string()),
 	}),
 	handler: async (ctx, args) => {
-		const player = await resolveCurrentPlayer(ctx);
-		if (!player?.player) {
-			throw new ConvexError("Authentication required");
-		}
+		const player = await requirePlayer(ctx);
 
 		const operation = await ctx.db.get(args.operationId);
-		if (!operation || operation.ownerPlayerId !== player.player._id) {
+		if (!operation || operation.ownerPlayerId !== player._id) {
 			throw new ConvexError("Operation not found");
 		}
 
@@ -2045,27 +2265,68 @@ export const getFleetOperationTimeline = query({
 		),
 	}),
 	handler: async (ctx, args) => {
-		const player = await resolveCurrentPlayer(ctx);
-		if (!player?.player) {
-			throw new ConvexError("Authentication required");
-		}
+		const player = await requirePlayer(ctx);
 
 		if (args.colonyId) {
-			await getOwnedColony({
+			await requireOwnedColonyRow({
 				ctx,
 				colonyId: args.colonyId,
 			});
 		}
 
 		const limit = Math.max(1, Math.min(200, Math.floor(args.limit ?? 50)));
-		const rows = await ctx.db
+		const ownerRows = await ctx.db
 			.query("fleetEvents")
-			.withIndex("by_owner_time", (q) => q.eq("ownerPlayerId", player.player._id))
+			.withIndex("by_owner_time", (q) => q.eq("ownerPlayerId", player._id))
 			.order("desc")
-			.take(limit);
+			.collect();
+		let rows = ownerRows;
+		if (args.colonyId) {
+			const inboundOperations = await ctx.db
+				.query("fleetOperations")
+				.collect()
+				.then((operations) =>
+					operations.filter(
+						(operation) =>
+							operation.target.kind === "colony" && operation.target.colonyId === args.colonyId,
+					),
+				);
+			const inboundEventRows = (
+				await Promise.all(
+					inboundOperations.map((operation) =>
+						ctx.db
+							.query("fleetEvents")
+							.withIndex("by_operation_time", (q) => q.eq("operationId", operation._id))
+							.order("desc")
+							.take(limit),
+					),
+				)
+			).flat();
+			rows = [
+				...new Map([...ownerRows, ...inboundEventRows].map((row) => [row._id, row])).values(),
+			].sort((left, right) => right.occurredAt - left.occurredAt);
+		}
+		const filteredRows =
+			args.colonyId === undefined
+				? rows
+				: (
+						await Promise.all(
+							rows.map(async (row) => {
+								const operation = await ctx.db.get(row.operationId);
+								if (!operation) {
+									return null;
+								}
+								return operation.originColonyId === args.colonyId ||
+									(operation.target.kind === "colony" &&
+										operation.target.colonyId === args.colonyId)
+									? row
+									: null;
+							}),
+						)
+					).filter((row): row is (typeof rows)[number] => row !== null);
 
 		return {
-			events: rows.map((row) => ({
+			events: filteredRows.slice(0, limit).map((row) => ({
 				id: row._id,
 				operationId: row.operationId,
 				fleetId: row.fleetId,
@@ -2087,10 +2348,20 @@ export const syncFleetState = mutation({
 	}),
 	handler: async (ctx, args) => {
 		const now = Date.now();
-		const { player } = await getOwnedColony({
+		const { player } = await requireOwnedColonyRow({
 			colonyId: args.colonyId,
 			ctx,
 		});
+		const progression = await buildProgressionRules({
+			ctx,
+			playerId: player._id,
+		});
+		if (
+			progression.features.fleet !== "unlocked" &&
+			progression.features.contracts !== "unlocked"
+		) {
+			throw new ConvexError("Fleet is not available yet");
+		}
 
 		const settled = await settleDueFleetOperations({
 			ctx,
@@ -2144,6 +2415,20 @@ export const createOperation = mutation({
 			colonyId: args.originColonyId,
 			ctx,
 		});
+		const progression = await buildProgressionRules({
+			ctx,
+			playerId: origin.player._id,
+		});
+		requireFeatureAccess({
+			featureKey: "fleet",
+			label: "Fleet",
+			progression,
+		});
+		requireMissionAccess({
+			label: args.kind === "transport" ? "Transport missions" : "Colonization missions",
+			missionKey: args.kind,
+			progression,
+		});
 
 		const settled = await settleDueFleetOperations({
 			ctx,
@@ -2184,19 +2469,22 @@ export const createOperation = mutation({
 				throw new ConvexError("Transport operations require a target colony");
 			}
 
-			const destinationBase = await ctx.db.get(args.target.colonyId);
-			if (!destinationBase) {
+			const destination = await ctx.db.get(args.target.colonyId);
+			if (!destination) {
 				throw new ConvexError("Transport destination not found");
 			}
-			const destination = await loadColonyState({
-				colony: destinationBase,
-				ctx,
-			});
 			if (destination.universeId !== origin.colony.universeId) {
 				throw new ConvexError("Target colony is in a different universe");
 			}
-			const targetPolicy = destination.inboundMissionPolicy ?? "allowAll";
-			if (targetPolicy === "denyAll") {
+			const destinationPolicy = await ctx.db
+				.query("colonyPolicy")
+				.withIndex("by_colony_id", (q) => q.eq("colonyId", destination._id))
+				.unique();
+			const targetPolicy = destinationPolicy?.inboundMissionPolicy ?? "allowAll";
+			if (
+				targetPolicy === "denyAll" ||
+				(targetPolicy === "alliesOnly" && destination.playerId !== origin.player._id)
+			) {
 				throw new ConvexError("Destination colony does not accept inbound missions");
 			}
 			if (
@@ -2266,6 +2554,13 @@ export const createOperation = mutation({
 				.collect();
 			if (activePlanetOps.some((row) => row.kind === "colonize")) {
 				throw new ConvexError("Target planet already has an active colonization operation");
+			}
+			const playerColonies = await ctx.db
+				.query("colonies")
+				.withIndex("by_player_id", (q) => q.eq("playerId", origin.player._id))
+				.collect();
+			if (playerColonies.length >= progression.colonyCap) {
+				throw new ConvexError("Colony cap reached for current progression");
 			}
 
 			const originCoords = await colonySystemCoords({
@@ -2377,6 +2672,10 @@ export const createOperation = mutation({
 			operationId,
 			universeId: latestOrigin.universeId,
 			ownerPlayerId: latestOrigin.playerId,
+			operationKind: args.kind,
+			originColonyId: latestOrigin._id,
+			targetColonyId: args.target.kind === "colony" ? args.target.colonyId : undefined,
+			targetPlanetId: args.target.kind === "planet" ? args.target.planetId : undefined,
 			cargoDeliveredToStorage: emptyResourceBucket(),
 			cargoDeliveredToOverflow: emptyResourceBucket(),
 			fuelWaived: undefined,
@@ -2452,6 +2751,16 @@ export const cancelOperation = mutation({
 		const playerResult = await resolveCurrentPlayer(ctx);
 		if (!playerResult?.player) {
 			throw new ConvexError("Authentication required");
+		}
+		const progression = await buildProgressionRules({
+			ctx,
+			playerId: playerResult.player._id,
+		});
+		if (
+			progression.features.fleet !== "unlocked" &&
+			progression.features.contracts !== "unlocked"
+		) {
+			throw new ConvexError("Fleet is not available yet");
 		}
 
 		const operation = await ctx.db.get(args.operationId);

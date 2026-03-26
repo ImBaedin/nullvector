@@ -8,12 +8,16 @@ import type { HeaderConfig } from "./header-config";
 export function AppHeaderMobileDrawer({
 	config,
 	onClose,
+	onOpenQuests,
 	onOpenStarMap,
+	questCount = 0,
 	open,
 }: {
 	config: HeaderConfig;
 	onClose: () => void;
+	onOpenQuests?: () => void;
 	onOpenStarMap?: () => void;
+	questCount?: number;
 	open: boolean;
 }) {
 	const navigate = useNavigate();
@@ -56,6 +60,23 @@ export function AppHeaderMobileDrawer({
 					>
 						Star Map
 					</NvButton>
+					{onOpenQuests ? (
+						<NvButton
+							className="w-full justify-start"
+							onClick={() => {
+								onOpenQuests();
+								onClose();
+							}}
+							variant="ghost"
+						>
+							Quests
+							{questCount > 0 ? (
+								<NvBadge className="ml-auto" tone="info">
+									{questCount}
+								</NvBadge>
+							) : null}
+						</NvButton>
+					) : null}
 					<NvButton
 						className="w-full justify-start"
 						onClick={() => {
