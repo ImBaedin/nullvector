@@ -1,4 +1,4 @@
-import type { ShipKey } from "@nullvector/game-logic";
+import type { FeatureAccessState, ShipKey } from "@nullvector/game-logic";
 import type { ReactNode } from "react";
 
 import { Anchor, Clock3, Layers3, Package, Ship, X, Zap } from "lucide-react";
@@ -26,6 +26,7 @@ type AvailableResources = {
 };
 
 export type ShipyardDisplayShip = {
+	accessState: FeatureAccessState;
 	cargoCapacity: number;
 	cost: ResourceCost;
 	key: ShipKey;
@@ -980,14 +981,23 @@ function getShipAvailability(args: {
 	shipyardLevel: number;
 }) {
 	const { availableResources, isQueueFull, quantity, ship, shipyardLevel } = args;
+	const accessLockMessage =
+		ship.accessState === "hidden"
+			? "This ship is not visible in progression yet."
+			: ship.accessState === "locked"
+				? "This ship has not been unlocked yet."
+				: null;
+
 	return getQueueableBuildActionPresentation({
 		actionQuantity: quantity,
 		availableResources,
 		cost: ship.cost,
 		isBusy: false,
-		isLocked: shipyardLevel < ship.requiredShipyardLevel,
+		isLocked: accessLockMessage !== null || shipyardLevel < ship.requiredShipyardLevel,
 		isQueueFull,
-		lockMessage: `Requires Shipyard Level ${ship.requiredShipyardLevel} (current: ${shipyardLevel}).`,
+		lockMessage:
+			accessLockMessage ??
+			`Requires Shipyard Level ${ship.requiredShipyardLevel} (current: ${shipyardLevel}).`,
 		queuedCount: ship.queued,
 	});
 }
