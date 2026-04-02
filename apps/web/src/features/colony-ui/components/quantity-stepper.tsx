@@ -14,9 +14,7 @@ export function QuantityStepper(props: QuantityStepperProps) {
 	const { canEdit, max, min, onBlur, onChange, onDecrement, onIncrement, quantity, value } = props;
 
 	return (
-		<div
-			className="flex items-center rounded-lg border border-white/12 bg-black/25"
-		>
+		<div className="flex items-center rounded-lg border border-white/12 bg-black/25">
 			<button
 				className="
       flex size-7 items-center justify-center text-white/60

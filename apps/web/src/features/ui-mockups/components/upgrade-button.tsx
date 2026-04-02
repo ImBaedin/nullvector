@@ -121,9 +121,7 @@ export const UpgradeButton = forwardRef<HTMLButtonElement, UpgradeButtonProps>(
 				ref={ref}
 				type={type}
 			>
-				<span
-					className="pointer-events-none absolute inset-0 overflow-hidden rounded-md"
-				>
+				<span className="pointer-events-none absolute inset-0 overflow-hidden rounded-md">
 					<span className="absolute inset-x-0 bottom-0 h-5" />
 					{showArrowParticles
 						? arrows.map((arrow) => (
