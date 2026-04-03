@@ -983,7 +983,7 @@ function getShipAvailability(args: {
 	const { availableResources, isQueueFull, quantity, ship, shipyardLevel } = args;
 	const accessLockMessage =
 		ship.accessState === "hidden"
-			? "This ship is not visible in progression yet."
+			? "This ship is visible in the catalog but interactions are locked until unlocked."
 			: ship.accessState === "locked"
 				? "This ship has not been unlocked yet."
 				: null;
