@@ -1044,7 +1044,7 @@ function compareRecommendedContracts(
 ) {
 	const rewardKeyLeft = left.primaryRewardResource;
 	const rewardKeyRight = right.primaryRewardResource;
-	const rewardDiff = left.rewardResources[rewardKeyLeft] - right.rewardResources[rewardKeyRight];
+	const rewardDiff = right.rewardResources[rewardKeyRight] - left.rewardResources[rewardKeyLeft];
 	if (left.distance !== right.distance) {
 		return left.distance - right.distance;
 	}
@@ -1250,14 +1250,16 @@ async function deriveRecommendedContractsByOrdinal(args: {
 			.sort(compareRecommendedContracts)[0];
 		pickOffer(best);
 	}
+	const reservedStretchSlot = stretchOffers.length > 0;
+	const limit = MAX_RECOMMENDED_CONTRACTS - (reservedStretchSlot ? 1 : 0);
 	for (const offer of [...viableOffers].sort(compareRecommendedContracts)) {
-		if (selected.length >= MAX_RECOMMENDED_CONTRACTS - 1) {
+		if (selected.length >= limit) {
 			break;
 		}
 		pickOffer(offer);
 	}
 	const stretch = [...stretchOffers].sort(compareRecommendedContracts)[0];
-	if (selected.length < MAX_RECOMMENDED_CONTRACTS) {
+	if (stretch && selected.length < MAX_RECOMMENDED_CONTRACTS) {
 		pickOffer(stretch);
 	}
 	return selected.slice(0, MAX_RECOMMENDED_CONTRACTS);
