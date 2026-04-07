@@ -2,7 +2,7 @@ import type { DefenseCounts } from "./defenses";
 import type { ResourceBucket, ShipKey } from "./gameplay";
 import type { HostileFactionKey } from "./hostility";
 
-import { DEFENSE_KEYS, EMPTY_DEFENSE_COUNTS } from "./defenses";
+import { DEFENSE_KEYS, EMPTY_DEFENSE_COUNTS, normalizeDefenseCounts } from "./defenses";
 import { HOSTILE_FACTION_KEYS } from "./hostility";
 import {
 	DEFAULT_SHIP_DEFINITIONS,
@@ -60,7 +60,25 @@ export type ContractSnapshot = {
 	rewardResources: ResourceBucket;
 };
 
+export type ContractThreatBand = "routine" | "standard" | "heavy" | "stretch";
+export type PrimaryRewardResource = "alloy" | "crystal" | "fuel";
+
 export const CONTRACT_EXPIRY_MS = 6 * 60 * 60 * 1_000;
+export const CONTRACT_TASK_FORCE_SHIP_WEIGHTS: Record<ShipKey, number> = {
+	colonyShip: 4,
+	cruiser: 6,
+	bomber: 8,
+	interceptor: 1,
+	frigate: 3,
+	largeCargo: 2,
+	smallCargo: 1,
+};
+export const CONTRACT_TASK_FORCE_DEFENSE_WEIGHTS: Record<keyof DefenseCounts, number> = {
+	gaussCannon: 5,
+	laserTurret: 2,
+	missileBattery: 1,
+	shieldDome: 3,
+};
 
 export const MISSION_TEMPLATES: Record<CombatMissionTypeKey, MissionTemplate> = {
 	bombingRun: {
@@ -438,6 +456,73 @@ export function getConcurrentContractLimit(rank: number) {
 export function getDifficultyTierForRank(rank: number) {
 	const safeRank = Math.max(1, Math.floor(rank));
 	return 1 + Math.floor((safeRank - 1) / 5);
+}
+
+export function getTaskForceWeightForShipCounts(shipCounts: Partial<ShipCounts>) {
+	const normalized = normalizeShipCounts(shipCounts);
+	let total = 0;
+	for (const key of Object.keys(CONTRACT_TASK_FORCE_SHIP_WEIGHTS) as ShipKey[]) {
+		total += normalized[key] * CONTRACT_TASK_FORCE_SHIP_WEIGHTS[key];
+	}
+	return total;
+}
+
+export function getTaskForceWeightForDefenseCounts(defenseCounts: Partial<DefenseCounts>) {
+	const normalized = normalizeDefenseCounts(defenseCounts);
+	let total = 0;
+	for (const key of Object.keys(CONTRACT_TASK_FORCE_DEFENSE_WEIGHTS) as Array<keyof DefenseCounts>) {
+		total += normalized[key] * CONTRACT_TASK_FORCE_DEFENSE_WEIGHTS[key];
+	}
+	return total;
+}
+
+export function getContractRecommendedTaskForce(snapshot: Pick<
+	ContractSnapshot,
+	"enemyFleet" | "enemyDefenses"
+>) {
+	return (
+		getTaskForceWeightForShipCounts(snapshot.enemyFleet) +
+		getTaskForceWeightForDefenseCounts(snapshot.enemyDefenses)
+	);
+}
+
+export function getContractThreatBand(args: {
+	recommendedTaskForce: number;
+	taskForceCap: number;
+}): ContractThreatBand | null {
+	const cap = Math.max(0, Math.floor(args.taskForceCap));
+	if (cap <= 0) {
+		return null;
+	}
+	const ratio = args.recommendedTaskForce / cap;
+	if (ratio <= 0.7) {
+		return "routine";
+	}
+	if (ratio <= 0.85) {
+		return "standard";
+	}
+	if (ratio <= 1) {
+		return "heavy";
+	}
+	if (ratio <= 1.15) {
+		return "stretch";
+	}
+	return null;
+}
+
+export function getPrimaryRewardResource(
+	rewardResources: Pick<ResourceBucket, "alloy" | "crystal" | "fuel">,
+): PrimaryRewardResource {
+	if (
+		rewardResources.alloy >= rewardResources.crystal &&
+		rewardResources.alloy >= rewardResources.fuel
+	) {
+		return "alloy";
+	}
+	if (rewardResources.crystal >= rewardResources.fuel) {
+		return "crystal";
+	}
+	return "fuel";
 }
 
 function scaleValue(base: number, difficultyTier: number) {

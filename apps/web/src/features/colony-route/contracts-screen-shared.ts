@@ -5,13 +5,16 @@ import {
 	EMPTY_SHIP_COUNTS,
 	HOSTILE_FACTIONS,
 	MISSION_TEMPLATES,
+	getTaskForceWeightForShipCounts,
 	normalizeDefenseCounts,
 	normalizeShipCounts,
 	simulateCombat,
 	type CombatMissionTypeKey,
+	type ContractThreatBand,
 	type DefenseCounts,
 	type DefenseKey,
 	type HostileFactionKey,
+	type PrimaryRewardResource,
 	type ShipCounts,
 	type ShipKey,
 } from "@nullvector/game-logic";
@@ -33,6 +36,10 @@ export type ContractView = {
 	rewardXpFailure: number;
 	rewardResources: { alloy: number; crystal: number; fuel: number };
 	controlReduction: number;
+	recommendedTaskForce: number;
+	threatBand: ContractThreatBand;
+	primaryRewardResource: PrimaryRewardResource;
+	isStretch: boolean;
 	enemyFleet: ShipCounts;
 	enemyDefenses: DefenseCounts;
 };
@@ -156,6 +163,34 @@ export function sumDefenseCounts(defenseCounts: Partial<DefenseCounts>): number 
 		(sum, count) => sum + count,
 		0,
 	);
+}
+
+export function getSelectedTaskForce(shipCounts: Partial<ShipCounts>): number {
+	return getTaskForceWeightForShipCounts(shipCounts);
+}
+
+export function formatThreatBand(threatBand: ContractThreatBand): string {
+	switch (threatBand) {
+		case "routine":
+			return "Routine";
+		case "standard":
+			return "Standard";
+		case "heavy":
+			return "Heavy";
+		case "stretch":
+			return "Stretch";
+	}
+}
+
+export function formatPrimaryRewardResource(resource: PrimaryRewardResource): string {
+	switch (resource) {
+		case "alloy":
+			return "Alloy";
+		case "crystal":
+			return "Crystal";
+		case "fuel":
+			return "Fuel";
+	}
 }
 
 export function getProjectedLosses(

@@ -19,6 +19,8 @@ import {
 	defenseIconSrc,
 	factionColor,
 	factionIconSrc,
+	formatPrimaryRewardResource,
+	formatThreatBand,
 	getEnemyWeightLabel,
 	getForecastToneClass,
 	shipIconSrc,
@@ -131,6 +133,15 @@ function RecommendedContractCard(props: {
 	const expirySeconds = contract.expiresAt
 		? Math.max(0, Math.ceil((contract.expiresAt - props.nowMs) / 1_000))
 		: 0;
+	const dominantReward = contract.rewardResources[contract.primaryRewardResource];
+	const threatClassMap = {
+		routine: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
+		standard: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100",
+		heavy: "border-amber-300/20 bg-amber-400/10 text-amber-100",
+		stretch: "border-rose-300/20 bg-rose-400/10 text-rose-100",
+		default: "border-rose-300/20 bg-rose-400/10 text-rose-100",
+	} as const;
+	const threatBadgeClass = threatClassMap[contract.threatBand] ?? threatClassMap.default;
 
 	return (
 		<button className={`
@@ -171,7 +182,15 @@ function RecommendedContractCard(props: {
 			</div>
 
 			<div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px]">
-				<span className="font-semibold text-white/50">Tier {contract.difficultyTier}</span>
+				<span className={`rounded-full border px-2 py-0.5 font-semibold ${threatBadgeClass}`}>
+					{formatThreatBand(contract.threatBand)}
+				</span>
+				<span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/75">
+					{formatPrimaryRewardResource(contract.primaryRewardResource)}
+				</span>
+				<span className="font-(family-name:--nv-font-mono) text-emerald-200/70">
+					{dominantReward.toLocaleString()}
+				</span>
 				<span className="font-(family-name:--nv-font-mono) text-amber-200/60">
 					{contract.rewardCredits.toLocaleString()} cr
 				</span>
@@ -211,6 +230,10 @@ export function ContractDetailPanel(props: {
 	playerRank: number;
 	distance: number;
 	fuelCost: number;
+	selectedTaskForce: number;
+	taskForceCap: number;
+	overTaskForceCap: boolean;
+	includesColonyShip: boolean;
 	travelSeconds: number;
 	onShipCountChange: (shipKey: ShipKey, nextCount: number) => void;
 	onLaunch: () => void;
@@ -322,6 +345,42 @@ export function ContractDetailPanel(props: {
 						</div>
 					) : null}
 
+					{props.overTaskForceCap ? (
+						<div
+							className="
+         flex items-center gap-2 rounded-lg border border-rose-300/20
+         bg-rose-400/6 px-3 py-2 text-[10px] text-rose-200/80
+       "
+						>
+							<Swords className="size-3.5" />
+							Task force exceeds cap: {props.selectedTaskForce}/{props.taskForceCap}
+						</div>
+					) : null}
+
+					{props.includesColonyShip ? (
+						<div
+							className="
+         flex items-center gap-2 rounded-lg border border-rose-300/20
+         bg-rose-400/6 px-3 py-2 text-[10px] text-rose-200/80
+       "
+						>
+							<Ship className="size-3.5" />
+							Colony ships cannot be assigned to contract missions.
+						</div>
+					) : null}
+
+					{props.contract.isStretch ? (
+						<div
+							className="
+         flex items-center gap-2 rounded-lg border border-amber-300/20
+         bg-amber-400/6 px-3 py-2 text-[10px] text-amber-100/85
+       "
+						>
+							<Swords className="size-3.5" />
+							Stretch contract. Expect a higher-risk engagement for this colony.
+						</div>
+					) : null}
+
 					<EnemyForcesSection contract={props.contract} />
 					<RewardsSection contract={props.contract} />
 
@@ -329,7 +388,9 @@ export function ContractDetailPanel(props: {
 						label="Assign Fleet"
 						onShipCountChange={props.onShipCountChange}
 						selectedShips={props.selectedShips}
+						selectedTaskForce={props.selectedTaskForce}
 						ships={props.ships}
+						taskForceCap={props.taskForceCap}
 					/>
 
 					<ContractForecastSection forecast={forecast} />
@@ -347,20 +408,30 @@ export function ContractDetailPanel(props: {
        "
 						/>
 						<MissionMetric
+							highlight={props.overTaskForceCap}
+							label="Task Force"
+							value={`${props.selectedTaskForce}/${props.taskForceCap}`}
+						/>
+						<MissionMetric
+							highlight={props.contract.isStretch}
+							label="Recommended"
+							value={props.contract.recommendedTaskForce.toLocaleString()}
+						/>
+						<MissionMetric
 							label="Distance"
 							unit={props.distance > 0 ? "AU" : undefined}
 							value={props.distance > 0 ? props.distance.toFixed(1) : "—"}
-						/>
-						<MissionMetric
-							highlight={props.fuelCost > 0}
-							label="Fuel cost"
-							value={props.fuelCost > 0 ? props.fuelCost.toLocaleString() : "—"}
 						/>
 						<MissionMetric
 							label="Travel"
 							value={
 								props.travelSeconds > 0 ? formatColonyDuration(props.travelSeconds, "seconds") : "—"
 							}
+						/>
+						<MissionMetric
+							highlight={props.fuelCost > 0}
+							label="Fuel cost"
+							value={props.fuelCost > 0 ? props.fuelCost.toLocaleString() : "—"}
 						/>
 					</div>
 
@@ -609,6 +680,14 @@ function RewardsSection(props: { contract: ContractView }): ReactNode {
 	return (
 		<div>
 			<SectionLabel>Rewards</SectionLabel>
+			<div className="mt-1 flex flex-wrap items-center gap-2 text-[9px]">
+				<span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/70">
+					Primary Reward: {formatPrimaryRewardResource(props.contract.primaryRewardResource)}
+				</span>
+				<span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/70">
+					Threat: {formatThreatBand(props.contract.threatBand)}
+				</span>
+			</div>
 			<div className="mt-1.5 grid grid-cols-2 gap-1.5">
 				<RewardCard
 					accent="amber"

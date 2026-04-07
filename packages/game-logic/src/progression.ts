@@ -28,8 +28,21 @@ export type RaidProgressionMode = "off" | "tutorialOnly" | "full";
 export type ContractProgressionRules = {
 	activeLimit: number;
 	difficultyTier: number;
+	taskForceCap: number;
 	visibleSlots: number;
 };
+
+export function getContractTaskForceCap(args: { playerRank: number; shipyardLevel: number }) {
+	const safeRank = Math.max(0, Math.floor(args.playerRank));
+	const safeShipyardLevel = Math.max(0, Math.floor(args.shipyardLevel));
+	if (safeRank < 3) {
+		return 0;
+	}
+	const rankBonus = Math.max(0, Math.floor((safeRank - 3) / 5));
+	const shipyardThresholds = [2, 4, 6, 8, 10];
+	const shipyardBonus = shipyardThresholds.filter((threshold) => safeShipyardLevel >= threshold).length;
+	return 5 + rankBonus + shipyardBonus;
+}
 
 export type RaidProgressionRules = {
 	difficultyTier: number;
@@ -593,6 +606,7 @@ function createRankDefinition(rank: number): RankDefinition {
 			visibleSlots: rank >= 3 ? 2 + Math.floor((effectiveRank - 1) / 5) : 0,
 			activeLimit: rank >= 3 ? 1 + Math.floor((effectiveRank - 1) / 5) : 0,
 			difficultyTier: rank >= 3 ? 1 + Math.floor((effectiveRank - 1) / 5) : 1,
+			taskForceCap: getContractTaskForceCap({ playerRank: rank, shipyardLevel: 0 }),
 		},
 		raidRules: onboarding.raidRules,
 		features: onboarding.features,

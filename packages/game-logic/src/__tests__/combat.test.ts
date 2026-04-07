@@ -2,9 +2,14 @@ import { expect, test } from "bun:test";
 
 import {
 	COMBAT_MISSION_TYPE_KEYS,
+	getContractRecommendedTaskForce,
+	getContractThreatBand,
 	generateContractSnapshot,
 	getConcurrentContractLimit,
 	generateTutorialNpcRaidSnapshot,
+	getPrimaryRewardResource,
+	getTaskForceWeightForDefenseCounts,
+	getTaskForceWeightForShipCounts,
 	getVisibleContractSlotCount,
 	MISSION_TEMPLATES,
 	simulateCombat,
@@ -22,6 +27,68 @@ test("concurrent contract limit scales every five ranks", () => {
 	expect(getConcurrentContractLimit(5)).toBe(1);
 	expect(getConcurrentContractLimit(6)).toBe(2);
 	expect(getConcurrentContractLimit(11)).toBe(3);
+});
+
+test("task force ship weights match the contract rebalance table", () => {
+	expect(
+		getTaskForceWeightForShipCounts({
+			interceptor: 2,
+			smallCargo: 1,
+			frigate: 1,
+			largeCargo: 1,
+			cruiser: 1,
+			bomber: 1,
+			colonyShip: 1,
+		}),
+	).toBe(26);
+});
+
+test("task force defense weights match the contract rebalance table", () => {
+	expect(
+		getTaskForceWeightForDefenseCounts({
+			missileBattery: 2,
+			laserTurret: 1,
+			gaussCannon: 1,
+			shieldDome: 1,
+		}),
+	).toBe(12);
+});
+
+test("contract threat band thresholds are stable at boundary values", () => {
+	expect(getContractThreatBand({ recommendedTaskForce: 7, taskForceCap: 10 })).toBe("routine");
+	expect(getContractThreatBand({ recommendedTaskForce: 8, taskForceCap: 10 })).toBe("standard");
+	expect(getContractThreatBand({ recommendedTaskForce: 10, taskForceCap: 10 })).toBe("heavy");
+	expect(getContractThreatBand({ recommendedTaskForce: 11, taskForceCap: 10 })).toBe("stretch");
+	expect(getContractThreatBand({ recommendedTaskForce: 12, taskForceCap: 10 })).toBeNull();
+});
+
+test("primary reward resource prefers alloy then crystal on ties", () => {
+	expect(getPrimaryRewardResource({ alloy: 100, crystal: 50, fuel: 25 })).toBe("alloy");
+	expect(getPrimaryRewardResource({ alloy: 100, crystal: 100, fuel: 50 })).toBe("alloy");
+	expect(getPrimaryRewardResource({ alloy: 50, crystal: 100, fuel: 100 })).toBe("crystal");
+	expect(getPrimaryRewardResource({ alloy: 50, crystal: 25, fuel: 100 })).toBe("fuel");
+});
+
+test("recommended task force sums enemy fleet and defenses", () => {
+	expect(
+		getContractRecommendedTaskForce({
+			enemyFleet: {
+				colonyShip: 0,
+				cruiser: 0,
+				bomber: 0,
+				interceptor: 4,
+				frigate: 1,
+				largeCargo: 0,
+				smallCargo: 0,
+			},
+			enemyDefenses: {
+				gaussCannon: 0,
+				laserTurret: 1,
+				missileBattery: 2,
+				shieldDome: 0,
+			},
+		}),
+	).toBe(11);
 });
 
 test("contract snapshot generation is deterministic for the same seed", () => {
