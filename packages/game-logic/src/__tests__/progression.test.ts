@@ -24,6 +24,13 @@ test("progression overview derives onboarding gates from total xp", () => {
 	expect(rankZero.features.defenses).toBe("hidden");
 	expect(rankZero.features.shipyard).toBe("hidden");
 	expect(rankZero.facilityAccess.shipyard).toBe("locked");
+	expect(rankZero.shipAccess.smallCargo).toBe("unlocked");
+	expect(rankZero.shipAccess.largeCargo).toBe("unlocked");
+	expect(rankZero.shipAccess.colonyShip).toBe("unlocked");
+	expect(rankZero.shipAccess.interceptor).toBe("unlocked");
+	expect(rankZero.shipAccess.frigate).toBe("unlocked");
+	expect(rankZero.shipAccess.cruiser).toBe("unlocked");
+	expect(rankZero.shipAccess.bomber).toBe("unlocked");
 	expect(rankZero.raidRules.mode).toBe("off");
 
 	const rankThree = getRankDefinition(3);
@@ -37,6 +44,10 @@ test("progression overview derives onboarding gates from total xp", () => {
 	expect(overview.features.contracts).toBe("unlocked");
 	expect(overview.features.raids).toBe("unlocked");
 	expect(overview.shipAccess.interceptor).toBe("unlocked");
+	expect(overview.shipAccess.largeCargo).toBe("unlocked");
+	expect(overview.shipAccess.frigate).toBe("unlocked");
+	expect(overview.shipAccess.cruiser).toBe("unlocked");
+	expect(overview.shipAccess.bomber).toBe("unlocked");
 	expect(overview.missionAccess.contracts).toBe("unlocked");
 	expect(overview.raidRules.mode).toBe("full");
 

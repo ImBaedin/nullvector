@@ -285,10 +285,10 @@ export function OperationTimelinePanel(props: {
      size-3
      ${accent.iconText}
    `} /> : <Ship className={`
-      size-3
-      ${isReturning ? "rotate-180" : ""}
-      ${accent.iconText}
-    `} />,
+     size-3
+     ${isReturning ? "rotate-180" : ""}
+     ${accent.iconText}
+   `} />,
 			transitIconBorderClassName: `${accent.iconBorder}`,
 			transitIconFillClassName: `${accent.iconFill}`,
 			transitLineClassName: `${accent.line}`,

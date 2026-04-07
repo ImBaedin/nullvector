@@ -359,13 +359,13 @@ const DEFAULT_FACILITY_ACCESS: FacilityAccessMap = {
 };
 
 const DEFAULT_SHIP_ACCESS: ShipAccessMap = {
-	smallCargo: HIDDEN,
-	largeCargo: HIDDEN,
-	colonyShip: HIDDEN,
-	interceptor: HIDDEN,
-	frigate: HIDDEN,
-	cruiser: HIDDEN,
-	bomber: HIDDEN,
+	smallCargo: UNLOCKED,
+	largeCargo: UNLOCKED,
+	colonyShip: UNLOCKED,
+	interceptor: UNLOCKED,
+	frigate: UNLOCKED,
+	cruiser: UNLOCKED,
+	bomber: UNLOCKED,
 };
 
 const DEFAULT_MISSION_ACCESS: MissionAccessMap = {
@@ -483,7 +483,6 @@ function createOnboardingRankDefinition(
 				},
 				shipAccess: {
 					...DEFAULT_SHIP_ACCESS,
-					interceptor: UNLOCKED,
 				},
 				missionAccess: {
 					...DEFAULT_MISSION_ACCESS,
@@ -514,9 +513,6 @@ function createOnboardingRankDefinition(
 				},
 				shipAccess: {
 					...DEFAULT_SHIP_ACCESS,
-					interceptor: UNLOCKED,
-					smallCargo: UNLOCKED,
-					colonyShip: UNLOCKED,
 				},
 				missionAccess: {
 					...DEFAULT_MISSION_ACCESS,
@@ -547,9 +543,6 @@ function createOnboardingRankDefinition(
 				},
 				shipAccess: {
 					...DEFAULT_SHIP_ACCESS,
-					interceptor: UNLOCKED,
-					smallCargo: UNLOCKED,
-					colonyShip: UNLOCKED,
 				},
 				missionAccess: {
 					...DEFAULT_MISSION_ACCESS,
@@ -583,9 +576,6 @@ function createOnboardingRankDefinition(
 				},
 				shipAccess: {
 					...DEFAULT_SHIP_ACCESS,
-					interceptor: UNLOCKED,
-					smallCargo: UNLOCKED,
-					colonyShip: UNLOCKED,
 				},
 				missionAccess: {
 					...DEFAULT_MISSION_ACCESS,

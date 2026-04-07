@@ -350,7 +350,9 @@ export function useColonySessionSnapshot(colonyId: Id<"colonies"> | null) {
 
 export function useColonyView(colonyId: Id<"colonies"> | null) {
 	const snapshot = useColonySnapshot(colonyId);
-	const [nowMs, setNowMs] = useState(() => snapshot?.serverNowMs ?? Date.now());
+	const [nowMs, setNowMs] = useState(() =>
+		snapshot ? Math.max(snapshot.serverNowMs, Date.now()) : Date.now(),
+	);
 
 	useEffect(() => {
 		if (!snapshot) {
@@ -358,14 +360,16 @@ export function useColonyView(colonyId: Id<"colonies"> | null) {
 		}
 		const anchorServerNowMs = snapshot.serverNowMs;
 		const anchorMonotonicNow = getMonotonicNow();
-		setNowMs(anchorServerNowMs);
+		const getLiveNowMs = () =>
+			Math.max(Date.now(), anchorServerNowMs + Math.max(0, getMonotonicNow() - anchorMonotonicNow));
+		setNowMs(getLiveNowMs());
 		const tick = window.setInterval(() => {
-			setNowMs(anchorServerNowMs + Math.max(0, getMonotonicNow() - anchorMonotonicNow));
+			setNowMs(getLiveNowMs());
 		}, 1_000);
 		return () => {
 			window.clearInterval(tick);
 		};
-	}, [snapshot]);
+	}, [snapshot?.serverNowMs]);
 
 	return useMemo(() => {
 		if (!snapshot) {
