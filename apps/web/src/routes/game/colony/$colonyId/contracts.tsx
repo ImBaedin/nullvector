@@ -10,6 +10,7 @@ import { ChevronDown, Layers3 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { ContractView } from "@/features/colony-route/contracts-screen-shared";
+import { getSelectedTaskForce } from "@/features/colony-route/contracts-screen-shared";
 
 import {
 	useContractDiscoveryRebuild,
@@ -109,6 +110,10 @@ function ContractsRoute() {
 	const contractLimitReached = activeContractCount >= activeContractLimit;
 	const rankTooLow = selectedContract ? progression.rank < selectedContract.requiredRank : false;
 	const selectedShipValues = normalizeShipCounts(selectedShipCounts);
+	const taskForceCap = recommendedResult.taskForceCap ?? progression.contractRules.taskForceCap;
+	const selectedTaskForce = getSelectedTaskForce(selectedShipValues);
+	const includesColonyShip = selectedShipValues.colonyShip > 0;
+	const overTaskForceCap = selectedTaskForce > taskForceCap;
 	const hasShips = Object.values(selectedShipValues).some((count) => count > 0);
 	const distance = selectedContext?.distance ?? 0;
 	const fuelCost = hasShips
@@ -125,6 +130,8 @@ function ContractsRoute() {
 		!rankTooLow &&
 		!contractLimitReached &&
 		hasShips &&
+		!overTaskForceCap &&
+		!includesColonyShip &&
 		!isLaunching,
 	);
 
@@ -146,6 +153,12 @@ function ContractsRoute() {
 		}
 		if (!hasShips) {
 			return "Assign Ships";
+		}
+		if (overTaskForceCap) {
+			return `Task Force ${selectedTaskForce}/${taskForceCap}`;
+		}
+		if (includesColonyShip) {
+			return "No Colony Ships";
 		}
 		return "Launch Mission";
 	}
@@ -283,12 +296,16 @@ function ContractsRoute() {
 					contractLimitReached={contractLimitReached}
 					distance={distance}
 					fuelCost={fuelCost}
+					includesColonyShip={includesColonyShip}
 					launchCtaLabel={getLaunchCtaLabel()}
+					overTaskForceCap={overTaskForceCap}
 					planet={selectedContext?.planet ?? null}
 					playerRank={progression.rank}
 					rankTooLow={rankTooLow}
+					selectedTaskForce={selectedTaskForce}
 					selectedShips={selectedShipValues}
 					ships={ships}
+					taskForceCap={taskForceCap}
 					travelSeconds={travelSeconds}
 					onLaunch={handleLaunch}
 					onShipCountChange={(shipKey, nextCount) => {

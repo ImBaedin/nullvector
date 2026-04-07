@@ -76,6 +76,7 @@ const progressionOverviewValidator = v.object({
 		visibleSlots: v.number(),
 		activeLimit: v.number(),
 		difficultyTier: v.number(),
+		taskForceCap: v.number(),
 	}),
 	raidRules: v.object({
 		mode: v.union(v.literal("off"), v.literal("tutorialOnly"), v.literal("full")),

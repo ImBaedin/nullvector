@@ -6,6 +6,7 @@ import {
 	deriveQuestTimelineItems,
 	deriveQuestTrackerItems,
 	evaluateQuestDefinition,
+	getContractTaskForceCap,
 	getProgressionOverview,
 	getRankDefinition,
 	getRankForXpTotal,
@@ -48,6 +49,16 @@ test("progression overview derives onboarding gates from total xp", () => {
 	expect(rankFive.missionAccess.colonize).toBe("unlocked");
 	expect(rankFive.missionAccess.transport).toBe("unlocked");
 	expect(rankFive.raidRules.mode).toBe("full");
+	expect(overview.contractRules.taskForceCap).toBe(5);
+});
+
+test("contract task force cap scales by rank and shipyard thresholds", () => {
+	expect(getContractTaskForceCap({ playerRank: 2, shipyardLevel: 4 })).toBe(0);
+	expect(getContractTaskForceCap({ playerRank: 3, shipyardLevel: 0 })).toBe(5);
+	expect(getContractTaskForceCap({ playerRank: 3, shipyardLevel: 2 })).toBe(6);
+	expect(getContractTaskForceCap({ playerRank: 5, shipyardLevel: 4 })).toBe(7);
+	expect(getContractTaskForceCap({ playerRank: 10, shipyardLevel: 6 })).toBe(9);
+	expect(getContractTaskForceCap({ playerRank: 15, shipyardLevel: 8 })).toBe(11);
 });
 
 test("bound-colony quest objectives only read the bound colony state", () => {

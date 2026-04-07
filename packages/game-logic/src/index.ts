@@ -17,6 +17,7 @@ export {
 	evaluateQuestDefinition,
 	evaluateQuestObjective,
 	getProgressionOverview,
+	getContractTaskForceCap,
 	getQuestDefinition,
 	getRankDefinition,
 	getRankForXpTotal,
@@ -73,10 +74,17 @@ export {
 export {
 	COMBAT_MISSION_TYPE_KEYS,
 	CONTRACT_EXPIRY_MS,
+	CONTRACT_TASK_FORCE_DEFENSE_WEIGHTS,
+	CONTRACT_TASK_FORCE_SHIP_WEIGHTS,
 	MISSION_TEMPLATES,
 	getConcurrentContractLimit,
+	getContractRecommendedTaskForce,
+	getContractThreatBand,
 	generateContractSnapshot,
 	getDifficultyTierForRank,
+	getPrimaryRewardResource,
+	getTaskForceWeightForDefenseCounts,
+	getTaskForceWeightForShipCounts,
 	getVisibleContractSlotCount,
 } from "./contracts";
 export { HOSTILE_FACTIONS, HOSTILE_FACTION_KEYS } from "./hostility";
@@ -238,8 +246,10 @@ export type { DefenseCounts, DefenseDefinition, DefenseKey } from "./defenses";
 export type {
 	CombatMissionTypeKey,
 	CombatPriorityProfile,
+	ContractThreatBand,
 	ContractSnapshot,
 	MissionTemplate,
+	PrimaryRewardResource,
 } from "./contracts";
 export type { HostileFactionKey } from "./hostility";
 export type { CombatResult, CombatRoundSummary, CombatSide } from "./combat";
