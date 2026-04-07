@@ -49,7 +49,7 @@ export {
 } from "./structures";
 
 export { isUnlockSatisfied } from "./unlocks";
-export { BUILDING_KEYS, FACILITY_KEYS } from "./gameplay";
+export { BUILDING_KEYS, FACILITY_KEYS, SHIP_KEYS } from "./gameplay";
 export {
 	DEFAULT_SHIP_DEFINITIONS,
 	EMPTY_SHIP_COUNTS,

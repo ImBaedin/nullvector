@@ -3,6 +3,7 @@ import type { ShipKey } from "@nullvector/game-logic";
 import {
 	CONTRACT_TASK_FORCE_SHIP_WEIGHTS,
 	DEFAULT_SHIP_DEFINITIONS,
+	SHIP_KEYS,
 } from "@nullvector/game-logic";
 import { Minus, Plus } from "lucide-react";
 
@@ -14,16 +15,9 @@ type ShipAssignmentShip = {
 	name: string;
 };
 
-// Ordered light → heavy for consistent meter fill direction
-const WEIGHT_ORDER: ShipKey[] = [
-	"interceptor",
-	"smallCargo",
-	"largeCargo",
-	"frigate",
-	"colonyShip",
-	"cruiser",
-	"bomber",
-];
+const WEIGHT_ORDER = [...SHIP_KEYS].sort(
+	(left, right) => CONTRACT_TASK_FORCE_SHIP_WEIGHTS[left] - CONTRACT_TASK_FORCE_SHIP_WEIGHTS[right],
+);
 
 type ShipColorScheme = {
 	segment: string;
@@ -31,7 +25,7 @@ type ShipColorScheme = {
 	dot: string;
 };
 
-const SHIP_COLOR: Record<ShipKey, ShipColorScheme> = {
+const SHIP_COLOR = {
 	interceptor: {
 		segment: "bg-sky-400/60",
 		badgeActive: "border-sky-400/30 text-sky-300/85",
@@ -67,7 +61,7 @@ const SHIP_COLOR: Record<ShipKey, ShipColorScheme> = {
 		badgeActive: "border-rose-400/30 text-rose-300/85",
 		dot: "bg-rose-400/65",
 	},
-};
+} as const satisfies Record<ShipKey, ShipColorScheme>;
 
 export function ShipAssignmentList(props: {
 	label: string;

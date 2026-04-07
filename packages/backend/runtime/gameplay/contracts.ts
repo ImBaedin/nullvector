@@ -362,26 +362,71 @@ async function getTaskForceCapForContractRow(args: {
 	ctx: MutationCtx | QueryCtx;
 	player: Doc<"players">;
 }) {
-	if (!args.contract.originColonyId) {
-		const progressionOverview = await buildProgressionOverview({
-			ctx: args.ctx,
-			player: args.player,
-		});
-		return progressionOverview.contractRules.taskForceCap;
+	if (args.contract.originColonyId) {
+		const colony = await args.ctx.db.get(args.contract.originColonyId);
+		if (colony) {
+			return getColonyTaskForceCap({
+				ctx: args.ctx,
+				colony,
+				player: args.player,
+			});
+		}
 	}
-	const colony = await args.ctx.db.get(args.contract.originColonyId);
-	if (!colony) {
-		const progressionOverview = await buildProgressionOverview({
-			ctx: args.ctx,
-			player: args.player,
-		});
-		return progressionOverview.contractRules.taskForceCap;
-	}
-	return getColonyTaskForceCap({
+	const progressionOverview = await buildProgressionOverview({
 		ctx: args.ctx,
-		colony,
 		player: args.player,
 	});
+	return progressionOverview.contractRules.taskForceCap;
+}
+
+async function getTaskForceCapsForContractRows(args: {
+	contracts: Array<Pick<ContractRow, "_id" | "originColonyId">>;
+	ctx: MutationCtx | QueryCtx;
+	player: Doc<"players">;
+}) {
+	const progressionOverviewPromise = buildProgressionOverview({
+		ctx: args.ctx,
+		player: args.player,
+	});
+	const originColonyIds = [
+		...new Set(
+			args.contracts
+				.map((row) => row.originColonyId)
+				.filter((colonyId): colonyId is Id<"colonies"> => colonyId !== undefined),
+		),
+	];
+	const colonies = await Promise.all(originColonyIds.map((colonyId) => args.ctx.db.get(colonyId)));
+	const progressionOverview = await progressionOverviewPromise;
+	const taskForceCapByColonyId = new Map<Id<"colonies">, number>();
+
+	await Promise.all(
+		colonies.map(async (colony) => {
+			if (!colony) {
+				return;
+			}
+			const colonyState = await loadColonyState({
+				colony,
+				ctx: args.ctx,
+			});
+			taskForceCapByColonyId.set(
+				colony._id,
+				getContractTaskForceCap({
+					playerRank: progressionOverview.rank,
+					shipyardLevel: colonyState.buildings.shipyardLevel,
+				}),
+			);
+		}),
+	);
+
+	const defaultTaskForceCap = progressionOverview.contractRules.taskForceCap;
+	return new Map(
+		args.contracts.map((row) => [
+			row._id,
+			row.originColonyId
+				? taskForceCapByColonyId.get(row.originColonyId) ?? defaultTaskForceCap
+				: defaultTaskForceCap,
+		]),
+	);
 }
 
 function enrichContractSnapshotView(args: {
@@ -440,6 +485,10 @@ function snapshotToView(args: {
 			taskForceCap: args.taskForceCap,
 		}) ??
 		{
+			// enrichContractSnapshotView can return null when taskForceCap is invalid for threat-band
+			// derivation. In that edge case we still surface a safe "stretch" view using the raw
+			// snapshot via getContractRecommendedTaskForce(snapshot) and
+			// getPrimaryRewardResource(snapshot.rewardResources) so the UI can render and flag it.
 			recommendedTaskForce: getContractRecommendedTaskForce(snapshot),
 			threatBand: "stretch" as const,
 			primaryRewardResource: getPrimaryRewardResource(snapshot.rewardResources),
@@ -995,17 +1044,17 @@ function compareRecommendedContracts(
 ) {
 	const rewardKeyLeft = left.primaryRewardResource;
 	const rewardKeyRight = right.primaryRewardResource;
-	const rewardDiff = right.rewardResources[rewardKeyRight] - left.rewardResources[rewardKeyLeft];
+	const rewardDiff = left.rewardResources[rewardKeyLeft] - right.rewardResources[rewardKeyRight];
 	if (left.distance !== right.distance) {
 		return left.distance - right.distance;
 	}
 	if (rewardDiff !== 0) {
 		return rewardDiff;
 	}
-	const leftRatio = left.recommendedTaskForce;
-	const rightRatio = right.recommendedTaskForce;
-	if (leftRatio !== rightRatio) {
-		return leftRatio - rightRatio;
+	const leftForce = left.recommendedTaskForce;
+	const rightForce = right.recommendedTaskForce;
+	if (leftForce !== rightForce) {
+		return leftForce - rightForce;
 	}
 	if (left.slot !== right.slot) {
 		return left.slot - right.slot;
@@ -1717,25 +1766,24 @@ export const getContractHistory = query({
 				limit,
 			}),
 		]);
+		const contractRows = [...completedRows, ...failedRows]
+			.sort(
+				(left, right) =>
+					(right.resolvedAt ?? right._creationTime) - (left.resolvedAt ?? left._creationTime),
+			)
+			.slice(0, limit);
+		const taskForceCaps = await getTaskForceCapsForContractRows({
+			contracts: contractRows,
+			ctx,
+			player: playerResult.player,
+		});
 
 		return {
-			contracts: await Promise.all(
-				[...completedRows, ...failedRows]
-					.sort(
-						(left, right) =>
-							(right.resolvedAt ?? right._creationTime) - (left.resolvedAt ?? left._creationTime),
-					)
-					.slice(0, limit)
-					.map(async (row) =>
-						snapshotToView({
-							contract: row,
-							taskForceCap: await getTaskForceCapForContractRow({
-								contract: row,
-								ctx,
-								player: playerResult.player,
-							}),
-						}),
-					),
+			contracts: contractRows.map((row) =>
+				snapshotToView({
+					contract: row,
+					taskForceCap: taskForceCaps.get(row._id)!,
+				}),
 			),
 			activeContractCount: summary.activeContractCount,
 			activeContractLimit: summary.activeContractLimit,

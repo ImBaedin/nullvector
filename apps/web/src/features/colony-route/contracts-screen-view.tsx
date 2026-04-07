@@ -134,14 +134,14 @@ function RecommendedContractCard(props: {
 		? Math.max(0, Math.ceil((contract.expiresAt - props.nowMs) / 1_000))
 		: 0;
 	const dominantReward = contract.rewardResources[contract.primaryRewardResource];
-	const threatBadgeClass =
-		contract.threatBand === "routine"
-			? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
-			: contract.threatBand === "standard"
-				? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
-				: contract.threatBand === "heavy"
-					? "border-amber-300/20 bg-amber-400/10 text-amber-100"
-					: "border-rose-300/20 bg-rose-400/10 text-rose-100";
+	const threatClassMap = {
+		routine: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
+		standard: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100",
+		heavy: "border-amber-300/20 bg-amber-400/10 text-amber-100",
+		stretch: "border-rose-300/20 bg-rose-400/10 text-rose-100",
+		default: "border-rose-300/20 bg-rose-400/10 text-rose-100",
+	} as const;
+	const threatBadgeClass = threatClassMap[contract.threatBand] ?? threatClassMap.default;
 
 	return (
 		<button className={`
