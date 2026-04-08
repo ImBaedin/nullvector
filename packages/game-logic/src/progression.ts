@@ -40,7 +40,9 @@ export function getContractTaskForceCap(args: { playerRank: number; shipyardLeve
 	}
 	const rankBonus = Math.max(0, Math.floor((safeRank - 3) / 5));
 	const shipyardThresholds = [2, 4, 6, 8, 10];
-	const shipyardBonus = shipyardThresholds.filter((threshold) => safeShipyardLevel >= threshold).length;
+	const shipyardBonus = shipyardThresholds.filter(
+		(threshold) => safeShipyardLevel >= threshold,
+	).length;
 	return 5 + rankBonus + shipyardBonus;
 }
 

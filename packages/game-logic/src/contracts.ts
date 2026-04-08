@@ -470,16 +470,17 @@ export function getTaskForceWeightForShipCounts(shipCounts: Partial<ShipCounts>)
 export function getTaskForceWeightForDefenseCounts(defenseCounts: Partial<DefenseCounts>) {
 	const normalized = normalizeDefenseCounts(defenseCounts);
 	let total = 0;
-	for (const key of Object.keys(CONTRACT_TASK_FORCE_DEFENSE_WEIGHTS) as Array<keyof DefenseCounts>) {
+	for (const key of Object.keys(CONTRACT_TASK_FORCE_DEFENSE_WEIGHTS) as Array<
+		keyof DefenseCounts
+	>) {
 		total += normalized[key] * CONTRACT_TASK_FORCE_DEFENSE_WEIGHTS[key];
 	}
 	return total;
 }
 
-export function getContractRecommendedTaskForce(snapshot: Pick<
-	ContractSnapshot,
-	"enemyFleet" | "enemyDefenses"
->) {
+export function getContractRecommendedTaskForce(
+	snapshot: Pick<ContractSnapshot, "enemyFleet" | "enemyDefenses">,
+) {
 	return (
 		getTaskForceWeightForShipCounts(snapshot.enemyFleet) +
 		getTaskForceWeightForDefenseCounts(snapshot.enemyDefenses)

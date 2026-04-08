@@ -423,7 +423,7 @@ async function getTaskForceCapsForContractRows(args: {
 		args.contracts.map((row) => [
 			row._id,
 			row.originColonyId
-				? taskForceCapByColonyId.get(row.originColonyId) ?? defaultTaskForceCap
+				? (taskForceCapByColonyId.get(row.originColonyId) ?? defaultTaskForceCap)
 				: defaultTaskForceCap,
 		]),
 	);
@@ -451,26 +451,26 @@ function enrichContractSnapshotView(args: {
 
 function snapshotToView(args: {
 	contract: {
-	_id: Id<"contracts">;
-	acceptedAt?: number;
-	difficultyTier: number;
-	expiresAt?: number;
-	missionTypeKey: string;
-	offerSequence?: number;
-	planetId: Id<"planets">;
-	requiredRank: number;
-	resolvedAt?: number;
-	slot: number;
-	snapshot: {
-		controlReduction: number;
-		enemyDefenses: Partial<ContractSnapshot["enemyDefenses"]>;
-		enemyFleet: Partial<ContractSnapshot["enemyFleet"]>;
-		rewardCredits: number;
-		rewardXpFailure: number;
-		rewardXpSuccess: number;
-		rewardResources: ContractSnapshot["rewardResources"];
-	};
-	status: ContractStatus;
+		_id: Id<"contracts">;
+		acceptedAt?: number;
+		difficultyTier: number;
+		expiresAt?: number;
+		missionTypeKey: string;
+		offerSequence?: number;
+		planetId: Id<"planets">;
+		requiredRank: number;
+		resolvedAt?: number;
+		slot: number;
+		snapshot: {
+			controlReduction: number;
+			enemyDefenses: Partial<ContractSnapshot["enemyDefenses"]>;
+			enemyFleet: Partial<ContractSnapshot["enemyFleet"]>;
+			rewardCredits: number;
+			rewardXpFailure: number;
+			rewardXpSuccess: number;
+			rewardResources: ContractSnapshot["rewardResources"];
+		};
+		status: ContractStatus;
 	};
 	taskForceCap: number;
 }) {
@@ -479,21 +479,19 @@ function snapshotToView(args: {
 		enemyFleet: normalizeShipCounts(args.contract.snapshot.enemyFleet),
 		enemyDefenses: normalizeDefenseCounts(args.contract.snapshot.enemyDefenses),
 	};
-	const enriched =
-		enrichContractSnapshotView({
-			snapshot,
-			taskForceCap: args.taskForceCap,
-		}) ??
-		{
-			// enrichContractSnapshotView can return null when taskForceCap is invalid for threat-band
-			// derivation. In that edge case we still surface a safe "stretch" view using the raw
-			// snapshot via getContractRecommendedTaskForce(snapshot) and
-			// getPrimaryRewardResource(snapshot.rewardResources) so the UI can render and flag it.
-			recommendedTaskForce: getContractRecommendedTaskForce(snapshot),
-			threatBand: "stretch" as const,
-			primaryRewardResource: getPrimaryRewardResource(snapshot.rewardResources),
-			isStretch: true,
-		};
+	const enriched = enrichContractSnapshotView({
+		snapshot,
+		taskForceCap: args.taskForceCap,
+	}) ?? {
+		// enrichContractSnapshotView can return null when taskForceCap is invalid for threat-band
+		// derivation. In that edge case we still surface a safe "stretch" view using the raw
+		// snapshot via getContractRecommendedTaskForce(snapshot) and
+		// getPrimaryRewardResource(snapshot.rewardResources) so the UI can render and flag it.
+		recommendedTaskForce: getContractRecommendedTaskForce(snapshot),
+		threatBand: "stretch" as const,
+		primaryRewardResource: getPrimaryRewardResource(snapshot.rewardResources),
+		isStretch: true,
+	};
 	return {
 		id: args.contract._id,
 		planetId: args.contract.planetId,
@@ -676,7 +674,11 @@ function deriveTutorialSafeOffer(args: {
 function buildRecommendedOfferView(args: {
 	candidate: Pick<
 		HydratedCandidateRow,
-		"distance" | "hostileFactionKey" | "planetAddressLabel" | "planetDisplayName" | "sectorDisplayName"
+		| "distance"
+		| "hostileFactionKey"
+		| "planetAddressLabel"
+		| "planetDisplayName"
+		| "sectorDisplayName"
 	>;
 	offer: DerivedOffer & { snapshot: ContractSnapshot };
 	taskForceCap: number;
@@ -1207,7 +1209,8 @@ async function deriveRecommendedContractsByOrdinal(args: {
 					tutorialSafeInserted = true;
 				}
 				const view = buildRecommendedOfferView({
-					candidate: (candidateByPlanetId.get(candidate.planetId) ?? candidate) as HydratedCandidateRow,
+					candidate: (candidateByPlanetId.get(candidate.planetId) ??
+						candidate) as HydratedCandidateRow,
 					offer,
 					taskForceCap,
 				});
@@ -1575,7 +1578,9 @@ export const launchContract = mutation({
 			shipyardLevel: colonyState.buildings.shipyardLevel,
 		});
 		if (selectedTaskForce > taskForceCap) {
-			throw new ConvexError(`Contract task force exceeds cap (${selectedTaskForce}/${taskForceCap})`);
+			throw new ConvexError(
+				`Contract task force exceeds cap (${selectedTaskForce}/${taskForceCap})`,
+			);
 		}
 
 		const now = Date.now();

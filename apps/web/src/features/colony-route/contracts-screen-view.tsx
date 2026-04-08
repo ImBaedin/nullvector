@@ -182,10 +182,15 @@ function RecommendedContractCard(props: {
 			</div>
 
 			<div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px]">
-				<span className={`rounded-full border px-2 py-0.5 font-semibold ${threatBadgeClass}`}>
-					{formatThreatBand(contract.threatBand)}
-				</span>
-				<span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/75">
+				<span className={`
+      rounded-full border px-2 py-0.5 font-semibold
+      ${threatBadgeClass}
+    `}>{formatThreatBand(contract.threatBand)}</span>
+				<span
+					className="
+       rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/75
+     "
+				>
 					{formatPrimaryRewardResource(contract.primaryRewardResource)}
 				</span>
 				<span className="font-(family-name:--nv-font-mono) text-emerald-200/70">
@@ -681,10 +686,18 @@ function RewardsSection(props: { contract: ContractView }): ReactNode {
 		<div>
 			<SectionLabel>Rewards</SectionLabel>
 			<div className="mt-1 flex flex-wrap items-center gap-2 text-[9px]">
-				<span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/70">
+				<span
+					className="
+       rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/70
+     "
+				>
 					Primary Reward: {formatPrimaryRewardResource(props.contract.primaryRewardResource)}
 				</span>
-				<span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/70">
+				<span
+					className="
+       rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/70
+     "
+				>
 					Threat: {formatThreatBand(props.contract.threatBand)}
 				</span>
 			</div>
@@ -802,7 +815,9 @@ export function ContractHistory(props: { contracts: ContractView[] }): ReactNode
          ${isSuccess ? "text-emerald-200/60" : `text-rose-200/60`}
        `}>{isSuccess ? "Success" : "Failed"}</span>
 							{contract.resolvedAt ? (
-								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/20">
+								<span
+									className="font-(family-name:--nv-font-mono) text-[9px] text-white/20"
+								>
 									{new Date(contract.resolvedAt).toLocaleDateString()}
 								</span>
 							) : null}

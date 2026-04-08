@@ -680,11 +680,9 @@ function CommandQueuePanel(props: {
      bg-[linear-gradient(170deg,rgba(12,20,36,0.95),rgba(6,10,18,0.98))]
    "
 		>
-			<div
-				className="
+			<div className="
      flex items-center gap-2.5 border-b border-white/8 px-5 py-3.5
-   "
-			>
+   ">
 				<Clock3 className="size-5 text-cyan-300" />
 				<h2 className="font-(family-name:--nv-font-display) text-sm font-bold">Command Queue</h2>
 				{queueItemsCount > 0 ? (
@@ -812,15 +810,9 @@ function ActiveQueueCard(props: {
 							onClick={() => onCancelQueueItem(activeQueueItem.id)}
 							type="button"
 						>
-							{cancelingQueueItemId === activeQueueItem.id ? (
-								"..."
-							) : (
-								<X
-									className="
+							{cancelingQueueItemId === activeQueueItem.id ? "..." : <X className="
          size-3
-       "
-								/>
-							)}
+       " />}
 						</button>
 					</div>
 				</div>
@@ -828,11 +820,9 @@ function ActiveQueueCard(props: {
 				<div className="mt-2 flex items-center justify-between text-right">
 					<div className="flex items-center gap-1.5">
 						<Layers3 className="size-3 text-emerald-300/50" />
-						<span
-							className="
+						<span className="
         font-(family-name:--nv-font-mono) text-[10px] text-white/40
-      "
-						>
+      ">
 							Batch {activeQueueItem.total.toLocaleString()}
 						</span>
 					</div>
@@ -865,18 +855,14 @@ function ActiveQueueCard(props: {
 					/>
 				</div>
 				<div className="mt-1 flex items-center justify-between">
-					<span
-						className="
+					<span className="
        font-(family-name:--nv-font-mono) text-[9px] text-white/25
-     "
-					>
+     ">
 						{Math.round(activeUpgradeProgress)}%
 					</span>
-					<span
-						className="
+					<span className="
        inline-flex items-center gap-1 text-[9px] text-emerald-300/60
-     "
-					>
+     ">
 						<span
 							className="inline-block size-1.5 rounded-full bg-emerald-400"
 							style={{
@@ -943,11 +929,9 @@ function PendingQueueList(props: {
 								) : null}
 								<div>
 									<p className="text-[11px] font-semibold text-white/80">{item.shipName}</p>
-									<p
-										className="
+									<p className="
            font-(family-name:--nv-font-mono) text-[9px] text-white/30
-         "
-									>
+         ">
 										{item.total.toLocaleString()} ships •{" "}
 										{formatColonyDuration(item.timeLeftSeconds, "seconds")}
 									</p>

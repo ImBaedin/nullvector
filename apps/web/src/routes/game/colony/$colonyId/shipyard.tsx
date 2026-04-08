@@ -1,11 +1,7 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
-import {
-	selectShipCatalog,
-	type FeatureAccessState,
-	type ShipKey,
-} from "@nullvector/game-logic";
+import { selectShipCatalog, type FeatureAccessState, type ShipKey } from "@nullvector/game-logic";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -77,17 +73,16 @@ function ShipyardRoute() {
 		const stateByShipKey = new Map(
 			colonyView.shipyardState.shipStates.map((state) => [state.key, state]),
 		);
-		const ships = shipCatalog
-			.map((ship) => {
-				const state = stateByShipKey.get(ship.key);
-				return {
-					...ship,
-					accessState: progressionOverview.shipAccess[ship.key] as FeatureAccessState,
-					owned: state?.owned ?? 0,
-					perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
-					queued: state?.queued ?? 0,
-				};
-			});
+		const ships = shipCatalog.map((ship) => {
+			const state = stateByShipKey.get(ship.key);
+			return {
+				...ship,
+				accessState: progressionOverview.shipAccess[ship.key] as FeatureAccessState,
+				owned: state?.owned ?? 0,
+				perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
+				queued: state?.queued ?? 0,
+			};
+		});
 
 		return {
 			...colonyView.shipyardState,
