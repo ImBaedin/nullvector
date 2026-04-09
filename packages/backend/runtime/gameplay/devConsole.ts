@@ -92,6 +92,7 @@ type DevActionType =
 
 const facilityLevelsPatchValidator = v.object({
 	robotics_hub: v.optional(v.number()),
+	research_directorate: v.optional(v.number()),
 	shipyard: v.optional(v.number()),
 	defense_grid: v.optional(v.number()),
 });
@@ -549,6 +550,7 @@ export const setFacilityLevels = mutation({
 		colonyId: v.id("colonies"),
 		facilityLevels: v.object({
 			robotics_hub: v.number(),
+			research_directorate: v.number(),
 			shipyard: v.number(),
 			defense_grid: v.number(),
 		}),
@@ -566,9 +568,9 @@ export const setFacilityLevels = mutation({
 			now,
 		});
 
-		const provided = (["robotics_hub", "shipyard", "defense_grid"] as const).filter(
-			(key) => args.facilityLevels[key] !== undefined,
-		);
+		const provided = (
+			["robotics_hub", "research_directorate", "shipyard", "defense_grid"] as const
+		).filter((key) => args.facilityLevels[key] !== undefined);
 		if (provided.length === 0) {
 			throw new ConvexError("Provide at least one facility level value");
 		}
@@ -594,6 +596,9 @@ export const setFacilityLevels = mutation({
 			if (key === "defense_grid") {
 				nextBuildings.defenseGridLevel = clamped;
 			}
+			if (key === "research_directorate") {
+				nextBuildings.researchDirectorateLevel = clamped;
+			}
 		}
 
 		await ctx.db.patch(settledColony._id, {
@@ -618,6 +623,7 @@ export const setFacilityLevels = mutation({
 			colonyId: settledColony._id,
 			facilityLevels: {
 				robotics_hub: nextBuildings.roboticsHubLevel,
+				research_directorate: nextBuildings.researchDirectorateLevel,
 				shipyard: nextBuildings.shipyardLevel,
 				defense_grid: nextBuildings.defenseGridLevel,
 			},

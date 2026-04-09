@@ -358,6 +358,7 @@ const DEFAULT_FACILITY_ACCESS: FacilityAccessMap = {
 	robotics_hub: HIDDEN,
 	shipyard: LOCKED,
 	defense_grid: HIDDEN,
+	research_directorate: LOCKED,
 };
 
 const DEFAULT_SHIP_ACCESS: ShipAccessMap = {
@@ -482,6 +483,7 @@ function createOnboardingRankDefinition(
 					robotics_hub: UNLOCKED,
 					defense_grid: UNLOCKED,
 					shipyard: UNLOCKED,
+					research_directorate: UNLOCKED,
 				},
 				shipAccess: {
 					...DEFAULT_SHIP_ACCESS,
@@ -512,6 +514,7 @@ function createOnboardingRankDefinition(
 					robotics_hub: UNLOCKED,
 					defense_grid: UNLOCKED,
 					shipyard: UNLOCKED,
+					research_directorate: UNLOCKED,
 				},
 				shipAccess: {
 					...DEFAULT_SHIP_ACCESS,
@@ -542,6 +545,7 @@ function createOnboardingRankDefinition(
 					robotics_hub: UNLOCKED,
 					defense_grid: UNLOCKED,
 					shipyard: UNLOCKED,
+					research_directorate: UNLOCKED,
 				},
 				shipAccess: {
 					...DEFAULT_SHIP_ACCESS,
@@ -575,6 +579,7 @@ function createOnboardingRankDefinition(
 					robotics_hub: UNLOCKED,
 					defense_grid: UNLOCKED,
 					shipyard: UNLOCKED,
+					research_directorate: UNLOCKED,
 				},
 				shipAccess: {
 					...DEFAULT_SHIP_ACCESS,

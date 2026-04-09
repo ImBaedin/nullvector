@@ -249,6 +249,7 @@ async function ensureSessionForAuthenticatedUser(ctx: MutationCtx) {
 		crystalStorageLevel: 1,
 		fuelStorageLevel: 1,
 		roboticsHubLevel: 0,
+		researchDirectorateLevel: 0,
 		shipyardLevel: 0,
 		defenseGridLevel: 0,
 	} satisfies Doc<"colonyInfrastructure">["buildings"];

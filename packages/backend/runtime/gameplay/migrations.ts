@@ -61,6 +61,7 @@ export const backfillRoboticsHubLevel = mutation({
 				buildings: {
 					...row.buildings,
 					roboticsHubLevel: 0,
+					researchDirectorateLevel: row.buildings.researchDirectorateLevel ?? 0,
 					defenseGridLevel: row.buildings.defenseGridLevel ?? 0,
 				},
 				updatedAt: Date.now(),

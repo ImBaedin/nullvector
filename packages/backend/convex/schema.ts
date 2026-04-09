@@ -99,6 +99,11 @@ const contractSnapshotValidator = v.object({
 	priorityProfile: combatPriorityProfileValidator,
 	requiredRank: v.number(),
 	rewardCredits: v.number(),
+	rewardMetaMatter: v.object({
+		common: v.number(),
+		rare: v.number(),
+		mythic: v.number(),
+	}),
 	rewardXpFailure: v.number(),
 	rewardXpSuccess: v.number(),
 	rewardResources: resourceBucketValidator,
@@ -113,6 +118,7 @@ const buildingLevelsValidator = v.object({
 	crystalStorageLevel: v.number(),
 	fuelStorageLevel: v.number(),
 	roboticsHubLevel: v.optional(v.number()),
+	researchDirectorateLevel: v.optional(v.number()),
 	shipyardLevel: v.number(),
 	defenseGridLevel: v.optional(v.number()),
 });
@@ -153,6 +159,7 @@ const facilityKeyValidator = v.union(
 	v.literal("robotics_hub"),
 	v.literal("shipyard"),
 	v.literal("defense_grid"),
+	v.literal("research_directorate"),
 );
 
 const queuePayloadValidator = v.union(
@@ -456,6 +463,63 @@ export default defineSchema({
 		playerId: v.id("players"),
 		credits: v.number(),
 		rankXpTotal: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_player_id", ["playerId"]),
+
+	// Player-owned global research levels keyed by code-authored research node id.
+	playerResearchState: defineTable({
+		playerId: v.id("players"),
+		levels: v.record(v.string(), v.number()),
+		unlockedAtByKey: v.record(v.string(), v.number()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_player_id", ["playerId"]),
+
+	// Research-specific currency balances are separate from progression credits/xp.
+	playerResearchBalances: defineTable({
+		playerId: v.id("players"),
+		common: v.number(),
+		rare: v.number(),
+		mythic: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_player_id", ["playerId"]),
+
+	// Player-owned account-wide research queue; V1 allows at most one open row.
+	playerResearchQueueItems: defineTable({
+		playerId: v.id("players"),
+		originColonyId: v.id("colonies"),
+		researchKey: v.string(),
+		fromLevel: v.number(),
+		toLevel: v.number(),
+		status: queueItemStatusValidator,
+		queuedAt: v.number(),
+		startsAt: v.number(),
+		completesAt: v.number(),
+		resolvedAt: v.optional(v.number()),
+		costMetaMatter: v.object({
+			common: v.number(),
+			rare: v.number(),
+			mythic: v.number(),
+		}),
+		costResources: resourceBucketValidator,
+		snapshot: v.object({
+			originResearchFacilityLevel: v.number(),
+			combinedResearchCapacity: v.number(),
+			durationSeconds: v.number(),
+		}),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_player_status", ["playerId", "status"])
+		.index("by_player_completes_at", ["playerId", "completesAt"]),
+
+	// Scheduler metadata for player-owned research timing, isolated from progression rows.
+	playerResearchScheduling: defineTable({
+		playerId: v.id("players"),
+		resolutionScheduledAt: v.optional(v.number()),
+		resolutionJobId: v.optional(v.id("_scheduled_functions")),
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	}).index("by_player_id", ["playerId"]),
@@ -802,6 +866,11 @@ export default defineSchema({
 			defenses: defenseCountsValidator,
 		}),
 		rewardCreditsGranted: v.number(),
+		rewardMetaMatterGranted: v.object({
+			common: v.number(),
+			rare: v.number(),
+			mythic: v.number(),
+		}),
 		rewardXpGranted: v.number(),
 		rewardCargoLoaded: resourceBucketValidator,
 		rewardCargoLostByCapacity: resourceBucketValidator,

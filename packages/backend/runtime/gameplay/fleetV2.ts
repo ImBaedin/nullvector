@@ -46,6 +46,7 @@ import {
 	markQuestMetricSourceProcessed,
 	transportDeliveredResourcesTotal,
 } from "./questMetrics";
+import { grantMetaMatter, loadPlayerResearchModifierSnapshot } from "./research";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	cloneResourceBucket,
@@ -274,6 +275,7 @@ function starterColonyBuildings(): Doc<"colonyInfrastructure">["buildings"] {
 		crystalStorageLevel: 1,
 		fuelStorageLevel: 1,
 		roboticsHubLevel: 0,
+		researchDirectorateLevel: 0,
 		shipyardLevel: 0,
 		defenseGridLevel: 0,
 	};
@@ -1008,6 +1010,11 @@ async function settleContractAtTarget(args: {
 			ctx: args.ctx,
 			playerId: contract.playerId,
 		});
+		await grantMetaMatter({
+			amounts: contract.snapshot.rewardMetaMatter,
+			ctx: args.ctx,
+			playerId: contract.playerId,
+		});
 	}
 	await grantProgressionXp({
 		amount: xpGranted,
@@ -1035,6 +1042,9 @@ async function settleContractAtTarget(args: {
 			defenses: combat.defenderDefenseRemaining,
 		},
 		rewardCreditsGranted: combat.success ? contract.snapshot.rewardCredits : 0,
+		rewardMetaMatterGranted: combat.success
+			? contract.snapshot.rewardMetaMatter
+			: { common: 0, rare: 0, mythic: 0 },
 		rewardXpGranted: xpGranted,
 		rewardCargoLoaded: rewardCargoScaled,
 		rewardCargoLostByCapacity: rewardCargoLostScaled,
@@ -2407,14 +2417,20 @@ export const createOperation = mutation({
 			throw new ConvexError(`${args.kind} operations are not implemented yet`);
 		}
 
-		if (missionCargoTotal(cargoRequested) > getFleetCargoCapacity(normalizedShips)) {
-			throw new ConvexError("Cargo exceeds fleet cargo capacity");
-		}
-
 		const origin = await getOwnedColony({
 			colonyId: args.originColonyId,
 			ctx,
 		});
+		const researchModifiers = await loadPlayerResearchModifierSnapshot({
+			ctx,
+			playerId: origin.player._id,
+		});
+		if (
+			missionCargoTotal(cargoRequested) >
+			Math.round(getFleetCargoCapacity(normalizedShips) * researchModifiers.cargoCapacityMultiplier)
+		) {
+			throw new ConvexError("Cargo exceeds fleet cargo capacity");
+		}
 		const progression = await buildProgressionRules({
 			ctx,
 			playerId: origin.player._id,
@@ -2585,7 +2601,8 @@ export const createOperation = mutation({
 		});
 
 		const oneWayFuelScaled = scaledUnits(
-			getFleetFuelCostForDistance({ distance, shipCounts: normalizedShips }),
+			getFleetFuelCostForDistance({ distance, shipCounts: normalizedShips }) *
+				researchModifiers.fleetFuelCostMultiplier,
 		);
 		const fuelScaled =
 			args.kind === "transport" && args.postDeliveryAction === "returnToOrigin"
@@ -2791,11 +2808,15 @@ export const cancelOperation = mutation({
 		let additionalFuelCharged = 0;
 		let fuelWaived = 0;
 		if (!(operation.kind === "transport" && operation.postDeliveryAction === "returnToOrigin")) {
+			const researchModifiers = await loadPlayerResearchModifierSnapshot({
+				ctx,
+				playerId: operation.ownerPlayerId,
+			});
 			const extraFuelScaled = scaledUnits(
 				getFleetFuelCostForDistance({
 					distance: returnDistance,
 					shipCounts: operation.shipCounts,
-				}),
+				}) * researchModifiers.fleetFuelCostMultiplier,
 			);
 			const originBase = await ctx.db.get(operation.originColonyId);
 			if (!originBase) {

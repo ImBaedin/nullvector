@@ -2,14 +2,15 @@ import type { FacilityKey } from "@nullvector/game-logic";
 
 import {
 	DEFAULT_FACILITY_REGISTRY,
-	getUpgradeCost,
-	getUpgradeDurationSeconds,
+	getFacilityUpgradeCost,
+	getFacilityUpgradeDurationSeconds,
 	isFacilityUnlocked,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
 import { mutation } from "../../convex/_generated/server";
 import { buildProgressionRules, requireFacilityAccess, requireFeatureAccess } from "./progression";
+import { loadPlayerResearchLevels, loadPlayerResearchModifierSnapshot } from "./research";
 import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	EMPTY_RESEARCH_LEVELS,
@@ -99,6 +100,16 @@ export const enqueueFacilityUpgrade = mutation({
 			ctx,
 			playerId: player._id,
 		});
+		const [researchLevels, researchModifiers] = await Promise.all([
+			loadPlayerResearchLevels({
+				ctx,
+				playerId: player._id,
+			}),
+			loadPlayerResearchModifierSnapshot({
+				ctx,
+				playerId: player._id,
+			}),
+		]);
 		requireFeatureAccess({
 			featureKey: "facilities",
 			label: "Facilities",
@@ -134,7 +145,7 @@ export const enqueueFacilityUpgrade = mutation({
 
 		const isUnlocked = isFacilityUnlocked(facility, {
 			facilityLevels: facilityLevelsFromColony(settledColony),
-			researchLevels: EMPTY_RESEARCH_LEVELS,
+			researchLevels,
 		});
 		if (!isUnlocked) {
 			throw new ConvexError("Facility is locked");
@@ -152,11 +163,15 @@ export const enqueueFacilityUpgrade = mutation({
 		}
 
 		const fromLevel = projectedLevel;
-		if (fromLevel >= facility.maxLevel) {
+		const effectiveMaxLevel =
+			facility.maxLevel + (researchModifiers.facilityMaxLevelBonuses[args.facilityKey] ?? 0);
+		if (fromLevel >= effectiveMaxLevel) {
 			throw new ConvexError("Facility is already at max level");
 		}
 		const toLevel = fromLevel + 1;
-		const upgradeCostScaled = resourceMapToScaledBucket(getUpgradeCost(facility, fromLevel));
+		const upgradeCostScaled = resourceMapToScaledBucket(
+			getFacilityUpgradeCost(args.facilityKey, fromLevel),
+		);
 
 		for (const key of RESOURCE_KEYS) {
 			if (settledColony.resources[key] < upgradeCostScaled[key]) {
@@ -169,7 +184,11 @@ export const enqueueFacilityUpgrade = mutation({
 			nextResources[key] -= upgradeCostScaled[key];
 		}
 
-		const durationSeconds = getUpgradeDurationSeconds(facility, fromLevel);
+		const durationSeconds = getFacilityUpgradeDurationSeconds(
+			args.facilityKey,
+			fromLevel,
+			researchModifiers,
+		);
 		const laneTail = queueRows[queueRows.length - 1];
 		const startsAt = laneTail ? laneTail.completesAt : now;
 		const completesAt = startsAt + durationSeconds * 1_000;

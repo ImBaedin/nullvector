@@ -119,6 +119,22 @@ export const DEFAULT_FACILITIES: FacilityDefinition[] = [
 		},
 		buffs: [],
 	},
+	{
+		id: "research_directorate",
+		kind: "facility",
+		name: "Research Directorate",
+		category: "research",
+		maxLevel: 20,
+		costCurve: {
+			baseCost: { alloy: 850, crystal: 950, fuel: 120 },
+			formula: makeExponentialUpgradeFormula(1.95),
+		},
+		upgradeTimeCurve: {
+			baseSeconds: 180,
+			formula: makeExponentialUpgradeFormula(1.27),
+		},
+		buffs: [],
+	},
 ];
 
 export const DEFAULT_FACILITY_REGISTRY = createFacilityRegistry(DEFAULT_FACILITIES);

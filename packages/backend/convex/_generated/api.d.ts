@@ -33,6 +33,7 @@ import type * as privateData from "../privateData.js";
 import type * as progression from "../progression.js";
 import type * as quests from "../quests.js";
 import type * as raids from "../raids.js";
+import type * as research from "../research.js";
 import type * as resources from "../resources.js";
 import type * as scheduler from "../scheduler.js";
 import type * as session from "../session.js";
@@ -72,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   progression: typeof progression;
   quests: typeof quests;
   raids: typeof raids;
+  research: typeof research;
   resources: typeof resources;
   scheduler: typeof scheduler;
   session: typeof session;

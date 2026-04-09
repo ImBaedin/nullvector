@@ -3,6 +3,7 @@ import type { DefenseKey, ResourceBucket } from "@nullvector/game-logic";
 import {
 	DEFAULT_DEFENSE_DEFINITIONS,
 	getDefenseBuildDurationSeconds,
+	isDefenseUnlocked,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
@@ -10,6 +11,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 
 import { mutation } from "../../convex/_generated/server";
 import { buildProgressionRules, requireFeatureAccess } from "./progression";
+import { loadPlayerResearchLevels, loadPlayerResearchModifierSnapshot } from "./research";
 import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	LANE_QUEUE_CAPACITY,
@@ -71,6 +73,16 @@ export const enqueueDefenseBuild = mutation({
 			ctx,
 			playerId: player._id,
 		});
+		const [researchLevels, researchModifiers] = await Promise.all([
+			loadPlayerResearchLevels({
+				ctx,
+				playerId: player._id,
+			}),
+			loadPlayerResearchModifierSnapshot({
+				ctx,
+				playerId: player._id,
+			}),
+		]);
 		requireFeatureAccess({
 			featureKey: "defenses",
 			label: "Defenses",
@@ -98,6 +110,19 @@ export const enqueueDefenseBuild = mutation({
 		}
 
 		const definition = DEFAULT_DEFENSE_DEFINITIONS[args.defenseKey];
+		if (
+			!isDefenseUnlocked(args.defenseKey, {
+				facilityLevels: {
+					shipyard: settledColony.buildings.shipyardLevel,
+					defense_grid: settledColony.buildings.defenseGridLevel,
+					robotics_hub: settledColony.buildings.roboticsHubLevel,
+					research_directorate: settledColony.buildings.researchDirectorateLevel,
+				},
+				researchLevels,
+			})
+		) {
+			throw new ConvexError("Defense research is not unlocked");
+		}
 		if (settledColony.buildings.defenseGridLevel < definition.requiredDefenseGridLevel) {
 			throw new ConvexError("Defense Grid level is too low for this defense");
 		}
@@ -132,9 +157,17 @@ export const enqueueDefenseBuild = mutation({
 			defenseKey: args.defenseKey,
 			defenseGridLevel: settledColony.buildings.defenseGridLevel,
 		});
+		const modifiedPerUnitDurationSeconds = Math.max(
+			1,
+			Math.round(
+				perUnitDurationSeconds *
+					researchModifiers.globalDefenseBuildTimeMultiplier *
+					(researchModifiers.defenseBuildTimeMultipliers[args.defenseKey] ?? 1),
+			),
+		);
 		const laneTail = queueRows[queueRows.length - 1];
 		const startsAt = laneTail ? laneTail.completesAt : now;
-		const completesAt = startsAt + perUnitDurationSeconds * quantity * 1_000;
+		const completesAt = startsAt + modifiedPerUnitDurationSeconds * quantity * 1_000;
 		const status: "active" | "queued" = queueRows.length === 0 ? "active" : "queued";
 		const laneOrder = (laneTail?.order ?? 0) + 1;
 
@@ -176,7 +209,7 @@ export const enqueueDefenseBuild = mutation({
 						defenseKey: args.defenseKey,
 						quantity,
 						completedQuantity: 0,
-						perUnitDurationSeconds,
+						perUnitDurationSeconds: modifiedPerUnitDurationSeconds,
 					},
 				},
 				now,
@@ -194,7 +227,7 @@ export const enqueueDefenseBuild = mutation({
 			quantity,
 			startsAt,
 			completesAt,
-			perUnitDurationSeconds,
+			perUnitDurationSeconds: modifiedPerUnitDurationSeconds,
 			status,
 		};
 	},

@@ -32,7 +32,7 @@ function isFacilityUpgradePayload(
 	payload: ColonyQueuePayload,
 ): payload is Extract<
 	ColonyQueuePayload,
-	{ facilityKey: "defense_grid" | "robotics_hub" | "shipyard" }
+	{ facilityKey: "defense_grid" | "robotics_hub" | "shipyard" | "research_directorate" }
 > {
 	return "facilityKey" in payload;
 }
@@ -78,7 +78,7 @@ export type FacilityCardView = {
 	isQueued: boolean;
 	isUnlocked: boolean;
 	isUpgrading: boolean;
-	key: "defense_grid" | "robotics_hub" | "shipyard";
+	key: "defense_grid" | "robotics_hub" | "shipyard" | "research_directorate";
 	maxLevel: number;
 	name: string;
 	nextUpgradeCost: { alloy: number; crystal: number; fuel: number };
@@ -318,59 +318,61 @@ export function selectFacilityCards(
 ): FacilityCardView[] {
 	const settled = projectColonyEconomy(snapshot, nowMs);
 	const buildingLane = settled.queues.lanes.building;
-	return (["robotics_hub", "shipyard", "defense_grid"] as const).map((facilityKey) => {
-		const facility = DEFAULT_FACILITY_REGISTRY.get(facilityKey);
-		if (!facility) {
-			throw new Error(`Missing facility config for ${facilityKey}`);
-		}
-		const currentLevel = computeFacilityLevels(snapshot.buildings)[facilityKey] ?? 0;
-		const projectedLevel = [
-			...(buildingLane.activeItem ? [buildingLane.activeItem] : []),
-			...buildingLane.pendingItems,
-		].reduce((level, row) => {
-			if (
-				row.kind !== "facilityUpgrade" ||
-				!isFacilityUpgradePayload(row.payload) ||
-				row.payload.facilityKey !== facilityKey
-			) {
-				return level;
+	return (["robotics_hub", "research_directorate", "shipyard", "defense_grid"] as const).map(
+		(facilityKey) => {
+			const facility = DEFAULT_FACILITY_REGISTRY.get(facilityKey);
+			if (!facility) {
+				throw new Error(`Missing facility config for ${facilityKey}`);
 			}
-			return Math.max(level, row.payload.toLevel);
-		}, currentLevel);
-		const isUpgrading =
-			buildingLane.activeItem?.kind === "facilityUpgrade" &&
-			isFacilityUpgradePayload(buildingLane.activeItem.payload) &&
-			buildingLane.activeItem.payload.facilityKey === facilityKey;
-		const isQueued =
-			countQueued(snapshot.openQueues, "facilityUpgrade", facilityKey) > (isUpgrading ? 1 : 0);
-		const isUnlocked = isFacilityCurrentlyUnlocked(snapshot.buildings, facilityKey);
-		const isMaxLevel = projectedLevel >= facility.maxLevel;
-		return {
-			category: facility.category,
-			currentLevel,
-			isQueued,
-			isUnlocked,
-			isUpgrading,
-			key: facilityKey,
-			maxLevel: facility.maxLevel,
-			name: facility.name,
-			nextUpgradeCost: !isMaxLevel
-				? getFacilityUpgradeCost(facilityKey, projectedLevel)
-				: { alloy: 0, crystal: 0, fuel: 0 },
-			nextUpgradeDurationSeconds: !isMaxLevel
-				? getFacilityUpgradeDurationSeconds(facilityKey, projectedLevel)
-				: 0,
-			status: !isUnlocked
-				? "Locked"
-				: isUpgrading
-					? "Constructing"
-					: isQueued
-						? "Queued"
-						: isMaxLevel
-							? "Maxed"
-							: "Online",
-		};
-	});
+			const currentLevel = computeFacilityLevels(snapshot.buildings)[facilityKey] ?? 0;
+			const projectedLevel = [
+				...(buildingLane.activeItem ? [buildingLane.activeItem] : []),
+				...buildingLane.pendingItems,
+			].reduce((level, row) => {
+				if (
+					row.kind !== "facilityUpgrade" ||
+					!isFacilityUpgradePayload(row.payload) ||
+					row.payload.facilityKey !== facilityKey
+				) {
+					return level;
+				}
+				return Math.max(level, row.payload.toLevel);
+			}, currentLevel);
+			const isUpgrading =
+				buildingLane.activeItem?.kind === "facilityUpgrade" &&
+				isFacilityUpgradePayload(buildingLane.activeItem.payload) &&
+				buildingLane.activeItem.payload.facilityKey === facilityKey;
+			const isQueued =
+				countQueued(snapshot.openQueues, "facilityUpgrade", facilityKey) > (isUpgrading ? 1 : 0);
+			const isUnlocked = isFacilityCurrentlyUnlocked(snapshot.buildings, facilityKey);
+			const isMaxLevel = projectedLevel >= facility.maxLevel;
+			return {
+				category: facility.category,
+				currentLevel,
+				isQueued,
+				isUnlocked,
+				isUpgrading,
+				key: facilityKey,
+				maxLevel: facility.maxLevel,
+				name: facility.name,
+				nextUpgradeCost: !isMaxLevel
+					? getFacilityUpgradeCost(facilityKey, projectedLevel)
+					: { alloy: 0, crystal: 0, fuel: 0 },
+				nextUpgradeDurationSeconds: !isMaxLevel
+					? getFacilityUpgradeDurationSeconds(facilityKey, projectedLevel)
+					: 0,
+				status: !isUnlocked
+					? "Locked"
+					: isUpgrading
+						? "Constructing"
+						: isQueued
+							? "Queued"
+							: isMaxLevel
+								? "Maxed"
+								: "Online",
+			};
+		},
+	);
 }
 
 export function selectShipyardView(

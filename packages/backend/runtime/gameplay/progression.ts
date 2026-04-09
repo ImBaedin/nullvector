@@ -38,6 +38,7 @@ const facilityAccessValidator = v.object({
 	robotics_hub: featureAccessStateValidator,
 	shipyard: featureAccessStateValidator,
 	defense_grid: featureAccessStateValidator,
+	research_directorate: featureAccessStateValidator,
 });
 
 const shipAccessValidator = v.object({

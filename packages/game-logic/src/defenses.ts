@@ -1,4 +1,7 @@
 import type { ResourceBucket } from "./gameplay";
+import type { UnlockContext, UnlockRule } from "./types";
+
+import { isUnlockSatisfied } from "./unlocks";
 
 export const DEFENSE_KEYS = ["missileBattery", "laserTurret", "gaussCannon", "shieldDome"] as const;
 
@@ -13,6 +16,7 @@ export type DefenseDefinition = {
 	name: string;
 	requiredDefenseGridLevel: number;
 	shield: number;
+	unlock?: UnlockRule;
 };
 
 export const DEFAULT_DEFENSE_DEFINITIONS: Record<DefenseKey, DefenseDefinition> = {
@@ -29,6 +33,11 @@ export const DEFAULT_DEFENSE_DEFINITIONS: Record<DefenseKey, DefenseDefinition> 
 		shield: 350,
 		hull: 4_500,
 		requiredDefenseGridLevel: 5,
+		unlock: {
+			type: "research_level",
+			researchId: "shieldFieldModulation",
+			minLevel: 1,
+		},
 	},
 	laserTurret: {
 		key: "laserTurret",
@@ -43,6 +52,11 @@ export const DEFAULT_DEFENSE_DEFINITIONS: Record<DefenseKey, DefenseDefinition> 
 		shield: 120,
 		hull: 1_100,
 		requiredDefenseGridLevel: 2,
+		unlock: {
+			type: "research_level",
+			researchId: "pointDefenseTheory",
+			minLevel: 1,
+		},
 	},
 	missileBattery: {
 		key: "missileBattery",
@@ -71,8 +85,17 @@ export const DEFAULT_DEFENSE_DEFINITIONS: Record<DefenseKey, DefenseDefinition> 
 		shield: 1_000,
 		hull: 8_500,
 		requiredDefenseGridLevel: 7,
+		unlock: {
+			type: "research_level",
+			researchId: "shieldFieldModulation",
+			minLevel: 1,
+		},
 	},
 };
+
+export function isDefenseUnlocked(defenseKey: DefenseKey, context: UnlockContext) {
+	return isUnlockSatisfied(DEFAULT_DEFENSE_DEFINITIONS[defenseKey].unlock, context);
+}
 
 export type DefenseCounts = Record<DefenseKey, number>;
 

@@ -64,6 +64,7 @@ const questClientColonyFactsValidator = v.object({
 	}),
 	facilities: v.object({
 		robotics_hub: v.optional(v.number()),
+		research_directorate: v.optional(v.number()),
 		shipyard: v.optional(v.number()),
 		defense_grid: v.optional(v.number()),
 	}),
@@ -215,6 +216,7 @@ function toQuestColonyFacts(
 		},
 		facilities: {
 			robotics_hub: buildings?.roboticsHubLevel ?? 0,
+			research_directorate: buildings?.researchDirectorateLevel ?? 0,
 			shipyard: buildings?.shipyardLevel ?? 0,
 			defense_grid: buildings?.defenseGridLevel ?? 0,
 		},

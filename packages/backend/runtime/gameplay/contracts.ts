@@ -1,4 +1,5 @@
 import {
+	buildResearchModifierSnapshot,
 	generateContractSnapshot,
 	getContractRecommendedTaskForce,
 	getContractTaskForceCap,
@@ -40,6 +41,7 @@ import {
 	requireFeatureAccess,
 	requireMissionAccess,
 } from "./progression";
+import { buildAcceptedContractMetaMatterReward, loadPlayerResearchLevels } from "./research";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	emptyResourceBucket,
@@ -1561,6 +1563,10 @@ export const launchContract = mutation({
 			throw new ConvexError("Rank is too low for this contract");
 		}
 
+		const colonyState = await loadColonyState({
+			colony,
+			ctx,
+		});
 		const normalizedShips = normalizeShipCounts(args.shipCounts);
 		if (getFleetCargoCapacity(normalizedShips) <= 0) {
 			throw new ConvexError("Operation fleet has no ships");
@@ -1568,10 +1574,6 @@ export const launchContract = mutation({
 		if (normalizedShips.colonyShip > 0) {
 			throw new ConvexError("Colony ships cannot be assigned to contract missions");
 		}
-		const colonyState = await loadColonyState({
-			colony,
-			ctx,
-		});
 		const selectedTaskForce = getTaskForceWeightForShipCounts(normalizedShips);
 		const taskForceCap = getContractTaskForceCap({
 			playerRank: progressionOverview.rank,
@@ -1584,6 +1586,10 @@ export const launchContract = mutation({
 		}
 
 		const now = Date.now();
+		const playerResearchLevels = await loadPlayerResearchLevels({
+			ctx,
+			playerId: player._id,
+		});
 		await settleShipyardQueue({ colony, ctx, now });
 		await settleDefenseQueue({ colony, ctx, now });
 		await decrementShipsOrThrow({
@@ -1611,8 +1617,11 @@ export const launchContract = mutation({
 			distance,
 			shipCounts: normalizedShips,
 		});
+		const researchModifiers = buildResearchModifierSnapshot(playerResearchLevels);
 		const fuelScaled = Math.round(
-			getFleetFuelCostForDistance({ distance, shipCounts: normalizedShips }) * 1_000,
+			getFleetFuelCostForDistance({ distance, shipCounts: normalizedShips }) *
+				researchModifiers.fleetFuelCostMultiplier *
+				1_000,
 		);
 		const latestOrigin = await loadColonyState({
 			colony,
@@ -1649,6 +1658,12 @@ export const launchContract = mutation({
 			updatedAt: now,
 		});
 
+		const rewardMetaMatter = buildAcceptedContractMetaMatterReward({
+			difficultyTier: offer.snapshot.difficultyTier,
+			playerResearchLevels,
+			seed: `${player._id}:${args.planetId}:${args.slot}:${args.offerSequence}:${now}`,
+		});
+
 		const contractId = await ctx.db.insert("contracts", {
 			universeId: colony.universeId,
 			playerId: player._id,
@@ -1666,7 +1681,10 @@ export const launchContract = mutation({
 			offerSequence: offer.offerSequence,
 			originColonyId: latestOrigin._id,
 			operationId: undefined,
-			snapshot: offer.snapshot,
+			snapshot: {
+				...offer.snapshot,
+				rewardMetaMatter,
+			},
 			createdAt: now,
 			updatedAt: now,
 		});

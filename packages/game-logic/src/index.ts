@@ -57,6 +57,7 @@ export {
 	getFleetFuelCostForDistance,
 	getFleetSlowestSpeed,
 	getShipBuildDurationSeconds,
+	isShipUnlocked,
 	normalizeShipCounts,
 } from "./ships";
 export {
@@ -64,8 +65,21 @@ export {
 	DEFENSE_KEYS,
 	EMPTY_DEFENSE_COUNTS,
 	getDefenseBuildDurationSeconds,
+	isDefenseUnlocked,
 	normalizeDefenseCounts,
 } from "./defenses";
+export {
+	buildResearchModifierSnapshot,
+	canResearchNodeStart,
+	DEFAULT_RESEARCH_TREE,
+	getResearchNode,
+	getResearchVisibility,
+	isResearchUnlocked,
+	META_MATTER_RARITIES,
+	RESEARCH_BRANCH_KEYS,
+	RESEARCH_KEYS,
+	rollMetaMatterBundle,
+} from "./research";
 export {
 	estimateColonyDefensePower,
 	generateNpcRaidSnapshot,
@@ -243,6 +257,17 @@ export type {
 } from "./progression";
 export type { ShipCounts, ShipDefinition } from "./ships";
 export type { DefenseCounts, DefenseDefinition, DefenseKey } from "./defenses";
+export type {
+	MetaMatterBundle,
+	MetaMatterRarity,
+	ResearchBranchKey,
+	ResearchEffect,
+	ResearchKey,
+	ResearchLevelMap,
+	ResearchModifierSnapshot,
+	ResearchNodeDefinition,
+	ResearchVisibility,
+} from "./research";
 export type {
 	CombatMissionTypeKey,
 	CombatPriorityProfile,
