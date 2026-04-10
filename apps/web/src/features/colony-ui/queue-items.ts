@@ -34,6 +34,7 @@ export const BUILDING_KEY_LABELS: Record<BuildingKey, string> = {
 
 export const FACILITY_KEY_LABELS: Record<FacilityKey, string> = {
 	defense_grid: "Defense Grid",
+	research_directorate: "Research Directorate",
 	robotics_hub: "Robotics Hub",
 	shipyard: "Shipyard",
 };

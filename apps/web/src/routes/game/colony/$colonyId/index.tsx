@@ -136,6 +136,7 @@ const FACILITY_LABELS = {
 	robotics_hub: "Robotics Hub",
 	shipyard: "Shipyard",
 	defense_grid: "Defense Grid",
+	research_directorate: "Research Directorate",
 } as const satisfies Record<FacilityKey, string>;
 
 const DEFENSE_LABELS = {
@@ -975,9 +976,7 @@ function ColonyOverviewRoute() {
 																</span>
 															</div>
 															<p className="text-[12px] text-white/72">{queue.itemLabel}</p>
-															<div className="
-                 mt-2 h-1.5 overflow-hidden rounded-full bg-white/8
-               ">
+															<div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
 																<div
 																	className="h-full rounded-full bg-rose-300/60"
 																	style={{ width: `${queue.progressPercent}%` }}

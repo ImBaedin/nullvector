@@ -4,12 +4,13 @@ import { MapControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState, type RefObject } from "react";
 
-import type { CameraFocusTarget, ExplorerResolvedQuality } from "../types";
+import type { CameraFocusTarget, ExplorerCameraView, ExplorerResolvedQuality } from "../types";
 
 import { CameraFocusController } from "../hooks/use-camera-focus";
 import { NebulaBackground } from "./nebula-background";
 
 type BasicMapControls = {
+	object: OrthographicCamera;
 	target: Vector3;
 	update: () => void;
 };
@@ -18,6 +19,7 @@ type ExplorerCanvasProps = {
 	antialias: boolean;
 	dpr: [number, number];
 	focusTarget: CameraFocusTarget | null;
+	initialView: ExplorerCameraView;
 	cameraMode?: "free" | "followPlanet";
 	trackingOrbit?: {
 		centerX: number;
@@ -30,6 +32,7 @@ type ExplorerCanvasProps = {
 	maxFps?: number;
 	onPanWhileLocked?: () => void;
 	onPointerMissed: () => void;
+	onViewChange?: (view: ExplorerCameraView) => void;
 	quality: ExplorerResolvedQuality;
 	sceneKey: string | number;
 	children: React.ReactNode;
@@ -373,11 +376,13 @@ export function ExplorerCanvas({
 	antialias,
 	dpr,
 	focusTarget,
+	initialView,
 	cameraMode = "free",
 	trackingOrbit = null,
 	maxFps = 60,
 	onPanWhileLocked,
 	onPointerMissed,
+	onViewChange,
 	quality,
 	sceneKey,
 	children,
@@ -508,12 +513,12 @@ export function ExplorerCanvas({
 				orthographic
 				camera={{
 					position: [
-						ISOMETRIC_CAMERA_OFFSET.x,
-						ISOMETRIC_CAMERA_OFFSET.y,
+						initialView.x + ISOMETRIC_CAMERA_OFFSET.x,
+						initialView.y + ISOMETRIC_CAMERA_OFFSET.y,
 						ISOMETRIC_CAMERA_OFFSET.z,
 					],
 					up: [0, 0, 1],
-					zoom: 0.08,
+					zoom: initialView.zoom,
 					near: -100_000,
 					far: 100_000,
 				}}
@@ -532,6 +537,7 @@ export function ExplorerCanvas({
 					mode={cameraMode}
 					trackingOrbit={trackingOrbit}
 					cameraOffset={ISOMETRIC_CAMERA_OFFSET}
+					onViewChange={onViewChange}
 				/>
 
 				{exitingScene ? (
@@ -563,12 +569,25 @@ export function ExplorerCanvas({
 					ref={(instance) => {
 						controlsRef.current = instance as BasicMapControls | null;
 					}}
+					target={[initialView.x, initialView.y, 0]}
 					makeDefault
 					enableRotate={false}
 					minZoom={0.015}
 					maxZoom={24}
 					zoomSpeed={0.8}
 					panSpeed={1.2}
+					onChange={() => {
+						const controls = controlsRef.current;
+						if (!controls) {
+							return;
+						}
+
+						onViewChange?.({
+							x: controls.target.x,
+							y: controls.target.y,
+							zoom: (controls.object as OrthographicCamera).zoom,
+						});
+					}}
 				/>
 			</Canvas>
 		</div>

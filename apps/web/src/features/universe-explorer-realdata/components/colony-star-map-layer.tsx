@@ -42,7 +42,7 @@ export function ColonyStarMapLayer(props: {
 	const data = useExplorerData();
 	const { antialiasEnabled, canvasDpr, qualityPreset, resolvedQuality, setQualityPreset } =
 		useExplorerQuality();
-	useColonyLayoutBootstrap({
+	const { isReady } = useColonyLayoutBootstrap({
 		colonyId,
 		isAuthenticated,
 	});
@@ -446,7 +446,7 @@ export function ColonyStarMapLayer(props: {
 	);
 
 	useEffect(() => {
-		if (!isOpen) {
+		if (!isOpen || !isReady) {
 			onHeaderNavigationChange(null);
 			clearHover();
 			return;
@@ -471,6 +471,7 @@ export function ColonyStarMapLayer(props: {
 		qualityPreset,
 		setQualityPreset,
 		isOpen,
+		isReady,
 	]);
 
 	useEffect(() => {
@@ -488,70 +489,74 @@ export function ColonyStarMapLayer(props: {
 			<div className={cn("fixed inset-0 z-0", isOpen ? "pointer-events-auto" : `
      pointer-events-none
    `)}>
-				<ExplorerCanvas
-					antialias={antialiasEnabled}
-					dpr={canvasDpr}
-					focusTarget={explorer.focusTarget}
-					cameraMode={explorer.cameraLock.mode === "planet" ? "followPlanet" : "free"}
-					trackingOrbit={trackingOrbit}
-					onPanWhileLocked={handlePanWhileLocked}
-					maxFps={isOpen ? 60 : 10}
-					onPointerMissed={clearHover}
-					quality={resolvedQuality}
-					sceneKey={explorer.level}
-				>
-					{explorer.level === "universe" ? (
-						<LevelUniverse
-							entities={data.galaxyEntities}
-							hoveredId={hoveredId}
-							quality={resolvedQuality}
-							onHover={handleHover}
-							onHoverEnd={clearHover}
-							onSelect={handleUniverseEntitySelect}
-						/>
-					) : null}
+				{isReady ? (
+					<ExplorerCanvas
+						antialias={antialiasEnabled}
+						dpr={canvasDpr}
+						focusTarget={explorer.focusTarget}
+						initialView={explorer.getCameraView()}
+						cameraMode={explorer.cameraLock.mode === "planet" ? "followPlanet" : "free"}
+						trackingOrbit={trackingOrbit}
+						onPanWhileLocked={handlePanWhileLocked}
+						maxFps={isOpen ? 60 : 10}
+						onPointerMissed={clearHover}
+						onViewChange={explorer.setCameraView}
+						quality={resolvedQuality}
+						sceneKey={explorer.level}
+					>
+						{explorer.level === "universe" ? (
+							<LevelUniverse
+								entities={data.galaxyEntities}
+								hoveredId={hoveredId}
+								quality={resolvedQuality}
+								onHover={handleHover}
+								onHoverEnd={clearHover}
+								onSelect={handleUniverseEntitySelect}
+							/>
+						) : null}
 
-					{explorer.level === "galaxy" ? (
-						<LevelGalaxy
-							entities={data.sectorEntities}
-							hoveredId={hoveredId}
-							quality={resolvedQuality}
-							onHover={handleHover}
-							onHoverEnd={clearHover}
-							onSelect={handleGalaxyEntitySelect}
-						/>
-					) : null}
+						{explorer.level === "galaxy" ? (
+							<LevelGalaxy
+								entities={data.sectorEntities}
+								hoveredId={hoveredId}
+								quality={resolvedQuality}
+								onHover={handleHover}
+								onHoverEnd={clearHover}
+								onSelect={handleGalaxyEntitySelect}
+							/>
+						) : null}
 
-					{explorer.level === "sector" ? (
-						<LevelSector
-							entities={data.systemEntities}
-							hoveredId={hoveredId}
-							quality={resolvedQuality}
-							onHover={handleHover}
-							onHoverEnd={clearHover}
-							onSelect={handleSectorEntitySelect}
-						/>
-					) : null}
+						{explorer.level === "sector" ? (
+							<LevelSector
+								entities={data.systemEntities}
+								hoveredId={hoveredId}
+								quality={resolvedQuality}
+								onHover={handleHover}
+								onHoverEnd={clearHover}
+								onSelect={handleSectorEntitySelect}
+							/>
+						) : null}
 
-					{explorer.level === "system" || explorer.level === "planet" ? (
-						<LevelSystem
-							entities={data.planetEntities}
-							hoveredId={hoveredId}
-							quality={resolvedQuality}
-							selectedPlanetId={
-								explorer.cameraLock.mode === "planet" ? explorer.cameraLock.planetId : undefined
-							}
-							starCenter={
-								data.selectedSystem
-									? { x: data.selectedSystem.x, y: data.selectedSystem.y }
-									: undefined
-							}
-							onHover={handleHover}
-							onHoverEnd={clearHover}
-							onSelect={handlePlanetEntitySelect}
-						/>
-					) : null}
-				</ExplorerCanvas>
+						{explorer.level === "system" || explorer.level === "planet" ? (
+							<LevelSystem
+								entities={data.planetEntities}
+								hoveredId={hoveredId}
+								quality={resolvedQuality}
+								selectedPlanetId={
+									explorer.cameraLock.mode === "planet" ? explorer.cameraLock.planetId : undefined
+								}
+								starCenter={
+									data.selectedSystem
+										? { x: data.selectedSystem.x, y: data.selectedSystem.y }
+										: undefined
+								}
+								onHover={handleHover}
+								onHoverEnd={clearHover}
+								onSelect={handlePlanetEntitySelect}
+							/>
+						) : null}
+					</ExplorerCanvas>
+				) : null}
 			</div>
 
 			<div

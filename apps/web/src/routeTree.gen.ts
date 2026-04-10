@@ -17,6 +17,14 @@ import { Route as GameColonyColonyIdRouteImport } from './routes/game/colony/$co
 import { Route as GameColonyColonyIdIndexRouteImport } from './routes/game/colony/$colonyId/index'
 import { Route as GameColonyColonyIdShipyardRouteImport } from './routes/game/colony/$colonyId/shipyard'
 import { Route as GameColonyColonyIdResourcesRouteImport } from './routes/game/colony/$colonyId/resources'
+import { Route as GameColonyColonyIdResearch8RouteImport } from './routes/game/colony/$colonyId/research8'
+import { Route as GameColonyColonyIdResearch7RouteImport } from './routes/game/colony/$colonyId/research7'
+import { Route as GameColonyColonyIdResearch6RouteImport } from './routes/game/colony/$colonyId/research6'
+import { Route as GameColonyColonyIdResearch5RouteImport } from './routes/game/colony/$colonyId/research5'
+import { Route as GameColonyColonyIdResearch4RouteImport } from './routes/game/colony/$colonyId/research4'
+import { Route as GameColonyColonyIdResearch3RouteImport } from './routes/game/colony/$colonyId/research3'
+import { Route as GameColonyColonyIdResearch2RouteImport } from './routes/game/colony/$colonyId/research2'
+import { Route as GameColonyColonyIdResearch1RouteImport } from './routes/game/colony/$colonyId/research1'
 import { Route as GameColonyColonyIdFleetRouteImport } from './routes/game/colony/$colonyId/fleet'
 import { Route as GameColonyColonyIdFacilitiesRouteImport } from './routes/game/colony/$colonyId/facilities'
 import { Route as GameColonyColonyIdDefensesRouteImport } from './routes/game/colony/$colonyId/defenses'
@@ -65,6 +73,54 @@ const GameColonyColonyIdResourcesRoute =
     path: '/resources',
     getParentRoute: () => GameColonyColonyIdRoute,
   } as any)
+const GameColonyColonyIdResearch8Route =
+  GameColonyColonyIdResearch8RouteImport.update({
+    id: '/research8',
+    path: '/research8',
+    getParentRoute: () => GameColonyColonyIdRoute,
+  } as any)
+const GameColonyColonyIdResearch7Route =
+  GameColonyColonyIdResearch7RouteImport.update({
+    id: '/research7',
+    path: '/research7',
+    getParentRoute: () => GameColonyColonyIdRoute,
+  } as any)
+const GameColonyColonyIdResearch6Route =
+  GameColonyColonyIdResearch6RouteImport.update({
+    id: '/research6',
+    path: '/research6',
+    getParentRoute: () => GameColonyColonyIdRoute,
+  } as any)
+const GameColonyColonyIdResearch5Route =
+  GameColonyColonyIdResearch5RouteImport.update({
+    id: '/research5',
+    path: '/research5',
+    getParentRoute: () => GameColonyColonyIdRoute,
+  } as any)
+const GameColonyColonyIdResearch4Route =
+  GameColonyColonyIdResearch4RouteImport.update({
+    id: '/research4',
+    path: '/research4',
+    getParentRoute: () => GameColonyColonyIdRoute,
+  } as any)
+const GameColonyColonyIdResearch3Route =
+  GameColonyColonyIdResearch3RouteImport.update({
+    id: '/research3',
+    path: '/research3',
+    getParentRoute: () => GameColonyColonyIdRoute,
+  } as any)
+const GameColonyColonyIdResearch2Route =
+  GameColonyColonyIdResearch2RouteImport.update({
+    id: '/research2',
+    path: '/research2',
+    getParentRoute: () => GameColonyColonyIdRoute,
+  } as any)
+const GameColonyColonyIdResearch1Route =
+  GameColonyColonyIdResearch1RouteImport.update({
+    id: '/research1',
+    path: '/research1',
+    getParentRoute: () => GameColonyColonyIdRoute,
+  } as any)
 const GameColonyColonyIdFleetRoute = GameColonyColonyIdFleetRouteImport.update({
   id: '/fleet',
   path: '/fleet',
@@ -99,6 +155,14 @@ export interface FileRoutesByFullPath {
   '/game/colony/$colonyId/defenses': typeof GameColonyColonyIdDefensesRoute
   '/game/colony/$colonyId/facilities': typeof GameColonyColonyIdFacilitiesRoute
   '/game/colony/$colonyId/fleet': typeof GameColonyColonyIdFleetRoute
+  '/game/colony/$colonyId/research1': typeof GameColonyColonyIdResearch1Route
+  '/game/colony/$colonyId/research2': typeof GameColonyColonyIdResearch2Route
+  '/game/colony/$colonyId/research3': typeof GameColonyColonyIdResearch3Route
+  '/game/colony/$colonyId/research4': typeof GameColonyColonyIdResearch4Route
+  '/game/colony/$colonyId/research5': typeof GameColonyColonyIdResearch5Route
+  '/game/colony/$colonyId/research6': typeof GameColonyColonyIdResearch6Route
+  '/game/colony/$colonyId/research7': typeof GameColonyColonyIdResearch7Route
+  '/game/colony/$colonyId/research8': typeof GameColonyColonyIdResearch8Route
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
   '/game/colony/$colonyId/shipyard': typeof GameColonyColonyIdShipyardRoute
   '/game/colony/$colonyId/': typeof GameColonyColonyIdIndexRoute
@@ -112,6 +176,14 @@ export interface FileRoutesByTo {
   '/game/colony/$colonyId/defenses': typeof GameColonyColonyIdDefensesRoute
   '/game/colony/$colonyId/facilities': typeof GameColonyColonyIdFacilitiesRoute
   '/game/colony/$colonyId/fleet': typeof GameColonyColonyIdFleetRoute
+  '/game/colony/$colonyId/research1': typeof GameColonyColonyIdResearch1Route
+  '/game/colony/$colonyId/research2': typeof GameColonyColonyIdResearch2Route
+  '/game/colony/$colonyId/research3': typeof GameColonyColonyIdResearch3Route
+  '/game/colony/$colonyId/research4': typeof GameColonyColonyIdResearch4Route
+  '/game/colony/$colonyId/research5': typeof GameColonyColonyIdResearch5Route
+  '/game/colony/$colonyId/research6': typeof GameColonyColonyIdResearch6Route
+  '/game/colony/$colonyId/research7': typeof GameColonyColonyIdResearch7Route
+  '/game/colony/$colonyId/research8': typeof GameColonyColonyIdResearch8Route
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
   '/game/colony/$colonyId/shipyard': typeof GameColonyColonyIdShipyardRoute
   '/game/colony/$colonyId': typeof GameColonyColonyIdIndexRoute
@@ -127,6 +199,14 @@ export interface FileRoutesById {
   '/game/colony/$colonyId/defenses': typeof GameColonyColonyIdDefensesRoute
   '/game/colony/$colonyId/facilities': typeof GameColonyColonyIdFacilitiesRoute
   '/game/colony/$colonyId/fleet': typeof GameColonyColonyIdFleetRoute
+  '/game/colony/$colonyId/research1': typeof GameColonyColonyIdResearch1Route
+  '/game/colony/$colonyId/research2': typeof GameColonyColonyIdResearch2Route
+  '/game/colony/$colonyId/research3': typeof GameColonyColonyIdResearch3Route
+  '/game/colony/$colonyId/research4': typeof GameColonyColonyIdResearch4Route
+  '/game/colony/$colonyId/research5': typeof GameColonyColonyIdResearch5Route
+  '/game/colony/$colonyId/research6': typeof GameColonyColonyIdResearch6Route
+  '/game/colony/$colonyId/research7': typeof GameColonyColonyIdResearch7Route
+  '/game/colony/$colonyId/research8': typeof GameColonyColonyIdResearch8Route
   '/game/colony/$colonyId/resources': typeof GameColonyColonyIdResourcesRoute
   '/game/colony/$colonyId/shipyard': typeof GameColonyColonyIdShipyardRoute
   '/game/colony/$colonyId/': typeof GameColonyColonyIdIndexRoute
@@ -143,6 +223,14 @@ export interface FileRouteTypes {
     | '/game/colony/$colonyId/defenses'
     | '/game/colony/$colonyId/facilities'
     | '/game/colony/$colonyId/fleet'
+    | '/game/colony/$colonyId/research1'
+    | '/game/colony/$colonyId/research2'
+    | '/game/colony/$colonyId/research3'
+    | '/game/colony/$colonyId/research4'
+    | '/game/colony/$colonyId/research5'
+    | '/game/colony/$colonyId/research6'
+    | '/game/colony/$colonyId/research7'
+    | '/game/colony/$colonyId/research8'
     | '/game/colony/$colonyId/resources'
     | '/game/colony/$colonyId/shipyard'
     | '/game/colony/$colonyId/'
@@ -156,6 +244,14 @@ export interface FileRouteTypes {
     | '/game/colony/$colonyId/defenses'
     | '/game/colony/$colonyId/facilities'
     | '/game/colony/$colonyId/fleet'
+    | '/game/colony/$colonyId/research1'
+    | '/game/colony/$colonyId/research2'
+    | '/game/colony/$colonyId/research3'
+    | '/game/colony/$colonyId/research4'
+    | '/game/colony/$colonyId/research5'
+    | '/game/colony/$colonyId/research6'
+    | '/game/colony/$colonyId/research7'
+    | '/game/colony/$colonyId/research8'
     | '/game/colony/$colonyId/resources'
     | '/game/colony/$colonyId/shipyard'
     | '/game/colony/$colonyId'
@@ -170,6 +266,14 @@ export interface FileRouteTypes {
     | '/game/colony/$colonyId/defenses'
     | '/game/colony/$colonyId/facilities'
     | '/game/colony/$colonyId/fleet'
+    | '/game/colony/$colonyId/research1'
+    | '/game/colony/$colonyId/research2'
+    | '/game/colony/$colonyId/research3'
+    | '/game/colony/$colonyId/research4'
+    | '/game/colony/$colonyId/research5'
+    | '/game/colony/$colonyId/research6'
+    | '/game/colony/$colonyId/research7'
+    | '/game/colony/$colonyId/research8'
     | '/game/colony/$colonyId/resources'
     | '/game/colony/$colonyId/shipyard'
     | '/game/colony/$colonyId/'
@@ -241,6 +345,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GameColonyColonyIdResourcesRouteImport
       parentRoute: typeof GameColonyColonyIdRoute
     }
+    '/game/colony/$colonyId/research8': {
+      id: '/game/colony/$colonyId/research8'
+      path: '/research8'
+      fullPath: '/game/colony/$colonyId/research8'
+      preLoaderRoute: typeof GameColonyColonyIdResearch8RouteImport
+      parentRoute: typeof GameColonyColonyIdRoute
+    }
+    '/game/colony/$colonyId/research7': {
+      id: '/game/colony/$colonyId/research7'
+      path: '/research7'
+      fullPath: '/game/colony/$colonyId/research7'
+      preLoaderRoute: typeof GameColonyColonyIdResearch7RouteImport
+      parentRoute: typeof GameColonyColonyIdRoute
+    }
+    '/game/colony/$colonyId/research6': {
+      id: '/game/colony/$colonyId/research6'
+      path: '/research6'
+      fullPath: '/game/colony/$colonyId/research6'
+      preLoaderRoute: typeof GameColonyColonyIdResearch6RouteImport
+      parentRoute: typeof GameColonyColonyIdRoute
+    }
+    '/game/colony/$colonyId/research5': {
+      id: '/game/colony/$colonyId/research5'
+      path: '/research5'
+      fullPath: '/game/colony/$colonyId/research5'
+      preLoaderRoute: typeof GameColonyColonyIdResearch5RouteImport
+      parentRoute: typeof GameColonyColonyIdRoute
+    }
+    '/game/colony/$colonyId/research4': {
+      id: '/game/colony/$colonyId/research4'
+      path: '/research4'
+      fullPath: '/game/colony/$colonyId/research4'
+      preLoaderRoute: typeof GameColonyColonyIdResearch4RouteImport
+      parentRoute: typeof GameColonyColonyIdRoute
+    }
+    '/game/colony/$colonyId/research3': {
+      id: '/game/colony/$colonyId/research3'
+      path: '/research3'
+      fullPath: '/game/colony/$colonyId/research3'
+      preLoaderRoute: typeof GameColonyColonyIdResearch3RouteImport
+      parentRoute: typeof GameColonyColonyIdRoute
+    }
+    '/game/colony/$colonyId/research2': {
+      id: '/game/colony/$colonyId/research2'
+      path: '/research2'
+      fullPath: '/game/colony/$colonyId/research2'
+      preLoaderRoute: typeof GameColonyColonyIdResearch2RouteImport
+      parentRoute: typeof GameColonyColonyIdRoute
+    }
+    '/game/colony/$colonyId/research1': {
+      id: '/game/colony/$colonyId/research1'
+      path: '/research1'
+      fullPath: '/game/colony/$colonyId/research1'
+      preLoaderRoute: typeof GameColonyColonyIdResearch1RouteImport
+      parentRoute: typeof GameColonyColonyIdRoute
+    }
     '/game/colony/$colonyId/fleet': {
       id: '/game/colony/$colonyId/fleet'
       path: '/fleet'
@@ -277,6 +437,14 @@ interface GameColonyColonyIdRouteChildren {
   GameColonyColonyIdDefensesRoute: typeof GameColonyColonyIdDefensesRoute
   GameColonyColonyIdFacilitiesRoute: typeof GameColonyColonyIdFacilitiesRoute
   GameColonyColonyIdFleetRoute: typeof GameColonyColonyIdFleetRoute
+  GameColonyColonyIdResearch1Route: typeof GameColonyColonyIdResearch1Route
+  GameColonyColonyIdResearch2Route: typeof GameColonyColonyIdResearch2Route
+  GameColonyColonyIdResearch3Route: typeof GameColonyColonyIdResearch3Route
+  GameColonyColonyIdResearch4Route: typeof GameColonyColonyIdResearch4Route
+  GameColonyColonyIdResearch5Route: typeof GameColonyColonyIdResearch5Route
+  GameColonyColonyIdResearch6Route: typeof GameColonyColonyIdResearch6Route
+  GameColonyColonyIdResearch7Route: typeof GameColonyColonyIdResearch7Route
+  GameColonyColonyIdResearch8Route: typeof GameColonyColonyIdResearch8Route
   GameColonyColonyIdResourcesRoute: typeof GameColonyColonyIdResourcesRoute
   GameColonyColonyIdShipyardRoute: typeof GameColonyColonyIdShipyardRoute
   GameColonyColonyIdIndexRoute: typeof GameColonyColonyIdIndexRoute
@@ -287,6 +455,14 @@ const GameColonyColonyIdRouteChildren: GameColonyColonyIdRouteChildren = {
   GameColonyColonyIdDefensesRoute: GameColonyColonyIdDefensesRoute,
   GameColonyColonyIdFacilitiesRoute: GameColonyColonyIdFacilitiesRoute,
   GameColonyColonyIdFleetRoute: GameColonyColonyIdFleetRoute,
+  GameColonyColonyIdResearch1Route: GameColonyColonyIdResearch1Route,
+  GameColonyColonyIdResearch2Route: GameColonyColonyIdResearch2Route,
+  GameColonyColonyIdResearch3Route: GameColonyColonyIdResearch3Route,
+  GameColonyColonyIdResearch4Route: GameColonyColonyIdResearch4Route,
+  GameColonyColonyIdResearch5Route: GameColonyColonyIdResearch5Route,
+  GameColonyColonyIdResearch6Route: GameColonyColonyIdResearch6Route,
+  GameColonyColonyIdResearch7Route: GameColonyColonyIdResearch7Route,
+  GameColonyColonyIdResearch8Route: GameColonyColonyIdResearch8Route,
   GameColonyColonyIdResourcesRoute: GameColonyColonyIdResourcesRoute,
   GameColonyColonyIdShipyardRoute: GameColonyColonyIdShipyardRoute,
   GameColonyColonyIdIndexRoute: GameColonyColonyIdIndexRoute,

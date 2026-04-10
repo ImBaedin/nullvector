@@ -490,7 +490,9 @@ function ResourcesRoute() {
 										<span className="text-white/50">{groupVisual.icon}</span>
 										<div>
 											<h2
-												className="font-(family-name:--nv-font-display) text-sm font-bold"
+												className="
+             font-(family-name:--nv-font-display) text-sm font-bold
+           "
 											>
 												{groupVisual.label}
 											</h2>

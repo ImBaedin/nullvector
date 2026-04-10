@@ -49,7 +49,12 @@ const FACILITY_VISUALS: Record<
 	},
 	defense_grid: {
 		description: "Unlocks planetary defenses and accelerates their production as the grid expands.",
-		image: "/game-icons/nav/defenses.png",
+		image: "/game-icons/facilities/defense-matrix.png",
+	},
+	research_directorate: {
+		description:
+			"Coordinates empire-wide research projects and contributes to combined research capacity.",
+		image: "/game-icons/facilities/command-nexus.png",
 	},
 };
 
@@ -57,6 +62,7 @@ const FACILITY_KEY_LABELS: Record<FacilityKey, string> = {
 	robotics_hub: "Robotics Hub",
 	shipyard: "Shipyard",
 	defense_grid: "Defense Grid",
+	research_directorate: "Research Directorate",
 };
 
 function FacilitiesRoute(): ReactElement {
@@ -399,7 +405,9 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 												src={visual.image}
 											/>
 											<h3
-												className="font-(family-name:--nv-font-display) text-sm font-bold"
+												className="
+             font-(family-name:--nv-font-display) text-sm font-bold
+           "
 											>
 												{facility.name}
 											</h3>

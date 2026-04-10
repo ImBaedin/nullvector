@@ -17,6 +17,7 @@ export type HeaderConfig = {
 	notificationsCount?: number;
 	onColonyChange?: (colonyId: string) => void;
 	onOpenNotifications?: () => void;
+	onOpenResearch?: () => void;
 	onOpenSettings?: () => void;
 	onOpenStarMap?: () => void;
 	resources?: ResourceDatum[];

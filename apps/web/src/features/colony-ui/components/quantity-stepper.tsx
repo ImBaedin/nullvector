@@ -15,7 +15,9 @@ export function QuantityStepper(props: QuantityStepperProps) {
 
 	return (
 		<div
-			className="flex items-center rounded-lg border border-white/12 bg-black/25"
+			className="
+    flex items-center rounded-lg border border-white/12 bg-black/25
+  "
 		>
 			<button
 				className="
