@@ -22,7 +22,10 @@ import {
 import { Fragment, useState } from "react";
 import { toast } from "sonner";
 
+import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdata/types";
+
 import { NvDivider, NvInput, NvScrollArea, NvSelect } from "@/features/game-ui/primitives";
+import { useExplorerQualityContext } from "@/features/universe-explorer-realdata/context/explorer-quality-context";
 import { authClient } from "@/lib/auth-client";
 import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
@@ -521,12 +524,21 @@ function NotificationsPanel() {
 	);
 }
 
+const QUALITY_PRESETS: Array<{ label: string; value: ExplorerQualityPreset; description: string }> =
+	[
+		{ label: "Auto", value: "auto", description: "Detected from GPU" },
+		{ label: "Low", value: "low", description: "Best performance" },
+		{ label: "Medium", value: "medium", description: "Balanced" },
+		{ label: "High", value: "high", description: "Best visuals" },
+	];
+
 function DisplayPanel() {
 	const [theme, setTheme] = useState("neon-dockyard");
 	const [compactMode, setCompactMode] = useState(false);
 	const [animatedBg, setAnimatedBg] = useState(true);
 	const [showResourceDelta, setShowResourceDelta] = useState(true);
 	const [uiScale, setUiScale] = useState("100");
+	const { qualityPreset, setQualityPreset } = useExplorerQualityContext();
 
 	return (
 		<>
@@ -581,6 +593,33 @@ function DisplayPanel() {
 						checked={showResourceDelta}
 						onCheckedChange={setShowResourceDelta}
 					/>
+				</SettingsRow>
+			</SettingsSection>
+			<SettingsSection title="Star Map">
+				<SettingsRow
+					label="Render Quality"
+					description="3D graphics fidelity for the star map. Auto detects your hardware."
+				>
+					<div className="flex overflow-hidden rounded-lg border border-white/12">
+						{QUALITY_PRESETS.map((preset, index) => (
+							<button
+								className={cn(
+									"px-3 py-1.5 text-xs font-medium transition-colors",
+									index > 0 && "border-l border-white/12",
+									qualityPreset === preset.value ? "bg-cyan-400/14 text-cyan-100" : `
+           text-white/45
+           hover:bg-white/4 hover:text-white/70
+         `,
+								)}
+								key={preset.value}
+								onClick={() => setQualityPreset(preset.value)}
+								title={preset.description}
+								type="button"
+							>
+								{preset.label}
+							</button>
+						))}
+					</div>
 				</SettingsRow>
 			</SettingsSection>
 		</>

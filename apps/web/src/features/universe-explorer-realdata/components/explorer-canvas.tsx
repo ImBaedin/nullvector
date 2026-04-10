@@ -3,6 +3,7 @@ import type { Group, Material, Object3D, OrthographicCamera, Vector3 } from "thr
 import { MapControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { Vector3 as ThreeVector3 } from "three";
 
 import type { CameraFocusTarget, ExplorerCameraView, ExplorerResolvedQuality } from "../types";
 
@@ -30,6 +31,9 @@ type ExplorerCanvasProps = {
 		orbitEpochMs: number;
 	} | null;
 	maxFps?: number;
+	onProjectWorldToScreenChange?: (
+		project: ((x: number, y: number) => { x: number; y: number } | null) | null,
+	) => void;
 	onPanWhileLocked?: () => void;
 	onPointerMissed: () => void;
 	onViewChange?: (view: ExplorerCameraView) => void;
@@ -372,6 +376,45 @@ function DemandFrameTicker({ fps }: { fps: number }) {
 	return null;
 }
 
+function ScreenProjector({
+	onProjectWorldToScreenChange,
+}: {
+	onProjectWorldToScreenChange?: (
+		project: ((x: number, y: number) => { x: number; y: number } | null) | null,
+	) => void;
+}) {
+	const camera = useThree((state) => state.camera as OrthographicCamera);
+	const size = useThree((state) => state.size);
+	const vectorRef = useRef(new ThreeVector3());
+
+	useEffect(() => {
+		if (!onProjectWorldToScreenChange) {
+			return;
+		}
+
+		onProjectWorldToScreenChange((x, y) => {
+			if (size.width <= 0 || size.height <= 0) {
+				return null;
+			}
+
+			const vector = vectorRef.current;
+			vector.set(x, y, 0);
+			vector.project(camera);
+
+			return {
+				x: ((vector.x + 1) / 2) * size.width,
+				y: ((1 - vector.y) / 2) * size.height,
+			};
+		});
+
+		return () => {
+			onProjectWorldToScreenChange(null);
+		};
+	}, [camera, onProjectWorldToScreenChange, size.height, size.width]);
+
+	return null;
+}
+
 export function ExplorerCanvas({
 	antialias,
 	dpr,
@@ -380,6 +423,7 @@ export function ExplorerCanvas({
 	cameraMode = "free",
 	trackingOrbit = null,
 	maxFps = 60,
+	onProjectWorldToScreenChange,
 	onPanWhileLocked,
 	onPointerMissed,
 	onViewChange,
@@ -525,6 +569,7 @@ export function ExplorerCanvas({
 				onPointerMissed={onPointerMissed}
 			>
 				{maxFps < 50 ? <DemandFrameTicker fps={maxFps} /> : null}
+				<ScreenProjector onProjectWorldToScreenChange={onProjectWorldToScreenChange} />
 				<color attach="background" args={["#030812"]} />
 				<NebulaBackground controlsRef={controlsRef} quality={quality} />
 				<ambientLight intensity={0.85} />

@@ -3,17 +3,15 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import type { StarMapHeaderNavigation } from "@/features/game-ui/header/app-header";
-
 import { useColonyStarMapPicker } from "@/features/colony-route/star-map-picker-context";
 import { cn } from "@/lib/utils";
 
 import type { HoverPanelState, RenderableEntity } from "../types";
 
 import { useExplorerContext } from "../context/explorer-context";
+import { useExplorerQualityContext } from "../context/explorer-quality-context";
 import { useColonyLayoutBootstrap } from "../hooks/use-colony-layout-bootstrap";
 import { useExplorerData } from "../hooks/use-explorer-data";
-import { useExplorerQuality } from "../hooks/use-explorer-quality";
 import { computeOrbitWorldPosition } from "../lib/orbits";
 import { ExplorerCanvas } from "./explorer-canvas";
 import { HoverPanel } from "./hover-panel";
@@ -21,6 +19,7 @@ import { LevelGalaxy } from "./level-galaxy";
 import { LevelSector } from "./level-sector";
 import { LevelSystem } from "./level-system";
 import { LevelUniverse } from "./level-universe";
+import { StarMapHudPanel } from "./star-map-hud-panel";
 
 const ZOOM = {
 	galaxy: 0.22,
@@ -34,22 +33,25 @@ export function ColonyStarMapLayer(props: {
 	isAuthenticated: boolean;
 	isOpen: boolean;
 	onClose: () => void;
-	onHeaderNavigationChange: (navigation: StarMapHeaderNavigation | null) => void;
 }) {
-	const { colonyId, isAuthenticated, isOpen, onClose, onHeaderNavigationChange } = props;
+	const { colonyId, isAuthenticated, isOpen, onClose } = props;
 	const explorer = useExplorerContext();
 	const { completeSelection, pickerRequest } = useColonyStarMapPicker();
 	const data = useExplorerData();
-	const { antialiasEnabled, canvasDpr, qualityPreset, resolvedQuality, setQualityPreset } =
-		useExplorerQuality();
+	const { antialiasEnabled, canvasDpr, resolvedQuality } = useExplorerQualityContext();
 	const { isReady } = useColonyLayoutBootstrap({
 		colonyId,
 		isAuthenticated,
 	});
 	const [hoveredId, setHoveredId] = useState<string | null>(null);
 	const [hover, setHover] = useState<HoverPanelState | null>(null);
+	const [panelHoveredEntity, setPanelHoveredEntity] = useState<RenderableEntity | null>(null);
 	const hoverRafRef = useRef<number | null>(null);
 	const pendingHoverRef = useRef<HoverPanelState | null>(null);
+	const hoverAnimationFrameRef = useRef<number | null>(null);
+	const projectWorldToScreenRef = useRef<
+		((x: number, y: number) => { x: number; y: number } | null) | null
+	>(null);
 
 	useEffect(() => {
 		return () => {
@@ -57,22 +59,15 @@ export function ColonyStarMapLayer(props: {
 				cancelAnimationFrame(hoverRafRef.current);
 				hoverRafRef.current = null;
 			}
+			if (hoverAnimationFrameRef.current !== null) {
+				cancelAnimationFrame(hoverAnimationFrameRef.current);
+				hoverAnimationFrameRef.current = null;
+			}
 		};
 	}, []);
 
-	const clearHover = () => {
-		setHoveredId(null);
-		pendingHoverRef.current = null;
-		setHover(null);
-		if (hoverRafRef.current !== null) {
-			cancelAnimationFrame(hoverRafRef.current);
-			hoverRafRef.current = null;
-		}
-	};
-
-	const handleHover = (entity: RenderableEntity, screenX: number, screenY: number) => {
-		setHoveredId(entity.id);
-		pendingHoverRef.current = {
+	const buildHoverState = useCallback(
+		(entity: RenderableEntity, screenX: number, screenY: number): HoverPanelState => ({
 			entityType: entity.entityType,
 			name: entity.name,
 			addressLabel: entity.addressLabel,
@@ -81,7 +76,40 @@ export function ColonyStarMapLayer(props: {
 			hostility: entity.hostility,
 			screenX,
 			screenY,
+		}),
+		[],
+	);
+
+	const getEntityWorldPosition = useCallback((entity: RenderableEntity) => {
+		if (entity.orbit) {
+			return computeOrbitWorldPosition(entity.orbit, Date.now());
+		}
+
+		return {
+			x: entity.x,
+			y: entity.y,
 		};
+	}, []);
+
+	const clearHover = () => {
+		setPanelHoveredEntity(null);
+		setHoveredId(null);
+		pendingHoverRef.current = null;
+		setHover(null);
+		if (hoverRafRef.current !== null) {
+			cancelAnimationFrame(hoverRafRef.current);
+			hoverRafRef.current = null;
+		}
+		if (hoverAnimationFrameRef.current !== null) {
+			cancelAnimationFrame(hoverAnimationFrameRef.current);
+			hoverAnimationFrameRef.current = null;
+		}
+	};
+
+	const handleHover = (entity: RenderableEntity, screenX: number, screenY: number) => {
+		setPanelHoveredEntity(null);
+		setHoveredId(entity.id);
+		pendingHoverRef.current = buildHoverState(entity, screenX, screenY);
 
 		if (hoverRafRef.current !== null) {
 			return;
@@ -92,6 +120,60 @@ export function ColonyStarMapLayer(props: {
 			setHover(pendingHoverRef.current);
 		});
 	};
+
+	const handlePanelHover = useCallback((entity: RenderableEntity) => {
+		setPanelHoveredEntity(entity);
+	}, []);
+
+	const handleProjectWorldToScreenChange = useCallback(
+		(project: ((x: number, y: number) => { x: number; y: number } | null) | null) => {
+			projectWorldToScreenRef.current = project;
+		},
+		[],
+	);
+
+	useEffect(() => {
+		if (!isOpen || !panelHoveredEntity) {
+			if (hoverAnimationFrameRef.current !== null) {
+				cancelAnimationFrame(hoverAnimationFrameRef.current);
+				hoverAnimationFrameRef.current = null;
+			}
+			return;
+		}
+
+		let cancelled = false;
+
+		const updateHover = () => {
+			if (cancelled) {
+				return;
+			}
+
+			const projector = projectWorldToScreenRef.current;
+			if (!projector) {
+				hoverAnimationFrameRef.current = requestAnimationFrame(updateHover);
+				return;
+			}
+
+			const worldPosition = getEntityWorldPosition(panelHoveredEntity);
+			const screenPosition = projector(worldPosition.x, worldPosition.y);
+			if (screenPosition) {
+				setHoveredId(panelHoveredEntity.id);
+				setHover(buildHoverState(panelHoveredEntity, screenPosition.x, screenPosition.y));
+			}
+
+			hoverAnimationFrameRef.current = requestAnimationFrame(updateHover);
+		};
+
+		updateHover();
+
+		return () => {
+			cancelled = true;
+			if (hoverAnimationFrameRef.current !== null) {
+				cancelAnimationFrame(hoverAnimationFrameRef.current);
+				hoverAnimationFrameRef.current = null;
+			}
+		};
+	}, [buildHoverState, getEntityWorldPosition, isOpen, panelHoveredEntity]);
 
 	const handleUniverseEntitySelect = (entity: RenderableEntity) => {
 		explorer.setGalaxyLevel(entity.sourceId as Id<"galaxies">, {
@@ -371,18 +453,8 @@ export function ColonyStarMapLayer(props: {
 		],
 	);
 
-	const headerEntityItems = useMemo(
-		() =>
-			currentEntities.slice(0, 7).map((entity) => ({
-				id: entity.id,
-				label: entity.name,
-				subtitle: entity.addressLabel,
-			})),
-		[currentEntities],
-	);
-
-	const headerPathItems = useMemo(() => {
-		const pathItems: StarMapHeaderNavigation["pathItems"] = [
+	const hudPathItems = useMemo(() => {
+		const pathItems: Array<{ id: string; label: string; onSelect: () => void }> = [
 			{
 				id: "universe",
 				label: data.overview?.universe.name ?? "Universe",
@@ -434,56 +506,6 @@ export function ColonyStarMapLayer(props: {
 		navigateToUniverse,
 	]);
 
-	const handleHeaderNavSelect = useCallback(
-		(entityId: string) => {
-			const entity = currentEntities.find((candidate) => candidate.id === entityId);
-			if (!entity) {
-				return;
-			}
-			selectEntityForCurrentLevel(entity);
-		},
-		[currentEntities, selectEntityForCurrentLevel],
-	);
-
-	useEffect(() => {
-		if (!isOpen || !isReady) {
-			onHeaderNavigationChange(null);
-			clearHover();
-			return;
-		}
-
-		onHeaderNavigationChange({
-			pathItems: headerPathItems,
-			entityItems: headerEntityItems,
-			levelLabel: displayedLevel,
-			onExit: onClose,
-			onSelectEntity: handleHeaderNavSelect,
-			qualityPreset,
-			onQualityPresetChange: setQualityPreset,
-		});
-	}, [
-		displayedLevel,
-		handleHeaderNavSelect,
-		headerEntityItems,
-		headerPathItems,
-		onHeaderNavigationChange,
-		onClose,
-		qualityPreset,
-		setQualityPreset,
-		isOpen,
-		isReady,
-	]);
-
-	useEffect(() => {
-		if (!isOpen) {
-			return;
-		}
-
-		return () => {
-			onHeaderNavigationChange(null);
-		};
-	}, [isOpen, onHeaderNavigationChange]);
-
 	return (
 		<>
 			<div className={cn("fixed inset-0 z-0", isOpen ? "pointer-events-auto" : `
@@ -500,6 +522,7 @@ export function ColonyStarMapLayer(props: {
 						onPanWhileLocked={handlePanWhileLocked}
 						maxFps={isOpen ? 60 : 10}
 						onPointerMissed={clearHover}
+						onProjectWorldToScreenChange={handleProjectWorldToScreenChange}
 						onViewChange={explorer.setCameraView}
 						quality={resolvedQuality}
 						sceneKey={explorer.level}
@@ -564,6 +587,20 @@ export function ColonyStarMapLayer(props: {
 					"pointer-events-none fixed inset-0 z-1 transition-all duration-500",
 					isOpen ? "bg-[rgba(4,8,18,0.2)]" : "bg-[rgba(4,10,20,0.48)]",
 				)}
+			/>
+
+			<StarMapHudPanel
+				entities={currentEntities}
+				hoveredId={hoveredId}
+				isOpen={isOpen}
+				isReady={isReady}
+				levelLabel={displayedLevel}
+				pathItems={hudPathItems}
+				pickerRequest={pickerRequest}
+				onHoverEntity={handlePanelHover}
+				onHoverEnd={clearHover}
+				onExit={onClose}
+				onSelectEntity={selectEntityForCurrentLevel}
 			/>
 
 			{isOpen ? <HoverPanel hover={hover} /> : null}

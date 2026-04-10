@@ -19,6 +19,7 @@ import { useColonyLayoutController } from "@/features/game-ui/shell/use-colony-l
 import { ResearchImmersiveView } from "@/features/research/research-immersive-view";
 import { ColonyStarMapLayer } from "@/features/universe-explorer-realdata/components/colony-star-map-layer";
 import { ExplorerProvider } from "@/features/universe-explorer-realdata/context/explorer-context";
+import { ExplorerQualityProvider } from "@/features/universe-explorer-realdata/context/explorer-quality-context";
 import { useConvexAuth } from "@/lib/convex-hooks";
 import { cn } from "@/lib/utils";
 
@@ -29,9 +30,11 @@ export const Route = createFileRoute("/game/colony/$colonyId")({
 function ColonyLayoutRoute() {
 	return (
 		<ColonyStarMapPickerProvider>
-			<ExplorerProvider>
-				<ColonyLayoutContent />
-			</ExplorerProvider>
+			<ExplorerQualityProvider>
+				<ExplorerProvider>
+					<ColonyLayoutContent />
+				</ExplorerProvider>
+			</ExplorerQualityProvider>
 		</ColonyStarMapPickerProvider>
 	);
 }
@@ -73,7 +76,6 @@ function ColonyLayoutContent() {
 							isAuthenticated={isAuthenticated}
 							isOpen={layout.isStarMapOpen}
 							onClose={layout.handleCloseStarMap}
-							onHeaderNavigationChange={layout.handleHeaderNavigationChange}
 						/>
 					) : null}
 
@@ -81,9 +83,9 @@ function ColonyLayoutContent() {
 						<>
 							<div
 								className={cn(`
-           pointer-events-none absolute inset-0 z-15 transition-opacity
-           duration-300 ease-out
-         `, isResearchVisible ? "opacity-100" : "opacity-0")}
+          pointer-events-none absolute inset-0 z-15 transition-opacity
+          duration-300 ease-out
+        `, isResearchVisible ? "opacity-100" : "opacity-0")}
 								style={{
 									background:
 										"linear-gradient(180deg, rgba(5,10,18,0.14) 0%, rgba(5,10,18,0.26) 30%, rgba(3,6,12,0.4) 100%)",
@@ -92,11 +94,11 @@ function ColonyLayoutContent() {
 							/>
 							<div
 								className={cn(`
-           absolute inset-0 z-20 transition-[opacity,transform] duration-300
-           ease-[cubic-bezier(0.22,1,0.36,1)]
-         `, isResearchVisible ? "translate-y-0 opacity-100" : `
-           translate-y-5 opacity-0
-         `)}
+          absolute inset-0 z-20 transition-[opacity,transform] duration-300
+          ease-[cubic-bezier(0.22,1,0.36,1)]
+        `, isResearchVisible ? "translate-y-0 opacity-100" : `
+          translate-y-5 opacity-0
+        `)}
 								style={{
 									pointerEvents: layout.isResearchInteractive ? "auto" : "none",
 								}}
@@ -113,7 +115,6 @@ function ColonyLayoutContent() {
 						isStarMapOpen={layout.isStarMapOpen}
 						onToggleResearch={layout.handleToggleResearch}
 						onToggleStarMap={layout.handleToggleStarMap}
-						starMapNavigation={layout.isStarMapOpen ? layout.headerStarMapNavigation : null}
 					/>
 
 					<div
@@ -124,10 +125,10 @@ function ColonyLayoutContent() {
 						}}
 					>
 						<div
-							className={cn(
-								"relative h-full transition-[clip-path,opacity,transform] duration-500 ease-out",
-								outletTransitionClass,
-							)}
+							className={cn(`
+         relative h-full transition-[clip-path,opacity,transform] duration-500
+         ease-out
+       `, outletTransitionClass)}
 							style={{
 								clipPath: layout.shouldCollapseContent
 									? "inset(0 0 100% 0 round 0.5rem)"

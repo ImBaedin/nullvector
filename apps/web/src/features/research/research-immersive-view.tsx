@@ -1137,7 +1137,7 @@ function InnerResearchImmersiveViewWithInsets({
 			onMouseMove={handleMouseMove}
 			onMouseLeave={handleMouseLeave}
 		>
-			<div style={{ position: "absolute", inset: 0, zIndex: 0, opacity: 0.1 }}>
+			<div style={{ position: "absolute", inset: 0, zIndex: 0, opacity: 0.2 }}>
 				<IsolatedDither
 					waveSpeed={0.018}
 					waveFrequency={1.8}
