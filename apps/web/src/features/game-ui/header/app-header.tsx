@@ -175,9 +175,9 @@ export function AppHeader({
          border-cyan-300/40 bg-cyan-400/12 text-cyan-50
          shadow-[0_0_16px_rgba(61,217,255,0.12)]
        ` : `
-          border-white/12 bg-white/4 text-white/60
-          hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100
-        `, isCompact ? "h-8" : "h-9", starMapHighlight.highlightProps.className)} onClick={handleStarMapToggle} title={starMapHighlight.highlightProps.title} type="button">
+         border-white/12 bg-white/4 text-white/60
+         hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100
+       `, isCompact ? "h-8" : "h-9", starMapHighlight.highlightProps.className)} onClick={handleStarMapToggle} title={starMapHighlight.highlightProps.title} type="button">
 								<span className="nv-starmap-stars" />
 								<span className="nv-starmap-stars is-slower" />
 								<img
@@ -199,9 +199,9 @@ export function AppHeader({
          border-cyan-300/40 bg-cyan-400/12 text-cyan-50
          shadow-[0_0_16px_rgba(61,217,255,0.12)]
        ` : `
-          border-white/12 bg-white/4 text-white/60
-          hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100
-        `, isCompact ? "h-8" : "h-9")} onClick={handleResearchToggle} type="button">
+         border-white/12 bg-white/4 text-white/60
+         hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100
+       `, isCompact ? "h-8" : "h-9")} onClick={handleResearchToggle} type="button">
 								<FlaskConical className="relative z-10 size-3.5" />
 								<span className="relative z-10">Research</span>
 							</button>
@@ -215,7 +215,11 @@ export function AppHeader({
        "
 						>
 							{progressionOverview ? (
-								<div className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3">
+								<div
+									className="
+          mr-1 flex items-center gap-2 border-r border-white/8 pr-3
+        "
+								>
 									<div className="flex items-center gap-2">
 										<div
 											className="
@@ -251,18 +255,10 @@ export function AppHeader({
 													(progressionOverview.xpToNextRank ?? 0);
 												return (
 													<>
-														<p
-															className="
-                text-[8px] tracking-[0.12em] text-white/25 uppercase
-              "
-														>
+														<p className="text-[8px] tracking-[0.12em] text-white/25 uppercase">
 															XP
 														</p>
-														<div
-															className="
-                mt-1 h-1.5 overflow-hidden rounded-full bg-white/8
-              "
-														>
+														<div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/8">
 															<div
 																className="
                   h-full rounded-full

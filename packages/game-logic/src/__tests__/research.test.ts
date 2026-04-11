@@ -47,6 +47,9 @@ test("research start checks prerequisites and facility capacity", () => {
 			localResearchFacilityLevel: 2,
 			levels: { archiveCompression: 1 },
 			researchKey: "parallelInquiry",
+			tierUnlockContext: {
+				highestResearchDirectorateLevel: 2,
+			},
 		}),
 	).toBe(true);
 });
@@ -60,6 +63,9 @@ test("research visibility hides nodes until a direct prerequisite is complete", 
 		getResearchVisibility({
 			levels: { archiveCompression: 1 },
 			researchKey: "parallelInquiry",
+			tierUnlockContext: {
+				highestResearchDirectorateLevel: 2,
+			},
 		}),
 	).toBe("silhouette");
 });

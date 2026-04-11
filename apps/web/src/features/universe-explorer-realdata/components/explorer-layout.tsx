@@ -6,7 +6,11 @@ type ExplorerLayoutProps = {
 
 export function ExplorerLayout({ sidebar, canvas, hoverPanel }: ExplorerLayoutProps) {
 	return (
-		<div className="relative h-full min-h-0 overflow-hidden bg-[#050912] text-white">
+		<div
+			className="
+    relative h-full min-h-0 overflow-hidden bg-[#050912] text-white
+  "
+		>
 			<div
 				className="
       grid h-full min-h-0 grid-cols-1

@@ -1,6 +1,6 @@
-import type { NodeShape, RadialNode, ResearchBranchKey } from "./radial-tree-data";
+import type { NodeShape, RadialNode, ResearchBranchKey } from "./canonical-tree-data";
 
-import { RESEARCH_TABS, getRadialTree } from "./radial-tree-data";
+import { RESEARCH_TABS, getRadialTree } from "./canonical-tree-data";
 
 export type PolarTier = 0 | 1 | 2 | 3 | 4;
 export type PolarLane =

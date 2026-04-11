@@ -38,7 +38,11 @@ export function HoverPanel({ hover }: { hover: HoverPanelState | null }) {
 						</p>
 						<p className="mt-1 text-sm font-semibold text-white">{hover.name}</p>
 					</div>
-					<span className="relative mt-0.5 inline-flex size-4 items-center justify-center">
+					<span
+						className="
+       relative mt-0.5 inline-flex size-4 items-center justify-center
+     "
+					>
 						<span
 							className="
          absolute inline-flex size-4 animate-ping rounded-full bg-cyan-300/45

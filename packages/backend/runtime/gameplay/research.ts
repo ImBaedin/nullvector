@@ -1,11 +1,18 @@
 import {
+	DEFAULT_RESEARCH_BRANCHES,
 	buildResearchModifierSnapshot,
 	canResearchNodeStart,
 	getResearchNode,
+	getResearchNodeRequirementStatuses,
+	getResearchTierUnlockRequirementStatuses,
+	getResearchVisibility,
+	isResearchTierUnlockSatisfied,
 	rollMetaMatterBundle,
 	type MetaMatterBundle,
 	type ResearchKey,
 	type ResearchLevelMap,
+	type ResearchRequirementStatus,
+	type ResearchTierUnlockContext,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
@@ -28,6 +35,94 @@ const metaMatterValidator = v.object({
 	mythic: v.number(),
 });
 
+const authoredResourceCostValidator = v.object({
+	alloy: v.number(),
+	crystal: v.number(),
+	fuel: v.number(),
+});
+
+const researchRequirementStatusValidator = v.object({
+	key: v.string(),
+	label: v.string(),
+	met: v.boolean(),
+});
+
+const researchNodeVisibilityValidator = v.union(
+	v.literal("hidden"),
+	v.literal("silhouette"),
+	v.literal("visible"),
+);
+
+const researchNodeStatusValidator = v.union(
+	v.literal("completed"),
+	v.literal("available"),
+	v.literal("locked"),
+	v.literal("researching"),
+	v.literal("hidden"),
+);
+
+const researchNodeViewValidator = v.object({
+	id: v.string(),
+	name: v.string(),
+	branch: v.string(),
+	tier: v.number(),
+	description: v.string(),
+	layout: v.object({
+		lane: v.string(),
+		shape: v.string(),
+	}),
+	position: v.object({
+		x: v.number(),
+		y: v.number(),
+	}),
+	prerequisites: v.array(v.string()),
+	level: v.number(),
+	maxLevel: v.number(),
+	visibility: researchNodeVisibilityValidator,
+	status: researchNodeStatusValidator,
+	canStart: v.boolean(),
+	requiredResearchFacilityLevel: v.number(),
+	requiredCombinedResearchCapacity: v.optional(v.number()),
+	requirements: v.array(researchRequirementStatusValidator),
+	effects: v.array(v.string()),
+	nextCost: v.union(
+		v.object({
+			metaMatter: metaMatterValidator,
+			resources: authoredResourceCostValidator,
+			seconds: v.number(),
+		}),
+		v.null(),
+	),
+});
+
+const researchTierViewValidator = v.object({
+	tier: v.number(),
+	unlocked: v.boolean(),
+	requirements: v.array(researchRequirementStatusValidator),
+	nodes: v.array(researchNodeViewValidator),
+});
+
+const researchBranchViewValidator = v.object({
+	key: v.string(),
+	label: v.string(),
+	shortLabel: v.string(),
+	themeColor: v.string(),
+	themeColorSoft: v.string(),
+	ditherWaveColor: v.array(v.number()),
+	ditherPixelSize: v.number(),
+	tiers: v.array(researchTierViewValidator),
+});
+
+const researchTierUnlockContextValidator = v.object({
+	coloniesFounded: v.number(),
+	contractsCompleted: v.number(),
+	defensesOwned: v.number(),
+	highestBuildingLevel: v.number(),
+	highestResearchDirectorateLevel: v.number(),
+	shipsOwned: v.number(),
+	successfulTransports: v.number(),
+});
+
 const researchQueueStatusValidator = v.union(
 	v.literal("queued"),
 	v.literal("active"),
@@ -43,6 +138,9 @@ const researchStateViewValidator = v.object({
 	balances: metaMatterValidator,
 	combinedResearchCapacity: v.number(),
 	localResearchFacilityLevel: v.number(),
+	serverNow: v.number(),
+	tierUnlockContext: researchTierUnlockContextValidator,
+	tree: v.array(researchBranchViewValidator),
 	activeResearch: v.union(
 		v.object({
 			queueItemId: v.id("playerResearchQueueItems"),
@@ -229,19 +327,179 @@ export async function getEffectiveResearchCapacity(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
+	return (await getResearchAccountFacts(args)).combinedResearchCapacity;
+}
+
+type ResearchAccountFacts = {
+	combinedResearchCapacity: number;
+	tierUnlockContext: ResearchTierUnlockContext;
+};
+
+async function getResearchAccountFacts(args: {
+	ctx: QueryCtx | MutationCtx;
+	playerId: Id<"players">;
+}): Promise<ResearchAccountFacts> {
 	const colonies = await args.ctx.db
 		.query("colonies")
 		.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
 		.collect();
-	let total = 0;
+	let combinedResearchCapacity = 0;
+	let highestBuildingLevel = 0;
+	let highestResearchDirectorateLevel = 0;
 	for (const colony of colonies) {
 		const infraRows = await args.ctx.db
 			.query("colonyInfrastructure")
 			.withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
 			.collect();
-		total += Math.max(0, pickCanonicalRow(infraRows)?.buildings.researchDirectorateLevel ?? 0);
+		const buildings = pickCanonicalRow(infraRows)?.buildings;
+		if (!buildings) {
+			continue;
+		}
+		combinedResearchCapacity += Math.max(0, buildings.researchDirectorateLevel ?? 0);
+		highestResearchDirectorateLevel = Math.max(
+			highestResearchDirectorateLevel,
+			buildings.researchDirectorateLevel ?? 0,
+		);
+		for (const level of Object.values(buildings)) {
+			highestBuildingLevel = Math.max(highestBuildingLevel, Math.max(0, Math.floor(level ?? 0)));
+		}
 	}
-	return total;
+	const [contractResults, transportResults, shipRows, defenseRows] = await Promise.all([
+		args.ctx.db
+			.query("contractResults")
+			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+			.collect(),
+		args.ctx.db
+			.query("fleetOperationResults")
+			.withIndex("by_owner_id", (q) => q.eq("ownerPlayerId", args.playerId))
+			.collect(),
+		args.ctx.db
+			.query("colonyShips")
+			.withIndex("by_player", (q) => q.eq("playerId", args.playerId))
+			.collect(),
+		args.ctx.db
+			.query("colonyDefenses")
+			.withIndex("by_player", (q) => q.eq("playerId", args.playerId))
+			.collect(),
+	]);
+
+	return {
+		combinedResearchCapacity,
+		tierUnlockContext: {
+			coloniesFounded: colonies.length,
+			contractsCompleted: contractResults.filter((result) => result.success).length,
+			defensesOwned: defenseRows.reduce((sum, row) => sum + Math.max(0, Math.floor(row.count)), 0),
+			highestBuildingLevel,
+			highestResearchDirectorateLevel,
+			shipsOwned: shipRows.reduce((sum, row) => sum + Math.max(0, Math.floor(row.count)), 0),
+			successfulTransports: transportResults.filter(
+				(result) => result.operationKind === "transport" && result.resultCode === "delivered",
+			).length,
+		},
+	};
+}
+
+function cloneRequirementStatuses(
+	requirements: readonly ResearchRequirementStatus[],
+): ResearchRequirementStatus[] {
+	return requirements.map((requirement) => ({ ...requirement }));
+}
+
+function buildResearchTreeView(args: {
+	activeResearchKey: string | null;
+	combinedResearchCapacity: number;
+	hasOpenResearch: boolean;
+	levels: ResearchLevelMap;
+	localResearchFacilityLevel: number;
+	tierUnlockContext: ResearchTierUnlockContext;
+}) {
+	return DEFAULT_RESEARCH_BRANCHES.map((branch) => ({
+		key: branch.key,
+		label: branch.label,
+		shortLabel: branch.shortLabel,
+		themeColor: branch.themeColor,
+		themeColorSoft: branch.themeColorSoft,
+		ditherWaveColor: branch.ditherWaveColor,
+		ditherPixelSize: branch.ditherPixelSize,
+		tiers: branch.tiers.map((tier) => {
+			const tierRequirements = getResearchTierUnlockRequirementStatuses(
+				tier.unlock,
+				args.tierUnlockContext,
+				`${branch.key}.${tier.tier}`,
+			);
+			return {
+				tier: tier.tier,
+				unlocked: isResearchTierUnlockSatisfied(tier.unlock, args.tierUnlockContext),
+				requirements: cloneRequirementStatuses(tierRequirements),
+				nodes: tier.nodes.map((node) => {
+					const level = Math.max(0, Math.floor(args.levels[node.id] ?? 0));
+					const visibility = getResearchVisibility({
+						levels: args.levels,
+						researchKey: node.id,
+						tierUnlockContext: args.tierUnlockContext,
+					});
+					const canStart =
+						!args.hasOpenResearch &&
+						canResearchNodeStart({
+							combinedResearchCapacity: args.combinedResearchCapacity,
+							levels: args.levels,
+							localResearchFacilityLevel: args.localResearchFacilityLevel,
+							researchKey: node.id,
+							tierUnlockContext: args.tierUnlockContext,
+						});
+					const status: "completed" | "available" | "locked" | "researching" | "hidden" =
+						args.activeResearchKey === node.id
+							? "researching"
+							: level > 0
+								? "completed"
+								: visibility === "hidden"
+									? "hidden"
+									: canStart
+										? "available"
+										: "locked";
+					const nextCost = node.costs[level];
+					return {
+						id: node.id,
+						name: node.name,
+						branch: node.branch,
+						tier: node.tier,
+						description: node.description,
+						layout: node.layout,
+						position: node.position,
+						prerequisites: node.prerequisites,
+						level,
+						maxLevel: node.maxLevel,
+						visibility,
+						status,
+						canStart,
+						requiredResearchFacilityLevel: node.requiredResearchFacilityLevel,
+						requiredCombinedResearchCapacity: node.requiredCombinedResearchCapacity,
+						requirements: cloneRequirementStatuses(
+							getResearchNodeRequirementStatuses({
+								combinedResearchCapacity: args.combinedResearchCapacity,
+								levels: args.levels,
+								localResearchFacilityLevel: args.localResearchFacilityLevel,
+								researchKey: node.id,
+								tierUnlockContext: args.tierUnlockContext,
+							}),
+						),
+						effects: node.effectLabels,
+						nextCost: nextCost
+							? {
+									metaMatter: cloneMetaMatter(nextCost.metaMatter),
+									resources: {
+										alloy: nextCost.resources?.alloy ?? 0,
+										crystal: nextCost.resources?.crystal ?? 0,
+										fuel: nextCost.resources?.fuel ?? 0,
+									},
+									seconds: nextCost.seconds,
+								}
+							: null,
+					};
+				}),
+			};
+		}),
+	}));
 }
 
 async function upsertPlayerResearchScheduling(args: {
@@ -365,7 +623,7 @@ export async function getResearchState(args: {
 		ctx: args.ctx,
 		colonyId: args.colonyId,
 	});
-	const [state, balances, activeResearch, combinedCapacity] = await Promise.all([
+	const [state, balances, activeResearch, researchFacts] = await Promise.all([
 		ensurePlayerResearchState({
 			ctx: args.ctx,
 			playerId: player._id,
@@ -378,18 +636,37 @@ export async function getResearchState(args: {
 			ctx: args.ctx,
 			playerId: player._id,
 		}),
-		getEffectiveResearchCapacity({
+		getResearchAccountFacts({
 			ctx: args.ctx,
 			playerId: player._id,
 		}),
 	]);
+	const levels = (state.levels ?? {}) as ResearchLevelMap;
+	const localResearchFacilityLevel = Math.max(0, colony.buildings.researchDirectorateLevel);
+	const serverNow = Date.now();
 	return {
 		playerId: player._id,
 		colonyId: colony._id,
-		levels: state.levels ?? {},
+		levels,
 		balances: cloneMetaMatter(balances),
-		combinedResearchCapacity: combinedCapacity,
-		localResearchFacilityLevel: Math.max(0, colony.buildings.researchDirectorateLevel),
+		combinedResearchCapacity: researchFacts.combinedResearchCapacity,
+		localResearchFacilityLevel,
+		serverNow,
+		tierUnlockContext: researchFacts.tierUnlockContext,
+		tree: buildResearchTreeView({
+			activeResearchKey:
+				activeResearch && (activeResearch.status === "active" || activeResearch.status === "queued")
+					? activeResearch.researchKey
+					: null,
+			combinedResearchCapacity: researchFacts.combinedResearchCapacity,
+			hasOpenResearch: Boolean(
+				activeResearch &&
+				(activeResearch.status === "active" || activeResearch.status === "queued"),
+			),
+			levels,
+			localResearchFacilityLevel,
+			tierUnlockContext: researchFacts.tierUnlockContext,
+		}),
 		activeResearch: activeResearch
 			? {
 					queueItemId: activeResearch._id,
@@ -494,7 +771,7 @@ export const enqueue = mutation({
 		if (!node) {
 			throw new ConvexError("Unknown research node");
 		}
-		const [state, balances, combinedCapacity, modifierSnapshot] = await Promise.all([
+		const [state, balances, researchFacts, modifierSnapshot] = await Promise.all([
 			ensurePlayerResearchState({
 				ctx,
 				playerId: player._id,
@@ -503,7 +780,7 @@ export const enqueue = mutation({
 				ctx,
 				playerId: player._id,
 			}),
-			getEffectiveResearchCapacity({
+			getResearchAccountFacts({
 				ctx,
 				playerId: player._id,
 			}),
@@ -516,10 +793,11 @@ export const enqueue = mutation({
 		const fromLevel = Math.max(0, Math.floor(levels[node.id] ?? 0));
 		if (
 			!canResearchNodeStart({
-				combinedResearchCapacity: combinedCapacity,
+				combinedResearchCapacity: researchFacts.combinedResearchCapacity,
 				localResearchFacilityLevel: Math.max(0, colony.buildings.researchDirectorateLevel),
 				levels,
 				researchKey: node.id,
+				tierUnlockContext: researchFacts.tierUnlockContext,
 			})
 		) {
 			throw new ConvexError("Research requirements not met");
@@ -591,7 +869,7 @@ export const enqueue = mutation({
 			costResources,
 			snapshot: {
 				originResearchFacilityLevel: Math.max(0, colony.buildings.researchDirectorateLevel),
-				combinedResearchCapacity: combinedCapacity,
+				combinedResearchCapacity: researchFacts.combinedResearchCapacity,
 				durationSeconds,
 			},
 			createdAt: now,

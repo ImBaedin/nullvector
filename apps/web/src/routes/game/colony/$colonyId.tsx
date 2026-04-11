@@ -103,7 +103,7 @@ function ColonyLayoutContent() {
 									pointerEvents: layout.isResearchInteractive ? "auto" : "none",
 								}}
 							>
-								<ResearchImmersiveView hudInsetTop={92} />
+								<ResearchImmersiveView colonyId={colonyIdAsId} hudInsetTop={92} />
 							</div>
 						</>
 					) : null}

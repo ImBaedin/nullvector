@@ -1,5 +1,8 @@
 import "@/features/game-ui/theme";
 import "@xyflow/react/dist/style.css";
+import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
+
+import { api } from "@nullvector/backend/convex/_generated/api";
 import {
 	Background,
 	BaseEdge,
@@ -16,14 +19,12 @@ import {
 } from "@xyflow/react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { IsolatedDither } from "@/features/research/isolated-dither";
 import {
-	POLAR_RESEARCH_LAYOUT,
-	getPolarBranchForAngle,
-	projectPolar,
-} from "@/features/research/polar-layout";
+	edgesForNodes,
+	type RadialEdge,
+	type RadialTree,
+} from "@/features/research/canonical-tree-data";
 import {
-	ACTIVE_RESEARCH,
 	META_MATTER_BALANCES,
 	META_MATTER_COLORS,
 	RESEARCH_TABS,
@@ -33,7 +34,14 @@ import {
 	type NodeStatus,
 	type RadialNode,
 	type ResearchBranchKey,
-} from "@/features/research/radial-tree-data";
+} from "@/features/research/canonical-tree-data";
+import { IsolatedDither } from "@/features/research/isolated-dither";
+import {
+	POLAR_RESEARCH_LAYOUT,
+	getPolarBranchForAngle,
+	projectPolar,
+} from "@/features/research/polar-layout";
+import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
 
 const BASE = {
 	bg: "#040810",
@@ -60,6 +68,7 @@ type AugNode = RadialNode & {
 };
 
 type PolarPathData = { path: string };
+type TreeByBranch = Map<ResearchBranchKey, RadialTree>;
 
 function edgeStrokeColor(args: {
 	hovered: boolean;
@@ -262,7 +271,11 @@ function WorldGrid({ hoveredBranch }: { hoveredBranch: ResearchBranchKey | null 
 	);
 }
 
-function buildFlowNodes() {
+function getTreeForBranch(treeByBranch: TreeByBranch | null, branch: ResearchBranchKey) {
+	return treeByBranch?.get(branch) ?? getRadialTree(branch);
+}
+
+function buildFlowNodes(treeByBranch: TreeByBranch | null) {
 	const nodes: Node[] = [];
 
 	const hubPlacement = POLAR_RESEARCH_LAYOUT.nodes.get("hub_center");
@@ -283,7 +296,7 @@ function buildFlowNodes() {
 	});
 
 	for (const tab of RESEARCH_TABS) {
-		const tree = getRadialTree(tab.key);
+		const tree = getTreeForBranch(treeByBranch, tab.key);
 
 		for (const node of tree.nodes) {
 			const placement = POLAR_RESEARCH_LAYOUT.nodes.get(node.id);
@@ -311,11 +324,11 @@ function buildFlowNodes() {
 	return nodes;
 }
 
-function buildFlowEdges(hoveredNodeId: string | null) {
+function buildFlowEdges(hoveredNodeId: string | null, treeByBranch: TreeByBranch | null) {
 	const edges: Edge[] = [];
 
 	for (const tab of RESEARCH_TABS) {
-		const tree = getRadialTree(tab.key);
+		const tree = getTreeForBranch(treeByBranch, tab.key);
 		const nodeById = new Map(tree.nodes.map((node) => [node.id, node]));
 
 		for (const edge of tree.edges) {
@@ -364,8 +377,6 @@ function buildFlowEdges(hoveredNodeId: string | null) {
 
 	return edges;
 }
-
-const FLOW_NODES = buildFlowNodes();
 
 const HS = {
 	background: "transparent",
@@ -467,7 +478,7 @@ function NodeLabel({ name, color, size }: { color: string; name: string; size: n
 function CircleNode({ data }: NodeProps) {
 	const node = data as AugNode;
 	const colors = statusColors(node.status, node.branchThemeColor);
-	const dim = node.status === "locked" ? 0.42 : 1;
+	const dim = node.status === "locked" || node.status === "hidden" ? 0.42 : 1;
 
 	return (
 		<div style={{ width: node.size, height: node.size, position: "relative" }}>
@@ -515,7 +526,7 @@ function CircleNode({ data }: NodeProps) {
 function HexNode({ data }: NodeProps) {
 	const node = data as AugNode;
 	const colors = statusColors(node.status, node.branchThemeColor);
-	const dim = node.status === "locked" ? 0.42 : 1;
+	const dim = node.status === "locked" || node.status === "hidden" ? 0.42 : 1;
 	const clipPath = "polygon(50% 0%,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%)";
 	const half = node.size / 2;
 	const polygon = `${half},1 ${node.size - 3},14.5 ${node.size - 3},${node.size - 14.5} ${half},${node.size - 1} 3,${node.size - 14.5} 3,14.5`;
@@ -582,7 +593,7 @@ function HexNode({ data }: NodeProps) {
 function SquareNode({ data }: NodeProps) {
 	const node = data as AugNode;
 	const colors = statusColors(node.status, node.branchThemeColor);
-	const dim = node.status === "locked" ? 0.42 : 1;
+	const dim = node.status === "locked" || node.status === "hidden" ? 0.42 : 1;
 
 	return (
 		<div style={{ width: node.size, height: node.size, position: "relative" }}>
@@ -623,7 +634,7 @@ function SquareNode({ data }: NodeProps) {
 function CapstoneNode({ data }: NodeProps) {
 	const node = data as AugNode;
 	const colors = statusColors(node.status, node.branchThemeColor);
-	const dim = node.status === "locked" ? 0.36 : 1;
+	const dim = node.status === "locked" || node.status === "hidden" ? 0.36 : 1;
 
 	return (
 		<div style={{ width: node.size, height: node.size, position: "relative" }}>
@@ -780,7 +791,11 @@ function Popover({
 	y: number;
 }) {
 	const colors = statusColors(node.status, accent);
-	const locked = node.status === "locked";
+	const hidden = node.visibility === "hidden";
+	const concealed = hidden || node.visibility === "silhouette";
+	const locked = node.status === "locked" || hidden;
+	const disclosedCosts = concealed ? null : node.costs;
+	const unmetRequirements = node.requirements.filter((requirement) => !requirement.met);
 
 	return (
 		<div
@@ -825,7 +840,7 @@ function Popover({
 								color: locked ? BASE.t3 : BASE.t1,
 							}}
 						>
-							{locked ? "Classified" : node.name}
+							{hidden ? "Classified" : node.name}
 						</div>
 						<div style={{ display: "flex", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
 							<span
@@ -844,7 +859,9 @@ function Popover({
 										? "AVAILABLE"
 										: node.status === "researching"
 											? "ACTIVE"
-											: "LOCKED"}
+											: hidden
+												? "HIDDEN"
+												: "LOCKED"}
 							</span>
 							<span
 								style={{
@@ -886,7 +903,7 @@ function Popover({
 						margin: 0,
 					}}
 				>
-					{locked
+					{hidden
 						? "Further analysis required before this technology can be decrypted."
 						: node.description}
 				</p>
@@ -912,12 +929,43 @@ function Popover({
 						>
 							Effects
 						</span>
-						{node.effects.map((effect) => (
-							<div key={effect} style={{ fontSize: 11, color: locked ? BASE.t3 : BASE.t1 }}>
-								{effect}
-							</div>
-						))}
+						{concealed ? (
+							<div style={{ fontSize: 11, color: BASE.t3 }}>Effects classified</div>
+						) : (
+							node.effects.map((effect) => (
+								<div key={effect} style={{ fontSize: 11, color: BASE.t1 }}>
+									{effect}
+								</div>
+							))
+						)}
 					</div>
+
+					{node.requirements.length > 0 ? (
+						<div style={{ display: "grid", gap: 4 }}>
+							<span
+								style={{
+									fontFamily: "var(--nv-font-mono)",
+									fontSize: 8,
+									letterSpacing: "0.12em",
+									color: BASE.t3,
+									textTransform: "uppercase",
+								}}
+							>
+								Requirements
+							</span>
+							{node.requirements.map((requirement) => (
+								<div
+									key={requirement.key}
+									style={{
+										fontSize: 11,
+										color: requirement.met ? BASE.t2 : "#ff7a7a",
+									}}
+								>
+									{requirement.label}
+								</div>
+							))}
+						</div>
+					) : null}
 
 					<div
 						style={{
@@ -938,8 +986,8 @@ function Popover({
 						>
 							Research Time
 						</span>
-						<span style={{ fontSize: 11, color: locked ? BASE.t3 : BASE.t1 }}>
-							{formatDuration(node.costs.seconds)}
+						<span style={{ fontSize: 11, color: concealed ? BASE.t3 : BASE.t1 }}>
+							{disclosedCosts ? formatDuration(disclosedCosts.seconds) : "Classified"}
 						</span>
 					</div>
 
@@ -952,45 +1000,55 @@ function Popover({
 						}}
 					>
 						<div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-							{(["common", "rare", "mythic"] as const).map((rarity) => {
-								const amount = node.costs.metaMatter[rarity];
-								if (!amount) return null;
+							{disclosedCosts ? (
+								(["common", "rare", "mythic"] as const).map((rarity) => {
+									const amount = disclosedCosts.metaMatter[rarity];
+									if (!amount) return null;
 
-								return (
-									<div key={rarity} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-										<div
-											style={{
-												width: 6,
-												height: 6,
-												borderRadius: rarity === "mythic" ? 1.5 : "50%",
-												background: META_MATTER_COLORS[rarity],
-												transform: rarity === "mythic" ? "rotate(45deg)" : undefined,
-											}}
-										/>
-										<span style={{ fontSize: 11, color: META_MATTER_COLORS[rarity] }}>
-											{fmt(amount)}
-										</span>
-									</div>
-								);
-							})}
+									return (
+										<div key={rarity} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+											<div
+												style={{
+													width: 6,
+													height: 6,
+													borderRadius: rarity === "mythic" ? 1.5 : "50%",
+													background: META_MATTER_COLORS[rarity],
+													transform: rarity === "mythic" ? "rotate(45deg)" : undefined,
+												}}
+											/>
+											<span style={{ fontSize: 11, color: META_MATTER_COLORS[rarity] }}>
+												{fmt(amount)}
+											</span>
+										</div>
+									);
+								})
+							) : (
+								<span style={{ fontSize: 11, color: BASE.t3 }}>Costs classified</span>
+							)}
 						</div>
 
 						<button
-							disabled={locked}
+							disabled={!node.canStart}
 							style={{
 								padding: "7px 10px",
 								borderRadius: 8,
-								border: `1px solid ${locked ? BASE.stroke : colors.border}55`,
-								background: locked ? "rgba(255,255,255,0.02)" : `${colors.border}14`,
-								color: locked ? BASE.t3 : colors.border,
-								cursor: locked ? "not-allowed" : "pointer",
+								border: `1px solid ${!node.canStart ? BASE.stroke : colors.border}55`,
+								background: !node.canStart ? "rgba(255,255,255,0.02)" : `${colors.border}14`,
+								color: !node.canStart ? BASE.t3 : colors.border,
+								cursor: !node.canStart ? "not-allowed" : "pointer",
 								fontFamily: "var(--nv-font-display)",
 								fontSize: 11,
 								fontWeight: 700,
 							}}
 							type="button"
 						>
-							{node.status === "researching" ? "Track" : locked ? "Locked" : "Queue"}
+							{node.status === "researching"
+								? "Track"
+								: node.canStart
+									? "Queue"
+									: unmetRequirements.length > 0
+										? "Requirements"
+										: "Locked"}
 						</button>
 					</div>
 				</div>
@@ -1047,7 +1105,83 @@ function SectorLabels({ hoveredBranch }: { hoveredBranch: ResearchBranchKey | nu
 	);
 }
 
+type ResearchStateNode = {
+	id: string;
+	name: string;
+	branch: string;
+	tier: number;
+	description: string;
+	layout: { lane: string; shape: string };
+	position: { x: number; y: number };
+	prerequisites: string[];
+	level: number;
+	maxLevel: number;
+	visibility: "hidden" | "silhouette" | "visible";
+	status: NodeStatus;
+	canStart: boolean;
+	requiredResearchFacilityLevel: number;
+	requiredCombinedResearchCapacity?: number;
+	requirements: Array<{ key: string; label: string; met: boolean }>;
+	effects: string[];
+	nextCost: {
+		metaMatter: Record<"common" | "rare" | "mythic", number>;
+		resources: { alloy: number; crystal: number; fuel: number };
+		seconds: number;
+	} | null;
+};
+
+type ResearchStateBranch = {
+	key: string;
+	tiers: Array<{
+		nodes: ResearchStateNode[];
+	}>;
+};
+
+function buildTreeByBranch(branches: ResearchStateBranch[] | undefined): TreeByBranch | null {
+	if (!branches) return null;
+
+	const treeByBranch = new Map<ResearchBranchKey, RadialTree>();
+	for (const branch of branches) {
+		const branchKey = branch.key as ResearchBranchKey;
+		const nodes: RadialNode[] = branch.tiers.flatMap((tier) =>
+			tier.nodes.map((node) => ({
+				id: node.id,
+				name: node.name,
+				branch: branchKey,
+				tier: Math.max(1, Math.min(4, Math.floor(node.tier))) as 1 | 2 | 3 | 4,
+				shape: node.layout.shape as RadialNode["shape"],
+				status: node.status,
+				visibility: node.visibility,
+				canStart: node.canStart,
+				position: node.position,
+				prerequisites: node.prerequisites,
+				level: node.level,
+				maxLevel: node.maxLevel,
+				effects: node.effects,
+				description: node.description,
+				requiredFacilityLevel: node.requiredResearchFacilityLevel,
+				requiredCombinedResearchCapacity: node.requiredCombinedResearchCapacity,
+				requirements: node.requirements,
+				costs: node.nextCost
+					? {
+							metaMatter: node.nextCost.metaMatter,
+							resources: node.nextCost.resources,
+							seconds: node.nextCost.seconds,
+						}
+					: null,
+			})),
+		);
+		treeByBranch.set(branchKey, {
+			branchKey,
+			nodes,
+			edges: edgesForNodes(nodes) as RadialEdge[],
+		});
+	}
+	return treeByBranch;
+}
+
 type ResearchImmersiveViewProps = {
+	colonyId?: Id<"colonies">;
 	hudInsetBottom?: number;
 	hudInsetLeft?: number;
 	hudInsetRight?: number;
@@ -1055,11 +1189,17 @@ type ResearchImmersiveViewProps = {
 };
 
 function InnerResearchImmersiveViewWithInsets({
+	colonyId,
 	hudInsetBottom = 16,
 	hudInsetLeft = 16,
 	hudInsetRight = 16,
 	hudInsetTop = 16,
 }: ResearchImmersiveViewProps) {
+	const { isAuthenticated } = useConvexAuth();
+	const researchState = useQuery(
+		api.research.getState,
+		isAuthenticated && colonyId ? { colonyId } : "skip",
+	);
 	const { screenToFlowPosition } = useReactFlow();
 	const viewport = useViewport();
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -1072,6 +1212,30 @@ function InnerResearchImmersiveViewWithInsets({
 	const hoveredTab = hoveredBranch
 		? (RESEARCH_TABS.find((tab) => tab.key === hoveredBranch) ?? null)
 		: null;
+	const treeByBranch = useMemo(() => buildTreeByBranch(researchState?.tree), [researchState?.tree]);
+	const balances = researchState?.balances ?? META_MATTER_BALANCES;
+	const activeResearch = researchState?.activeResearch;
+	const serverNow = researchState?.serverNow ?? 0;
+	const activeTreeNode =
+		activeResearch && treeByBranch
+			? (Array.from(treeByBranch.values())
+					.flatMap((tree) => tree.nodes)
+					.find((node) => node.id === activeResearch.researchKey) ?? null)
+			: null;
+	const activeProgress = activeResearch
+		? Math.max(
+				0,
+				Math.min(
+					100,
+					((serverNow - activeResearch.startsAt) /
+						Math.max(1, activeResearch.completesAt - activeResearch.startsAt)) *
+						100,
+				),
+			)
+		: 0;
+	const activeRemainingSeconds = activeResearch
+		? Math.max(0, Math.ceil((activeResearch.completesAt - serverNow) / 1_000))
+		: 0;
 
 	const handleMouseMove = useCallback(
 		(event: React.MouseEvent<HTMLDivElement>) => {
@@ -1120,7 +1284,11 @@ function InnerResearchImmersiveViewWithInsets({
 		return `${POLAR_RESEARCH_LAYOUT.warnings.length} density warning${POLAR_RESEARCH_LAYOUT.warnings.length === 1 ? "" : "s"}`;
 	}, []);
 
-	const flowEdges = useMemo(() => buildFlowEdges(hoveredNodeId), [hoveredNodeId]);
+	const flowNodes = useMemo(() => buildFlowNodes(treeByBranch), [treeByBranch]);
+	const flowEdges = useMemo(
+		() => buildFlowEdges(hoveredNodeId, treeByBranch),
+		[hoveredNodeId, treeByBranch],
+	);
 
 	return (
 		<div
@@ -1166,7 +1334,7 @@ function InnerResearchImmersiveViewWithInsets({
 
 			<div style={{ position: "absolute", inset: 0, zIndex: 3 }}>
 				<ReactFlow
-					nodes={FLOW_NODES}
+					nodes={flowNodes}
 					edges={flowEdges}
 					nodeTypes={nodeTypes}
 					edgeTypes={edgeTypes}
@@ -1222,7 +1390,7 @@ function InnerResearchImmersiveViewWithInsets({
 						textTransform: "uppercase",
 					}}
 				>
-					{hoveredTab ? hoveredTab.label : "Polar progression grid · Aegis Prime"}
+					{hoveredTab ? hoveredTab.label : "Polar progression grid · live research data"}
 				</span>
 			</div>
 
@@ -1261,7 +1429,7 @@ function InnerResearchImmersiveViewWithInsets({
 								fontWeight: 500,
 							}}
 						>
-							{META_MATTER_BALANCES[rarity].toLocaleString()}
+							{balances[rarity].toLocaleString()}
 						</span>
 					</div>
 				))}
@@ -1302,7 +1470,7 @@ function InnerResearchImmersiveViewWithInsets({
 						textTransform: "uppercase",
 					}}
 				>
-					Researching
+					{activeResearch ? "Researching" : "Research Idle"}
 				</span>
 				<span
 					style={{
@@ -1312,7 +1480,7 @@ function InnerResearchImmersiveViewWithInsets({
 						color: BASE.t1,
 					}}
 				>
-					{ACTIVE_RESEARCH.nodeName}
+					{activeTreeNode?.name ?? "No active project"}
 				</span>
 				<div
 					style={{
@@ -1325,7 +1493,7 @@ function InnerResearchImmersiveViewWithInsets({
 				>
 					<div
 						style={{
-							width: `${ACTIVE_RESEARCH.pct}%`,
+							width: `${activeProgress}%`,
 							height: "100%",
 							borderRadius: 2,
 							background: `linear-gradient(90deg, ${BASE.researching}66, ${BASE.researching})`,
@@ -1333,7 +1501,7 @@ function InnerResearchImmersiveViewWithInsets({
 					/>
 				</div>
 				<span style={{ fontFamily: "var(--nv-font-mono)", fontSize: 9, color: BASE.t3 }}>
-					{ACTIVE_RESEARCH.remaining}
+					{activeResearch ? formatDuration(activeRemainingSeconds) : "Ready"}
 				</span>
 			</div>
 
@@ -1360,7 +1528,7 @@ function InnerResearchImmersiveViewWithInsets({
 						letterSpacing: "0.06em",
 					}}
 				>
-					Aegis Prime — Directorate Lv 2
+					Directorate Lv {researchState?.localResearchFacilityLevel ?? 0}
 				</span>
 				<span
 					style={{
