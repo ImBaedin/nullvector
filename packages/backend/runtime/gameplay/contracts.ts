@@ -559,6 +559,18 @@ function advanceSlotSequences(slotSequences: number[], slot: number) {
 	return nextSequences;
 }
 
+function advanceSlotSequencesPastOffer(args: {
+	acceptedOfferSequence?: number;
+	slot: number;
+	slotSequences: number[];
+}) {
+	const nextSequences = advanceSlotSequences(args.slotSequences, args.slot);
+	if (args.acceptedOfferSequence !== undefined) {
+		nextSequences[args.slot] = Math.max(nextSequences[args.slot]!, args.acceptedOfferSequence + 1);
+	}
+	return nextSequences;
+}
+
 async function getOrCreateBoardState(args: {
 	ctx: MutationCtx;
 	colony: Doc<"colonies">;
@@ -1301,6 +1313,7 @@ async function deriveRecommendedContractsByOrdinal(args: {
 }
 
 export async function advanceContractBoardSlot(args: {
+	acceptedOfferSequence?: number;
 	ctx: MutationCtx;
 	colonyId: Id<"colonies">;
 	now: number;
@@ -1319,7 +1332,11 @@ export async function advanceContractBoardSlot(args: {
 		planetId: args.planetId,
 		playerId: args.playerId,
 	});
-	const slotSequences = advanceSlotSequences(boardState.slotSequences, args.slot);
+	const slotSequences = advanceSlotSequencesPastOffer({
+		acceptedOfferSequence: args.acceptedOfferSequence,
+		slot: args.slot,
+		slotSequences: boardState.slotSequences,
+	});
 	await args.ctx.db.patch(boardState._id, {
 		slotSequences,
 		version: boardState.version + 1,
@@ -1553,13 +1570,15 @@ export const launchContract = mutation({
 			ctx,
 			playerId: player._id,
 		});
+		const lookaheadLimit =
+			progression.rank === 3 ? CONTRACT_LOOKAHEAD_SEQUENCES + 23 : CONTRACT_LOOKAHEAD_SEQUENCES;
 		let offer =
-			currentSequence === args.offerSequence
+			args.offerSequence >= currentSequence && args.offerSequence < currentSequence + lookaheadLimit
 				? deriveOffer({
 						colonyId: colony._id,
 						controlMax: hostility.controlMax,
 						difficultyTier: progression.contractRules.difficultyTier,
-						offerSequence: currentSequence,
+						offerSequence: args.offerSequence,
 						planetId: args.planetId,
 						planetSeed: candidate.planetSeed,
 						playerResearchLevels,
@@ -1568,10 +1587,9 @@ export const launchContract = mutation({
 					})
 				: null;
 		if (
-			offer === null &&
 			progression.rank === 3 &&
 			args.offerSequence >= currentSequence &&
-			args.offerSequence < currentSequence + 24
+			args.offerSequence < currentSequence + lookaheadLimit
 		) {
 			const tutorialOffer = deriveTutorialSafeOffer({
 				baseOfferSequence: currentSequence,

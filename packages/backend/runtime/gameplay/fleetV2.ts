@@ -1135,6 +1135,7 @@ async function settleContractAtTarget(args: {
 
 	const originColonyId = contract.originColonyId ?? args.operation.originColonyId;
 	await advanceContractBoardSlot({
+		acceptedOfferSequence: contract.offerSequence,
 		ctx: args.ctx,
 		colonyId: originColonyId,
 		now: args.now,
@@ -2894,6 +2895,7 @@ export const cancelOperation = mutation({
 				updatedAt: now,
 			});
 			await advanceContractBoardSlot({
+				acceptedOfferSequence: linkedContract.offerSequence,
 				ctx,
 				colonyId: linkedContract.originColonyId ?? operation.originColonyId,
 				now,
