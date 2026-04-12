@@ -13,6 +13,7 @@ import {
 import { Clock3, Crosshair, Lock, Shield, Ship, Sparkles, Swords } from "lucide-react";
 
 import { formatColonyDuration } from "@/features/colony-ui/time";
+import { META_MATTER_ICON_SRC, META_MATTER_LABELS } from "@/features/game-ui/meta-matter-assets";
 
 import {
 	buildContractForecast,
@@ -204,9 +205,7 @@ function RecommendedContractCard(props: {
 					{contract.rewardXpSuccess} XP
 				</span>
 				{metaMatterTotal > 0 ? (
-					<span className="font-(family-name:--nv-font-mono) text-fuchsia-200/70">
-						{formatMetaMatterBundle(contract.rewardMetaMatter)} Meta
-					</span>
+					<MetaMatterBundle bundle={contract.rewardMetaMatter} compact />
 				) : null}
 				<span className="font-(family-name:--nv-font-mono) text-white/30">
 					{contract.distance.toFixed(1)} AU
@@ -719,7 +718,7 @@ function RewardsSection(props: { contract: ContractView }): ReactNode {
 					<RewardCard
 						accent="violet"
 						label="Meta-Matter"
-						value={formatMetaMatterBundle(props.contract.rewardMetaMatter)}
+						value={<MetaMatterBundle bundle={props.contract.rewardMetaMatter} />}
 					/>
 				) : null}
 				{props.contract.rewardResources.alloy > 0 ? (
@@ -759,18 +758,48 @@ function getMetaMatterTotal(bundle: { common: number; rare: number; mythic: numb
 	return Math.max(0, bundle.common) + Math.max(0, bundle.rare) + Math.max(0, bundle.mythic);
 }
 
-function formatMetaMatterBundle(bundle: { common: number; rare: number; mythic: number }) {
-	const parts = [
-		bundle.common > 0 ? `${bundle.common.toLocaleString()}C` : null,
-		bundle.rare > 0 ? `${bundle.rare.toLocaleString()}R` : null,
-		bundle.mythic > 0 ? `${bundle.mythic.toLocaleString()}M` : null,
-	].filter((part): part is string => part !== null);
-	return parts.length > 0 ? parts.join(" / ") : "None";
+function MetaMatterBundle(props: {
+	bundle: { common: number; rare: number; mythic: number };
+	compact?: boolean;
+}): ReactNode {
+	const entries = (
+		[
+			{ amount: props.bundle.common, rarity: "common" },
+			{ amount: props.bundle.rare, rarity: "rare" },
+			{ amount: props.bundle.mythic, rarity: "mythic" },
+		] as const
+	).filter((entry) => entry.amount > 0);
+
+	if (entries.length === 0) {
+		return <span className="text-white/30">None</span>;
+	}
+
+	return (
+		<span className="inline-flex flex-wrap items-center gap-1.5 align-middle">
+			{entries.map((entry) => (
+				<span key={entry.rarity} className={`
+      inline-flex items-center gap-1 font-(family-name:--nv-font-mono)
+      ${props.compact ? "text-[9px] text-fuchsia-200/70" : "text-xs font-bold"}
+    `}>
+					<img
+						alt={`${META_MATTER_LABELS[entry.rarity]} meta-matter`}
+						className={props.compact ? "size-3.5 object-contain" : `
+        size-4 object-contain
+      `}
+						src={META_MATTER_ICON_SRC[entry.rarity]}
+					/>
+					{props.compact
+						? `${entry.amount.toLocaleString()}${entry.rarity[0].toUpperCase()}`
+						: entry.amount.toLocaleString()}
+				</span>
+			))}
+		</span>
+	);
 }
 
 function RewardCard(props: {
 	label: string;
-	value: string;
+	value: ReactNode;
 	accent: string;
 	iconSrc?: string;
 }): ReactNode {

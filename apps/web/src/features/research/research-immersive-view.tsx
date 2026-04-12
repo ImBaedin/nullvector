@@ -19,6 +19,7 @@ import {
 } from "@xyflow/react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { META_MATTER_ICON_SRC } from "@/features/game-ui/meta-matter-assets";
 import {
 	edgesForNodes,
 	type RadialEdge,
@@ -1497,13 +1498,14 @@ function Popover({
 
 									return (
 										<div key={rarity} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-											<div
+											<img
+												alt={`${rarity} meta-matter`}
+												src={META_MATTER_ICON_SRC[rarity]}
 												style={{
-													width: 6,
-													height: 6,
-													borderRadius: rarity === "mythic" ? 1.5 : "50%",
-													background: META_MATTER_COLORS[rarity],
-													transform: rarity === "mythic" ? "rotate(45deg)" : undefined,
+													width: 16,
+													height: 16,
+													objectFit: "contain",
+													filter: `drop-shadow(0 0 5px ${META_MATTER_COLORS[rarity]}44)`,
 												}}
 											/>
 											<span style={{ fontSize: 11, color: META_MATTER_COLORS[rarity] }}>
@@ -2416,14 +2418,14 @@ function InnerResearchImmersiveViewWithInsets({
 			>
 				{(["common", "rare", "mythic"] as const).map((rarity) => (
 					<div key={rarity} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-						<div
+						<img
+							alt={`${rarity} meta-matter`}
+							src={META_MATTER_ICON_SRC[rarity]}
 							style={{
-								width: 6,
-								height: 6,
-								borderRadius: rarity === "mythic" ? 1.5 : "50%",
-								background: META_MATTER_COLORS[rarity],
-								boxShadow: `0 0 5px ${META_MATTER_COLORS[rarity]}55`,
-								transform: rarity === "mythic" ? "rotate(45deg)" : undefined,
+								width: 18,
+								height: 18,
+								objectFit: "contain",
+								filter: `drop-shadow(0 0 5px ${META_MATTER_COLORS[rarity]}55)`,
 							}}
 						/>
 						<span

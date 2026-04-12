@@ -9,6 +9,7 @@ import type {
 
 import { RESOURCE_SCALE } from "@nullvector/backend/convex/schema";
 
+import { META_MATTER_ICON_SRC } from "@/features/game-ui/meta-matter-assets";
 import { NvBadge } from "@/features/game-ui/primitives";
 import { cn } from "@/lib/utils";
 
@@ -151,11 +152,13 @@ function MetaMatterInlineList({
 }: {
 	bundle: { common: number; rare: number; mythic: number };
 }) {
-	const entries = [
-		{ amount: bundle.common, label: "Common", tone: "text-slate-200" },
-		{ amount: bundle.rare, label: "Rare", tone: "text-cyan-200" },
-		{ amount: bundle.mythic, label: "Mythic", tone: "text-fuchsia-200" },
-	].filter((entry) => entry.amount > 0);
+	const entries = (
+		[
+			{ amount: bundle.common, label: "Common", rarity: "common", tone: "text-slate-200" },
+			{ amount: bundle.rare, label: "Rare", rarity: "rare", tone: "text-cyan-200" },
+			{ amount: bundle.mythic, label: "Mythic", rarity: "mythic", tone: "text-fuchsia-200" },
+		] as const
+	).filter((entry) => entry.amount > 0);
 
 	if (entries.length === 0) {
 		return <span className="text-(--nv-text-muted)">None</span>;
@@ -171,6 +174,11 @@ function MetaMatterInlineList({
        bg-black/20 px-2 py-0.5
      "
 				>
+					<img
+						alt={`${entry.label} meta-matter`}
+						className="size-4 object-contain"
+						src={META_MATTER_ICON_SRC[entry.rarity]}
+					/>
 					<span className={cn("font-(family-name:--nv-font-mono) text-[11px]", entry.tone)}>
 						{entry.amount.toLocaleString()}
 					</span>
