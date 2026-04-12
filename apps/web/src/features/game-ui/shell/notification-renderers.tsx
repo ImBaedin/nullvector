@@ -146,6 +146,50 @@ function ResourceInlineList({
 	);
 }
 
+function MetaMatterInlineList({
+	bundle,
+}: {
+	bundle: { common: number; rare: number; mythic: number };
+}) {
+	const entries = [
+		{ amount: bundle.common, label: "Common", tone: "text-slate-200" },
+		{ amount: bundle.rare, label: "Rare", tone: "text-cyan-200" },
+		{ amount: bundle.mythic, label: "Mythic", tone: "text-fuchsia-200" },
+	].filter((entry) => entry.amount > 0);
+
+	if (entries.length === 0) {
+		return <span className="text-(--nv-text-muted)">None</span>;
+	}
+
+	return (
+		<span className="inline-flex flex-wrap items-center gap-1.5 align-middle">
+			{entries.map((entry) => (
+				<span
+					key={entry.label}
+					className="
+       inline-flex items-center gap-1 rounded-full border border-white/10
+       bg-black/20 px-2 py-0.5
+     "
+				>
+					<span className={cn("font-(family-name:--nv-font-mono) text-[11px]", entry.tone)}>
+						{entry.amount.toLocaleString()}
+					</span>
+					<span className="text-[10px] text-(--nv-text-muted)">{entry.label}</span>
+				</span>
+			))}
+		</span>
+	);
+}
+
+function formatMetaMatterSummary(bundle: { common: number; rare: number; mythic: number }) {
+	const parts = [
+		bundle.common > 0 ? `${bundle.common.toLocaleString()} common` : null,
+		bundle.rare > 0 ? `${bundle.rare.toLocaleString()} rare` : null,
+		bundle.mythic > 0 ? `${bundle.mythic.toLocaleString()} mythic` : null,
+	].filter((part): part is string => part !== null);
+	return parts.length > 0 ? parts.join(", ") : "no";
+}
+
 function NotificationTitle({
 	children,
 	status,
@@ -335,6 +379,11 @@ function ContractResolvedNotification({
 		NotificationPayload,
 		{ kind: "contractResolved" }
 	>;
+	const rewardMetaMatterGranted = payload.rewardMetaMatterGranted ?? {
+		common: 0,
+		rare: 0,
+		mythic: 0,
+	};
 
 	if (variant === "row") {
 		return (
@@ -342,7 +391,7 @@ function ContractResolvedNotification({
 				notification={notification}
 				summary={
 					payload.success
-						? `Granted ${payload.rewardCreditsGranted.toLocaleString()} credits and ${payload.rewardXpGranted.toLocaleString()} XP.`
+						? `Granted ${payload.rewardCreditsGranted.toLocaleString()} credits, ${formatMetaMatterSummary(rewardMetaMatterGranted)} meta-matter, and ${payload.rewardXpGranted.toLocaleString()} XP.`
 						: `Granted ${payload.rewardXpGranted.toLocaleString()} XP after failure.`
 				}
 				title={titleWithColony({
@@ -359,6 +408,10 @@ function ContractResolvedNotification({
 			<NotificationStat label="Outcome" value={payload.success ? "Success" : "Failed"} />
 			<NotificationStat label="Rounds fought" value={payload.roundsFought} />
 			<NotificationStat label="Credits" value={payload.rewardCreditsGranted.toLocaleString()} />
+			<NotificationStat
+				label="Meta-matter"
+				value={<MetaMatterInlineList bundle={rewardMetaMatterGranted} />}
+			/>
 			<NotificationStat label="XP" value={payload.rewardXpGranted.toLocaleString()} />
 			<NotificationStat
 				label="Cargo loaded"

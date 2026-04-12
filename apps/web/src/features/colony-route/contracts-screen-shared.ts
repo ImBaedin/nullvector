@@ -35,6 +35,7 @@ export type ContractView = {
 	rewardXpSuccess: number;
 	rewardXpFailure: number;
 	rewardResources: { alloy: number; crystal: number; fuel: number };
+	rewardMetaMatter: { common: number; rare: number; mythic: number };
 	controlReduction: number;
 	recommendedTaskForce: number;
 	threatBand: ContractThreatBand;

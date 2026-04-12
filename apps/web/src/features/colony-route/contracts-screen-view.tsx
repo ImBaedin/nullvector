@@ -10,7 +10,7 @@ import {
 	type CombatMissionTypeKey,
 	type ShipKey,
 } from "@nullvector/game-logic";
-import { Clock3, Crosshair, Layers3, Lock, Shield, Ship, Sparkles, Swords } from "lucide-react";
+import { Clock3, Crosshair, Lock, Shield, Ship, Sparkles, Swords } from "lucide-react";
 
 import { formatColonyDuration } from "@/features/colony-ui/time";
 
@@ -134,6 +134,7 @@ function RecommendedContractCard(props: {
 		? Math.max(0, Math.ceil((contract.expiresAt - props.nowMs) / 1_000))
 		: 0;
 	const dominantReward = contract.rewardResources[contract.primaryRewardResource];
+	const metaMatterTotal = getMetaMatterTotal(contract.rewardMetaMatter);
 	const threatClassMap = {
 		routine: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
 		standard: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100",
@@ -202,6 +203,11 @@ function RecommendedContractCard(props: {
 				<span className="font-(family-name:--nv-font-mono) text-cyan-200/60">
 					{contract.rewardXpSuccess} XP
 				</span>
+				{metaMatterTotal > 0 ? (
+					<span className="font-(family-name:--nv-font-mono) text-fuchsia-200/70">
+						{formatMetaMatterBundle(contract.rewardMetaMatter)} Meta
+					</span>
+				) : null}
 				<span className="font-(family-name:--nv-font-mono) text-white/30">
 					{contract.distance.toFixed(1)} AU
 				</span>
@@ -682,6 +688,7 @@ function ContractForecastSection(props: { forecast: ContractForecast | null }): 
 }
 
 function RewardsSection(props: { contract: ContractView }): ReactNode {
+	const metaMatterTotal = getMetaMatterTotal(props.contract.rewardMetaMatter);
 	return (
 		<div>
 			<SectionLabel>Rewards</SectionLabel>
@@ -708,6 +715,13 @@ function RewardsSection(props: { contract: ContractView }): ReactNode {
 					value={props.contract.rewardCredits.toLocaleString()}
 				/>
 				<RewardCard accent="cyan" label="XP" value={`${props.contract.rewardXpSuccess}`} />
+				{metaMatterTotal > 0 ? (
+					<RewardCard
+						accent="violet"
+						label="Meta-Matter"
+						value={formatMetaMatterBundle(props.contract.rewardMetaMatter)}
+					/>
+				) : null}
 				{props.contract.rewardResources.alloy > 0 ? (
 					<RewardCard
 						accent="neutral"
@@ -741,6 +755,19 @@ function RewardsSection(props: { contract: ContractView }): ReactNode {
 	);
 }
 
+function getMetaMatterTotal(bundle: { common: number; rare: number; mythic: number }) {
+	return Math.max(0, bundle.common) + Math.max(0, bundle.rare) + Math.max(0, bundle.mythic);
+}
+
+function formatMetaMatterBundle(bundle: { common: number; rare: number; mythic: number }) {
+	const parts = [
+		bundle.common > 0 ? `${bundle.common.toLocaleString()}C` : null,
+		bundle.rare > 0 ? `${bundle.rare.toLocaleString()}R` : null,
+		bundle.mythic > 0 ? `${bundle.mythic.toLocaleString()}M` : null,
+	].filter((part): part is string => part !== null);
+	return parts.length > 0 ? parts.join(" / ") : "None";
+}
+
 function RewardCard(props: {
 	label: string;
 	value: string;
@@ -751,6 +778,7 @@ function RewardCard(props: {
 		amber: "bg-amber-400/6 text-amber-200",
 		cyan: "bg-cyan-400/6 text-cyan-200",
 		rose: "bg-rose-400/6 text-rose-200",
+		violet: "bg-fuchsia-400/8 text-fuchsia-100",
 		neutral: "bg-white/4 text-white/80",
 	};
 
@@ -815,7 +843,11 @@ export function ContractHistory(props: { contracts: ContractView[] }): ReactNode
          ${isSuccess ? "text-emerald-200/60" : `text-rose-200/60`}
        `}>{isSuccess ? "Success" : "Failed"}</span>
 							{contract.resolvedAt ? (
-								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/20">
+								<span
+									className="
+          font-(family-name:--nv-font-mono) text-[9px] text-white/20
+        "
+								>
 									{new Date(contract.resolvedAt).toLocaleDateString()}
 								</span>
 							) : null}

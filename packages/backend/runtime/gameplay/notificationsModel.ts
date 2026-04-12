@@ -101,6 +101,7 @@ export type ContractResolvedNotification = {
 	success: boolean;
 	roundsFought: number;
 	rewardCreditsGranted: number;
+	rewardMetaMatterGranted?: { common: number; rare: number; mythic: number };
 	rewardXpGranted: number;
 	rewardCargoLoaded: ResourceBucket;
 	rewardCargoLostByCapacity: ResourceBucket;
@@ -272,6 +273,13 @@ export const notificationPayloadValidator = v.union(
 		success: v.boolean(),
 		roundsFought: v.number(),
 		rewardCreditsGranted: v.number(),
+		rewardMetaMatterGranted: v.optional(
+			v.object({
+				common: v.number(),
+				rare: v.number(),
+				mythic: v.number(),
+			}),
+		),
 		rewardXpGranted: v.number(),
 		rewardCargoLoaded: resourceBucketValidator,
 		rewardCargoLostByCapacity: resourceBucketValidator,

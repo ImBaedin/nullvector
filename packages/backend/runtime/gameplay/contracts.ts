@@ -15,6 +15,7 @@ import {
 	type ContractSnapshot,
 	type ContractThreatBand,
 	type PrimaryRewardResource,
+	type ResearchLevelMap,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
@@ -88,6 +89,11 @@ const contractViewValidator = v.object({
 		crystal: v.number(),
 		fuel: v.number(),
 	}),
+	rewardMetaMatter: v.object({
+		common: v.number(),
+		rare: v.number(),
+		mythic: v.number(),
+	}),
 	controlReduction: v.number(),
 	recommendedTaskForce: v.number(),
 	threatBand: v.union(
@@ -131,6 +137,7 @@ const recommendedContractViewValidator = v.object({
 	rewardXpSuccess: contractViewValidator.fields.rewardXpSuccess,
 	rewardXpFailure: contractViewValidator.fields.rewardXpFailure,
 	rewardResources: contractViewValidator.fields.rewardResources,
+	rewardMetaMatter: contractViewValidator.fields.rewardMetaMatter,
 	controlReduction: contractViewValidator.fields.controlReduction,
 	recommendedTaskForce: contractViewValidator.fields.recommendedTaskForce,
 	threatBand: contractViewValidator.fields.threatBand,
@@ -468,6 +475,7 @@ function snapshotToView(args: {
 			enemyDefenses: Partial<ContractSnapshot["enemyDefenses"]>;
 			enemyFleet: Partial<ContractSnapshot["enemyFleet"]>;
 			rewardCredits: number;
+			rewardMetaMatter: ContractSnapshot["rewardMetaMatter"];
 			rewardXpFailure: number;
 			rewardXpSuccess: number;
 			rewardResources: ContractSnapshot["rewardResources"];
@@ -507,6 +515,7 @@ function snapshotToView(args: {
 		resolvedAt: args.contract.resolvedAt,
 		offerSequence: args.contract.offerSequence,
 		rewardCredits: snapshot.rewardCredits,
+		rewardMetaMatter: snapshot.rewardMetaMatter,
 		rewardXpSuccess: snapshot.rewardXpSuccess,
 		rewardXpFailure: snapshot.rewardXpFailure,
 		rewardResources: snapshot.rewardResources,
@@ -591,16 +600,26 @@ function deriveOffer(args: {
 	offerSequence: number;
 	planetId: Id<"planets">;
 	planetSeed: string;
+	playerResearchLevels: Partial<ResearchLevelMap>;
 	playerRank: number;
 	slot: number;
 }) {
-	const snapshot = generateContractSnapshot({
+	const baseSnapshot = generateContractSnapshot({
 		difficultyTier: args.difficultyTier,
 		planetControlMax: args.controlMax,
 		playerRank: args.playerRank,
 		seed: `${args.planetSeed}:${args.colonyId}:${args.slot}:${args.offerSequence}`,
 		slot: args.slot,
 	});
+	const rewardMetaMatter = buildAcceptedContractMetaMatterReward({
+		difficultyTier: baseSnapshot.difficultyTier,
+		playerResearchLevels: args.playerResearchLevels,
+		seed: `${args.planetSeed}:${args.colonyId}:${args.slot}:${args.offerSequence}:metaMatter`,
+	});
+	const snapshot = {
+		...baseSnapshot,
+		rewardMetaMatter,
+	} satisfies ContractSnapshot;
 	return {
 		id: `derived:${args.planetId}:${args.slot}:${args.offerSequence}`,
 		planetId: args.planetId,
@@ -611,6 +630,7 @@ function deriveOffer(args: {
 		difficultyTier: snapshot.difficultyTier,
 		offerSequence: args.offerSequence,
 		rewardCredits: snapshot.rewardCredits,
+		rewardMetaMatter: snapshot.rewardMetaMatter,
 		rewardXpSuccess: snapshot.rewardXpSuccess,
 		rewardXpFailure: snapshot.rewardXpFailure,
 		rewardResources: snapshot.rewardResources,
@@ -652,6 +672,7 @@ function deriveTutorialSafeOffer(args: {
 	candidate: ComputedCandidate;
 	colonyId: Id<"colonies">;
 	difficultyTier: number;
+	playerResearchLevels: Partial<ResearchLevelMap>;
 	playerRank: number;
 	slot: number;
 }) {
@@ -663,6 +684,7 @@ function deriveTutorialSafeOffer(args: {
 			offerSequence: args.baseOfferSequence + offset,
 			planetId: args.candidate.planetId,
 			planetSeed: args.candidate.planetSeed,
+			playerResearchLevels: args.playerResearchLevels,
 			playerRank: args.playerRank,
 			slot: args.slot,
 		});
@@ -1075,24 +1097,29 @@ async function deriveRecommendedContractsByOrdinal(args: {
 	if (!player) {
 		throw new ConvexError("Player not found");
 	}
-	const [progression, discoveryState, inProgressRows, taskForceCap] = await Promise.all([
-		buildProgressionOverview({ ctx: args.ctx, player }),
-		args.ctx.db
-			.query("colonyContractDiscoveryState")
-			.withIndex("by_colony", (q) => q.eq("colonyId", args.colony._id))
-			.unique(),
-		args.ctx.db
-			.query("contracts")
-			.withIndex("by_player_status", (q) =>
-				q.eq("playerId", args.playerId).eq("status", "inProgress"),
-			)
-			.collect(),
-		getColonyTaskForceCap({
-			ctx: args.ctx,
-			colony: args.colony,
-			player,
-		}),
-	]);
+	const [progression, discoveryState, inProgressRows, taskForceCap, playerResearchLevels] =
+		await Promise.all([
+			buildProgressionOverview({ ctx: args.ctx, player }),
+			args.ctx.db
+				.query("colonyContractDiscoveryState")
+				.withIndex("by_colony", (q) => q.eq("colonyId", args.colony._id))
+				.unique(),
+			args.ctx.db
+				.query("contracts")
+				.withIndex("by_player_status", (q) =>
+					q.eq("playerId", args.playerId).eq("status", "inProgress"),
+				)
+				.collect(),
+			getColonyTaskForceCap({
+				ctx: args.ctx,
+				colony: args.colony,
+				player,
+			}),
+			loadPlayerResearchLevels({
+				ctx: args.ctx,
+				playerId: args.playerId,
+			}),
+		]);
 	if (!discoveryState || discoveryState.hostileCount <= 0) {
 		return [] as (typeof recommendedContractViewValidator.type)[];
 	}
@@ -1184,6 +1211,7 @@ async function deriveRecommendedContractsByOrdinal(args: {
 								candidate,
 								colonyId: args.colony._id,
 								difficultyTier,
+								playerResearchLevels,
 								playerRank: progression.rank,
 								slot,
 							}) ??
@@ -1194,6 +1222,7 @@ async function deriveRecommendedContractsByOrdinal(args: {
 								offerSequence,
 								planetId: candidate.planetId,
 								planetSeed: candidate.planetSeed,
+								playerResearchLevels,
 								playerRank: progression.rank,
 								slot,
 							}))
@@ -1204,6 +1233,7 @@ async function deriveRecommendedContractsByOrdinal(args: {
 								offerSequence,
 								planetId: candidate.planetId,
 								planetSeed: candidate.planetSeed,
+								playerResearchLevels,
 								playerRank: progression.rank,
 								slot,
 							});
@@ -1519,6 +1549,10 @@ export const launchContract = mutation({
 			playerId: player._id,
 		});
 		const currentSequence = sequenceForSlot(boardState.slotSequences, args.slot);
+		const playerResearchLevels = await loadPlayerResearchLevels({
+			ctx,
+			playerId: player._id,
+		});
 		let offer =
 			currentSequence === args.offerSequence
 				? deriveOffer({
@@ -1528,6 +1562,7 @@ export const launchContract = mutation({
 						offerSequence: currentSequence,
 						planetId: args.planetId,
 						planetSeed: candidate.planetSeed,
+						playerResearchLevels,
 						playerRank: progression.rank,
 						slot: args.slot,
 					})
@@ -1549,6 +1584,7 @@ export const launchContract = mutation({
 				},
 				colonyId: colony._id,
 				difficultyTier: progression.contractRules.difficultyTier,
+				playerResearchLevels,
 				playerRank: progression.rank,
 				slot: args.slot,
 			});
@@ -1586,10 +1622,6 @@ export const launchContract = mutation({
 		}
 
 		const now = Date.now();
-		const playerResearchLevels = await loadPlayerResearchLevels({
-			ctx,
-			playerId: player._id,
-		});
 		await settleShipyardQueue({ colony, ctx, now });
 		await settleDefenseQueue({ colony, ctx, now });
 		await decrementShipsOrThrow({
@@ -1658,12 +1690,6 @@ export const launchContract = mutation({
 			updatedAt: now,
 		});
 
-		const rewardMetaMatter = buildAcceptedContractMetaMatterReward({
-			difficultyTier: offer.snapshot.difficultyTier,
-			playerResearchLevels,
-			seed: `${player._id}:${args.planetId}:${args.slot}:${args.offerSequence}:${now}`,
-		});
-
 		const contractId = await ctx.db.insert("contracts", {
 			universeId: colony.universeId,
 			playerId: player._id,
@@ -1681,10 +1707,7 @@ export const launchContract = mutation({
 			offerSequence: offer.offerSequence,
 			originColonyId: latestOrigin._id,
 			operationId: undefined,
-			snapshot: {
-				...offer.snapshot,
-				rewardMetaMatter,
-			},
+			snapshot: offer.snapshot,
 			createdAt: now,
 			updatedAt: now,
 		});

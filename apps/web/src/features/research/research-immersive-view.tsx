@@ -59,6 +59,158 @@ const DEFAULT_DITHER: [number, number, number] = [0.2, 0.24, 0.32];
 const HUB_DEAD_ZONE = 112;
 const HOVER_RADIUS = POLAR_RESEARCH_LAYOUT.maxRadius + 260;
 const WORLD_RADIUS = POLAR_RESEARCH_LAYOUT.maxRadius + 440;
+const GATE_HALF_WIDTH = 18;
+const GATE_DETECT_RADIUS = 24;
+const GATE_TIERS = [2, 3, 4] as const;
+const GATE_RADII: Record<2 | 3 | 4, number> = {
+	2: ((POLAR_RESEARCH_LAYOUT.rings[0] ?? 380) + (POLAR_RESEARCH_LAYOUT.rings[1] ?? 620)) / 2,
+	3: ((POLAR_RESEARCH_LAYOUT.rings[1] ?? 620) + (POLAR_RESEARCH_LAYOUT.rings[2] ?? 890)) / 2,
+	4: ((POLAR_RESEARCH_LAYOUT.rings[2] ?? 890) + (POLAR_RESEARCH_LAYOUT.rings[3] ?? 1160)) / 2,
+};
+
+const SECRET_SEAL_SIZE = 68;
+
+type TierSecret = { title: string; body: string; effect: string };
+const TIER_COMPLETION_SECRETS: Partial<
+	Record<ResearchBranchKey, Partial<Record<1 | 2 | 3 | 4, TierSecret>>>
+> = {
+	appliedIndustry: {
+		1: {
+			title: "Cadence Protocol",
+			body: "Industrial systems are now synchronised at a sub-cycle level invisible to standard monitoring. Base production ceilings have been silently raised.",
+			effect: "+6% production output, account-wide",
+		},
+		2: {
+			title: "Overclock Lattice",
+			body: "A hidden assembly optimization layer has been unlocked. Your facilities can now exceed rated capacity during surge windows without triggering overload alerts.",
+			effect: "Enables facility surge mode",
+		},
+		3: {
+			title: "Substrate Memory",
+			body: "Material reclamation algorithms are now active. A fraction of all construction waste is automatically reprocessed into raw stock.",
+			effect: "Passive resource recovery on construction",
+		},
+		4: {
+			title: "Industrial Singularity",
+			body: "All applied industry systems are operating in unified resonance. The efficiency ceiling no longer applies to your network.",
+			effect: "Removes industrial output cap",
+		},
+	},
+	militarySystems: {
+		1: {
+			title: "Ghost Protocol",
+			body: "Fleet targeting systems have been recalibrated using non-standard emission profiles. Ships operating in contested space now present reduced detection signatures.",
+			effect: "−15% fleet detection radius",
+		},
+		2: {
+			title: "Iron Veil Doctrine",
+			body: "A classified tactical coordination framework has been activated. Defense installations now emit suppression fields that compound with adjacent structures.",
+			effect: "Defense suppression field stacking",
+		},
+		3: {
+			title: "Wrath Cascade",
+			body: "Fire control systems are now synchronised across all platforms. Targeting data persists between engagements and sharpens over time.",
+			effect: "Cumulative targeting accuracy bonus",
+		},
+		4: {
+			title: "Theater Dominance",
+			body: "Full-spectrum military coordination has been achieved. A hidden force projection coefficient is now applied to all fleet operations.",
+			effect: "Fleet force projection +20%",
+		},
+	},
+	scientificInfrastructure: {
+		1: {
+			title: "Resonant Archive",
+			body: "Research data compression has exceeded projected bounds. A latent meta-matter signature has been detected in processed archives — origin unknown.",
+			effect: "+8% meta-matter research yield",
+		},
+		2: {
+			title: "Cascade Theorem",
+			body: "Cross-disciplinary synthesis has been detected. Breakthroughs in one research domain now generate fractional advances in adjacent fields autonomously.",
+			effect: "Research cross-pollination active",
+		},
+		3: {
+			title: "Eigenstate Lock",
+			body: "The research directorate is operating at theoretical maximum throughput. This configuration should not be stable. It is.",
+			effect: "Research queue parallelism unlocked",
+		},
+		4: {
+			title: "Cognitive Lattice",
+			body: "All scientific infrastructure is now operating as a unified cognitive network. The boundary between directed research and emergent discovery has dissolved.",
+			effect: "Emergent discovery system active",
+		},
+	},
+	expansionLogistics: {
+		1: {
+			title: "Wayfinder Cache",
+			body: "Logistics pathfinding algorithms have been updated with pre-calculated route matrices. Transport vessels now autonomously optimise multi-stop runs.",
+			effect: "Transport route auto-optimisation",
+		},
+		2: {
+			title: "Colonial Drift",
+			body: "Expansion modeling indicates your next colony site selection is non-random. A location signature matching your operational patterns has been flagged in the system.",
+			effect: "Colony site prediction active",
+		},
+		3: {
+			title: "Arterial Web",
+			body: "Your logistics network has reached critical density. Self-organising route optimisation is now compressing delivery windows below the theoretical minimum.",
+			effect: "Sub-minimum transport windows",
+		},
+		4: {
+			title: "Manifest Momentum",
+			body: "Expansion and supply chains are operating in full resonance. A hidden velocity multiplier is now applied to all colonial growth curves.",
+			effect: "+18% colonial growth rate",
+		},
+	},
+	colonySpecialization: {
+		1: {
+			title: "Identity Seed",
+			body: "Colony differentiation patterns have been detected. Each colony is now developing subtle specialization traits based on its operational history — no two colonies evolve identically.",
+			effect: "Colony identity system active",
+		},
+		2: {
+			title: "Adaptive Substrate",
+			body: "Colony environments are self-modifying in response to sustained operations. Long-established colonies gain passive efficiency improvements that compound over time.",
+			effect: "Colony age-efficiency scaling",
+		},
+		3: {
+			title: "Cultural Resonance",
+			body: "Colonial identity signals are now strong enough to influence surrounding space. Nearby neutral factions have begun adjusting trade terms in response.",
+			effect: "Improved faction trade terms",
+		},
+		4: {
+			title: "Sovereign Emergence",
+			body: "All colonies are operating as a unified sovereign network. The distinction between colony and home system has become a matter of administrative convention.",
+			effect: "Colony sovereignty bonus active",
+		},
+	},
+};
+
+type TierGateInfo = {
+	tier: 1 | 2 | 3 | 4;
+	unlocked: boolean;
+	completed: boolean;
+	requirements: Array<{ key: string; label: string; met: boolean }>;
+};
+type TierGatesByBranch = Map<ResearchBranchKey, TierGateInfo[]>;
+type HoveredGate = {
+	branchKey: ResearchBranchKey;
+	tier: 2 | 3 | 4;
+	themeColor: string;
+	requirements: Array<{ key: string; label: string; met: boolean }>;
+	containerX: number;
+	containerY: number;
+};
+
+type SecretSealData = {
+	branchKey: ResearchBranchKey;
+	tier: 1 | 2 | 3 | 4;
+	themeColor: string;
+	size: number;
+	secretTitle: string;
+	secretBody: string;
+	secretEffect: string | null;
+};
 
 type AugNode = RadialNode & {
 	branchKey: ResearchBranchKey;
@@ -198,7 +350,15 @@ function WorldTransformOverlay({ children, zIndex }: { children: ReactNode; zInd
 	);
 }
 
-function WorldGrid({ hoveredBranch }: { hoveredBranch: ResearchBranchKey | null }) {
+function WorldGrid({
+	hoveredBranch,
+	tierGatesByBranch,
+	hoveredGate,
+}: {
+	hoveredBranch: ResearchBranchKey | null;
+	tierGatesByBranch: TierGatesByBranch | null;
+	hoveredGate: HoveredGate | null;
+}) {
 	const hoveredSector = hoveredBranch
 		? (POLAR_RESEARCH_LAYOUT.sectors.find((sector) => sector.branchKey === hoveredBranch) ?? null)
 		: null;
@@ -266,6 +426,162 @@ function WorldGrid({ hoveredBranch }: { hoveredBranch: ResearchBranchKey | null 
 					strokeWidth={1.5}
 					strokeDasharray="3 6"
 				/>
+
+				{/* Tier gate arc bands — locked / passed / completed */}
+				{tierGatesByBranch &&
+					RESEARCH_TABS.map((tab) => {
+						const gates = tierGatesByBranch.get(tab.key) ?? [];
+						const sector = POLAR_RESEARCH_LAYOUT.sectors.find((s) => s.branchKey === tab.key);
+						if (!sector) return null;
+
+						return GATE_TIERS.map((tierNum) => {
+							const gate = gates.find((g) => g.tier === tierNum);
+							if (!gate) return null;
+
+							const gateRadius = GATE_RADII[tierNum];
+							const isHovered = hoveredGate?.branchKey === tab.key && hoveredGate?.tier === tierNum;
+							const isCompleted = gate.completed;
+							const isLocked = !gate.unlocked;
+							// isPassed = unlocked but nodes not all maxed yet
+
+							const bandPath = describeSectorPath(
+								sector.startDeg,
+								sector.endDeg,
+								gateRadius + GATE_HALF_WIDTH,
+								gateRadius - GATE_HALF_WIDTH,
+							);
+
+							const midAngleRad = ((sector.startDeg + sector.endDeg) / 2) * (Math.PI / 180);
+							const badgeX = Math.cos(midAngleRad) * gateRadius;
+							const badgeY = Math.sin(midAngleRad) * gateRadius;
+
+							return (
+								<g key={`gate-${tab.key}-${tierNum}`}>
+									{/* ── COMPLETED STATE ── solid glowing arc + star seal */}
+									{isCompleted && (
+										<>
+											<path
+												d={bandPath}
+												fill={`${tab.themeColor}18`}
+												stroke={`${tab.themeColor}aa`}
+												strokeWidth={1.5}
+												style={{
+													filter: `drop-shadow(0 0 10px ${tab.themeColor}55)`,
+												}}
+											/>
+											{/* Star seal badge */}
+											<circle
+												cx={badgeX}
+												cy={badgeY}
+												r={12}
+												fill="rgba(4,8,16,0.94)"
+												stroke={`${tab.themeColor}cc`}
+												strokeWidth={1.5}
+												style={{
+													filter: `drop-shadow(0 0 6px ${tab.themeColor}88)`,
+												}}
+											/>
+											<line
+												x1={badgeX}
+												y1={badgeY - 7}
+												x2={badgeX}
+												y2={badgeY + 7}
+												stroke={tab.themeColor}
+												strokeWidth={1.5}
+												strokeLinecap="round"
+											/>
+											<line
+												x1={badgeX - 7}
+												y1={badgeY}
+												x2={badgeX + 7}
+												y2={badgeY}
+												stroke={tab.themeColor}
+												strokeWidth={1.5}
+												strokeLinecap="round"
+											/>
+											<line
+												x1={badgeX - 4.9}
+												y1={badgeY - 4.9}
+												x2={badgeX + 4.9}
+												y2={badgeY + 4.9}
+												stroke={`${tab.themeColor}99`}
+												strokeWidth={1}
+												strokeLinecap="round"
+											/>
+											<line
+												x1={badgeX + 4.9}
+												y1={badgeY - 4.9}
+												x2={badgeX - 4.9}
+												y2={badgeY + 4.9}
+												stroke={`${tab.themeColor}99`}
+												strokeWidth={1}
+												strokeLinecap="round"
+											/>
+											<circle cx={badgeX} cy={badgeY} r={2.2} fill={tab.themeColor} />
+										</>
+									)}
+
+									{/* ── LOCKED STATE ── dashed arc + padlock badge */}
+									{isLocked && (
+										<>
+											<path
+												d={bandPath}
+												fill={isHovered ? `${tab.themeColor}1a` : `${tab.themeColor}09`}
+												stroke={isHovered ? `${tab.themeColor}88` : `${tab.themeColor}32`}
+												strokeWidth={isHovered ? 1.5 : 1}
+												strokeDasharray="5 9"
+												style={{ transition: "fill 0.2s ease, stroke 0.2s ease" }}
+											/>
+											<circle
+												cx={badgeX}
+												cy={badgeY}
+												r={11}
+												fill="rgba(4,8,16,0.92)"
+												stroke={isHovered ? `${tab.themeColor}aa` : `${tab.themeColor}44`}
+												strokeWidth={isHovered ? 1.5 : 1}
+												style={{ transition: "stroke 0.2s ease" }}
+											/>
+											<rect
+												x={badgeX - 3.5}
+												y={badgeY - 0.5}
+												width={7}
+												height={5}
+												rx={1}
+												fill={isHovered ? `${tab.themeColor}cc` : `${tab.themeColor}66`}
+												style={{ transition: "fill 0.2s ease" }}
+											/>
+											<path
+												d={`M ${badgeX - 2.5} ${badgeY - 0.5} L ${badgeX - 2.5} ${badgeY - 3} A 2.5 2.5 0 0 1 ${badgeX + 2.5} ${badgeY - 3} L ${badgeX + 2.5} ${badgeY - 0.5}`}
+												fill="none"
+												stroke={isHovered ? `${tab.themeColor}cc` : `${tab.themeColor}66`}
+												strokeWidth={1.2}
+												style={{ transition: "stroke 0.2s ease" }}
+											/>
+											{isHovered && (
+												<path
+													d={describeSectorPath(
+														sector.startDeg,
+														sector.endDeg,
+														gateRadius + GATE_HALF_WIDTH + 8,
+														gateRadius - GATE_HALF_WIDTH - 8,
+													)}
+													fill="none"
+													stroke={`${tab.themeColor}28`}
+													strokeWidth={1}
+													strokeDasharray="3 12"
+												/>
+											)}
+										</>
+									)}
+
+									{/* ── PASSED STATE (unlocked, not yet complete) ── faint marker */}
+									{!isLocked && !isCompleted && (
+										<path d={bandPath} fill="none" stroke={`${BASE.completed}1a`} strokeWidth={1} />
+									)}
+								</g>
+							);
+						});
+					})}
 			</svg>
 		</WorldTransformOverlay>
 	);
@@ -275,7 +591,10 @@ function getTreeForBranch(treeByBranch: TreeByBranch | null, branch: ResearchBra
 	return treeByBranch?.get(branch) ?? getRadialTree(branch);
 }
 
-function buildFlowNodes(treeByBranch: TreeByBranch | null) {
+function buildFlowNodes(
+	treeByBranch: TreeByBranch | null,
+	tierGatesByBranch?: TierGatesByBranch | null,
+) {
 	const nodes: Node[] = [];
 
 	const hubPlacement = POLAR_RESEARCH_LAYOUT.nodes.get("hub_center");
@@ -318,6 +637,46 @@ function buildFlowNodes(treeByBranch: TreeByBranch | null) {
 				} satisfies AugNode,
 				draggable: false,
 			});
+		}
+	}
+
+	// Inject secret seal nodes for completed tiers
+	if (tierGatesByBranch) {
+		for (const tab of RESEARCH_TABS) {
+			const gates = tierGatesByBranch.get(tab.key) ?? [];
+			const sector = POLAR_RESEARCH_LAYOUT.sectors.find((s) => s.branchKey === tab.key);
+			if (!sector) continue;
+
+			for (const tierNum of GATE_TIERS) {
+				const gate = gates.find((g) => g.tier === tierNum);
+				if (!gate?.completed) continue;
+
+				const gateRadius = GATE_RADII[tierNum];
+				const midAngleRad = ((sector.startDeg + sector.endDeg) / 2) * (Math.PI / 180);
+				const sealCenterX = Math.cos(midAngleRad) * gateRadius;
+				const sealCenterY = Math.sin(midAngleRad) * gateRadius;
+				const secrets = TIER_COMPLETION_SECRETS[tab.key as ResearchBranchKey];
+				const secret = secrets?.[tierNum];
+
+				nodes.push({
+					id: `secretSeal_${tab.key}_${tierNum}`,
+					type: "secretSeal",
+					position: {
+						x: sealCenterX - SECRET_SEAL_SIZE / 2,
+						y: sealCenterY - SECRET_SEAL_SIZE / 2,
+					},
+					data: {
+						branchKey: tab.key,
+						tier: tierNum,
+						themeColor: tab.themeColor,
+						size: SECRET_SEAL_SIZE,
+						secretTitle: secret?.title ?? "Classified Protocol",
+						secretBody: secret?.body ?? "Data encrypted. Access requires higher clearance.",
+						secretEffect: secret?.effect ?? null,
+					} satisfies SecretSealData,
+					draggable: false,
+				});
+			}
 		}
 	}
 
@@ -759,12 +1118,143 @@ function HubCenterNode({ data }: NodeProps) {
 	);
 }
 
+function SecretSealNode({ data }: NodeProps) {
+	const { themeColor, size, tier } = data as SecretSealData;
+
+	return (
+		<div style={{ width: size, height: size, position: "relative", cursor: "pointer" }}>
+			<HiddenHandles />
+
+			{/* Outermost orbit ring — slow rotation */}
+			<div
+				style={{
+					position: "absolute",
+					inset: -6,
+					borderRadius: "50%",
+					border: `1px solid ${themeColor}30`,
+					borderTopColor: `${themeColor}aa`,
+					borderRightColor: `${themeColor}55`,
+					animation: "sealOrbit 10s linear infinite",
+					pointerEvents: "none",
+				}}
+			/>
+
+			{/* Second counter-rotating ring */}
+			<div
+				style={{
+					position: "absolute",
+					inset: 2,
+					borderRadius: "50%",
+					border: `1px solid ${themeColor}22`,
+					borderBottomColor: `${themeColor}77`,
+					borderLeftColor: `${themeColor}44`,
+					animation: "sealOrbitReverse 16s linear infinite",
+					pointerEvents: "none",
+				}}
+			/>
+
+			{/* Main body */}
+			<div
+				style={{
+					position: "absolute",
+					inset: 10,
+					borderRadius: "50%",
+					border: `2px solid ${themeColor}`,
+					background: `radial-gradient(circle at 40% 36%, ${themeColor}2e, rgba(4,8,16,0.92))`,
+					boxShadow: `0 0 28px ${themeColor}44, 0 0 8px ${themeColor}22, inset 0 0 16px ${themeColor}1e`,
+					animation: "sealPulse 4s ease-in-out infinite",
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "center",
+				}}
+			>
+				{/* 8-pointed star glyph */}
+				<svg
+					width={size * 0.3}
+					height={size * 0.3}
+					viewBox="0 0 20 20"
+					fill="none"
+					style={{ filter: `drop-shadow(0 0 4px ${themeColor}cc)` }}
+				>
+					<line
+						x1="10"
+						y1="1.5"
+						x2="10"
+						y2="18.5"
+						stroke={themeColor}
+						strokeWidth="1.6"
+						strokeLinecap="round"
+					/>
+					<line
+						x1="1.5"
+						y1="10"
+						x2="18.5"
+						y2="10"
+						stroke={themeColor}
+						strokeWidth="1.6"
+						strokeLinecap="round"
+					/>
+					<line
+						x1="3.6"
+						y1="3.6"
+						x2="16.4"
+						y2="16.4"
+						stroke={`${themeColor}aa`}
+						strokeWidth="1.1"
+						strokeLinecap="round"
+					/>
+					<line
+						x1="16.4"
+						y1="3.6"
+						x2="3.6"
+						y2="16.4"
+						stroke={`${themeColor}aa`}
+						strokeWidth="1.1"
+						strokeLinecap="round"
+					/>
+					<circle cx="10" cy="10" r="2.2" fill={themeColor} />
+					<circle cx="10" cy="10" r="1" fill="rgba(4,8,16,0.85)" />
+				</svg>
+			</div>
+
+			{/* Label */}
+			<div
+				style={{
+					position: "absolute",
+					top: "100%",
+					left: "50%",
+					transform: "translateX(-50%)",
+					marginTop: 9,
+					width: 110,
+					textAlign: "center",
+					pointerEvents: "none",
+				}}
+			>
+				<span
+					style={{
+						fontFamily: "var(--nv-font-mono)",
+						fontSize: 7.5,
+						color: themeColor,
+						letterSpacing: "0.16em",
+						textTransform: "uppercase",
+						display: "block",
+						textShadow: `0 0 10px ${themeColor}77`,
+					}}
+				>
+					Tier {tier} Mastery
+				</span>
+			</div>
+		</div>
+	);
+}
+
 const nodeTypes = {
 	circle: CircleNode,
 	hex: HexNode,
 	square: SquareNode,
 	capstone: CapstoneNode,
 	hubCenter: HubCenterNode,
+	secretSeal: SecretSealNode,
 };
 
 function PolarEdge({ id, data, style }: EdgeProps<Edge<PolarPathData>>) {
@@ -792,7 +1282,7 @@ function Popover({
 }) {
 	const colors = statusColors(node.status, accent);
 	const hidden = node.visibility === "hidden";
-	const concealed = hidden || node.visibility === "silhouette";
+	const concealed = hidden || (node.visibility === "silhouette" && !node.canStart);
 	const locked = node.status === "locked" || hidden;
 	const disclosedCosts = concealed ? null : node.costs;
 	const unmetRequirements = node.requirements.filter((requirement) => !requirement.met);
@@ -1057,6 +1547,418 @@ function Popover({
 	);
 }
 
+function SecretSealPopover({
+	data,
+	x,
+	y,
+	onClose,
+}: {
+	data: SecretSealData;
+	x: number;
+	y: number;
+	onClose: () => void;
+}) {
+	const { themeColor, tier, secretTitle, secretBody, secretEffect } = data;
+
+	return (
+		<div
+			style={{
+				position: "absolute",
+				left: x,
+				top: y,
+				zIndex: 65,
+				width: 310,
+				borderRadius: 12,
+				border: `1px solid ${themeColor}55`,
+				background: BASE.glass,
+				backdropFilter: "blur(28px)",
+				boxShadow: `0 20px 60px rgba(0,0,0,0.72), 0 0 36px ${themeColor}18, inset 0 0 24px ${themeColor}06`,
+				animation: "popIn 0.22s cubic-bezier(0.21,1,0.34,1)",
+				overflow: "hidden",
+			}}
+		>
+			{/* Top accent — full-brightness gradient in branch color */}
+			<div
+				style={{
+					height: 3,
+					background: `linear-gradient(90deg, transparent, ${themeColor}, ${themeColor}cc, transparent)`,
+				}}
+			/>
+
+			<div style={{ padding: "14px 16px 16px" }}>
+				{/* Classification header */}
+				<div
+					style={{
+						display: "flex",
+						justifyContent: "space-between",
+						alignItems: "center",
+						marginBottom: 12,
+					}}
+				>
+					<div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+						{/* Radiant star icon */}
+						<svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+							<line
+								x1="10"
+								y1="1"
+								x2="10"
+								y2="19"
+								stroke={themeColor}
+								strokeWidth="1.8"
+								strokeLinecap="round"
+							/>
+							<line
+								x1="1"
+								y1="10"
+								x2="19"
+								y2="10"
+								stroke={themeColor}
+								strokeWidth="1.8"
+								strokeLinecap="round"
+							/>
+							<line
+								x1="3.2"
+								y1="3.2"
+								x2="16.8"
+								y2="16.8"
+								stroke={`${themeColor}99`}
+								strokeWidth="1.2"
+								strokeLinecap="round"
+							/>
+							<line
+								x1="16.8"
+								y1="3.2"
+								x2="3.2"
+								y2="16.8"
+								stroke={`${themeColor}99`}
+								strokeWidth="1.2"
+								strokeLinecap="round"
+							/>
+							<circle cx="10" cy="10" r="2.5" fill={themeColor} />
+						</svg>
+						<div>
+							<div
+								style={{
+									fontFamily: "var(--nv-font-mono)",
+									fontSize: 7.5,
+									color: themeColor,
+									letterSpacing: "0.22em",
+									textTransform: "uppercase",
+									fontWeight: 600,
+								}}
+							>
+								Tier {tier} — Mastery Unlocked
+							</div>
+							<div
+								style={{
+									fontFamily: "var(--nv-font-mono)",
+									fontSize: 6.5,
+									color: BASE.t3,
+									letterSpacing: "0.14em",
+									textTransform: "uppercase",
+									marginTop: 1,
+								}}
+							>
+								Classified protocol — decrypted
+							</div>
+						</div>
+					</div>
+
+					<button
+						onClick={onClose}
+						style={{
+							width: 22,
+							height: 22,
+							borderRadius: 6,
+							border: `1px solid ${BASE.stroke}`,
+							background: "rgba(255,255,255,0.03)",
+							color: BASE.t3,
+							cursor: "pointer",
+							fontSize: 11,
+							flexShrink: 0,
+						}}
+						type="button"
+					>
+						×
+					</button>
+				</div>
+
+				{/* Divider */}
+				<div
+					style={{
+						height: 1,
+						background: `linear-gradient(90deg, ${themeColor}44, ${themeColor}18, transparent)`,
+						marginBottom: 12,
+					}}
+				/>
+
+				{/* Secret title */}
+				<div
+					style={{
+						fontFamily: "var(--nv-font-display)",
+						fontSize: 17,
+						fontWeight: 800,
+						color: BASE.t1,
+						letterSpacing: "0.04em",
+						marginBottom: 8,
+						textShadow: `0 0 18px ${themeColor}44`,
+					}}
+				>
+					{secretTitle}
+				</div>
+
+				{/* Secret body */}
+				<p
+					style={{
+						fontSize: 11,
+						lineHeight: 1.6,
+						color: BASE.t2,
+						margin: 0,
+						marginBottom: 12,
+					}}
+				>
+					{secretBody}
+				</p>
+
+				{/* Effect label */}
+				{secretEffect && (
+					<div
+						style={{
+							padding: "8px 10px",
+							borderRadius: 7,
+							border: `1px solid ${themeColor}35`,
+							background: `${themeColor}0c`,
+							display: "flex",
+							alignItems: "center",
+							gap: 8,
+						}}
+					>
+						{/* Small pulsing orb */}
+						<div
+							style={{
+								width: 6,
+								height: 6,
+								borderRadius: "50%",
+								background: themeColor,
+								boxShadow: `0 0 8px ${themeColor}`,
+								animation: "pulseGlow 2.5s ease-in-out infinite",
+								flexShrink: 0,
+							}}
+						/>
+						<span
+							style={{
+								fontFamily: "var(--nv-font-mono)",
+								fontSize: 10,
+								color: themeColor,
+								letterSpacing: "0.06em",
+							}}
+						>
+							{secretEffect}
+						</span>
+					</div>
+				)}
+			</div>
+
+			{/* Bottom accent line */}
+			<div
+				style={{
+					height: 1,
+					background: `linear-gradient(90deg, transparent, ${themeColor}30, transparent)`,
+				}}
+			/>
+		</div>
+	);
+}
+
+function TierGateTooltip({ gate }: { gate: HoveredGate }) {
+	const { themeColor, tier, requirements, containerX, containerY } = gate;
+	const metRequirements = requirements.filter((r) => r.met);
+	const unmetRequirements = requirements.filter((r) => !r.met);
+
+	return (
+		<div
+			style={{
+				position: "absolute",
+				left: containerX + 18,
+				top: Math.max(8, containerY - 16),
+				zIndex: 70,
+				width: 230,
+				borderRadius: 10,
+				border: `1px solid ${themeColor}30`,
+				background: BASE.glass,
+				backdropFilter: "blur(28px)",
+				boxShadow: `0 14px 48px rgba(0,0,0,0.68), 0 0 24px ${themeColor}0e`,
+				animation: "popIn 0.15s cubic-bezier(0.21,1,0.34,1)",
+				pointerEvents: "none",
+				overflow: "hidden",
+			}}
+		>
+			{/* Accent line */}
+			<div
+				style={{
+					height: 2,
+					background: `linear-gradient(90deg, transparent, ${themeColor}90, transparent)`,
+				}}
+			/>
+
+			<div style={{ padding: "11px 13px 13px" }}>
+				{/* Header */}
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: 7,
+						marginBottom: 10,
+					}}
+				>
+					{/* Lock icon */}
+					<svg width="11" height="13" viewBox="0 0 11 13" fill="none" style={{ flexShrink: 0 }}>
+						<rect
+							x="1"
+							y="5.5"
+							width="9"
+							height="6.5"
+							rx="1.5"
+							stroke={themeColor}
+							strokeWidth="1"
+							fill={`${themeColor}18`}
+						/>
+						<path
+							d="M3 5.5V3.5a2.5 2.5 0 0 1 5 0v2"
+							stroke={themeColor}
+							strokeWidth="1"
+							strokeLinecap="round"
+						/>
+					</svg>
+					<div>
+						<div
+							style={{
+								fontFamily: "var(--nv-font-mono)",
+								fontSize: 9,
+								color: themeColor,
+								letterSpacing: "0.16em",
+								textTransform: "uppercase",
+								fontWeight: 600,
+							}}
+						>
+							Tier {tier} — Locked
+						</div>
+						<div
+							style={{
+								fontFamily: "var(--nv-font-mono)",
+								fontSize: 7,
+								color: BASE.t3,
+								letterSpacing: "0.1em",
+								textTransform: "uppercase",
+								marginTop: 1,
+							}}
+						>
+							Unlock to reveal technologies
+						</div>
+					</div>
+				</div>
+
+				{/* Separator */}
+				<div
+					style={{
+						height: 1,
+						background: `linear-gradient(90deg, ${themeColor}22, transparent)`,
+						marginBottom: 9,
+					}}
+				/>
+
+				{/* Requirements */}
+				{requirements.length === 0 ? (
+					<div style={{ fontSize: 10, color: BASE.t3, fontStyle: "italic" }}>No requirements</div>
+				) : (
+					<div style={{ display: "grid", gap: 6 }}>
+						{[...unmetRequirements, ...metRequirements].map((req) => (
+							<div
+								key={req.key}
+								style={{
+									display: "flex",
+									alignItems: "flex-start",
+									gap: 7,
+								}}
+							>
+								{/* Status dot */}
+								<div
+									style={{
+										width: 5,
+										height: 5,
+										borderRadius: "50%",
+										marginTop: 3,
+										flexShrink: 0,
+										background: req.met ? BASE.completed : "rgba(255,90,90,0.75)",
+										boxShadow: req.met
+											? `0 0 5px ${BASE.completed}88`
+											: "0 0 4px rgba(255,90,90,0.4)",
+									}}
+								/>
+								<span
+									style={{
+										fontFamily: "var(--nv-font-body)",
+										fontSize: 10,
+										color: req.met ? BASE.t2 : BASE.t1,
+										lineHeight: 1.45,
+									}}
+								>
+									{req.label}
+								</span>
+							</div>
+						))}
+					</div>
+				)}
+
+				{/* Progress summary */}
+				{requirements.length > 0 && (
+					<div
+						style={{
+							marginTop: 10,
+							paddingTop: 8,
+							borderTop: `1px solid ${BASE.stroke}`,
+							display: "flex",
+							alignItems: "center",
+							gap: 8,
+						}}
+					>
+						<div
+							style={{
+								flex: 1,
+								height: 3,
+								borderRadius: 2,
+								background: "rgba(255,255,255,0.06)",
+								overflow: "hidden",
+							}}
+						>
+							<div
+								style={{
+									width: `${(metRequirements.length / requirements.length) * 100}%`,
+									height: "100%",
+									borderRadius: 2,
+									background: `linear-gradient(90deg, ${themeColor}66, ${themeColor})`,
+									transition: "width 0.4s ease",
+								}}
+							/>
+						</div>
+						<span
+							style={{
+								fontFamily: "var(--nv-font-mono)",
+								fontSize: 8,
+								color: BASE.t3,
+								letterSpacing: "0.1em",
+								whiteSpace: "nowrap",
+							}}
+						>
+							{metRequirements.length}/{requirements.length}
+						</span>
+					</div>
+				)}
+			</div>
+		</div>
+	);
+}
+
 function SectorLabels({ hoveredBranch }: { hoveredBranch: ResearchBranchKey | null }) {
 	return (
 		<>
@@ -1133,26 +2035,61 @@ type ResearchStateNode = {
 type ResearchStateBranch = {
 	key: string;
 	tiers: Array<{
+		tier: number;
+		unlocked: boolean;
+		requirements: Array<{ key: string; label: string; met: boolean }>;
 		nodes: ResearchStateNode[];
 	}>;
 };
 
-function buildTreeByBranch(branches: ResearchStateBranch[] | undefined): TreeByBranch | null {
+function buildTreeByBranch(branches: ResearchStateBranch[] | undefined): {
+	treeByBranch: TreeByBranch;
+	tierGatesByBranch: TierGatesByBranch;
+} | null {
 	if (!branches) return null;
 
 	const treeByBranch = new Map<ResearchBranchKey, RadialTree>();
+	const tierGatesByBranch = new Map<ResearchBranchKey, TierGateInfo[]>();
+
 	for (const branch of branches) {
 		const branchKey = branch.key as ResearchBranchKey;
-		const nodes: RadialNode[] = branch.tiers.flatMap((tier) =>
-			tier.nodes.map((node) => ({
+
+		// Extract per-tier unlock state and completion
+		const tierGates: TierGateInfo[] = branch.tiers.map((tier) => ({
+			tier: Math.max(1, Math.min(4, Math.floor(tier.tier))) as 1 | 2 | 3 | 4,
+			unlocked: tier.unlocked,
+			completed:
+				tier.unlocked &&
+				tier.nodes.length > 0 &&
+				tier.nodes.every((n) => n.level > 0 && n.level >= n.maxLevel),
+			requirements: tier.requirements,
+		}));
+		tierGatesByBranch.set(branchKey, tierGates);
+
+		// Determine visibility tiers:
+		//   ≤ highestUnlocked  → render normally
+		//   highestUnlocked+1  → silhouette (ghost, no interaction)
+		//   beyond that        → omit entirely
+		const highestUnlocked = tierGates.reduce(
+			(max, g) => (g.unlocked ? Math.max(max, g.tier) : max),
+			0,
+		);
+		const silhouetteTier = highestUnlocked < 4 ? highestUnlocked + 1 : null;
+
+		const nodes: RadialNode[] = branch.tiers.flatMap((tier) => {
+			const tierNum = Math.max(1, Math.min(4, Math.floor(tier.tier))) as 1 | 2 | 3 | 4;
+			if (silhouetteTier !== null && tierNum > silhouetteTier) return [];
+
+			const isSilhouette = silhouetteTier !== null && tierNum === silhouetteTier;
+			return tier.nodes.map((node) => ({
 				id: node.id,
 				name: node.name,
 				branch: branchKey,
-				tier: Math.max(1, Math.min(4, Math.floor(node.tier))) as 1 | 2 | 3 | 4,
+				tier: tierNum,
 				shape: node.layout.shape as RadialNode["shape"],
-				status: node.status,
-				visibility: node.visibility,
-				canStart: node.canStart,
+				status: isSilhouette ? ("locked" as const) : node.status,
+				visibility: isSilhouette ? ("silhouette" as const) : node.visibility,
+				canStart: isSilhouette ? false : node.canStart,
 				position: node.position,
 				prerequisites: node.prerequisites,
 				level: node.level,
@@ -1169,15 +2106,17 @@ function buildTreeByBranch(branches: ResearchStateBranch[] | undefined): TreeByB
 							seconds: node.nextCost.seconds,
 						}
 					: null,
-			})),
-		);
+			}));
+		});
+
 		treeByBranch.set(branchKey, {
 			branchKey,
 			nodes,
 			edges: edgesForNodes(nodes) as RadialEdge[],
 		});
 	}
-	return treeByBranch;
+
+	return { treeByBranch, tierGatesByBranch };
 }
 
 type ResearchImmersiveViewProps = {
@@ -1205,14 +2144,22 @@ function InnerResearchImmersiveViewWithInsets({
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [hoveredBranch, setHoveredBranch] = useState<ResearchBranchKey | null>(null);
 	const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+	const [hoveredGate, setHoveredGate] = useState<HoveredGate | null>(null);
 	const [popover, setPopover] = useState<{ node: AugNode; x: number; y: number } | null>(null);
+	const [sealPopover, setSealPopover] = useState<{
+		data: SecretSealData;
+		x: number;
+		y: number;
+	} | null>(null);
 
 	const ditherColor = useDitherColor(hoveredBranch);
 
 	const hoveredTab = hoveredBranch
 		? (RESEARCH_TABS.find((tab) => tab.key === hoveredBranch) ?? null)
 		: null;
-	const treeByBranch = useMemo(() => buildTreeByBranch(researchState?.tree), [researchState?.tree]);
+	const treeAndGates = useMemo(() => buildTreeByBranch(researchState?.tree), [researchState?.tree]);
+	const treeByBranch = treeAndGates?.treeByBranch ?? null;
+	const tierGatesByBranch = treeAndGates?.tierGatesByBranch ?? null;
 	const balances = researchState?.balances ?? META_MATTER_BALANCES;
 	const activeResearch = researchState?.activeResearch;
 	const serverNow = researchState?.serverNow ?? 0;
@@ -1241,21 +2188,55 @@ function InnerResearchImmersiveViewWithInsets({
 		(event: React.MouseEvent<HTMLDivElement>) => {
 			const flowPoint = screenToFlowPosition({ x: event.clientX, y: event.clientY });
 			const distance = Math.hypot(flowPoint.x, flowPoint.y);
+			const angleDeg = (Math.atan2(flowPoint.y, flowPoint.x) * 180) / Math.PI;
+
+			// Check tier gate hover first — takes priority over branch hover
+			if (tierGatesByBranch) {
+				for (const tierNum of GATE_TIERS) {
+					const gateRadius = GATE_RADII[tierNum];
+					if (Math.abs(distance - gateRadius) < GATE_DETECT_RADIUS) {
+						const branchKey = getPolarBranchForAngle(angleDeg, POLAR_RESEARCH_LAYOUT.sectors);
+						if (branchKey) {
+							const gates = tierGatesByBranch.get(branchKey);
+							const gate = gates?.find((g) => g.tier === tierNum);
+							if (gate && !gate.unlocked) {
+								const container = containerRef.current;
+								const rect = container?.getBoundingClientRect();
+								const containerX = rect ? event.clientX - rect.left : event.clientX;
+								const containerY = rect ? event.clientY - rect.top : event.clientY;
+								const tab = RESEARCH_TABS.find((t) => t.key === branchKey);
+								setHoveredGate({
+									branchKey,
+									tier: tierNum,
+									themeColor: tab?.themeColor ?? BASE.available,
+									requirements: gate.requirements,
+									containerX,
+									containerY,
+								});
+								setHoveredBranch(null);
+								return;
+							}
+						}
+					}
+				}
+			}
+
+			setHoveredGate(null);
 
 			if (distance < HUB_DEAD_ZONE || distance > HOVER_RADIUS) {
 				setHoveredBranch(null);
 				return;
 			}
 
-			const angleDeg = (Math.atan2(flowPoint.y, flowPoint.x) * 180) / Math.PI;
 			setHoveredBranch(getPolarBranchForAngle(angleDeg, POLAR_RESEARCH_LAYOUT.sectors));
 		},
-		[screenToFlowPosition],
+		[screenToFlowPosition, tierGatesByBranch],
 	);
 
 	const handleMouseLeave = useCallback(() => {
 		setHoveredBranch(null);
 		setHoveredNodeId(null);
+		setHoveredGate(null);
 	}, []);
 
 	const handleNodeClick = useCallback(
@@ -1265,8 +2246,21 @@ function InnerResearchImmersiveViewWithInsets({
 			if (!container) return;
 
 			const rect = container.getBoundingClientRect();
-			const data = node.data as AugNode;
 
+			// Secret seal node — special popover
+			if (node.type === "secretSeal") {
+				const sealData = node.data as SecretSealData;
+				let x = event.clientX - rect.left + 16;
+				let y = event.clientY - rect.top - 80;
+				if (x + 326 > rect.width) x = event.clientX - rect.left - 326;
+				if (y < hudInsetTop) y = hudInsetTop;
+				if (y + 420 > rect.height - hudInsetBottom) y = rect.height - hudInsetBottom - 420;
+				setPopover(null);
+				setSealPopover({ data: sealData, x, y });
+				return;
+			}
+
+			const data = node.data as AugNode;
 			let x = event.clientX - rect.left + 16;
 			let y = event.clientY - rect.top - 64;
 
@@ -1274,6 +2268,7 @@ function InnerResearchImmersiveViewWithInsets({
 			if (y < hudInsetTop) y = hudInsetTop;
 			if (y + 360 > rect.height - hudInsetBottom) y = rect.height - hudInsetBottom - 360;
 
+			setSealPopover(null);
 			setPopover({ node: data, x, y });
 		},
 		[hudInsetBottom, hudInsetTop],
@@ -1284,7 +2279,10 @@ function InnerResearchImmersiveViewWithInsets({
 		return `${POLAR_RESEARCH_LAYOUT.warnings.length} density warning${POLAR_RESEARCH_LAYOUT.warnings.length === 1 ? "" : "s"}`;
 	}, []);
 
-	const flowNodes = useMemo(() => buildFlowNodes(treeByBranch), [treeByBranch]);
+	const flowNodes = useMemo(
+		() => buildFlowNodes(treeByBranch, tierGatesByBranch),
+		[treeByBranch, tierGatesByBranch],
+	);
 	const flowEdges = useMemo(
 		() => buildFlowEdges(hoveredNodeId, treeByBranch),
 		[hoveredNodeId, treeByBranch],
@@ -1330,7 +2328,11 @@ function InnerResearchImmersiveViewWithInsets({
 				}}
 			/>
 
-			<WorldGrid hoveredBranch={hoveredBranch} />
+			<WorldGrid
+				hoveredBranch={hoveredBranch}
+				tierGatesByBranch={tierGatesByBranch}
+				hoveredGate={hoveredGate}
+			/>
 
 			<div style={{ position: "absolute", inset: 0, zIndex: 3 }}>
 				<ReactFlow
@@ -1343,7 +2345,10 @@ function InnerResearchImmersiveViewWithInsets({
 						setHoveredNodeId(node.id === "hub_center" ? null : node.id)
 					}
 					onNodeMouseLeave={() => setHoveredNodeId(null)}
-					onPaneClick={() => setPopover(null)}
+					onPaneClick={() => {
+						setPopover(null);
+						setSealPopover(null);
+					}}
 					fitView
 					fitViewOptions={{ padding: 0.12 }}
 					minZoom={0.1}
@@ -1556,6 +2561,17 @@ function InnerResearchImmersiveViewWithInsets({
 				/>
 			) : null}
 
+			{sealPopover ? (
+				<SecretSealPopover
+					data={sealPopover.data}
+					x={sealPopover.x}
+					y={sealPopover.y}
+					onClose={() => setSealPopover(null)}
+				/>
+			) : null}
+
+			{hoveredGate ? <TierGateTooltip gate={hoveredGate} /> : null}
+
 			<style>{`
         @keyframes popIn {
           from { opacity: 0; transform: scale(0.94) translateY(4px); }
@@ -1568,6 +2584,22 @@ function InnerResearchImmersiveViewWithInsets({
         @keyframes hubRing {
           0%, 100% { opacity: 0.35; transform: scale(1); }
           50% { opacity: 0.8; transform: scale(1.04); }
+        }
+        @keyframes gateDash {
+          from { stroke-dashoffset: 0; }
+          to   { stroke-dashoffset: -28; }
+        }
+        @keyframes sealOrbit {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+        @keyframes sealOrbitReverse {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(-360deg); }
+        }
+        @keyframes sealPulse {
+          0%, 100% { box-shadow: 0 0 28px var(--seal-glow, rgba(100,200,255,0.26)), 0 0 8px var(--seal-glow, rgba(100,200,255,0.13)), inset 0 0 16px rgba(100,200,255,0.12); }
+          50%       { box-shadow: 0 0 44px var(--seal-glow, rgba(100,200,255,0.38)), 0 0 14px var(--seal-glow, rgba(100,200,255,0.20)), inset 0 0 24px rgba(100,200,255,0.18); }
         }
       `}</style>
 		</div>

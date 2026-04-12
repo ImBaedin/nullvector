@@ -1123,6 +1123,9 @@ async function settleContractAtTarget(args: {
 		rewardCargoLoaded: rewardCargoScaled,
 		rewardCargoLostByCapacity: rewardCargoLostScaled,
 		rewardCreditsGranted: combat.success ? contract.snapshot.rewardCredits : 0,
+		rewardMetaMatterGranted: combat.success
+			? contract.snapshot.rewardMetaMatter
+			: { common: 0, rare: 0, mythic: 0 },
 		rewardXpGranted: xpGranted,
 		roundsFought: combat.roundsFought,
 		success: combat.success,
