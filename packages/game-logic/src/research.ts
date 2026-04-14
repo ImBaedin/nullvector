@@ -40,7 +40,7 @@ export type ResearchEffect =
 	| { kind: "cargo_capacity_multiplier"; multiplier: number }
 	| { kind: "building_max_level_bonus"; buildingKey: BuildingKey; amount: number }
 	| { kind: "facility_max_level_bonus"; facilityKey: FacilityKey; amount: number }
-	| { kind: "combined_research_capacity" }
+	| { kind: "research_network_synchronization" }
 	| { kind: "meta_matter_reward_multiplier"; multiplier: number; rarity?: MetaMatterRarity }
 	| { kind: "energy_consumption_multiplier"; multiplier: number }
 	| {
@@ -61,7 +61,7 @@ export type ResearchEffect =
 			durationMinutes: number;
 			scope: "colony" | "account";
 	  }
-	| { kind: "research_directorate_overlevel_duration"; percentPerLevel: number; cap: number }
+	| { kind: "research_network_duration"; percentPerSite: number; freeSites: number; cap: number }
 	| {
 			kind: "research_cost_multiplier";
 			metaMatterMultiplier: number;
@@ -110,10 +110,10 @@ export type ResearchEffect =
 			toAmount: number;
 	  }
 	| {
-			kind: "directorate_exchange_duration";
-			perColonyMultiplier: number;
+			kind: "research_network_exchange_duration";
+			perSiteMultiplier: number;
 			capMultiplier: number;
-			minDirectorateLevel: number;
+			minResearchSites: number;
 	  }
 	| { kind: "route_speed_multiplier"; routeClass: RouteClass; multiplier: number }
 	| { kind: "route_streak_speed_bonus"; multiplierPerLevel: number; capMultiplier: number }
@@ -181,6 +181,7 @@ export type ResearchTierUnlockRule =
 	| { type: "coloniesFounded"; count: number }
 	| { type: "colonyInDifferentSystemFounded" }
 	| { type: "colonyInDifferentSectorFounded" }
+	| { type: "researchNetworkSize"; count: number }
 	| { type: "highestResearchDirectorateLevelReached"; level: number }
 	| { type: "facilityLevelReached"; level: number; facilityKey?: FacilityKey }
 	| { type: "facilityLevelTotalOnOneColonyReached"; level: number }
@@ -211,6 +212,7 @@ export type ResearchTierUnlockContext = {
 	metaMatterSpentTotal: number;
 	raidDefensesSucceeded: number;
 	rank3ContractsCompleted: number;
+	researchNetworkSize: number;
 	shipsOwned: number;
 	successfulTransports: number;
 };
@@ -237,7 +239,7 @@ export type ResearchModifierSnapshot = {
 	facilityMaxLevelBonuses: Partial<Record<FacilityKey, number>>;
 	metaMatterRewardMultipliers: Partial<Record<MetaMatterRarity, number>>;
 	globalMetaMatterRewardMultiplier: number;
-	combinedResearchCapacityUnlocked: boolean;
+	researchNetworkSynchronizationUnlocked: boolean;
 	energyConsumptionMultiplier: number;
 	storagePressureProductionBonus?: Extract<
 		ResearchEffect,
@@ -255,10 +257,7 @@ export type ResearchModifierSnapshot = {
 	>;
 	industrialFocus?: Extract<ResearchEffect, { kind: "industrial_focus_unlock" }>;
 	activeCommandWindow?: Extract<ResearchEffect, { kind: "active_command_window" }>;
-	researchDirectorateOverlevelDuration?: Extract<
-		ResearchEffect,
-		{ kind: "research_directorate_overlevel_duration" }
-	>;
+	researchNetworkDuration?: Extract<ResearchEffect, { kind: "research_network_duration" }>;
 	researchCostMultipliers: Array<Extract<ResearchEffect, { kind: "research_cost_multiplier" }>>;
 	shipStatMultipliers: Record<ShipKey, { attack: number; hull: number; shield: number }>;
 	globalShipStatMultipliers: { attack: number; hull: number; shield: number };
@@ -279,7 +278,7 @@ export type ResearchModifierSnapshot = {
 	researchPredictiveProgressFraction: number;
 	researchCrossBranchDiscount?: Extract<ResearchEffect, { kind: "research_cross_branch_discount" }>;
 	metaMatterDailyConversion?: Extract<ResearchEffect, { kind: "meta_matter_daily_conversion" }>;
-	directorateExchange?: Extract<ResearchEffect, { kind: "directorate_exchange_duration" }>;
+	researchNetworkExchange?: Extract<ResearchEffect, { kind: "research_network_exchange_duration" }>;
 	routeSpeedMultipliers: Record<RouteClass, number>;
 	routeStreakSpeedBonus?: Extract<ResearchEffect, { kind: "route_streak_speed_bonus" }>;
 	transportExtraStops: number;
@@ -912,7 +911,7 @@ const AUTHORED_RESEARCH_TREE = {
 						{
 							id: "interstellarResearchNetwork",
 							name: "Interstellar Research Network",
-							description: "Allows select late-game research to use combined research capacity.",
+							description: "Links separate research sites into an empire-wide research network.",
 							layout: { lane: "outerRight", shape: "capstone" },
 							prerequisites: ["unifiedTheoryInitiative"],
 							maxLevel: 1,
@@ -924,7 +923,7 @@ const AUTHORED_RESEARCH_TREE = {
 									seconds: 5400,
 								},
 							],
-							effects: [{ kind: "combined_research_capacity" }],
+							effects: [{ kind: "research_network_synchronization" }],
 						},
 					],
 				},
@@ -1413,12 +1412,12 @@ function branchThemes(branch: ResearchBranchKey): Omit<AuthoredResearchBranch, "
 	return themes[branch];
 }
 
-function researchFacilityRequirementForTier(tier: 1 | 2 | 3 | 4) {
+function researchNetworkRequirementForTier(tier: 1 | 2 | 3 | 4) {
 	if (tier >= 3) {
-		return 20;
+		return 5;
 	}
 	if (tier === 2) {
-		return 10;
+		return 3;
 	}
 	return 1;
 }
@@ -1437,7 +1436,7 @@ function authoredNode(
 		layout: args.layout,
 		prerequisites: args.prerequisites,
 		maxLevel: args.maxLevel,
-		requiredResearchFacilityLevel: researchFacilityRequirementForTier(args.tier),
+		requiredResearchFacilityLevel: researchNetworkRequirementForTier(args.tier),
 		requiredCombinedResearchCapacity: args.requiredCombinedResearchCapacity,
 		costs: makeResearchCosts({
 			branch: args.branch,
@@ -1546,7 +1545,6 @@ function buildResearchTierThreeTree() {
 						rules: [
 							{ type: "resourceProductionBuildingLevelReached", level: 20 },
 							{ type: "storageBuildingLevelReached", level: 12 },
-							{ type: "highestResearchDirectorateLevelReached", level: 10 },
 						],
 					},
 					nodes: [
@@ -1678,10 +1676,7 @@ function buildResearchTierThreeTree() {
 					tier: 3,
 					unlock: {
 						type: "all",
-						rules: [
-							{ type: "resourceAndStorageLevelTotalReached", level: 100 },
-							{ type: "highestResearchDirectorateLevelReached", level: 20 },
-						],
+						rules: [{ type: "resourceAndStorageLevelTotalReached", level: 100 }],
 					},
 					nodes: [
 						node({
@@ -1804,14 +1799,14 @@ function buildResearchTierThreeTree() {
 									{ kind: "facility_max_level_bonus", facilityKey: "robotics_hub", amount: 1 },
 									{
 										kind: "facility_max_level_bonus",
-										facilityKey: "research_directorate",
+										facilityKey: "defense_grid",
 										amount: 1,
 									},
 								],
 							],
 							effectLabels: [
 								"Selected facility upgrade duration -12% per level",
-								"Level 2 adds +1 max level to supported facilities",
+								"Level 2 adds +1 max level to robotics and defense facilities",
 							],
 						}),
 						node({
@@ -1916,7 +1911,6 @@ function buildResearchTierThreeTree() {
 						rules: [
 							{ type: "contractsCompleted", count: 15 },
 							{ type: "raidDefensesSucceeded", count: 15 },
-							{ type: "highestResearchDirectorateLevelReached", level: 10 },
 						],
 					},
 					nodes: [
@@ -2026,7 +2020,6 @@ function buildResearchTierThreeTree() {
 							{ type: "contractsCompleted", count: 40 },
 							{ type: "rankedContractsCompleted", minRank: 3, count: 5 },
 							{ type: "shipsOwned", count: 500 },
-							{ type: "highestResearchDirectorateLevelReached", level: 20 },
 						],
 					},
 					nodes: [
@@ -2232,10 +2225,7 @@ function buildResearchTierThreeTree() {
 					tier: 2,
 					unlock: {
 						type: "all",
-						rules: [
-							{ type: "metaMatterSpentTotal", amount: 50 },
-							{ type: "highestResearchDirectorateLevelReached", level: 10 },
-						],
+						rules: [{ type: "metaMatterSpentTotal", amount: 50 }],
 					},
 					nodes: [
 						node({
@@ -2271,29 +2261,32 @@ function buildResearchTierThreeTree() {
 							tier: 2,
 							id: "parallelInquiry",
 							name: "Parallel Inquiry",
-							description: "Excess directorate capacity speeds less demanding research.",
+							description: "A larger research network speeds less demanding research.",
 							layout: { lane: "outerLeft", shape: "circle" },
 							prerequisites: ["archiveCompression"],
 							maxLevel: 3,
 							effectsByLevel: [
 								[
 									{
-										kind: "research_directorate_overlevel_duration",
-										percentPerLevel: 0.02,
+										kind: "research_network_duration",
+										percentPerSite: 0.02,
+										freeSites: 1,
 										cap: 0.1,
 									},
 								],
 								[
 									{
-										kind: "research_directorate_overlevel_duration",
-										percentPerLevel: 0.02,
+										kind: "research_network_duration",
+										percentPerSite: 0.02,
+										freeSites: 1,
 										cap: 0.15,
 									},
 								],
 								[
 									{
-										kind: "research_directorate_overlevel_duration",
-										percentPerLevel: 0.02,
+										kind: "research_network_duration",
+										percentPerSite: 0.02,
+										freeSites: 1,
 										cap: 0.2,
 									},
 								],
@@ -2374,7 +2367,6 @@ function buildResearchTierThreeTree() {
 						rules: [
 							{ type: "metaMatterSpentTotal", amount: 250 },
 							{ type: "metaMatterEarnedByRarity", rarity: "rare", amount: 25 },
-							{ type: "highestResearchDirectorateLevelReached", level: 20 },
 						],
 					},
 					nodes: [
@@ -2383,36 +2375,36 @@ function buildResearchTierThreeTree() {
 							tier: 3,
 							id: "federatedDatabanks",
 							name: "Federated Databanks",
-							description: "Directorates pool capacity for account-wide research requirements.",
+							description: "Research sites share archives and project state across colonies.",
 							layout: { lane: "outerLeft", shape: "square" },
 							prerequisites: ["parallelInquiry", "peerReviewProtocols"],
 							maxLevel: 1,
-							effectsByLevel: [[{ kind: "combined_research_capacity" }]],
+							effectsByLevel: [[{ kind: "research_network_synchronization" }]],
 						}),
 						node({
 							branch: "scientificInfrastructure",
 							tier: 3,
 							id: "directorateExchange",
-							name: "Directorate Exchange",
-							description: "Mature research colonies exchange staff and shorten research time.",
+							name: "Network Exchange",
+							description: "Research sites exchange staff and shorten research time.",
 							layout: { lane: "innerLeft", shape: "square" },
 							prerequisites: ["federatedDatabanks", "activeCommandWindows"],
 							maxLevel: 2,
 							effectsByLevel: [
 								[
 									{
-										kind: "directorate_exchange_duration",
-										perColonyMultiplier: 0.97,
+										kind: "research_network_exchange_duration",
+										perSiteMultiplier: 0.97,
 										capMultiplier: 0.88,
-										minDirectorateLevel: 5,
+										minResearchSites: 5,
 									},
 								],
 								[
 									{
-										kind: "directorate_exchange_duration",
-										perColonyMultiplier: 0.97,
+										kind: "research_network_exchange_duration",
+										perSiteMultiplier: 0.97,
 										capMultiplier: 0.79,
-										minDirectorateLevel: 5,
+										minResearchSites: 5,
 									},
 								],
 							],
@@ -2575,10 +2567,7 @@ function buildResearchTierThreeTree() {
 					tier: 2,
 					unlock: {
 						type: "all",
-						rules: [
-							{ type: "colonyInDifferentSystemFounded" },
-							{ type: "highestResearchDirectorateLevelReached", level: 10 },
-						],
+						rules: [{ type: "colonyInDifferentSystemFounded" }],
 					},
 					nodes: [
 						node({
@@ -2688,10 +2677,7 @@ function buildResearchTierThreeTree() {
 					tier: 3,
 					unlock: {
 						type: "all",
-						rules: [
-							{ type: "colonyInDifferentSectorFounded" },
-							{ type: "highestResearchDirectorateLevelReached", level: 20 },
-						],
+						rules: [{ type: "colonyInDifferentSectorFounded" }],
 					},
 					nodes: [
 						node({
@@ -2895,7 +2881,6 @@ function buildResearchTierThreeTree() {
 						rules: [
 							{ type: "coloniesFounded", count: 2 },
 							{ type: "facilityLevelReached", level: 12 },
-							{ type: "highestResearchDirectorateLevelReached", level: 10 },
 						],
 					},
 					nodes: [
@@ -3015,7 +3000,6 @@ function buildResearchTierThreeTree() {
 						rules: [
 							{ type: "coloniesFounded", count: 4 },
 							{ type: "facilityLevelTotalOnOneColonyReached", level: 60 },
-							{ type: "highestResearchDirectorateLevelReached", level: 20 },
 						],
 					},
 					nodes: [
@@ -3169,6 +3153,7 @@ export type ResearchNodeDefinition = {
 	layout: ResearchNodeLayout;
 	prerequisites: ResearchKey[];
 	maxLevel: number;
+	requiredResearchNetworkSize: number;
 	requiredResearchFacilityLevel: number;
 	requiredCombinedResearchCapacity?: number;
 	costs: ResearchNodeCost[];
@@ -3293,8 +3278,8 @@ function describeResearchEffect(effect: ResearchEffect) {
 			return `+${effect.amount} max ${effect.buildingKey}`;
 		case "facility_max_level_bonus":
 			return `+${effect.amount} max ${effect.facilityKey}`;
-		case "combined_research_capacity":
-			return "Enable combined research capacity";
+		case "research_network_synchronization":
+			return "Synchronize the research network";
 		case "meta_matter_reward_multiplier":
 			return `${Math.round((effect.multiplier - 1) * 100)}% ${
 				effect.rarity ?? "all"
@@ -3317,8 +3302,8 @@ function describeResearchEffect(effect: ResearchEffect) {
 			return "Unlock colony industrial focus";
 		case "active_command_window":
 			return `Active command windows increase ${effect.scope} production`;
-		case "research_directorate_overlevel_duration":
-			return `Research Directorate overlevel duration discount`;
+		case "research_network_duration":
+			return `Research network duration discount`;
 		case "research_cost_multiplier":
 			return `${Math.round((1 - effect.metaMatterMultiplier) * 100)}% research meta-matter cost`;
 		case "ship_stat_multiplier":
@@ -3349,8 +3334,8 @@ function describeResearchEffect(effect: ResearchEffect) {
 			return "Discount the next different-branch research";
 		case "meta_matter_daily_conversion":
 			return `Convert ${effect.fromAmount} ${effect.from} to ${effect.toAmount} ${effect.to} daily`;
-		case "directorate_exchange_duration":
-			return "Research duration scales with mature directorates";
+		case "research_network_exchange_duration":
+			return "Research duration scales with research network size";
 		case "route_speed_multiplier":
 			return `${Math.round((1 / effect.multiplier - 1) * 100)}% ${effect.routeClass} travel speed`;
 		case "route_streak_speed_bonus":
@@ -3398,6 +3383,23 @@ function describeResearchEffect(effect: ResearchEffect) {
 	}
 }
 
+function withResearchNetworkTierRequirement(
+	tier: 1 | 2 | 3 | 4,
+	unlock: ResearchTierUnlockRule,
+): ResearchTierUnlockRule {
+	const networkRule = {
+		type: "researchNetworkSize",
+		count: researchNetworkRequirementForTier(tier),
+	} satisfies ResearchTierUnlockRule;
+	if (unlock.type === "always") {
+		return networkRule;
+	}
+	return {
+		type: "all",
+		rules: [networkRule, unlock],
+	};
+}
+
 function flattenResearchTree(options?: { activeOnly?: boolean }) {
 	const branches: ResearchBranchDefinition[] = [];
 
@@ -3405,7 +3407,7 @@ function flattenResearchTree(options?: { activeOnly?: boolean }) {
 		const branch = RESEARCH_TREE.branches[branchKey];
 		const tiers: ResearchTierDefinition[] = branch.tiers.map((tier) => ({
 			tier: tier.tier,
-			unlock: tier.unlock,
+			unlock: withResearchNetworkTierRequirement(tier.tier, tier.unlock),
 			nodes: tier.nodes
 				.filter(
 					(node) => !options?.activeOnly || (node.implementationStatus ?? "active") === "active",
@@ -3426,6 +3428,7 @@ function flattenResearchTree(options?: { activeOnly?: boolean }) {
 						layout: { ...authoredNode.layout },
 						prerequisites: [...authoredNode.prerequisites] as ResearchKey[],
 						maxLevel: authoredNode.maxLevel,
+						requiredResearchNetworkSize: researchNetworkRequirementForTier(tier.tier),
 						requiredResearchFacilityLevel: authoredNode.requiredResearchFacilityLevel,
 						requiredCombinedResearchCapacity: authoredNode.requiredCombinedResearchCapacity,
 						costs: authoredNode.costs.map((cost) => ({
@@ -3525,6 +3528,7 @@ export function emptyResearchTierUnlockContext(): ResearchTierUnlockContext {
 		metaMatterSpentTotal: 0,
 		raidDefensesSucceeded: 0,
 		rank3ContractsCompleted: 0,
+		researchNetworkSize: 0,
 		shipsOwned: 0,
 		successfulTransports: 0,
 	};
@@ -3589,6 +3593,9 @@ function normalizeTierUnlockContext(
 		rank3ContractsCompleted: sanitizeTierUnlockMetric(
 			context?.rank3ContractsCompleted ?? defaults.rank3ContractsCompleted,
 		),
+		researchNetworkSize: sanitizeTierUnlockMetric(
+			context?.researchNetworkSize ?? defaults.researchNetworkSize,
+		),
 		shipsOwned: sanitizeTierUnlockMetric(context?.shipsOwned ?? defaults.shipsOwned),
 		successfulTransports: sanitizeTierUnlockMetric(
 			context?.successfulTransports ?? defaults.successfulTransports,
@@ -3627,8 +3634,10 @@ export function isResearchTierUnlockSatisfied(
 			return context.crossSystemColoniesFounded > 0;
 		case "colonyInDifferentSectorFounded":
 			return context.crossSectorColoniesFounded > 0;
+		case "researchNetworkSize":
+			return context.researchNetworkSize >= rule.count;
 		case "highestResearchDirectorateLevelReached":
-			return context.highestResearchDirectorateLevel >= rule.level;
+			return context.researchNetworkSize >= Math.max(1, Math.ceil(rule.level / 4));
 		case "facilityLevelReached":
 			return context.highestFacilityLevel >= rule.level;
 		case "facilityLevelTotalOnOneColonyReached":
@@ -3680,8 +3689,10 @@ function researchTierUnlockRequirementLabel(rule: ResearchTierUnlockRule): strin
 			return "Found a colony in another system";
 		case "colonyInDifferentSectorFounded":
 			return "Found a colony in another sector";
+		case "researchNetworkSize":
+			return `Build ${rule.count} research site${rule.count === 1 ? "" : "s"}`;
 		case "highestResearchDirectorateLevelReached":
-			return `Reach Research Directorate level ${rule.level}`;
+			return `Build ${Math.max(1, Math.ceil(rule.level / 4))} research sites`;
 		case "facilityLevelReached":
 			return `Reach ${rule.facilityKey ?? "any"} facility level ${rule.level}`;
 		case "facilityLevelTotalOnOneColonyReached":
@@ -3783,8 +3794,8 @@ export function getResearchVisibility(args: {
 export const getResearchNodeVisibility = getResearchVisibility;
 
 export function getResearchNodeRequirementStatuses(args: {
-	combinedResearchCapacity: number;
-	localResearchFacilityLevel: number;
+	combinedResearchCapacity?: number;
+	localResearchFacilityLevel?: number;
 	levels: Partial<ResearchLevelMap> | undefined;
 	researchKey: ResearchKey;
 	tierUnlockContext?: Partial<ResearchTierUnlockContext>;
@@ -3817,18 +3828,6 @@ export function getResearchNodeRequirementStatuses(args: {
 			met: isResearchUnlocked(args.levels, prereq),
 		});
 	}
-	requirements.push({
-		key: "facility.researchDirectorate",
-		label: `Research Directorate level ${node.requiredResearchFacilityLevel}`,
-		met: args.localResearchFacilityLevel >= node.requiredResearchFacilityLevel,
-	});
-	if (typeof node.requiredCombinedResearchCapacity === "number") {
-		requirements.push({
-			key: "combinedResearchCapacity",
-			label: `Combined research capacity ${node.requiredCombinedResearchCapacity}`,
-			met: args.combinedResearchCapacity >= node.requiredCombinedResearchCapacity,
-		});
-	}
 	return requirements;
 }
 
@@ -3857,7 +3856,7 @@ export function buildResearchModifierSnapshot(
 		facilityMaxLevelBonuses: {},
 		metaMatterRewardMultipliers: {},
 		globalMetaMatterRewardMultiplier: 1,
-		combinedResearchCapacityUnlocked: false,
+		researchNetworkSynchronizationUnlocked: false,
 		energyConsumptionMultiplier: 1,
 		overflowReintegrationMultiplier: 1,
 		buildingQueueCapacityBonus: 0,
@@ -3983,8 +3982,8 @@ export function buildResearchModifierSnapshot(
 						snapshot.facilityMaxLevelBonuses[effect.facilityKey] =
 							(snapshot.facilityMaxLevelBonuses[effect.facilityKey] ?? 0) + effect.amount;
 						break;
-					case "combined_research_capacity":
-						snapshot.combinedResearchCapacityUnlocked = true;
+					case "research_network_synchronization":
+						snapshot.researchNetworkSynchronizationUnlocked = true;
 						break;
 					case "meta_matter_reward_multiplier":
 						if (effect.rarity) {
@@ -4024,8 +4023,8 @@ export function buildResearchModifierSnapshot(
 					case "active_command_window":
 						snapshot.activeCommandWindow = effect;
 						break;
-					case "research_directorate_overlevel_duration":
-						snapshot.researchDirectorateOverlevelDuration = effect;
+					case "research_network_duration":
+						snapshot.researchNetworkDuration = effect;
 						break;
 					case "research_cost_multiplier":
 						snapshot.researchCostMultipliers.push(effect);
@@ -4092,8 +4091,8 @@ export function buildResearchModifierSnapshot(
 					case "meta_matter_daily_conversion":
 						snapshot.metaMatterDailyConversion = effect;
 						break;
-					case "directorate_exchange_duration":
-						snapshot.directorateExchange = effect;
+					case "research_network_exchange_duration":
+						snapshot.researchNetworkExchange = effect;
 						break;
 					case "route_speed_multiplier":
 						snapshot.routeSpeedMultipliers[effect.routeClass] *= effect.multiplier;
@@ -4178,8 +4177,8 @@ export function getResearchEffectSnapshot(levels: Partial<ResearchLevelMap> | un
 }
 
 export function canResearchNodeStart(args: {
-	combinedResearchCapacity: number;
-	localResearchFacilityLevel: number;
+	combinedResearchCapacity?: number;
+	localResearchFacilityLevel?: number;
 	levels: Partial<ResearchLevelMap> | undefined;
 	researchKey: ResearchKey;
 	tierUnlockContext?: Partial<ResearchTierUnlockContext>;
@@ -4217,15 +4216,6 @@ export function canResearchNodeStart(args: {
 			facilityLevels: {},
 			researchLevels: args.levels ?? {},
 		})
-	) {
-		return false;
-	}
-	if (args.localResearchFacilityLevel < node.requiredResearchFacilityLevel) {
-		return false;
-	}
-	if (
-		typeof node.requiredCombinedResearchCapacity === "number" &&
-		args.combinedResearchCapacity < node.requiredCombinedResearchCapacity
 	) {
 		return false;
 	}

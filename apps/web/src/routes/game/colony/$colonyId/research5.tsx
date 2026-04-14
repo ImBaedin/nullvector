@@ -719,7 +719,7 @@ function NodePopover({
 						border: `1px solid ${BASE.stroke}`,
 					}}
 				>
-					Requires Directorate Lv {node.requiredFacilityLevel}
+					Requires Research Sites {node.requiredFacilityLevel}
 				</div>
 
 				{/* Action */}
@@ -1070,7 +1070,7 @@ function Research5() {
 							letterSpacing: "0.08em",
 						}}
 					>
-						Aegis Prime — Directorate Lv 2
+						Aegis Prime — 2 Research Sites
 					</span>
 				</div>
 

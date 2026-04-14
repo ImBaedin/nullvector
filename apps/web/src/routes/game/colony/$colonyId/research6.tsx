@@ -783,7 +783,7 @@ function Popover({
 						border: `1px solid ${B.stroke}`,
 					}}
 				>
-					Requires Directorate Lv {node.requiredFacilityLevel}
+					Requires Research Sites {node.requiredFacilityLevel}
 				</div>
 				{node.status === "available" && (
 					<button
@@ -1118,7 +1118,7 @@ function Research6() {
 							letterSpacing: "0.06em",
 						}}
 					>
-						Aegis Prime — Directorate Lv 2
+						Aegis Prime — 2 Research Sites
 					</span>
 				</div>
 			</div>

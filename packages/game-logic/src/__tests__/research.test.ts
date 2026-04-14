@@ -22,6 +22,18 @@ test("tier-three tree authors 3/5/7 nodes and hides planned nodes", () => {
 	expect(
 		DEFAULT_RESEARCH_TREE.find((node) => node.id === "distributedRobotics")?.prerequisites,
 	).toEqual(["modularAssemblyStandards", "storageCompressionLattices"]);
+	expect(
+		DEFAULT_RESEARCH_TREE.find((node) => node.id === "archiveCompression")
+			?.requiredResearchNetworkSize,
+	).toBe(1);
+	expect(
+		DEFAULT_RESEARCH_TREE.find((node) => node.id === "parallelInquiry")
+			?.requiredResearchNetworkSize,
+	).toBe(3);
+	expect(
+		DEFAULT_RESEARCH_TREE.find((node) => node.id === "federatedDatabanks")
+			?.requiredResearchNetworkSize,
+	).toBe(5);
 });
 
 test("research branch dither colors are shader-normalized", () => {
@@ -46,51 +58,51 @@ test("research effect stacking multiplies modifiers and adds cap bonuses", () =>
 	expect(snapshot.facilityMaxLevelBonuses.robotics_hub).toBe(2);
 });
 
-test("research start checks prerequisites and facility capacity", () => {
+test("research start checks prerequisites and research network size", () => {
 	expect(
 		canResearchNodeStart({
-			combinedResearchCapacity: 2,
-			localResearchFacilityLevel: 1,
 			levels: {},
 			researchKey: "archiveCompression",
+			tierUnlockContext: { researchNetworkSize: 1 },
 		}),
 	).toBe(true);
 
 	expect(
 		canResearchNodeStart({
-			combinedResearchCapacity: 2,
-			localResearchFacilityLevel: 1,
 			levels: {},
 			researchKey: "parallelInquiry",
+			tierUnlockContext: { researchNetworkSize: 1 },
 		}),
 	).toBe(false);
 
 	expect(
 		canResearchNodeStart({
-			combinedResearchCapacity: 10,
-			localResearchFacilityLevel: 10,
 			levels: { archiveCompression: 1 },
 			researchKey: "parallelInquiry",
 			tierUnlockContext: {
-				highestResearchDirectorateLevel: 10,
 				metaMatterSpentTotal: 50,
+				researchNetworkSize: 3,
 			},
 		}),
 	).toBe(true);
 });
 
 test("research visibility hides nodes until a direct prerequisite is complete", () => {
-	expect(getResearchVisibility({ levels: {}, researchKey: "archiveCompression" })).toBe(
-		"silhouette",
-	);
+	expect(
+		getResearchVisibility({
+			levels: {},
+			researchKey: "archiveCompression",
+			tierUnlockContext: { researchNetworkSize: 1 },
+		}),
+	).toBe("silhouette");
 	expect(getResearchVisibility({ levels: {}, researchKey: "parallelInquiry" })).toBe("hidden");
 	expect(
 		getResearchVisibility({
 			levels: { archiveCompression: 1 },
 			researchKey: "parallelInquiry",
 			tierUnlockContext: {
-				highestResearchDirectorateLevel: 10,
 				metaMatterSpentTotal: 50,
+				researchNetworkSize: 3,
 			},
 		}),
 	).toBe("silhouette");

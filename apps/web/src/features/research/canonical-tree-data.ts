@@ -27,6 +27,7 @@ export type RadialNode = {
 	maxLevel: number;
 	effects: string[];
 	description: string;
+	requiredNetworkSize: number;
 	requiredFacilityLevel: number;
 	requiredCombinedResearchCapacity?: number;
 	requirements: ResearchRequirementStatus[];
@@ -125,6 +126,7 @@ function buildStaticTree(branchKey: ResearchBranchKey): RadialTree {
 				maxLevel: node.maxLevel,
 				effects: node.effectLabels,
 				description: node.description,
+				requiredNetworkSize: node.requiredResearchNetworkSize,
 				requiredFacilityLevel: node.requiredResearchFacilityLevel,
 				requiredCombinedResearchCapacity: node.requiredCombinedResearchCapacity,
 				requirements: [],

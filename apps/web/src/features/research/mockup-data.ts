@@ -360,7 +360,7 @@ export const MILITARY_SYSTEMS_NODES: MockResearchNode[] = [
 export const SCIENTIFIC_INFRASTRUCTURE_NODES: MockResearchNode[] = [
 	{
 		id: "research_protocols",
-		name: "Research Directorate Protocols",
+		name: "Research Network Protocols",
 		branch: "scientific_infrastructure",
 		tier: 1,
 		shape: "square",
@@ -570,8 +570,7 @@ export const EXPANSION_LOGISTICS_NODES: MockResearchNode[] = [
 		branch: "expansion_logistics",
 		tier: 3,
 		shape: "capstone",
-		description:
-			"Link all research directorate facilities into a single aggregate capacity pool. Late-game nodes may now use combined research levels.",
+		description: "Link research sites into a single empire-wide research network.",
 		position: { x: 840, y: 0 },
 		prerequisites: ["colonial_bureaucracy", "logistics_backbone"],
 		level: 0,

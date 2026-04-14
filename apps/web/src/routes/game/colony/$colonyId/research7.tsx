@@ -984,7 +984,7 @@ function Popover({
 						border: `1px solid ${BASE.stroke}`,
 					}}
 				>
-					Requires Directorate Lv {node.requiredFacilityLevel}
+					Requires Research Sites {node.requiredFacilityLevel}
 				</div>
 
 				{/* Action button */}
@@ -1452,7 +1452,7 @@ function InnerApp() {
 						letterSpacing: "0.06em",
 					}}
 				>
-					Aegis Prime — Directorate Lv 2
+					Aegis Prime — 2 Research Sites
 				</span>
 			</div>
 

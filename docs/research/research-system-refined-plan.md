@@ -15,8 +15,8 @@ The current best-fit direction is:
 - Each tree tab has its own color identity and background animation profile.
 - The research background should use the React Bits Dither background component, customized per active tab during implementation.
 - Buildings, facilities, ships, and defenses should unlock from specific research nodes, not from raw research facility level requirements.
-- Research nodes can still require a minimum research facility level to begin.
-- Higher-tier research should eventually use the sum of research facility levels across all colonies for late-game capacity checks.
+- Research nodes should use account-wide research site count for tier access, not local research facility levels.
+- The Research Directorate should be a one-time per-colony research site. Higher tiers require more built sites across owned colonies.
 - Research should use a named, swappable currency family. For now, that family is called `meta-matter`.
 - `meta-matter` comes in multiple rarities and is earned primarily from contracts, with rarity tied to contract difficulty.
 - Research should stay inside the main loop by requiring both colony development and combat/contracts, not by becoming a detached meta-progression screen.
@@ -45,19 +45,19 @@ Add a new facility, tentatively:
 Role of the facility:
 
 - unlocks access to the research tab
-- acts as the colony-side prerequisite for starting research
-- sets local facility-level requirements for many nodes
-- later participates in account-wide research-capacity progression across colonies
+- counts as one account-wide research site
+- supports tier unlocks through empire-wide site count
 
 Locked V1 behavior:
 
-- every research node has a `requiredResearchFacilityLevel`
-- the player may start research from any owned colony meeting that requirement
+- Research Directorate is a one-time facility with max level 1.
+- tier 1 research requires 1 built research site
+- tier 2 research requires 3 built research sites
+- tier 3 research requires 5 built research sites
 - research completion is global for the account
-- research facility level affects eligibility only
 - research queue is single-item for now
 
-This keeps the facility meaningful without making research colony-local.
+This keeps the facility meaningful without making research colony-local or tying research eligibility to one colony's facility level.
 
 ### 2. Global Research Tree
 
@@ -86,7 +86,7 @@ export type ResearchNodeDefinition = {
   position: { x: number; y: number };
   prerequisites: ResearchKey[];
   maxLevel: number;
-  requiredResearchFacilityLevel: number;
+  requiredResearchNetworkSize: number;
   costs: Array<{
     metaMatter: Partial<Record<MetaMatterRarity, number>>;
     resources?: Partial<ResourceBucket>;
@@ -253,7 +253,7 @@ The newer design direction is correct: facilities, defenses, ships, and building
 
 Use this split:
 
-- research facility level gates whether a node can be researched
+- research site count gates whether a research tier can be accessed
 - research node completion gates whether specific content becomes available
 
 Example:
@@ -265,23 +265,23 @@ Example:
 
 This makes the tree feel meaningful and readable. It also prevents the research facility from being a disguised meta-level requirement for everything.
 
-### 6. Combined Research Facility Levels
+### 6. Research Network Size
 
-Your note about a later tech that combines all colony research facility levels is good because it solves late-game scaling cleanly.
+The research facility should be a one-time research site per colony. This solves late-game scaling without making the origin colony's facility level decide which account-wide research can start.
 
 Recommended implementation:
 
-- by default, node requirements check the origin colony's `research_directorate` level only
-- a later research node, tentatively `interstellar_research_network`, unlocks aggregate research capacity
-- after that node is complete, late-game node requirements use `combinedResearchFacilityLevels`
+- each owned colony with a built `research_directorate` contributes 1 research site
+- tier 1 requires 1 research site
+- tier 2 requires 3 research sites
+- tier 3 requires 5 research sites
+- node-specific gameplay gates still use relevant achievements such as contracts completed, colonies founded, or meta-matter earned
 
 Best rule for clarity:
 
-- normal nodes use local colony level requirement
-- a small set of late-game nodes explicitly say `Requires Combined Research Capacity X`
-- combined capacity means the sum of all owned `research_directorate` levels
-
-Do not silently swap every node to aggregate rules after the unlock. That will be harder to reason about in UI and balance.
+- normal tier access uses account-wide research site count
+- the UI should say `Requires 3 research sites`, not `Requires Research Directorate level 10`
+- individual nodes should still use authored prerequisites and branch-specific tier gates
 
 ## Research Currency
 
@@ -394,7 +394,7 @@ Recommended effect types:
 - `fleet_fuel_cost_multiplier`
 - `cargo_capacity_multiplier`
 - `contract_reward_meta_matter`
-- `combined_research_capacity`
+- `research_network_synchronization`
 
 The effect list should stay narrow at first. Avoid a generic free-form scripting model in V1.
 
@@ -452,8 +452,8 @@ Implementation note:
 
 Suggested snapshot fields:
 
-- `originResearchFacilityLevel`
-- `combinedCapacityUsed`
+- `originResearchSiteBuilt`
+- `researchNetworkSize`
 - `durationSeconds`
 - `metaMatterCostAtEnqueue`
 - `resourceCostAtEnqueue`
@@ -504,7 +504,7 @@ Recommended overview payload additions:
 - active tab id
 - per-tab theme metadata
 - `meta-matter` balances by rarity
-- combined research capacity
+- research network size
 - current active research item
 
 ### 4. Contract Reward Plumbing
@@ -559,7 +559,7 @@ The route should load:
 
 - static tree data from `packages/game-logic`
 - player research state and queue from Convex
-- origin-colony research facility level and local resources
+- account-wide research network size and local resources
 
 Core panels:
 
@@ -568,7 +568,7 @@ Core panels:
 - selected node detail
 - account research queue
 - `meta-matter` balances
-- origin colony status
+- origin colony status and current research site count
 
 Recommended interaction model:
 
@@ -576,13 +576,13 @@ Recommended interaction model:
 - tab switching updates the tree content and background profile
 - click node to inspect
 - see prerequisites and unmet requirements
-- choose current colony as the research origin
+- use current colony resources as the research origin cost source
 - enqueue if costs and requirements are met
 
 If the user switches colonies:
 
 - the same global tree remains visible
-- local launch eligibility updates based on that colony's facility level and resource stockpile
+- local launch eligibility updates based on that colony's resource stockpile while tier eligibility stays account-wide
 
 That is exactly the behavior we want from a player-owned system launched from colony context.
 
@@ -594,7 +594,7 @@ Planned supporting changes:
 - add a new `HighlightTarget` such as `tab-research`
 - add a research icon to the header config
 - optionally add onboarding quests for:
-  - build Research Directorate level 1
+  - build the first Research Directorate
   - complete first research node
   - earn first rare `meta-matter`
 
@@ -604,12 +604,12 @@ The system should reinforce the existing loop rather than bypass it.
 
 Recommended loop:
 
-1. Improve colonies to afford and upgrade `research_directorate`.
+1. Improve colonies to afford the one-time `research_directorate` site.
 2. Run contracts to earn `meta-matter` of different rarities.
 3. Return to a colony and start research using both global `meta-matter` and local resources.
 4. Unlock stronger ships, defenses, buildings, and passive modifiers.
 5. Use those upgrades to push harder contracts and expand the empire.
-6. Build more research-capable colonies to raise combined research capacity for late-game nodes.
+6. Build research sites on more colonies to unlock higher research tiers.
 
 This is the key structural win:
 
@@ -645,7 +645,7 @@ This is a tighter V1-friendly set than the broader brainstorm list.
 
 ### Core Spine
 
-- Research Directorate Protocols
+- Research Network Protocols
 - Archive Compression
 - Parallel Inquiry
 - Federated Databanks
@@ -690,8 +690,8 @@ This is a tighter V1-friendly set than the broader brainstorm list.
 - each tree has its own color identity
 - tab switching updates the Dither background palette and visible tree
 - research queue is single-item in V1
-- research facility level affects eligibility only
-- late-game aggregate research capacity uses the sum of all owned research facility levels
+- research site count affects tier eligibility
+- late-game research access uses the count of owned colonies with a built Research Directorate
 - research gates shipyard and defense-grid contents, not the facilities themselves
 - V1 `meta-matter` source is contract success only
 - lower-tier rarities should remain partially relevant in the late game
@@ -718,7 +718,7 @@ These are the questions still worth answering before implementation.
 
 If we proceed into implementation soon, the strongest next step is:
 
-1. formalize the `research_directorate` facility
+1. formalize the one-time `research_directorate` facility
 2. add a code-owned research tree registry with authored layout metadata
 3. add player-owned research state, `meta-matter` balances, queue, and scheduling
 4. award `meta-matter` from contract success by `difficultyTier`

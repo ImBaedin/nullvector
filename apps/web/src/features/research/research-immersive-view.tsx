@@ -132,8 +132,8 @@ const TIER_COMPLETION_SECRETS: Partial<
 		},
 		3: {
 			title: "Eigenstate Lock",
-			body: "The research directorate is operating at theoretical maximum throughput. This configuration should not be stable. It is.",
-			effect: "Research queue parallelism unlocked",
+			body: "The research network is operating at theoretical maximum throughput. This configuration should not be stable. It is.",
+			effect: "Research network synchronization unlocked",
 		},
 		4: {
 			title: "Cognitive Lattice",
@@ -2023,6 +2023,7 @@ type ResearchStateNode = {
 	visibility: "hidden" | "silhouette" | "visible";
 	status: NodeStatus;
 	canStart: boolean;
+	requiredResearchNetworkSize: number;
 	requiredResearchFacilityLevel: number;
 	requiredCombinedResearchCapacity?: number;
 	requirements: Array<{ key: string; label: string; met: boolean }>;
@@ -2098,6 +2099,7 @@ function buildTreeByBranch(branches: ResearchStateBranch[] | undefined): {
 				maxLevel: node.maxLevel,
 				effects: node.effects,
 				description: node.description,
+				requiredNetworkSize: node.requiredResearchNetworkSize,
 				requiredFacilityLevel: node.requiredResearchFacilityLevel,
 				requiredCombinedResearchCapacity: node.requiredCombinedResearchCapacity,
 				requirements: node.requirements,
@@ -2535,7 +2537,7 @@ function InnerResearchImmersiveViewWithInsets({
 						letterSpacing: "0.06em",
 					}}
 				>
-					Directorate Lv {researchState?.localResearchFacilityLevel ?? 0}
+					Research Sites {researchState?.researchNetworkSize ?? 0}
 				</span>
 				<span
 					style={{

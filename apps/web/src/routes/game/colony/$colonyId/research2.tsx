@@ -1101,7 +1101,7 @@ function Research2() {
 							letterSpacing: "0.08em",
 						}}
 					>
-						Aegis Prime — Directorate Lv 2
+						Aegis Prime — 2 Research Sites
 					</div>
 				</div>
 

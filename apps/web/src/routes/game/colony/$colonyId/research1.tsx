@@ -715,7 +715,7 @@ function NodeDetailPanel({ node }: { node: MockResearchNode | null }) {
 							color: PALETTE.textSecondary,
 						}}
 					>
-						Research Directorate Lv {node.requiredResearchFacilityLevel}
+						Research Sites {node.requiredResearchFacilityLevel}
 					</span>
 				</div>
 			</div>
@@ -918,7 +918,7 @@ function Research1() {
 								textTransform: "uppercase",
 							}}
 						>
-							Aegis Prime — Directorate Lv 2
+							Aegis Prime — 2 Research Sites
 						</span>
 					</div>
 

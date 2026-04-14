@@ -82,6 +82,7 @@ const researchNodeViewValidator = v.object({
 	visibility: researchNodeVisibilityValidator,
 	status: researchNodeStatusValidator,
 	canStart: v.boolean(),
+	requiredResearchNetworkSize: v.number(),
 	requiredResearchFacilityLevel: v.number(),
 	requiredCombinedResearchCapacity: v.optional(v.number()),
 	requirements: v.array(researchRequirementStatusValidator),
@@ -133,6 +134,7 @@ const researchTierUnlockContextValidator = v.object({
 	metaMatterSpentTotal: v.number(),
 	raidDefensesSucceeded: v.number(),
 	rank3ContractsCompleted: v.number(),
+	researchNetworkSize: v.number(),
 	shipsOwned: v.number(),
 	successfulTransports: v.number(),
 });
@@ -150,6 +152,7 @@ const researchStateViewValidator = v.object({
 	colonyId: v.id("colonies"),
 	levels: v.record(v.string(), v.number()),
 	balances: metaMatterValidator,
+	researchNetworkSize: v.number(),
 	combinedResearchCapacity: v.number(),
 	localResearchFacilityLevel: v.number(),
 	serverNow: v.number(),
@@ -341,11 +344,12 @@ export async function getEffectiveResearchCapacity(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
-	return (await getResearchAccountFacts(args)).combinedResearchCapacity;
+	return (await getResearchAccountFacts(args)).researchNetworkSize;
 }
 
 type ResearchAccountFacts = {
 	combinedResearchCapacity: number;
+	researchNetworkSize: number;
 	tierUnlockContext: ResearchTierUnlockContext;
 };
 
@@ -357,7 +361,7 @@ async function getResearchAccountFacts(args: {
 		.query("colonies")
 		.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
 		.collect();
-	let combinedResearchCapacity = 0;
+	let researchNetworkSize = 0;
 	let highestBuildingLevel = 0;
 	let highestFacilityLevel = 0;
 	let highestResearchDirectorateLevel = 0;
@@ -420,7 +424,9 @@ async function getResearchAccountFacts(args: {
 			Math.max(0, Math.floor(buildings.alloyStorageLevel ?? 0)) +
 			Math.max(0, Math.floor(buildings.crystalStorageLevel ?? 0)) +
 			Math.max(0, Math.floor(buildings.fuelStorageLevel ?? 0));
-		combinedResearchCapacity += researchDirectorateLevel;
+		if (researchDirectorateLevel > 0) {
+			researchNetworkSize += 1;
+		}
 		highestResearchDirectorateLevel = Math.max(
 			highestResearchDirectorateLevel,
 			researchDirectorateLevel,
@@ -515,7 +521,8 @@ async function getResearchAccountFacts(args: {
 	);
 
 	return {
-		combinedResearchCapacity,
+		combinedResearchCapacity: researchNetworkSize,
+		researchNetworkSize,
 		tierUnlockContext: {
 			coloniesFounded: Math.max(colonies.length, playerResearchMetrics?.coloniesFounded ?? 0),
 			crossSectorColoniesFounded: Math.max(
@@ -563,6 +570,7 @@ async function getResearchAccountFacts(args: {
 				rank3ContractsCompleted,
 				playerResearchMetrics?.rank3ContractsCompleted ?? 0,
 			),
+			researchNetworkSize,
 			shipsOwned: shipRows.reduce((sum, row) => sum + Math.max(0, Math.floor(row.count)), 0),
 			successfulTransports: Math.max(
 				transportResults.filter(
@@ -585,7 +593,6 @@ function buildResearchTreeView(args: {
 	combinedResearchCapacity: number;
 	hasOpenResearch: boolean;
 	levels: ResearchLevelMap;
-	localResearchFacilityLevel: number;
 	tierUnlockContext: ResearchTierUnlockContext;
 }) {
 	return DEFAULT_RESEARCH_BRANCHES.map((branch) => ({
@@ -618,7 +625,6 @@ function buildResearchTreeView(args: {
 						canResearchNodeStart({
 							combinedResearchCapacity: args.combinedResearchCapacity,
 							levels: args.levels,
-							localResearchFacilityLevel: args.localResearchFacilityLevel,
 							researchKey: node.id,
 							tierUnlockContext: args.tierUnlockContext,
 						});
@@ -647,13 +653,13 @@ function buildResearchTreeView(args: {
 						visibility,
 						status,
 						canStart,
+						requiredResearchNetworkSize: node.requiredResearchNetworkSize,
 						requiredResearchFacilityLevel: node.requiredResearchFacilityLevel,
 						requiredCombinedResearchCapacity: node.requiredCombinedResearchCapacity,
 						requirements: cloneRequirementStatuses(
 							getResearchNodeRequirementStatuses({
 								combinedResearchCapacity: args.combinedResearchCapacity,
 								levels: args.levels,
-								localResearchFacilityLevel: args.localResearchFacilityLevel,
 								researchKey: node.id,
 								tierUnlockContext: args.tierUnlockContext,
 							}),
@@ -817,13 +823,17 @@ export async function getResearchState(args: {
 		}),
 	]);
 	const levels = (state.levels ?? {}) as ResearchLevelMap;
-	const localResearchFacilityLevel = Math.max(0, colony.buildings.researchDirectorateLevel);
+	const localResearchFacilityLevel = Math.min(
+		1,
+		Math.max(0, Math.floor(colony.buildings.researchDirectorateLevel)),
+	);
 	const serverNow = Date.now();
 	return {
 		playerId: player._id,
 		colonyId: colony._id,
 		levels,
 		balances: cloneMetaMatter(balances),
+		researchNetworkSize: researchFacts.researchNetworkSize,
 		combinedResearchCapacity: researchFacts.combinedResearchCapacity,
 		localResearchFacilityLevel,
 		serverNow,
@@ -839,7 +849,6 @@ export async function getResearchState(args: {
 				(activeResearch.status === "active" || activeResearch.status === "queued"),
 			),
 			levels,
-			localResearchFacilityLevel,
 			tierUnlockContext: researchFacts.tierUnlockContext,
 		}),
 		activeResearch: activeResearch
@@ -969,7 +978,6 @@ export const enqueue = mutation({
 		if (
 			!canResearchNodeStart({
 				combinedResearchCapacity: researchFacts.combinedResearchCapacity,
-				localResearchFacilityLevel: Math.max(0, colony.buildings.researchDirectorateLevel),
 				levels,
 				researchKey: node.id,
 				tierUnlockContext: researchFacts.tierUnlockContext,
@@ -1049,7 +1057,10 @@ export const enqueue = mutation({
 			costMetaMatter,
 			costResources,
 			snapshot: {
-				originResearchFacilityLevel: Math.max(0, colony.buildings.researchDirectorateLevel),
+				originResearchFacilityLevel: Math.min(
+					1,
+					Math.max(0, Math.floor(colony.buildings.researchDirectorateLevel)),
+				),
 				combinedResearchCapacity: researchFacts.combinedResearchCapacity,
 				durationSeconds,
 			},

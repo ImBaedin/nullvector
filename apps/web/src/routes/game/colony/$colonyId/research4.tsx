@@ -893,7 +893,7 @@ function SlideUpDrawer({ node, onClose }: { node: MockResearchNode; onClose: () 
 											color: G.textSecondary,
 										}}
 									>
-										Directorate Lv {node.requiredResearchFacilityLevel}
+										Research Sites {node.requiredResearchFacilityLevel}
 									</span>
 								</div>
 								{node.prerequisites.length > 0 && (
@@ -959,7 +959,7 @@ function SlideUpDrawer({ node, onClose }: { node: MockResearchNode; onClose: () 
 								color: G.textMuted,
 							}}
 						>
-							Complete prerequisites to reveal this research node. Requires Directorate Lv{" "}
+							Complete prerequisites to reveal this research node. Requires Research Sites{" "}
 							{node.requiredResearchFacilityLevel}.
 						</span>
 					</div>
@@ -1038,7 +1038,7 @@ function TopHUD({ activeTab }: { activeTab: ResearchBranchKey }) {
 							color: G.textMuted,
 						}}
 					>
-						Aegis Prime — Directorate Lv 2
+						Aegis Prime — 2 Research Sites
 					</span>
 					<span
 						style={{

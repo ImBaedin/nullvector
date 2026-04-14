@@ -797,7 +797,7 @@ function QueueEconomyPanel() {
 								color: V.textSecondary,
 							}}
 						>
-							Directorate Level
+							Research Sites
 						</span>
 						<span
 							style={{
@@ -1090,7 +1090,7 @@ function NodeInspector({ node }: { node: MockResearchNode | null }) {
 						color: V.textSecondary,
 					}}
 				>
-					Requires Directorate Lv {node.requiredResearchFacilityLevel}
+					Requires Research Sites {node.requiredResearchFacilityLevel}
 				</span>
 			</div>
 
