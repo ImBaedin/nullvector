@@ -12,10 +12,13 @@ import {
 	normalizeDefenseCounts,
 	normalizeShipCounts,
 	simulateCombat,
+	SHIP_KEYS,
 	type ContractSnapshot,
 	type ContractThreatBand,
 	type PrimaryRewardResource,
 	type ResearchLevelMap,
+	type ResearchModifierSnapshot,
+	type ShipCounts,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
@@ -68,6 +71,28 @@ const contractStatusValidator = v.union(
 	v.literal("expired"),
 	v.literal("replaced"),
 );
+
+function committedShipCount(shipCounts: ShipCounts) {
+	return SHIP_KEYS.reduce((sum, key) => sum + Math.max(0, Math.floor(shipCounts[key])), 0);
+}
+
+function contractWolfpackFuelMultiplier(args: {
+	researchModifiers: ResearchModifierSnapshot;
+	shipCounts: ShipCounts;
+}) {
+	const wolfpack = args.researchModifiers.interceptorWolfpack;
+	if (!wolfpack) {
+		return 1;
+	}
+	const committed = committedShipCount(args.shipCounts);
+	if (committed <= 0) {
+		return 1;
+	}
+	return args.shipCounts.interceptor >= wolfpack.minInterceptors &&
+		args.shipCounts.interceptor / committed >= wolfpack.minShare
+		? (wolfpack.fuelMultiplier ?? 1)
+		: 1;
+}
 
 const contractViewValidator = v.object({
 	id: v.union(v.id("contracts"), v.string()),
@@ -270,7 +295,7 @@ async function getColonyOriginCoords(args: {
 	if (!system) {
 		throw new ConvexError("System not found for colony");
 	}
-	return { x: system.x, y: system.y };
+	return { sectorId: system.sectorId, systemId: system._id, x: system.x, y: system.y };
 }
 
 async function getPlanetSystemCoords(args: {
@@ -285,7 +310,7 @@ async function getPlanetSystemCoords(args: {
 	if (!system) {
 		throw new ConvexError("System not found for planet");
 	}
-	return { x: system.x, y: system.y };
+	return { sectorId: system.sectorId, systemId: system._id, x: system.x, y: system.y };
 }
 
 async function getInProgressContractCount(args: {
@@ -1193,8 +1218,10 @@ async function deriveRecommendedContractsByOrdinal(args: {
 		}
 	}
 
+	const researchModifiers = buildResearchModifierSnapshot(playerResearchLevels);
 	const difficultyTier = progression.contractRules.difficultyTier;
-	const visibleSlots = progression.contractRules.visibleSlots;
+	const visibleSlots =
+		progression.contractRules.visibleSlots + researchModifiers.contractVisibleSlotBonus;
 	const viableOffers: Array<typeof recommendedContractViewValidator.type> = [];
 	const stretchOffers: Array<typeof recommendedContractViewValidator.type> = [];
 	let tutorialSafeInserted = false;
@@ -1532,12 +1559,19 @@ export const launchContract = mutation({
 			ctx,
 			player,
 		});
-		const visibleSlots = progressionOverview.contractRules.visibleSlots;
+		const playerResearchLevels = await loadPlayerResearchLevels({
+			ctx,
+			playerId: player._id,
+		});
+		const researchModifiers = buildResearchModifierSnapshot(playerResearchLevels);
+		const visibleSlots =
+			progressionOverview.contractRules.visibleSlots + researchModifiers.contractVisibleSlotBonus;
 		if (args.slot < 0 || args.slot >= visibleSlots) {
 			throw new ConvexError("Contract slot is not available at your rank");
 		}
 
-		const activeContractLimit = progressionOverview.contractRules.activeLimit;
+		const activeContractLimit =
+			progressionOverview.contractRules.activeLimit + researchModifiers.contractActiveLimitBonus;
 		const activeContractCount = await getInProgressContractCount({
 			ctx,
 			playerId: player._id,
@@ -1566,10 +1600,6 @@ export const launchContract = mutation({
 			playerId: player._id,
 		});
 		const currentSequence = sequenceForSlot(boardState.slotSequences, args.slot);
-		const playerResearchLevels = await loadPlayerResearchLevels({
-			ctx,
-			playerId: player._id,
-		});
 		const lookaheadLimit =
 			progression.rank === 3 ? CONTRACT_LOOKAHEAD_SEQUENCES + 23 : CONTRACT_LOOKAHEAD_SEQUENCES;
 		let offer =
@@ -1665,12 +1695,24 @@ export const launchContract = mutation({
 		});
 		const durationMs = durationMsForFleet({
 			distance,
+			routeSpeedMultiplier:
+				researchModifiers.routeSpeedMultipliers[
+					originCoords.sectorId !== targetCoords.sectorId
+						? "interSector"
+						: originCoords.systemId !== targetCoords.systemId
+							? "interSystem"
+							: "local"
+				],
 			shipCounts: normalizedShips,
 		});
-		const researchModifiers = buildResearchModifierSnapshot(playerResearchLevels);
 		const fuelScaled = Math.round(
 			getFleetFuelCostForDistance({ distance, shipCounts: normalizedShips }) *
 				researchModifiers.fleetFuelCostMultiplier *
+				researchModifiers.contractDispatchFuelMultiplier *
+				contractWolfpackFuelMultiplier({
+					researchModifiers,
+					shipCounts: normalizedShips,
+				}) *
 				1_000,
 		);
 		const latestOrigin = await loadColonyState({

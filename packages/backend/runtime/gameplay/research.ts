@@ -26,6 +26,7 @@ import {
 	type MutationCtx,
 	type QueryCtx,
 } from "../../convex/_generated/server";
+import { adjustResearchMetaMatterSpent, ensurePlayerResearchRuntimeState } from "./researchMetrics";
 import { scaledUnits } from "./shared";
 import { getOwnedColony, resolveCurrentPlayer, upsertColonyCompanionRows } from "./shared";
 
@@ -116,9 +117,22 @@ const researchBranchViewValidator = v.object({
 const researchTierUnlockContextValidator = v.object({
 	coloniesFounded: v.number(),
 	contractsCompleted: v.number(),
+	crossSectorColoniesFounded: v.number(),
+	crossSystemColoniesFounded: v.number(),
 	defensesOwned: v.number(),
+	facilityLevelTotalOnOneColony: v.number(),
 	highestBuildingLevel: v.number(),
+	highestFacilityLevel: v.number(),
 	highestResearchDirectorateLevel: v.number(),
+	maxResourceAndStorageLevelTotal: v.number(),
+	maxResourceProductionBuildingLevel: v.number(),
+	maxStorageBuildingLevel: v.number(),
+	metaMatterEarnedCommon: v.number(),
+	metaMatterEarnedMythic: v.number(),
+	metaMatterEarnedRare: v.number(),
+	metaMatterSpentTotal: v.number(),
+	raidDefensesSucceeded: v.number(),
+	rank3ContractsCompleted: v.number(),
 	shipsOwned: v.number(),
 	successfulTransports: v.number(),
 });
@@ -345,7 +359,32 @@ async function getResearchAccountFacts(args: {
 		.collect();
 	let combinedResearchCapacity = 0;
 	let highestBuildingLevel = 0;
+	let highestFacilityLevel = 0;
 	let highestResearchDirectorateLevel = 0;
+	let maxResourceProductionBuildingLevel = 0;
+	let maxStorageBuildingLevel = 0;
+	let maxResourceAndStorageLevelTotal = 0;
+	let facilityLevelTotalOnOneColony = 0;
+	const colonyPlanets = await Promise.all(
+		colonies.map((colony) => args.ctx.db.get(colony.planetId)),
+	);
+	const homePlanet = colonyPlanets[0] ?? null;
+	let crossSystemColoniesFounded = 0;
+	let crossSectorColoniesFounded = 0;
+	for (const planet of colonyPlanets) {
+		if (!planet || !homePlanet) {
+			continue;
+		}
+		if (
+			planet.systemIndex !== homePlanet.systemIndex ||
+			planet.sectorIndex !== homePlanet.sectorIndex
+		) {
+			crossSystemColoniesFounded += 1;
+		}
+		if (planet.sectorIndex !== homePlanet.sectorIndex) {
+			crossSectorColoniesFounded += 1;
+		}
+	}
 	for (const colony of colonies) {
 		const infraRows = await args.ctx.db
 			.query("colonyInfrastructure")
@@ -355,46 +394,182 @@ async function getResearchAccountFacts(args: {
 		if (!buildings) {
 			continue;
 		}
-		combinedResearchCapacity += Math.max(0, buildings.researchDirectorateLevel ?? 0);
+		const researchDirectorateLevel = Math.max(
+			0,
+			Math.floor(buildings.researchDirectorateLevel ?? 0),
+		);
+		const roboticsHubLevel = Math.max(0, Math.floor(buildings.roboticsHubLevel ?? 0));
+		const shipyardLevel = Math.max(0, Math.floor(buildings.shipyardLevel ?? 0));
+		const defenseGridLevel = Math.max(0, Math.floor(buildings.defenseGridLevel ?? 0));
+		const facilityTotal =
+			researchDirectorateLevel + roboticsHubLevel + shipyardLevel + defenseGridLevel;
+		const resourceProductionMax = Math.max(
+			Math.max(0, Math.floor(buildings.alloyMineLevel ?? 0)),
+			Math.max(0, Math.floor(buildings.crystalMineLevel ?? 0)),
+			Math.max(0, Math.floor(buildings.fuelRefineryLevel ?? 0)),
+		);
+		const storageMax = Math.max(
+			Math.max(0, Math.floor(buildings.alloyStorageLevel ?? 0)),
+			Math.max(0, Math.floor(buildings.crystalStorageLevel ?? 0)),
+			Math.max(0, Math.floor(buildings.fuelStorageLevel ?? 0)),
+		);
+		const resourceAndStorageTotal =
+			Math.max(0, Math.floor(buildings.alloyMineLevel ?? 0)) +
+			Math.max(0, Math.floor(buildings.crystalMineLevel ?? 0)) +
+			Math.max(0, Math.floor(buildings.fuelRefineryLevel ?? 0)) +
+			Math.max(0, Math.floor(buildings.alloyStorageLevel ?? 0)) +
+			Math.max(0, Math.floor(buildings.crystalStorageLevel ?? 0)) +
+			Math.max(0, Math.floor(buildings.fuelStorageLevel ?? 0));
+		combinedResearchCapacity += researchDirectorateLevel;
 		highestResearchDirectorateLevel = Math.max(
 			highestResearchDirectorateLevel,
-			buildings.researchDirectorateLevel ?? 0,
+			researchDirectorateLevel,
+		);
+		highestFacilityLevel = Math.max(
+			highestFacilityLevel,
+			researchDirectorateLevel,
+			roboticsHubLevel,
+			shipyardLevel,
+			defenseGridLevel,
+		);
+		facilityLevelTotalOnOneColony = Math.max(facilityLevelTotalOnOneColony, facilityTotal);
+		maxResourceProductionBuildingLevel = Math.max(
+			maxResourceProductionBuildingLevel,
+			resourceProductionMax,
+		);
+		maxStorageBuildingLevel = Math.max(maxStorageBuildingLevel, storageMax);
+		maxResourceAndStorageLevelTotal = Math.max(
+			maxResourceAndStorageLevelTotal,
+			resourceAndStorageTotal,
 		);
 		for (const level of Object.values(buildings)) {
 			highestBuildingLevel = Math.max(highestBuildingLevel, Math.max(0, Math.floor(level ?? 0)));
 		}
 	}
-	const [contractResults, transportResults, shipRows, defenseRows] = await Promise.all([
+	const [contractResults, transportResults, raidResults, shipRows, defenseRows] = await Promise.all(
+		[
+			args.ctx.db
+				.query("contractResults")
+				.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+				.collect(),
+			args.ctx.db
+				.query("fleetOperationResults")
+				.withIndex("by_owner_id", (q) => q.eq("ownerPlayerId", args.playerId))
+				.collect(),
+			args.ctx.db
+				.query("npcRaidResults")
+				.withIndex("by_target_player_id", (q) => q.eq("targetPlayerId", args.playerId))
+				.collect(),
+			args.ctx.db
+				.query("colonyShips")
+				.withIndex("by_player", (q) => q.eq("playerId", args.playerId))
+				.collect(),
+			args.ctx.db
+				.query("colonyDefenses")
+				.withIndex("by_player", (q) => q.eq("playerId", args.playerId))
+				.collect(),
+		],
+	);
+	const contractsForResults = await Promise.all(
+		contractResults.map((result) => args.ctx.db.get(result.contractId)),
+	);
+	const rank3ContractsCompleted = contractResults.filter((result, index) => {
+		const contract = contractsForResults[index];
+		return (
+			result.success && (contract?.difficultyTier ?? contract?.snapshot.difficultyTier ?? 0) >= 3
+		);
+	}).length;
+	const [playerResearchMetrics, colonyResearchMetrics] = await Promise.all([
 		args.ctx.db
-			.query("contractResults")
+			.query("playerResearchMetrics")
+			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+			.unique(),
+		args.ctx.db
+			.query("colonyResearchMetrics")
 			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
 			.collect(),
-		args.ctx.db
-			.query("fleetOperationResults")
-			.withIndex("by_owner_id", (q) => q.eq("ownerPlayerId", args.playerId))
-			.collect(),
-		args.ctx.db
-			.query("colonyShips")
-			.withIndex("by_player", (q) => q.eq("playerId", args.playerId))
-			.collect(),
-		args.ctx.db
-			.query("colonyDefenses")
-			.withIndex("by_player", (q) => q.eq("playerId", args.playerId))
-			.collect(),
 	]);
+	for (const metric of colonyResearchMetrics) {
+		maxResourceProductionBuildingLevel = Math.max(
+			maxResourceProductionBuildingLevel,
+			metric.maxResourceProductionBuildingLevel,
+		);
+		maxStorageBuildingLevel = Math.max(maxStorageBuildingLevel, metric.maxStorageBuildingLevel);
+		maxResourceAndStorageLevelTotal = Math.max(
+			maxResourceAndStorageLevelTotal,
+			metric.resourceAndStorageLevelTotal,
+		);
+		highestFacilityLevel = Math.max(highestFacilityLevel, metric.maxFacilityLevel);
+		facilityLevelTotalOnOneColony = Math.max(
+			facilityLevelTotalOnOneColony,
+			metric.facilityLevelTotal,
+		);
+	}
+	const metaMatterEarned = contractResults.reduce(
+		(total, result) => ({
+			common: total.common + Math.max(0, Math.floor(result.rewardMetaMatterGranted.common)),
+			rare: total.rare + Math.max(0, Math.floor(result.rewardMetaMatterGranted.rare)),
+			mythic: total.mythic + Math.max(0, Math.floor(result.rewardMetaMatterGranted.mythic)),
+		}),
+		{ common: 0, rare: 0, mythic: 0 },
+	);
 
 	return {
 		combinedResearchCapacity,
 		tierUnlockContext: {
-			coloniesFounded: colonies.length,
-			contractsCompleted: contractResults.filter((result) => result.success).length,
+			coloniesFounded: Math.max(colonies.length, playerResearchMetrics?.coloniesFounded ?? 0),
+			crossSectorColoniesFounded: Math.max(
+				crossSectorColoniesFounded,
+				playerResearchMetrics?.crossSectorColoniesFounded ?? 0,
+			),
+			crossSystemColoniesFounded: Math.max(
+				crossSystemColoniesFounded,
+				playerResearchMetrics?.crossSystemColoniesFounded ?? 0,
+			),
+			contractsCompleted: Math.max(
+				contractResults.filter((result) => result.success).length,
+				playerResearchMetrics?.contractsCompleted ?? 0,
+			),
 			defensesOwned: defenseRows.reduce((sum, row) => sum + Math.max(0, Math.floor(row.count)), 0),
+			facilityLevelTotalOnOneColony,
 			highestBuildingLevel,
+			highestFacilityLevel,
 			highestResearchDirectorateLevel,
+			maxResourceAndStorageLevelTotal,
+			maxResourceProductionBuildingLevel,
+			maxStorageBuildingLevel,
+			metaMatterEarnedCommon: Math.max(
+				metaMatterEarned.common,
+				playerResearchMetrics?.metaMatterEarnedCommon ?? 0,
+			),
+			metaMatterEarnedMythic: Math.max(
+				metaMatterEarned.mythic,
+				playerResearchMetrics?.metaMatterEarnedMythic ?? 0,
+			),
+			metaMatterEarnedRare: Math.max(
+				metaMatterEarned.rare,
+				playerResearchMetrics?.metaMatterEarnedRare ?? 0,
+			),
+			metaMatterSpentTotal: playerResearchMetrics
+				? playerResearchMetrics.metaMatterSpentCommon +
+					playerResearchMetrics.metaMatterSpentRare +
+					playerResearchMetrics.metaMatterSpentMythic
+				: 0,
+			raidDefensesSucceeded: Math.max(
+				raidResults.filter((result) => result.success === false).length,
+				playerResearchMetrics?.raidDefensesSucceeded ?? 0,
+			),
+			rank3ContractsCompleted: Math.max(
+				rank3ContractsCompleted,
+				playerResearchMetrics?.rank3ContractsCompleted ?? 0,
+			),
 			shipsOwned: shipRows.reduce((sum, row) => sum + Math.max(0, Math.floor(row.count)), 0),
-			successfulTransports: transportResults.filter(
-				(result) => result.operationKind === "transport" && result.resultCode === "delivered",
-			).length,
+			successfulTransports: Math.max(
+				transportResults.filter(
+					(result) => result.operationKind === "transport" && result.resultCode === "delivered",
+				).length,
+				playerResearchMetrics?.successfulTransports ?? 0,
+			),
 		},
 	};
 }
@@ -835,6 +1010,12 @@ export const enqueue = mutation({
 			mythic: balances.mythic - costMetaMatter.mythic,
 			updatedAt: now,
 		});
+		await adjustResearchMetaMatterSpent({
+			ctx,
+			playerId: player._id,
+			amount: costMetaMatter,
+			direction: 1,
+		});
 		await upsertColonyCompanionRows({
 			colony: {
 				...colony,
@@ -933,6 +1114,12 @@ export const cancel = mutation({
 			mythic: balances.mythic + row.costMetaMatter.mythic,
 			updatedAt: now,
 		});
+		await adjustResearchMetaMatterSpent({
+			ctx,
+			playerId: playerResult.player._id,
+			amount: row.costMetaMatter,
+			direction: -1,
+		});
 		await upsertColonyCompanionRows({
 			colony: {
 				...colony.colony,
@@ -958,6 +1145,58 @@ export const cancel = mutation({
 		return {
 			queueItemId: row._id,
 		};
+	},
+});
+
+export const convertMetaMatterDaily = mutation({
+	args: {},
+	returns: metaMatterValidator,
+	handler: async (ctx) => {
+		const playerResult = await resolveCurrentPlayer(ctx);
+		if (!playerResult?.player) {
+			throw new ConvexError("Authentication required");
+		}
+		const [balances, modifiers, runtimeState] = await Promise.all([
+			ensurePlayerResearchBalances({
+				ctx,
+				playerId: playerResult.player._id,
+			}),
+			loadPlayerResearchModifierSnapshot({
+				ctx,
+				playerId: playerResult.player._id,
+			}),
+			ensurePlayerResearchRuntimeState({
+				ctx,
+				playerId: playerResult.player._id,
+			}),
+		]);
+		const conversion = modifiers.metaMatterDailyConversion;
+		if (!conversion) {
+			throw new ConvexError("Meta-matter conversion is not unlocked");
+		}
+		const day = new Date().toISOString().slice(0, 10);
+		if (runtimeState.metaMatterConversionDay === day) {
+			throw new ConvexError("Meta-matter conversion already used today");
+		}
+		if ((balances[conversion.from] ?? 0) < conversion.fromAmount) {
+			throw new ConvexError("Not enough meta-matter to convert");
+		}
+		const now = Date.now();
+		const next = cloneMetaMatter(balances);
+		next[conversion.from] -= conversion.fromAmount;
+		next[conversion.to] += conversion.toAmount;
+		if (!balances._id) {
+			throw new ConvexError("Research balances row missing");
+		}
+		await ctx.db.patch(balances._id, {
+			...next,
+			updatedAt: now,
+		});
+		await ctx.db.patch(runtimeState._id, {
+			metaMatterConversionDay: day,
+			updatedAt: now,
+		});
+		return next;
 	},
 });
 

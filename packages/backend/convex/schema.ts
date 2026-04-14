@@ -162,6 +162,20 @@ const facilityKeyValidator = v.union(
 	v.literal("research_directorate"),
 );
 
+const colonyCharterValidator = v.union(
+	v.literal("industrial"),
+	v.literal("refinery"),
+	v.literal("research"),
+	v.literal("naval"),
+	v.literal("defensive"),
+);
+
+const industrialFocusValidator = v.union(
+	v.literal("alloy"),
+	v.literal("crystal"),
+	v.literal("fuel"),
+);
+
 const queuePayloadValidator = v.union(
 	v.object({
 		buildingKey: upgradeBuildingKeyValidator,
@@ -523,6 +537,103 @@ export default defineSchema({
 		createdAt: v.number(),
 		updatedAt: v.number(),
 	}).index("by_player_id", ["playerId"]),
+
+	// Player-level counters for research tier gates and conditional research effects.
+	playerResearchMetrics: defineTable({
+		playerId: v.id("players"),
+		contractsCompleted: v.number(),
+		rank3ContractsCompleted: v.number(),
+		raidDefensesSucceeded: v.number(),
+		successfulTransports: v.number(),
+		coloniesFounded: v.number(),
+		crossSystemColoniesFounded: v.number(),
+		crossSectorColoniesFounded: v.number(),
+		metaMatterSpentCommon: v.number(),
+		metaMatterSpentRare: v.number(),
+		metaMatterSpentMythic: v.number(),
+		metaMatterEarnedCommon: v.number(),
+		metaMatterEarnedRare: v.number(),
+		metaMatterEarnedMythic: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_player_id", ["playerId"]),
+
+	// Colony-level counters for research tier gates and local conditional effects.
+	colonyResearchMetrics: defineTable({
+		playerId: v.id("players"),
+		colonyId: v.id("colonies"),
+		maxResourceProductionBuildingLevel: v.number(),
+		maxStorageBuildingLevel: v.number(),
+		resourceAndStorageLevelTotal: v.number(),
+		maxFacilityLevel: v.number(),
+		facilityLevelTotal: v.number(),
+		successfulTransportsOrigin: v.number(),
+		successfulTransportsTarget: v.number(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_player_id", ["playerId"])
+		.index("by_colony_id", ["colonyId"])
+		.index("by_player_colony", ["playerId", "colonyId"]),
+
+	// Idempotency ledger for research metric event processing and historical backfills.
+	researchMetricMarks: defineTable({
+		sourceKind: v.union(
+			v.literal("contractResult"),
+			v.literal("npcRaidResult"),
+			v.literal("fleetOperationResult"),
+			v.literal("colonyInfrastructure"),
+			v.literal("researchSpend"),
+			v.literal("researchEarn"),
+			v.literal("colonization"),
+		),
+		sourceId: v.string(),
+		createdAt: v.number(),
+	}).index("by_source", ["sourceKind", "sourceId"]),
+
+	// Player-owned runtime state for conditional research effects.
+	playerResearchRuntimeState: defineTable({
+		playerId: v.id("players"),
+		activeCommandColonyId: v.optional(v.id("colonies")),
+		activeCommandExpiresAt: v.optional(v.number()),
+		activeCommandAccountExpiresAt: v.optional(v.number()),
+		crossBranchDiscountBranch: v.optional(v.string()),
+		crossBranchDiscountExpiresAt: v.optional(v.number()),
+		metaMatterConversionDay: v.optional(v.string()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	}).index("by_player_id", ["playerId"]),
+
+	// Per-colony controls unlocked by colony specialization and applied industry research.
+	colonyResearchSettings: defineTable({
+		playerId: v.id("players"),
+		colonyId: v.id("colonies"),
+		charter: v.optional(colonyCharterValidator),
+		charterChangedAt: v.optional(v.number()),
+		industrialFocus: v.optional(industrialFocusValidator),
+		sectorCapitalEnabled: v.boolean(),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_player_id", ["playerId"])
+		.index("by_colony_id", ["colonyId"])
+		.index("by_player_colony", ["playerId", "colonyId"]),
+
+	// Per-route counters for route streak and repeated-delivery research effects.
+	playerResearchRouteMetrics: defineTable({
+		playerId: v.id("players"),
+		originColonyId: v.id("colonies"),
+		targetColonyId: v.id("colonies"),
+		routeStreakCount: v.number(),
+		lastDeliveryAt: v.optional(v.number()),
+		dailyDeliveryDay: v.optional(v.string()),
+		dailyDeliveryCount: v.number(),
+		activeRouteBonusExpiresAt: v.optional(v.number()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_player_id", ["playerId"])
+		.index("by_route", ["originColonyId", "targetColonyId"]),
 
 	// Player-owned quest lifecycle rows for code-defined progression quests.
 	playerQuestStates: defineTable({

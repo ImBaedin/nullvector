@@ -711,6 +711,8 @@ function productionRatesPerMinute(args: {
 	overflow: ResourceBucket;
 	planet: Doc<"planets"> & PlanetEconomyState;
 	modifierSnapshot?: ReturnType<typeof buildResearchModifierSnapshot>;
+	resources?: ResourceBucket;
+	storageCaps?: ResourceBucket;
 }) {
 	const { buildings, overflow, planet } = args;
 
@@ -739,31 +741,55 @@ function productionRatesPerMinute(args: {
 
 	const energyProduced = getGeneratorProductionPerMinute(powerGenerator, buildings.powerPlantLevel);
 	const energyConsumed =
-		getGeneratorConsumptionPerMinute(alloyGenerator, buildings.alloyMineLevel) +
-		getGeneratorConsumptionPerMinute(crystalGenerator, buildings.crystalMineLevel) +
-		getGeneratorConsumptionPerMinute(fuelGenerator, buildings.fuelRefineryLevel);
+		(getGeneratorConsumptionPerMinute(alloyGenerator, buildings.alloyMineLevel) +
+			getGeneratorConsumptionPerMinute(crystalGenerator, buildings.crystalMineLevel) +
+			getGeneratorConsumptionPerMinute(fuelGenerator, buildings.fuelRefineryLevel)) *
+		(args.modifierSnapshot?.energyConsumptionMultiplier ?? 1);
 
 	const energyRatio =
 		energyConsumed <= 0 ? 1 : Math.max(0, Math.min(1, energyProduced / energyConsumed));
+	const storagePressureMultiplier = (resource: keyof ResourceBucket) => {
+		const pressure = args.modifierSnapshot?.storagePressureProductionBonus;
+		if (!pressure || !args.resources || !args.storageCaps) {
+			return 1;
+		}
+		const cap = Math.max(0, args.storageCaps[resource]);
+		if (cap <= 0) {
+			return 1;
+		}
+		const fill = Math.max(0, args.resources[resource]) / cap;
+		if (fill <= pressure.fullBonusBelow) {
+			return 1 + pressure.maxBonus;
+		}
+		if (fill >= pressure.zeroBonusAt) {
+			return 1;
+		}
+		const falloff =
+			(pressure.zeroBonusAt - fill) / (pressure.zeroBonusAt - pressure.fullBonusBelow);
+		return 1 + pressure.maxBonus * Math.max(0, Math.min(1, falloff));
+	};
 
 	const alloyRate =
 		overflow.alloy > 0
 			? 0
 			: rawAlloyRate *
 				energyRatio *
-				(args.modifierSnapshot?.resourceProductionMultipliers.alloy ?? 1);
+				(args.modifierSnapshot?.resourceProductionMultipliers.alloy ?? 1) *
+				storagePressureMultiplier("alloy");
 	const crystalRate =
 		overflow.crystal > 0
 			? 0
 			: rawCrystalRate *
 				energyRatio *
-				(args.modifierSnapshot?.resourceProductionMultipliers.crystal ?? 1);
+				(args.modifierSnapshot?.resourceProductionMultipliers.crystal ?? 1) *
+				storagePressureMultiplier("crystal");
 	const fuelRate =
 		overflow.fuel > 0
 			? 0
 			: rawFuelRate *
 				energyRatio *
-				(args.modifierSnapshot?.resourceProductionMultipliers.fuel ?? 1);
+				(args.modifierSnapshot?.resourceProductionMultipliers.fuel ?? 1) *
+				storagePressureMultiplier("fuel");
 
 	return {
 		resources: {
@@ -799,6 +825,8 @@ export function applyAccrualSegment(args: {
 		overflow: colony.overflow,
 		planet,
 		modifierSnapshot: args.modifierSnapshot,
+		resources,
+		storageCaps: colony.storageCaps,
 	});
 
 	const nextResources = cloneResourceBucket(resources);
@@ -2082,6 +2110,8 @@ function buildHudResources(args: {
 		overflow: colony.overflow,
 		planet,
 		modifierSnapshot: args.modifierSnapshot,
+		resources: colony.resources,
+		storageCaps: colony.storageCaps,
 	});
 
 	const alloyUnits = storedToWholeUnits(colony.resources.alloy);

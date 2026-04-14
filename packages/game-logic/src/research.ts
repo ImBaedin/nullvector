@@ -2,6 +2,8 @@ import type { DefenseKey } from "./defenses";
 import type { BuildingKey, FacilityKey, ResourceBucket, ShipKey } from "./gameplay";
 import type { ResourceKey, UnlockRule } from "./types";
 
+import { DEFENSE_KEYS } from "./defenses";
+import { SHIP_KEYS } from "./gameplay";
 import { isUnlockSatisfied } from "./unlocks";
 
 export const META_MATTER_RARITIES = ["common", "rare", "mythic"] as const;
@@ -9,6 +11,10 @@ export const META_MATTER_RARITIES = ["common", "rare", "mythic"] as const;
 export type MetaMatterRarity = (typeof META_MATTER_RARITIES)[number];
 export type MetaMatterBundle = Record<MetaMatterRarity, number>;
 export type ResearchLevelMap = Record<string, number>;
+export type ResearchImplementationStatus = "active" | "planned";
+export type ColonyCharterKey = "industrial" | "refinery" | "research" | "naval" | "defensive";
+export type IndustrialFocusKey = "alloy" | "crystal" | "fuel";
+export type RouteClass = "local" | "interSystem" | "interSector" | "interGalactic";
 
 export type ResearchEffect =
 	| { kind: "unlock_ship"; shipKey: ShipKey }
@@ -35,7 +41,116 @@ export type ResearchEffect =
 	| { kind: "building_max_level_bonus"; buildingKey: BuildingKey; amount: number }
 	| { kind: "facility_max_level_bonus"; facilityKey: FacilityKey; amount: number }
 	| { kind: "combined_research_capacity" }
-	| { kind: "meta_matter_reward_multiplier"; multiplier: number; rarity?: MetaMatterRarity };
+	| { kind: "meta_matter_reward_multiplier"; multiplier: number; rarity?: MetaMatterRarity }
+	| { kind: "energy_consumption_multiplier"; multiplier: number }
+	| {
+			kind: "storage_pressure_production_bonus";
+			fullBonusBelow: number;
+			maxBonus: number;
+			zeroBonusAt: number;
+	  }
+	| { kind: "overflow_reintegration_multiplier"; multiplier: number }
+	| { kind: "idle_building_queue_speed_bonus"; bonusPerIdleSlot: number; cap: number }
+	| { kind: "building_queue_capacity_bonus"; amount: number }
+	| { kind: "shipyard_queue_capacity_bonus"; amount: number; minShipyardLevel?: number }
+	| { kind: "colony_count_production_bonus"; bonusPerExtraColony: number; cap: number }
+	| { kind: "industrial_focus_unlock"; productionMultiplier: number; offFocusMultiplier: number }
+	| {
+			kind: "active_command_window";
+			productionMultiplier: number;
+			durationMinutes: number;
+			scope: "colony" | "account";
+	  }
+	| { kind: "research_directorate_overlevel_duration"; percentPerLevel: number; cap: number }
+	| {
+			kind: "research_cost_multiplier";
+			metaMatterMultiplier: number;
+			tierMax?: number;
+			rarities?: MetaMatterRarity[];
+	  }
+	| {
+			kind: "ship_stat_multiplier";
+			stat: "attack" | "hull" | "shield";
+			multiplier: number;
+			shipKey?: ShipKey;
+	  }
+	| {
+			kind: "defense_stat_multiplier";
+			stat: "attack" | "hull" | "shield";
+			multiplier: number;
+			defenseKey?: DefenseKey;
+	  }
+	| {
+			kind: "interceptor_wolfpack";
+			minInterceptors: number;
+			minShare: number;
+			attackMultiplier?: number;
+			hullMultiplier?: number;
+			fuelMultiplier?: number;
+	  }
+	| { kind: "enemy_attack_multiplier"; multiplier: number }
+	| { kind: "contract_active_limit_bonus"; amount: number }
+	| { kind: "contract_visible_slot_bonus"; amount: number }
+	| { kind: "contract_dispatch_fuel_multiplier"; multiplier: number }
+	| { kind: "contract_recovery_resources"; recoveryRate: number }
+	| { kind: "contract_ship_capture"; chance: number; eligibleShips: ShipKey[]; maxShips: number }
+	| { kind: "contract_task_force_template_bonus"; fuelMultiplier: number; rewardMultiplier: number }
+	| { kind: "meta_matter_bonus_chance"; rarity: MetaMatterRarity; chance: number; amount: number }
+	| { kind: "research_predictive_progress"; progressFraction: number }
+	| {
+			kind: "research_cross_branch_discount";
+			durationMultiplier: number;
+			metaMatterMultiplier: number;
+	  }
+	| {
+			kind: "meta_matter_daily_conversion";
+			from: MetaMatterRarity;
+			to: MetaMatterRarity;
+			fromAmount: number;
+			toAmount: number;
+	  }
+	| {
+			kind: "directorate_exchange_duration";
+			perColonyMultiplier: number;
+			capMultiplier: number;
+			minDirectorateLevel: number;
+	  }
+	| { kind: "route_speed_multiplier"; routeClass: RouteClass; multiplier: number }
+	| { kind: "route_streak_speed_bonus"; multiplierPerLevel: number; capMultiplier: number }
+	| { kind: "transport_extra_stop_bonus"; amount: number; fuelMultiplierPerStop: number }
+	| { kind: "transport_delivery_distance_bonus"; percentPerDistance: number; capMultiplier: number }
+	| { kind: "transport_storage_reservation"; multiplier: number }
+	| {
+			kind: "contract_after_transport_meta_matter_multiplier";
+			multiplier: number;
+			durationHours: number;
+	  }
+	| { kind: "transport_return_duration_multiplier"; multiplier: number }
+	| { kind: "colony_ship_build_time_multiplier"; multiplier: number }
+	| { kind: "colony_ship_fuel_multiplier"; multiplier: number }
+	| { kind: "colony_overcap_penalty_reduction"; amount: number }
+	| { kind: "colony_charter_unlock"; productionMultiplier: number; penaltyMultiplier: number }
+	| { kind: "colony_charter_penalty_removed" }
+	| { kind: "charter_facility_upgrade_time_multiplier"; multiplier: number }
+	| { kind: "charter_cooldown_hours"; hours: number }
+	| { kind: "charter_ship_build_time_multiplier"; multiplier: number }
+	| { kind: "charter_defense_build_time_multiplier"; multiplier: number }
+	| {
+			kind: "new_colony_bootstrap";
+			buildingLevel: number;
+			storageLevel: number;
+			roboticsHubLevel?: number;
+			logisticsNexusLevel?: number;
+	  }
+	| { kind: "new_colony_prefab_queue"; queuedBuildingUpgrades: number }
+	| { kind: "protected_starting_resources"; storageFraction: number; durationHours: number }
+	| { kind: "charter_transport_reservation"; storageFraction: number }
+	| { kind: "colony_cap_bonus"; amount: number; minColonies: number }
+	| {
+			kind: "sector_capital_production";
+			capitalMultiplier: number;
+			sectorColonyMultiplier: number;
+	  };
 
 export type ResearchNodeCost = {
 	metaMatter: Partial<MetaMatterBundle>;
@@ -57,21 +172,45 @@ export type ResearchLayoutLane =
 export type ResearchTierUnlockRule =
 	| { type: "always" }
 	| { type: "contractsCompleted"; count: number }
+	| { type: "rankedContractsCompleted"; minRank: number; count: number }
+	| { type: "raidDefensesSucceeded"; count: number }
 	| { type: "highestBuildingLevelReached"; level: number }
+	| { type: "resourceProductionBuildingLevelReached"; level: number }
+	| { type: "storageBuildingLevelReached"; level: number }
+	| { type: "resourceAndStorageLevelTotalReached"; level: number }
 	| { type: "coloniesFounded"; count: number }
+	| { type: "colonyInDifferentSystemFounded" }
+	| { type: "colonyInDifferentSectorFounded" }
 	| { type: "highestResearchDirectorateLevelReached"; level: number }
+	| { type: "facilityLevelReached"; level: number; facilityKey?: FacilityKey }
+	| { type: "facilityLevelTotalOnOneColonyReached"; level: number }
 	| { type: "shipsOwned"; count: number }
 	| { type: "defensesOwned"; count: number }
 	| { type: "successfulTransports"; count: number }
+	| { type: "metaMatterSpentTotal"; amount: number }
+	| { type: "metaMatterEarnedByRarity"; rarity: MetaMatterRarity; amount: number }
 	| { type: "all"; rules: readonly ResearchTierUnlockRule[] }
 	| { type: "any"; rules: readonly ResearchTierUnlockRule[] };
 
 export type ResearchTierUnlockContext = {
 	coloniesFounded: number;
 	contractsCompleted: number;
+	crossSectorColoniesFounded: number;
+	crossSystemColoniesFounded: number;
 	defensesOwned: number;
+	facilityLevelTotalOnOneColony: number;
 	highestBuildingLevel: number;
+	highestFacilityLevel: number;
 	highestResearchDirectorateLevel: number;
+	maxResourceAndStorageLevelTotal: number;
+	maxResourceProductionBuildingLevel: number;
+	maxStorageBuildingLevel: number;
+	metaMatterEarnedCommon: number;
+	metaMatterEarnedMythic: number;
+	metaMatterEarnedRare: number;
+	metaMatterSpentTotal: number;
+	raidDefensesSucceeded: number;
+	rank3ContractsCompleted: number;
 	shipsOwned: number;
 	successfulTransports: number;
 };
@@ -99,6 +238,77 @@ export type ResearchModifierSnapshot = {
 	metaMatterRewardMultipliers: Partial<Record<MetaMatterRarity, number>>;
 	globalMetaMatterRewardMultiplier: number;
 	combinedResearchCapacityUnlocked: boolean;
+	energyConsumptionMultiplier: number;
+	storagePressureProductionBonus?: Extract<
+		ResearchEffect,
+		{ kind: "storage_pressure_production_bonus" }
+	>;
+	overflowReintegrationMultiplier: number;
+	idleBuildingQueueSpeedBonus?: Extract<
+		ResearchEffect,
+		{ kind: "idle_building_queue_speed_bonus" }
+	>;
+	buildingQueueCapacityBonus: number;
+	shipyardQueueCapacityBonus: number;
+	colonyCountProductionBonuses: Array<
+		Extract<ResearchEffect, { kind: "colony_count_production_bonus" }>
+	>;
+	industrialFocus?: Extract<ResearchEffect, { kind: "industrial_focus_unlock" }>;
+	activeCommandWindow?: Extract<ResearchEffect, { kind: "active_command_window" }>;
+	researchDirectorateOverlevelDuration?: Extract<
+		ResearchEffect,
+		{ kind: "research_directorate_overlevel_duration" }
+	>;
+	researchCostMultipliers: Array<Extract<ResearchEffect, { kind: "research_cost_multiplier" }>>;
+	shipStatMultipliers: Record<ShipKey, { attack: number; hull: number; shield: number }>;
+	globalShipStatMultipliers: { attack: number; hull: number; shield: number };
+	defenseStatMultipliers: Record<DefenseKey, { attack: number; hull: number; shield: number }>;
+	globalDefenseStatMultipliers: { attack: number; hull: number; shield: number };
+	interceptorWolfpack?: Extract<ResearchEffect, { kind: "interceptor_wolfpack" }>;
+	enemyAttackMultiplier: number;
+	contractActiveLimitBonus: number;
+	contractVisibleSlotBonus: number;
+	contractDispatchFuelMultiplier: number;
+	contractRecoveryRate: number;
+	contractShipCapture?: Extract<ResearchEffect, { kind: "contract_ship_capture" }>;
+	contractTaskForceTemplateBonus?: Extract<
+		ResearchEffect,
+		{ kind: "contract_task_force_template_bonus" }
+	>;
+	metaMatterBonusChances: Array<Extract<ResearchEffect, { kind: "meta_matter_bonus_chance" }>>;
+	researchPredictiveProgressFraction: number;
+	researchCrossBranchDiscount?: Extract<ResearchEffect, { kind: "research_cross_branch_discount" }>;
+	metaMatterDailyConversion?: Extract<ResearchEffect, { kind: "meta_matter_daily_conversion" }>;
+	directorateExchange?: Extract<ResearchEffect, { kind: "directorate_exchange_duration" }>;
+	routeSpeedMultipliers: Record<RouteClass, number>;
+	routeStreakSpeedBonus?: Extract<ResearchEffect, { kind: "route_streak_speed_bonus" }>;
+	transportExtraStops: number;
+	transportExtraStopFuelMultiplier: number;
+	transportDeliveryDistanceBonus?: Extract<
+		ResearchEffect,
+		{ kind: "transport_delivery_distance_bonus" }
+	>;
+	transportStorageReservationMultiplier: number;
+	contractAfterTransportMetaMatterMultiplier?: Extract<
+		ResearchEffect,
+		{ kind: "contract_after_transport_meta_matter_multiplier" }
+	>;
+	transportReturnDurationMultiplier: number;
+	colonyShipBuildTimeMultiplier: number;
+	colonyShipFuelMultiplier: number;
+	colonyOvercapPenaltyReduction: number;
+	colonyCharter?: Extract<ResearchEffect, { kind: "colony_charter_unlock" }>;
+	colonyCharterPenaltyRemoved: boolean;
+	charterFacilityUpgradeTimeMultiplier: number;
+	charterCooldownHours?: number;
+	charterShipBuildTimeMultiplier: number;
+	charterDefenseBuildTimeMultiplier: number;
+	newColonyBootstrap?: Extract<ResearchEffect, { kind: "new_colony_bootstrap" }>;
+	newColonyPrefabQueue?: Extract<ResearchEffect, { kind: "new_colony_prefab_queue" }>;
+	protectedStartingResources?: Extract<ResearchEffect, { kind: "protected_starting_resources" }>;
+	charterTransportReservation?: Extract<ResearchEffect, { kind: "charter_transport_reservation" }>;
+	colonyCapBonus: number;
+	sectorCapitalProduction?: Extract<ResearchEffect, { kind: "sector_capital_production" }>;
 };
 
 type AuthoredResearchNode = {
@@ -115,7 +325,11 @@ type AuthoredResearchNode = {
 	requiredCombinedResearchCapacity?: number;
 	costs: readonly ResearchNodeCost[];
 	effects: readonly ResearchEffect[];
+	effectsByLevel?: readonly (readonly ResearchEffect[])[];
 	effectLabels?: readonly string[];
+	implementationStatus?: ResearchImplementationStatus;
+	plannedReason?: string;
+	designPrerequisites?: readonly string[];
 };
 
 type AuthoredResearchTier = {
@@ -1081,18 +1295,1864 @@ const AUTHORED_RESEARCH_TREE = {
 	},
 } as const satisfies AuthoredResearchTree;
 
-type AuthoredBranches = typeof AUTHORED_RESEARCH_TREE.branches;
-type AuthoredBranchKey = keyof AuthoredBranches;
-type AuthoredBranchNode<Key extends AuthoredBranchKey> =
-	AuthoredBranches[Key]["tiers"][number]["nodes"][number];
-type AuthoredNode = AuthoredBranchNode<AuthoredBranchKey>;
+void AUTHORED_RESEARCH_TREE;
 
-export type ResearchBranchKey = AuthoredBranchKey;
-export type ResearchKey = AuthoredNode["id"];
+const RESEARCH_BRANCH_KEY_LIST = [
+	"appliedIndustry",
+	"militarySystems",
+	"scientificInfrastructure",
+	"expansionLogistics",
+	"colonySpecialization",
+] as const;
 
-export const RESEARCH_BRANCH_KEYS = Object.keys(
-	AUTHORED_RESEARCH_TREE.branches,
-) as ResearchBranchKey[];
+export type ResearchBranchKey = (typeof RESEARCH_BRANCH_KEY_LIST)[number];
+export type ResearchKey = string;
+
+type ResearchCostShape = "standard" | "capstone";
+
+const BRANCH_RESOURCE_WEIGHTS = {
+	appliedIndustry: { alloy: 0.45, crystal: 0.35, fuel: 0.2 },
+	militarySystems: { alloy: 0.5, crystal: 0.3, fuel: 0.2 },
+	scientificInfrastructure: { alloy: 0.25, crystal: 0.65, fuel: 0.1 },
+	expansionLogistics: { alloy: 0.35, crystal: 0.3, fuel: 0.35 },
+	colonySpecialization: { alloy: 0.4, crystal: 0.4, fuel: 0.2 },
+} satisfies Record<ResearchBranchKey, Record<keyof ResourceBucket, number>>;
+
+const RESEARCH_TIER_COST_BASE = {
+	1: { metaMatter: { common: 4 }, resourcesTotal: 300, seconds: 180 },
+	2: { metaMatter: { common: 12, rare: 1 }, resourcesTotal: 1_000, seconds: 720 },
+	3: { metaMatter: { rare: 6 }, resourcesTotal: 2_500, seconds: 1_800 },
+	4: { metaMatter: { rare: 12, mythic: 2 }, resourcesTotal: 5_000, seconds: 4_200 },
+} satisfies Record<
+	1 | 2 | 3 | 4,
+	{ metaMatter: Partial<MetaMatterBundle>; resourcesTotal: number; seconds: number }
+>;
+
+const RESEARCH_LEVEL_COST_MULTIPLIERS = [1, 1.7, 2.8] as const;
+
+export function makeResearchCosts(args: {
+	branch: ResearchBranchKey;
+	maxLevel: number;
+	shape?: ResearchCostShape;
+	tier: 1 | 2 | 3 | 4;
+}): ResearchNodeCost[] {
+	const base = RESEARCH_TIER_COST_BASE[args.tier];
+	const weights = BRANCH_RESOURCE_WEIGHTS[args.branch];
+	const shapeMultiplier = args.shape === "capstone" ? 2 : 1;
+	const costs: ResearchNodeCost[] = [];
+	for (let index = 0; index < args.maxLevel; index += 1) {
+		const levelMultiplier =
+			RESEARCH_LEVEL_COST_MULTIPLIERS[
+				Math.min(index, RESEARCH_LEVEL_COST_MULTIPLIERS.length - 1)
+			] ?? 1;
+		const multiplier = levelMultiplier * shapeMultiplier;
+		const baseMetaMatter: Partial<MetaMatterBundle> = base.metaMatter;
+		const metaMatter: Partial<MetaMatterBundle> = {};
+		for (const rarity of META_MATTER_RARITIES) {
+			const amount = baseMetaMatter[rarity];
+			if (typeof amount === "number" && amount > 0) {
+				metaMatter[rarity] = Math.max(1, Math.round(amount * multiplier));
+			}
+		}
+		costs.push({
+			metaMatter,
+			resources: {
+				alloy: Math.max(1, Math.round(base.resourcesTotal * weights.alloy * multiplier)),
+				crystal: Math.max(1, Math.round(base.resourcesTotal * weights.crystal * multiplier)),
+				fuel: Math.max(1, Math.round(base.resourcesTotal * weights.fuel * multiplier)),
+			},
+			seconds: Math.max(1, Math.round(base.seconds * multiplier)),
+		});
+	}
+	return costs;
+}
+
+function branchThemes(branch: ResearchBranchKey): Omit<AuthoredResearchBranch, "tiers"> {
+	const themes = {
+		appliedIndustry: {
+			label: "Applied Industry",
+			shortLabel: "Industry",
+			themeColor: "#ff914f",
+			themeColorSoft: "#3d2418",
+			ditherWaveColor: [1, 0.57, 0.31],
+			ditherPixelSize: 5,
+		},
+		militarySystems: {
+			label: "Military Systems",
+			shortLabel: "Military",
+			themeColor: "#f05252",
+			themeColorSoft: "#3b1f25",
+			ditherWaveColor: [0.94, 0.32, 0.32],
+			ditherPixelSize: 4,
+		},
+		scientificInfrastructure: {
+			label: "Scientific Infrastructure",
+			shortLabel: "Science",
+			themeColor: "#6ee7b7",
+			themeColorSoft: "#18352d",
+			ditherWaveColor: [0.43, 0.91, 0.72],
+			ditherPixelSize: 6,
+		},
+		expansionLogistics: {
+			label: "Expansion Logistics",
+			shortLabel: "Logistics",
+			themeColor: "#38bdf8",
+			themeColorSoft: "#183344",
+			ditherWaveColor: [0.22, 0.74, 0.97],
+			ditherPixelSize: 5,
+		},
+		colonySpecialization: {
+			label: "Colony Specialization",
+			shortLabel: "Colony",
+			themeColor: "#facc15",
+			themeColorSoft: "#3a3215",
+			ditherWaveColor: [0.98, 0.8, 0.08],
+			ditherPixelSize: 4,
+		},
+	} satisfies Record<ResearchBranchKey, Omit<AuthoredResearchBranch, "tiers">>;
+	return themes[branch];
+}
+
+function researchFacilityRequirementForTier(tier: 1 | 2 | 3 | 4) {
+	if (tier >= 3) {
+		return 20;
+	}
+	if (tier === 2) {
+		return 10;
+	}
+	return 1;
+}
+
+function authoredNode(
+	args: Omit<AuthoredResearchNode, "costs" | "effects" | "requiredResearchFacilityLevel"> & {
+		branch: ResearchBranchKey;
+		tier: 1 | 2 | 3 | 4;
+	},
+) {
+	const effectsByLevel = args.effectsByLevel ?? [];
+	return {
+		id: args.id,
+		name: args.name,
+		description: args.description,
+		layout: args.layout,
+		prerequisites: args.prerequisites,
+		maxLevel: args.maxLevel,
+		requiredResearchFacilityLevel: researchFacilityRequirementForTier(args.tier),
+		requiredCombinedResearchCapacity: args.requiredCombinedResearchCapacity,
+		costs: makeResearchCosts({
+			branch: args.branch,
+			tier: args.tier,
+			maxLevel: args.maxLevel,
+			shape: args.layout.shape === "capstone" ? "capstone" : "standard",
+		}),
+		effects: effectsByLevel.flat(),
+		effectsByLevel,
+		effectLabels: args.effectLabels,
+		implementationStatus: args.implementationStatus ?? "active",
+		plannedReason: args.plannedReason,
+		designPrerequisites: args.designPrerequisites ?? args.prerequisites,
+	} satisfies AuthoredResearchNode;
+}
+
+function plannedReason(reason: string) {
+	return {
+		implementationStatus: "planned" as const,
+		plannedReason: reason,
+	};
+}
+
+function buildResearchTierThreeTree() {
+	const planned = {
+		boosters: plannedReason("Resource production boosting buildings do not exist yet."),
+		fuelPlant: plannedReason("The fuelTurbinePlant facility/building does not exist yet."),
+		galacticRoutes: plannedReason("Galactic route modeling is not available in current worldgen."),
+		stargates: plannedReason("Fixed-route gate projects do not exist yet."),
+		terraformer: plannedReason(
+			"Terraformer facilities and planet trait mitigation do not exist yet.",
+		),
+	};
+	const node = authoredNode;
+	const branches: Record<ResearchBranchKey, AuthoredResearchBranch> = {
+		appliedIndustry: {
+			...branchThemes("appliedIndustry"),
+			tiers: [
+				{
+					tier: 1,
+					unlock: { type: "always" },
+					nodes: [
+						node({
+							branch: "appliedIndustry",
+							tier: 1,
+							id: "automatedSmelting",
+							name: "Automated Smelting",
+							description: "Machine-tuned alloy furnaces stabilize high-volume extraction.",
+							layout: { lane: "innerLeft", shape: "circle" },
+							prerequisites: [],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "resource_production_multiplier", resource: "alloy", multiplier: 1.06 }],
+								[{ kind: "resource_production_multiplier", resource: "alloy", multiplier: 1.06 }],
+								[{ kind: "resource_production_multiplier", resource: "alloy", multiplier: 1.06 }],
+							],
+							effectLabels: [
+								"Alloy production +6% per level",
+								"Level 3 prepares future alloy boost buildings",
+							],
+						}),
+						node({
+							branch: "appliedIndustry",
+							tier: 1,
+							id: "crystalLatticeRefinement",
+							name: "Crystal Lattice Refinement",
+							description: "Refined growth templates increase usable crystal yield.",
+							layout: { lane: "innerRight", shape: "circle" },
+							prerequisites: [],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "resource_production_multiplier", resource: "crystal", multiplier: 1.06 }],
+								[{ kind: "resource_production_multiplier", resource: "crystal", multiplier: 1.06 }],
+								[{ kind: "resource_production_multiplier", resource: "crystal", multiplier: 1.06 }],
+							],
+							effectLabels: [
+								"Crystal production +6% per level",
+								"Level 3 prepares future crystal boost buildings",
+							],
+						}),
+						node({
+							branch: "appliedIndustry",
+							tier: 1,
+							id: "refineryFlowControl",
+							name: "Refinery Flow Control",
+							description: "Dynamic refinery routing extracts more fuel from volatile deposits.",
+							layout: { lane: "bridgeLeft", shape: "circle" },
+							prerequisites: [],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "resource_production_multiplier", resource: "fuel", multiplier: 1.06 }],
+								[{ kind: "resource_production_multiplier", resource: "fuel", multiplier: 1.06 }],
+								[{ kind: "resource_production_multiplier", resource: "fuel", multiplier: 1.06 }],
+							],
+							effectLabels: [
+								"Fuel production +6% per level",
+								"Level 3 prepares future fuel boost buildings",
+							],
+						}),
+					],
+				},
+				{
+					tier: 2,
+					unlock: {
+						type: "all",
+						rules: [
+							{ type: "resourceProductionBuildingLevelReached", level: 20 },
+							{ type: "storageBuildingLevelReached", level: 12 },
+							{ type: "highestResearchDirectorateLevelReached", level: 10 },
+						],
+					},
+					nodes: [
+						node({
+							branch: "appliedIndustry",
+							tier: 2,
+							id: "gridLoadBalancing",
+							name: "Grid Load Balancing",
+							description: "Predictive load shedding cuts mine and refinery energy demand.",
+							layout: { lane: "bridgeRight", shape: "square" },
+							prerequisites: ["refineryFlowControl"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "energy_consumption_multiplier", multiplier: 0.88 }],
+								[{ kind: "energy_consumption_multiplier", multiplier: 0.88 }],
+							],
+							effectLabels: ["Mine and refinery energy demand -12% per level"],
+						}),
+						node({
+							branch: "appliedIndustry",
+							tier: 2,
+							id: "modularAssemblyStandards",
+							name: "Modular Assembly Standards",
+							description: "Common upgrade modules reduce site-specific construction delays.",
+							layout: { lane: "outerLeft", shape: "circle" },
+							prerequisites: ["automatedSmelting", "crystalLatticeRefinement"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "building_upgrade_time_multiplier", multiplier: 0.92 }],
+								[{ kind: "building_upgrade_time_multiplier", multiplier: 0.92 }],
+								[
+									{ kind: "building_upgrade_time_multiplier", multiplier: 0.92 },
+									{ kind: "building_queue_capacity_bonus", amount: 1 },
+								],
+							],
+							effectLabels: [
+								"Building upgrade duration -8% per level",
+								"Level 3 grants +1 building queue slot",
+							],
+						}),
+						node({
+							branch: "appliedIndustry",
+							tier: 2,
+							id: "scarcityDrivenThroughput",
+							name: "Scarcity Driven Throughput",
+							description: "Low stockpiles automatically prioritize the resource under pressure.",
+							layout: { lane: "innerLeft", shape: "hex" },
+							prerequisites: [
+								"automatedSmelting",
+								"crystalLatticeRefinement",
+								"refineryFlowControl",
+							],
+							maxLevel: 2,
+							effectsByLevel: [
+								[
+									{
+										kind: "storage_pressure_production_bonus",
+										fullBonusBelow: 0.3,
+										maxBonus: 0.25,
+										zeroBonusAt: 0.8,
+									},
+								],
+								[
+									{
+										kind: "storage_pressure_production_bonus",
+										fullBonusBelow: 0.45,
+										maxBonus: 0.25,
+										zeroBonusAt: 0.8,
+									},
+								],
+							],
+							effectLabels: [
+								"Low non-energy storage gives up to +25% matching production",
+								"Level 2 raises the full-bonus threshold to 45% storage",
+							],
+						}),
+						node({
+							branch: "appliedIndustry",
+							tier: 2,
+							id: "boosterAnnexBlueprints",
+							name: "Booster Annex Blueprints",
+							description: "Blueprints for specialized resource production annexes.",
+							layout: { lane: "innerRight", shape: "square" },
+							prerequisites: [
+								"automatedSmelting",
+								"crystalLatticeRefinement",
+								"refineryFlowControl",
+							],
+							maxLevel: 1,
+							effectsByLevel: [[]],
+							effectLabels: ["Unlocks the future resource production boosting building family"],
+							...planned.boosters,
+						}),
+						node({
+							branch: "appliedIndustry",
+							tier: 2,
+							id: "storageCompressionLattices",
+							name: "Storage Compression Lattices",
+							description: "Compact lattice vaults stretch local storage without wider footprint.",
+							layout: { lane: "outerRight", shape: "circle" },
+							prerequisites: ["gridLoadBalancing"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[
+									{ kind: "resource_storage_multiplier", resource: "alloy", multiplier: 1.15 },
+									{ kind: "resource_storage_multiplier", resource: "crystal", multiplier: 1.15 },
+									{ kind: "resource_storage_multiplier", resource: "fuel", multiplier: 1.15 },
+								],
+								[
+									{ kind: "resource_storage_multiplier", resource: "alloy", multiplier: 1.15 },
+									{ kind: "resource_storage_multiplier", resource: "crystal", multiplier: 1.15 },
+									{ kind: "resource_storage_multiplier", resource: "fuel", multiplier: 1.15 },
+								],
+								[
+									{ kind: "resource_storage_multiplier", resource: "alloy", multiplier: 1.15 },
+									{ kind: "resource_storage_multiplier", resource: "crystal", multiplier: 1.15 },
+									{ kind: "resource_storage_multiplier", resource: "fuel", multiplier: 1.15 },
+									{ kind: "overflow_reintegration_multiplier", multiplier: 2 },
+								],
+							],
+							effectLabels: [
+								"All storage +15% per level",
+								"Level 3 doubles overflow reintegration rate",
+							],
+						}),
+					],
+				},
+				{
+					tier: 3,
+					unlock: {
+						type: "all",
+						rules: [
+							{ type: "resourceAndStorageLevelTotalReached", level: 100 },
+							{ type: "highestResearchDirectorateLevelReached", level: 20 },
+						],
+					},
+					nodes: [
+						node({
+							branch: "appliedIndustry",
+							tier: 3,
+							id: "distributedRobotics",
+							name: "Distributed Robotics",
+							description: "Robotic maintenance swarms extend mature industrial infrastructure.",
+							layout: { lane: "outerLeft", shape: "square" },
+							prerequisites: ["modularAssemblyStandards", "storageCompressionLattices"],
+							designPrerequisites: ["modularAssemblyStandards", "boosterAnnexBlueprints"],
+							maxLevel: 1,
+							effectsByLevel: [
+								[
+									{ kind: "building_max_level_bonus", buildingKey: "alloyMineLevel", amount: 5 },
+									{ kind: "building_max_level_bonus", buildingKey: "crystalMineLevel", amount: 5 },
+									{ kind: "building_max_level_bonus", buildingKey: "fuelRefineryLevel", amount: 5 },
+									{ kind: "facility_max_level_bonus", facilityKey: "robotics_hub", amount: 2 },
+								],
+							],
+						}),
+						node({
+							branch: "appliedIndustry",
+							tier: 3,
+							id: "adaptiveAssemblySchedules",
+							name: "Adaptive Assembly Schedules",
+							description: "Idle construction teams are reassigned to active upgrade bottlenecks.",
+							layout: { lane: "innerLeft", shape: "circle" },
+							prerequisites: ["modularAssemblyStandards", "gridLoadBalancing"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "idle_building_queue_speed_bonus", bonusPerIdleSlot: 0.04, cap: 0.12 }],
+								[{ kind: "idle_building_queue_speed_bonus", bonusPerIdleSlot: 0.08, cap: 0.24 }],
+								[
+									{ kind: "idle_building_queue_speed_bonus", bonusPerIdleSlot: 0.12, cap: 0.36 },
+									{ kind: "building_queue_capacity_bonus", amount: 1 },
+								],
+							],
+							effectLabels: [
+								"Idle building queue slots reduce building duration",
+								"Level 3 grants +1 building queue slot",
+							],
+						}),
+						node({
+							branch: "appliedIndustry",
+							tier: 3,
+							id: "industrialNetworkEffects",
+							name: "Industrial Network Effects",
+							description: "Every colony improves procurement and throughput across the empire.",
+							layout: { lane: "bridgeLeft", shape: "hex" },
+							prerequisites: ["scarcityDrivenThroughput", "storageCompressionLattices"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "colony_count_production_bonus", bonusPerExtraColony: 0.05, cap: 0.25 }],
+								[{ kind: "colony_count_production_bonus", bonusPerExtraColony: 0.05, cap: 0.4 }],
+								[{ kind: "colony_count_production_bonus", bonusPerExtraColony: 0.05, cap: 0.6 }],
+							],
+						}),
+						node({
+							branch: "appliedIndustry",
+							tier: 3,
+							id: "wasteHeatRecoveryGrid",
+							name: "Waste Heat Recovery Grid",
+							description: "Fuel turbine exhaust is reclaimed for additional local production.",
+							layout: { lane: "innerRight", shape: "hex" },
+							prerequisites: ["thermalExchangePlants", "storageCompressionLattices"],
+							maxLevel: 2,
+							effectsByLevel: [[]],
+							effectLabels: [
+								"Fuel-consuming power plants use less fuel and can convert excess energy into production",
+							],
+							...planned.fuelPlant,
+						}),
+						node({
+							branch: "appliedIndustry",
+							tier: 3,
+							id: "thermalExchangePlants",
+							name: "Thermal Exchange Plants",
+							description: "Blueprints for fuel-consuming power generation under energy deficits.",
+							layout: { lane: "bridgeRight", shape: "hex" },
+							prerequisites: ["gridLoadBalancing", "refineryFlowControl"],
+							maxLevel: 1,
+							effectsByLevel: [[]],
+							effectLabels: ["Unlocks the future fuelTurbinePlant"],
+							...planned.fuelPlant,
+						}),
+						node({
+							branch: "appliedIndustry",
+							tier: 3,
+							id: "planetaryScaleFabrication",
+							name: "Planetary Scale Fabrication",
+							description: "Facility fabrication moves to repeatable planet-wide standards.",
+							layout: { lane: "outerRight", shape: "square" },
+							prerequisites: ["distributedRobotics", "industrialNetworkEffects"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[
+									{
+										kind: "facility_upgrade_time_multiplier",
+										facilityKey: "robotics_hub",
+										multiplier: 0.88,
+									},
+									{
+										kind: "facility_upgrade_time_multiplier",
+										facilityKey: "research_directorate",
+										multiplier: 0.88,
+									},
+								],
+								[
+									{
+										kind: "facility_upgrade_time_multiplier",
+										facilityKey: "robotics_hub",
+										multiplier: 0.88,
+									},
+									{
+										kind: "facility_upgrade_time_multiplier",
+										facilityKey: "research_directorate",
+										multiplier: 0.88,
+									},
+									{ kind: "facility_max_level_bonus", facilityKey: "robotics_hub", amount: 1 },
+									{
+										kind: "facility_max_level_bonus",
+										facilityKey: "research_directorate",
+										amount: 1,
+									},
+								],
+							],
+							effectLabels: [
+								"Selected facility upgrade duration -12% per level",
+								"Level 2 adds +1 max level to supported facilities",
+							],
+						}),
+						node({
+							branch: "appliedIndustry",
+							tier: 3,
+							id: "industrialFoundryProtocol",
+							name: "Industrial Foundry Protocol",
+							description:
+								"Colonies may specialize one industrial resource at a controlled tradeoff.",
+							layout: { lane: "axis", shape: "capstone" },
+							prerequisites: [
+								"distributedRobotics",
+								"industrialNetworkEffects",
+								"planetaryScaleFabrication",
+							],
+							maxLevel: 1,
+							effectsByLevel: [
+								[
+									{
+										kind: "industrial_focus_unlock",
+										productionMultiplier: 1.3,
+										offFocusMultiplier: 0.9,
+									},
+								],
+							],
+						}),
+					],
+				},
+			],
+		},
+		militarySystems: {
+			...branchThemes("militarySystems"),
+			tiers: [
+				{
+					tier: 1,
+					unlock: { type: "always" },
+					nodes: [
+						node({
+							branch: "militarySystems",
+							tier: 1,
+							id: "pointDefenseTheory",
+							name: "Point Defense Theory",
+							description: "Compact tracking and power systems enable laser turret deployment.",
+							layout: { lane: "innerLeft", shape: "hex" },
+							prerequisites: [],
+							maxLevel: 1,
+							effectsByLevel: [[{ kind: "unlock_defense", defenseKey: "laserTurret" }]],
+						}),
+						node({
+							branch: "militarySystems",
+							tier: 1,
+							id: "missileGuidanceSuites",
+							name: "Missile Guidance Suites",
+							description: "Fire-control improvements unlock frigate-class combat hulls.",
+							layout: { lane: "innerRight", shape: "hex" },
+							prerequisites: [],
+							maxLevel: 1,
+							effectsByLevel: [[{ kind: "unlock_ship", shipKey: "frigate" }]],
+						}),
+						node({
+							branch: "militarySystems",
+							tier: 1,
+							id: "interceptorWolfpackDoctrine",
+							name: "Interceptor Wolfpack Doctrine",
+							description: "Interceptor groups coordinate strikes when deployed as the core force.",
+							layout: { lane: "bridgeLeft", shape: "circle" },
+							prerequisites: [],
+							maxLevel: 3,
+							effectsByLevel: [
+								[
+									{
+										kind: "interceptor_wolfpack",
+										minInterceptors: 5,
+										minShare: 0.5,
+										attackMultiplier: 1.2,
+									},
+								],
+								[
+									{
+										kind: "interceptor_wolfpack",
+										minInterceptors: 5,
+										minShare: 0.5,
+										hullMultiplier: 1.15,
+									},
+								],
+								[
+									{
+										kind: "interceptor_wolfpack",
+										minInterceptors: 5,
+										minShare: 0.5,
+										fuelMultiplier: 0.8,
+									},
+								],
+							],
+						}),
+					],
+				},
+				{
+					tier: 2,
+					unlock: {
+						type: "all",
+						rules: [
+							{ type: "contractsCompleted", count: 15 },
+							{ type: "raidDefensesSucceeded", count: 15 },
+							{ type: "highestResearchDirectorateLevelReached", level: 10 },
+						],
+					},
+					nodes: [
+						node({
+							branch: "militarySystems",
+							tier: 2,
+							id: "contractTriageCommand",
+							name: "Contract Triage Command",
+							description: "Dispatch doctrine strips waste from combat contract launches.",
+							layout: { lane: "bridgeRight", shape: "square" },
+							prerequisites: ["interceptorWolfpackDoctrine"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "contract_dispatch_fuel_multiplier", multiplier: 0.9 }],
+								[{ kind: "contract_dispatch_fuel_multiplier", multiplier: 0.9 }],
+							],
+							effectLabels: [
+								"Contract dispatch fuel -10% per level",
+								"Level 2 improves recommendation safety margins",
+							],
+						}),
+						node({
+							branch: "militarySystems",
+							tier: 2,
+							id: "reactorHardenedHulls",
+							name: "Reactor Hardened Hulls",
+							description: "Reactor shielding doubles as structural reinforcement.",
+							layout: { lane: "outerLeft", shape: "circle" },
+							prerequisites: ["missileGuidanceSuites"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "ship_stat_multiplier", stat: "hull", multiplier: 1.08 }],
+								[{ kind: "ship_stat_multiplier", stat: "hull", multiplier: 1.08 }],
+								[
+									{ kind: "ship_stat_multiplier", stat: "hull", multiplier: 1.08 },
+									{ kind: "ship_stat_multiplier", stat: "shield", multiplier: 1.05 },
+								],
+							],
+						}),
+						node({
+							branch: "militarySystems",
+							tier: 2,
+							id: "shieldFieldModulation",
+							name: "Shield Field Modulation",
+							description: "Shield modulation opens heavier defense emplacements.",
+							layout: { lane: "innerLeft", shape: "hex" },
+							prerequisites: ["pointDefenseTheory", "reactorHardenedHulls"],
+							maxLevel: 1,
+							effectsByLevel: [
+								[
+									{ kind: "unlock_defense", defenseKey: "gaussCannon" },
+									{ kind: "unlock_defense", defenseKey: "shieldDome" },
+									{ kind: "defense_build_time_multiplier", multiplier: 0.92 },
+								],
+							],
+						}),
+						node({
+							branch: "militarySystems",
+							tier: 2,
+							id: "targetSolutionEngines",
+							name: "Target Solution Engines",
+							description: "Battle computers improve firing calculations across combat ships.",
+							layout: { lane: "innerRight", shape: "circle" },
+							prerequisites: ["interceptorWolfpackDoctrine"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "ship_stat_multiplier", stat: "attack", multiplier: 1.06 }],
+								[{ kind: "ship_stat_multiplier", stat: "attack", multiplier: 1.06 }],
+								[
+									{ kind: "ship_stat_multiplier", stat: "attack", multiplier: 1.06 },
+									{
+										kind: "ship_stat_multiplier",
+										stat: "attack",
+										shipKey: "interceptor",
+										multiplier: 1.1,
+									},
+									{
+										kind: "ship_stat_multiplier",
+										stat: "attack",
+										shipKey: "frigate",
+										multiplier: 1.1,
+									},
+								],
+							],
+						}),
+						node({
+							branch: "militarySystems",
+							tier: 2,
+							id: "battlefieldRecoveryCrews",
+							name: "Battlefield Recovery Crews",
+							description: "Recovery teams reclaim usable alloys and crystals after victories.",
+							layout: { lane: "outerRight", shape: "square" },
+							prerequisites: ["contractTriageCommand"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "contract_recovery_resources", recoveryRate: 0.1 }],
+								[{ kind: "contract_recovery_resources", recoveryRate: 0.2 }],
+							],
+						}),
+					],
+				},
+				{
+					tier: 3,
+					unlock: {
+						type: "all",
+						rules: [
+							{ type: "contractsCompleted", count: 40 },
+							{ type: "rankedContractsCompleted", minRank: 3, count: 5 },
+							{ type: "shipsOwned", count: 500 },
+							{ type: "highestResearchDirectorateLevelReached", level: 20 },
+						],
+					},
+					nodes: [
+						node({
+							branch: "militarySystems",
+							tier: 3,
+							id: "advancedStrikeCraft",
+							name: "Advanced Strike Craft",
+							description: "Heavy assault frames move from prototype to deployable doctrine.",
+							layout: { lane: "outerLeft", shape: "hex" },
+							prerequisites: ["shieldFieldModulation", "targetSolutionEngines"],
+							maxLevel: 1,
+							effectsByLevel: [
+								[
+									{ kind: "unlock_ship", shipKey: "cruiser" },
+									{ kind: "unlock_ship", shipKey: "bomber" },
+								],
+							],
+						}),
+						node({
+							branch: "militarySystems",
+							tier: 3,
+							id: "munitionsThroughput",
+							name: "Munitions Throughput",
+							description: "Standardized ordnance lines accelerate combat ship construction.",
+							layout: { lane: "innerLeft", shape: "circle" },
+							prerequisites: ["reactorHardenedHulls", "targetSolutionEngines"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "ship_build_time_multiplier", multiplier: 0.92 }],
+								[{ kind: "ship_build_time_multiplier", multiplier: 0.92 }],
+								[
+									{ kind: "ship_build_time_multiplier", multiplier: 0.92 },
+									{ kind: "fleet_fuel_cost_multiplier", multiplier: 0.85 },
+								],
+							],
+						}),
+						node({
+							branch: "militarySystems",
+							tier: 3,
+							id: "boardingDoctrine",
+							name: "Boarding Doctrine",
+							description: "Victory crews can capture lightly damaged hostile hulls.",
+							layout: { lane: "bridgeLeft", shape: "hex" },
+							prerequisites: ["battlefieldRecoveryCrews", "advancedStrikeCraft"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[
+									{
+										kind: "contract_ship_capture",
+										chance: 0.1,
+										eligibleShips: ["interceptor"],
+										maxShips: 1,
+									},
+								],
+								[
+									{
+										kind: "contract_ship_capture",
+										chance: 0.18,
+										eligibleShips: ["interceptor", "frigate"],
+										maxShips: 1,
+									},
+								],
+							],
+						}),
+						node({
+							branch: "militarySystems",
+							tier: 3,
+							id: "electronicWarfareSuites",
+							name: "Electronic Warfare Suites",
+							description:
+								"Jamming suites reduce enemy attack when the committed force is sufficient.",
+							layout: { lane: "innerRight", shape: "hex" },
+							prerequisites: ["targetSolutionEngines", "shieldFieldModulation"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "enemy_attack_multiplier", multiplier: 0.92 }],
+								[{ kind: "enemy_attack_multiplier", multiplier: 0.85 }],
+							],
+						}),
+						node({
+							branch: "militarySystems",
+							tier: 3,
+							id: "taskForceDelegation",
+							name: "Task Force Delegation",
+							description: "Delegated command channels allow one extra active contract.",
+							layout: { lane: "bridgeRight", shape: "square" },
+							prerequisites: ["contractTriageCommand", "advancedStrikeCraft"],
+							maxLevel: 1,
+							effectsByLevel: [[{ kind: "contract_active_limit_bonus", amount: 1 }]],
+						}),
+						node({
+							branch: "militarySystems",
+							tier: 3,
+							id: "integratedDefenseDrills",
+							name: "Integrated Defense Drills",
+							description: "Planetary defenses coordinate overlapping fields and fire lanes.",
+							layout: { lane: "outerRight", shape: "circle" },
+							prerequisites: ["shieldFieldModulation"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[
+									{ kind: "defense_stat_multiplier", stat: "attack", multiplier: 1.07 },
+									{ kind: "defense_stat_multiplier", stat: "hull", multiplier: 1.07 },
+								],
+								[
+									{ kind: "defense_stat_multiplier", stat: "attack", multiplier: 1.07 },
+									{ kind: "defense_stat_multiplier", stat: "hull", multiplier: 1.07 },
+								],
+								[
+									{ kind: "defense_stat_multiplier", stat: "attack", multiplier: 1.07 },
+									{ kind: "defense_stat_multiplier", stat: "hull", multiplier: 1.07 },
+									{
+										kind: "defense_stat_multiplier",
+										stat: "shield",
+										defenseKey: "shieldDome",
+										multiplier: 1.15,
+									},
+								],
+							],
+						}),
+						node({
+							branch: "militarySystems",
+							tier: 3,
+							id: "theaterCommandSystems",
+							name: "Theater Command Systems",
+							description: "Stored task force templates reward repeated operational planning.",
+							layout: { lane: "axis", shape: "capstone" },
+							prerequisites: ["taskForceDelegation", "boardingDoctrine", "integratedDefenseDrills"],
+							maxLevel: 1,
+							effectsByLevel: [
+								[
+									{
+										kind: "contract_task_force_template_bonus",
+										fuelMultiplier: 0.65,
+										rewardMultiplier: 1.1,
+									},
+								],
+							],
+						}),
+					],
+				},
+			],
+		},
+		scientificInfrastructure: {
+			...branchThemes("scientificInfrastructure"),
+			tiers: [
+				{
+					tier: 1,
+					unlock: { type: "always" },
+					nodes: [
+						node({
+							branch: "scientificInfrastructure",
+							tier: 1,
+							id: "archiveCompression",
+							name: "Archive Compression",
+							description: "Compact research archives shorten repeated analysis loops.",
+							layout: { lane: "innerLeft", shape: "circle" },
+							prerequisites: [],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "research_duration_multiplier", multiplier: 0.94 }],
+								[{ kind: "research_duration_multiplier", multiplier: 0.94 }],
+								[{ kind: "research_duration_multiplier", multiplier: 0.94 }],
+							],
+							effectLabels: [
+								"Research duration -6% per level",
+								"Level 3 improves locked-tier previewing",
+							],
+						}),
+						node({
+							branch: "scientificInfrastructure",
+							tier: 1,
+							id: "experimentalMethodology",
+							name: "Experimental Methodology",
+							description: "Better field protocols improve meta-matter recovery.",
+							layout: { lane: "innerRight", shape: "circle" },
+							prerequisites: [],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "meta_matter_reward_multiplier", multiplier: 1.05 }],
+								[
+									{ kind: "meta_matter_reward_multiplier", multiplier: 1.05 },
+									{ kind: "meta_matter_bonus_chance", rarity: "rare", chance: 0.03, amount: 1 },
+								],
+							],
+						}),
+						node({
+							branch: "scientificInfrastructure",
+							tier: 1,
+							id: "stellarCartography",
+							name: "Stellar Cartography",
+							description: "Route-class charts expose system and sector travel categories.",
+							layout: { lane: "bridgeLeft", shape: "hex" },
+							prerequisites: [],
+							maxLevel: 1,
+							effectsByLevel: [[]],
+							effectLabels: ["Unlocks route-class visibility in fleet planning"],
+						}),
+					],
+				},
+				{
+					tier: 2,
+					unlock: {
+						type: "all",
+						rules: [
+							{ type: "metaMatterSpentTotal", amount: 50 },
+							{ type: "highestResearchDirectorateLevelReached", level: 10 },
+						],
+					},
+					nodes: [
+						node({
+							branch: "scientificInfrastructure",
+							tier: 2,
+							id: "activeCommandWindows",
+							name: "Active Command Windows",
+							description: "Manual colony actions open short production command windows.",
+							layout: { lane: "bridgeRight", shape: "square" },
+							prerequisites: ["archiveCompression", "experimentalMethodology"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[
+									{
+										kind: "active_command_window",
+										productionMultiplier: 1.1,
+										durationMinutes: 20,
+										scope: "colony",
+									},
+								],
+								[
+									{
+										kind: "active_command_window",
+										productionMultiplier: 1.1,
+										durationMinutes: 20,
+										scope: "account",
+									},
+								],
+							],
+						}),
+						node({
+							branch: "scientificInfrastructure",
+							tier: 2,
+							id: "parallelInquiry",
+							name: "Parallel Inquiry",
+							description: "Excess directorate capacity speeds less demanding research.",
+							layout: { lane: "outerLeft", shape: "circle" },
+							prerequisites: ["archiveCompression"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[
+									{
+										kind: "research_directorate_overlevel_duration",
+										percentPerLevel: 0.02,
+										cap: 0.1,
+									},
+								],
+								[
+									{
+										kind: "research_directorate_overlevel_duration",
+										percentPerLevel: 0.02,
+										cap: 0.15,
+									},
+								],
+								[
+									{
+										kind: "research_directorate_overlevel_duration",
+										percentPerLevel: 0.02,
+										cap: 0.2,
+									},
+								],
+							],
+						}),
+						node({
+							branch: "scientificInfrastructure",
+							tier: 2,
+							id: "xenologicSampling",
+							name: "Xenologic Sampling",
+							description: "Contract teams preserve stranger specimens from hostile sites.",
+							layout: { lane: "innerLeft", shape: "circle" },
+							prerequisites: ["experimentalMethodology", "contractTriageCommand"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "meta_matter_bonus_chance", rarity: "rare", chance: 0.05, amount: 1 }],
+								[{ kind: "meta_matter_bonus_chance", rarity: "rare", chance: 0.05, amount: 1 }],
+								[
+									{ kind: "meta_matter_bonus_chance", rarity: "rare", chance: 0.05, amount: 1 },
+									{ kind: "meta_matter_bonus_chance", rarity: "mythic", chance: 0.01, amount: 1 },
+								],
+							],
+						}),
+						node({
+							branch: "scientificInfrastructure",
+							tier: 2,
+							id: "peerReviewProtocols",
+							name: "Peer Review Protocols",
+							description: "Review channels cut waste in early and mid-tier research budgets.",
+							layout: { lane: "innerRight", shape: "square" },
+							prerequisites: ["archiveCompression", "experimentalMethodology"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[
+									{
+										kind: "research_cost_multiplier",
+										metaMatterMultiplier: 0.92,
+										tierMax: 2,
+										rarities: ["common"],
+									},
+								],
+								[
+									{
+										kind: "research_cost_multiplier",
+										metaMatterMultiplier: 0.92,
+										tierMax: 2,
+										rarities: ["common"],
+									},
+									{
+										kind: "research_cost_multiplier",
+										metaMatterMultiplier: 0.95,
+										tierMax: 2,
+										rarities: ["rare"],
+									},
+								],
+							],
+						}),
+						node({
+							branch: "scientificInfrastructure",
+							tier: 2,
+							id: "contractAnalytics",
+							name: "Contract Analytics",
+							description: "Better candidate scoring expands the visible contract board.",
+							layout: { lane: "outerRight", shape: "hex" },
+							prerequisites: ["stellarCartography"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "contract_visible_slot_bonus", amount: 1 }],
+								[{ kind: "contract_visible_slot_bonus", amount: 1 }],
+							],
+						}),
+					],
+				},
+				{
+					tier: 3,
+					unlock: {
+						type: "all",
+						rules: [
+							{ type: "metaMatterSpentTotal", amount: 250 },
+							{ type: "metaMatterEarnedByRarity", rarity: "rare", amount: 25 },
+							{ type: "highestResearchDirectorateLevelReached", level: 20 },
+						],
+					},
+					nodes: [
+						node({
+							branch: "scientificInfrastructure",
+							tier: 3,
+							id: "federatedDatabanks",
+							name: "Federated Databanks",
+							description: "Directorates pool capacity for account-wide research requirements.",
+							layout: { lane: "outerLeft", shape: "square" },
+							prerequisites: ["parallelInquiry", "peerReviewProtocols"],
+							maxLevel: 1,
+							effectsByLevel: [[{ kind: "combined_research_capacity" }]],
+						}),
+						node({
+							branch: "scientificInfrastructure",
+							tier: 3,
+							id: "directorateExchange",
+							name: "Directorate Exchange",
+							description: "Mature research colonies exchange staff and shorten research time.",
+							layout: { lane: "innerLeft", shape: "square" },
+							prerequisites: ["federatedDatabanks", "activeCommandWindows"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[
+									{
+										kind: "directorate_exchange_duration",
+										perColonyMultiplier: 0.97,
+										capMultiplier: 0.88,
+										minDirectorateLevel: 5,
+									},
+								],
+								[
+									{
+										kind: "directorate_exchange_duration",
+										perColonyMultiplier: 0.97,
+										capMultiplier: 0.79,
+										minDirectorateLevel: 5,
+									},
+								],
+							],
+						}),
+						node({
+							branch: "scientificInfrastructure",
+							tier: 3,
+							id: "metaMatterSynthesis",
+							name: "Meta-Matter Synthesis",
+							description: "Common meta-matter traces can crystallize into rare matter.",
+							layout: { lane: "bridgeLeft", shape: "circle" },
+							prerequisites: ["xenologicSampling", "peerReviewProtocols"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "meta_matter_bonus_chance", rarity: "rare", chance: 0.1, amount: 1 }],
+								[{ kind: "meta_matter_bonus_chance", rarity: "rare", chance: 0.1, amount: 1 }],
+								[
+									{ kind: "meta_matter_bonus_chance", rarity: "rare", chance: 0.1, amount: 1 },
+									{
+										kind: "meta_matter_daily_conversion",
+										from: "common",
+										to: "rare",
+										fromAmount: 50,
+										toAmount: 1,
+									},
+								],
+							],
+						}),
+						node({
+							branch: "scientificInfrastructure",
+							tier: 3,
+							id: "anomalyContainment",
+							name: "Anomaly Containment",
+							description: "Hostile anomaly protocols increase mythic meta-matter recovery.",
+							layout: { lane: "innerRight", shape: "hex" },
+							prerequisites: ["metaMatterSynthesis", "stellarCartography"],
+							designPrerequisites: ["metaMatterSynthesis", "graviticFieldTheory"],
+							maxLevel: 1,
+							effectsByLevel: [
+								[{ kind: "meta_matter_bonus_chance", rarity: "mythic", chance: 0.02, amount: 1 }],
+							],
+						}),
+						node({
+							branch: "scientificInfrastructure",
+							tier: 3,
+							id: "graviticFieldTheory",
+							name: "Gravitic Field Theory",
+							description: "Galactic route theory for future galaxy-scale navigation.",
+							layout: { lane: "bridgeRight", shape: "hex" },
+							prerequisites: ["stellarCartography", "sectorGatePlotting"],
+							maxLevel: 1,
+							effectsByLevel: [[]],
+							effectLabels: ["Unlocks future galactic route modeling"],
+							...planned.galacticRoutes,
+						}),
+						node({
+							branch: "scientificInfrastructure",
+							tier: 3,
+							id: "predictiveResearchModels",
+							name: "Predictive Research Models",
+							description: "Successful contracts feed active research with field data.",
+							layout: { lane: "outerRight", shape: "square" },
+							prerequisites: ["contractAnalytics", "federatedDatabanks"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "research_predictive_progress", progressFraction: 0.02 }],
+								[{ kind: "research_predictive_progress", progressFraction: 0.04 }],
+							],
+						}),
+						node({
+							branch: "scientificInfrastructure",
+							tier: 3,
+							id: "crossDomainModels",
+							name: "Cross-Domain Models",
+							description: "Finishing one branch discounts the next different-branch research.",
+							layout: { lane: "axis", shape: "capstone" },
+							prerequisites: ["predictiveResearchModels", "directorateExchange"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[
+									{
+										kind: "research_cross_branch_discount",
+										durationMultiplier: 0.9,
+										metaMatterMultiplier: 0.95,
+									},
+								],
+								[
+									{
+										kind: "research_cross_branch_discount",
+										durationMultiplier: 0.82,
+										metaMatterMultiplier: 0.9,
+									},
+								],
+							],
+						}),
+					],
+				},
+			],
+		},
+		expansionLogistics: {
+			...branchThemes("expansionLogistics"),
+			tiers: [
+				{
+					tier: 1,
+					unlock: { type: "always" },
+					nodes: [
+						node({
+							branch: "expansionLogistics",
+							tier: 1,
+							id: "cargoStandardization",
+							name: "Cargo Standardization",
+							description: "Standardized containers improve civilian cargo payloads.",
+							layout: { lane: "innerLeft", shape: "circle" },
+							prerequisites: [],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "cargo_capacity_multiplier", multiplier: 1.12 }],
+								[{ kind: "cargo_capacity_multiplier", multiplier: 1.12 }],
+								[
+									{ kind: "cargo_capacity_multiplier", multiplier: 1.12 },
+									{ kind: "ship_build_time_multiplier", shipKey: "smallCargo", multiplier: 0.9 },
+									{ kind: "ship_build_time_multiplier", shipKey: "largeCargo", multiplier: 0.9 },
+								],
+							],
+						}),
+						node({
+							branch: "expansionLogistics",
+							tier: 1,
+							id: "interSystemCharts",
+							name: "Inter-System Charts",
+							description: "Same-sector inter-system routes resolve at twice normal speed.",
+							layout: { lane: "innerRight", shape: "hex" },
+							prerequisites: [],
+							maxLevel: 1,
+							effectsByLevel: [
+								[{ kind: "route_speed_multiplier", routeClass: "interSystem", multiplier: 0.5 }],
+							],
+						}),
+						node({
+							branch: "expansionLogistics",
+							tier: 1,
+							id: "deepSpaceRefueling",
+							name: "Deep Space Refueling",
+							description: "Distributed refueling cuts fleet operating fuel.",
+							layout: { lane: "bridgeLeft", shape: "circle" },
+							prerequisites: [],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "fleet_fuel_cost_multiplier", multiplier: 0.9 }],
+								[{ kind: "fleet_fuel_cost_multiplier", multiplier: 0.9 }],
+								[
+									{ kind: "fleet_fuel_cost_multiplier", multiplier: 0.9 },
+									{ kind: "colony_ship_fuel_multiplier", multiplier: 0.8 },
+								],
+							],
+						}),
+					],
+				},
+				{
+					tier: 2,
+					unlock: {
+						type: "all",
+						rules: [
+							{ type: "colonyInDifferentSystemFounded" },
+							{ type: "highestResearchDirectorateLevelReached", level: 10 },
+						],
+					},
+					nodes: [
+						node({
+							branch: "expansionLogistics",
+							tier: 2,
+							id: "transportEscrowProtocols",
+							name: "Transport Escrow Protocols",
+							description: "Own-colony transports reserve storage for their delivery.",
+							layout: { lane: "bridgeRight", shape: "square" },
+							prerequisites: ["cargoStandardization", "deepSpaceRefueling"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "transport_storage_reservation", multiplier: 1 }],
+								[{ kind: "transport_storage_reservation", multiplier: 1 }],
+							],
+							effectLabels: [
+								"Own-colony transports reserve delivery storage",
+								"Level 2 enables filled-storage fuel refund handling",
+							],
+						}),
+						node({
+							branch: "expansionLogistics",
+							tier: 2,
+							id: "sectorGatePlotting",
+							name: "Sector Gate Plotting",
+							description: "Same-galaxy inter-sector routes resolve at four times normal speed.",
+							layout: { lane: "outerLeft", shape: "hex" },
+							prerequisites: ["interSystemCharts", "stellarCartography"],
+							maxLevel: 1,
+							effectsByLevel: [
+								[{ kind: "route_speed_multiplier", routeClass: "interSector", multiplier: 0.25 }],
+							],
+						}),
+						node({
+							branch: "expansionLogistics",
+							tier: 2,
+							id: "frontierSupplyDoctrine",
+							name: "Frontier Supply Doctrine",
+							description: "Long-haul logistics unlock larger cargo and colony ship operations.",
+							layout: { lane: "innerLeft", shape: "hex" },
+							prerequisites: ["cargoStandardization", "deepSpaceRefueling"],
+							maxLevel: 1,
+							effectsByLevel: [
+								[
+									{ kind: "unlock_ship", shipKey: "largeCargo" },
+									{ kind: "unlock_ship", shipKey: "colonyShip" },
+								],
+							],
+						}),
+						node({
+							branch: "expansionLogistics",
+							tier: 2,
+							id: "longHaulArbitrage",
+							name: "Long Haul Arbitrage",
+							description: "Own-colony resource transports gain value with distance.",
+							layout: { lane: "innerRight", shape: "circle" },
+							prerequisites: ["transportEscrowProtocols", "frontierSupplyDoctrine"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[
+									{
+										kind: "transport_delivery_distance_bonus",
+										percentPerDistance: 0.001,
+										capMultiplier: 1.15,
+									},
+								],
+								[
+									{
+										kind: "transport_delivery_distance_bonus",
+										percentPerDistance: 0.001,
+										capMultiplier: 1.3,
+									},
+								],
+							],
+						}),
+						node({
+							branch: "expansionLogistics",
+							tier: 2,
+							id: "relayDockingStandards",
+							name: "Relay Docking Standards",
+							description: "Civilian shipyards build logistics ships faster.",
+							layout: { lane: "outerRight", shape: "circle" },
+							prerequisites: ["cargoStandardization", "frontierSupplyDoctrine"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[
+									{ kind: "ship_build_time_multiplier", shipKey: "smallCargo", multiplier: 0.92 },
+									{ kind: "ship_build_time_multiplier", shipKey: "largeCargo", multiplier: 0.92 },
+									{ kind: "ship_build_time_multiplier", shipKey: "colonyShip", multiplier: 0.92 },
+								],
+								[
+									{ kind: "ship_build_time_multiplier", shipKey: "smallCargo", multiplier: 0.92 },
+									{ kind: "ship_build_time_multiplier", shipKey: "largeCargo", multiplier: 0.92 },
+									{ kind: "ship_build_time_multiplier", shipKey: "colonyShip", multiplier: 0.92 },
+								],
+								[
+									{ kind: "ship_build_time_multiplier", shipKey: "smallCargo", multiplier: 0.92 },
+									{ kind: "ship_build_time_multiplier", shipKey: "largeCargo", multiplier: 0.92 },
+									{ kind: "ship_build_time_multiplier", shipKey: "colonyShip", multiplier: 0.92 },
+									{ kind: "transport_return_duration_multiplier", multiplier: 0.75 },
+								],
+							],
+						}),
+					],
+				},
+				{
+					tier: 3,
+					unlock: {
+						type: "all",
+						rules: [
+							{ type: "colonyInDifferentSectorFounded" },
+							{ type: "highestResearchDirectorateLevelReached", level: 20 },
+						],
+					},
+					nodes: [
+						node({
+							branch: "expansionLogistics",
+							tier: 3,
+							id: "galacticVectoring",
+							name: "Galactic Vectoring",
+							description: "Future inter-galactic routes resolve at sixteen times normal speed.",
+							layout: { lane: "outerLeft", shape: "hex" },
+							prerequisites: ["sectorGatePlotting", "graviticFieldTheory"],
+							maxLevel: 1,
+							effectsByLevel: [
+								[
+									{
+										kind: "route_speed_multiplier",
+										routeClass: "interGalactic",
+										multiplier: 0.0625,
+									},
+								],
+							],
+							...planned.galacticRoutes,
+						}),
+						node({
+							branch: "expansionLogistics",
+							tier: 3,
+							id: "convoySlipstreams",
+							name: "Convoy Slipstreams",
+							description: "Repeated own-colony routes build temporary speed corridors.",
+							layout: { lane: "innerLeft", shape: "circle" },
+							prerequisites: ["longHaulArbitrage", "relayDockingStandards"],
+							designPrerequisites: ["longHaulArbitrage", "logisticsBackbone"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[
+									{
+										kind: "route_streak_speed_bonus",
+										multiplierPerLevel: 0.88,
+										capMultiplier: 0.64,
+									},
+								],
+								[
+									{
+										kind: "route_streak_speed_bonus",
+										multiplierPerLevel: 0.88,
+										capMultiplier: 0.64,
+									},
+								],
+								[
+									{
+										kind: "route_streak_speed_bonus",
+										multiplierPerLevel: 0.88,
+										capMultiplier: 0.64,
+									},
+								],
+							],
+						}),
+						node({
+							branch: "expansionLogistics",
+							tier: 3,
+							id: "logisticsBackbone",
+							name: "Logistics Backbone",
+							description: "Transport missions can plan additional delivery stops.",
+							layout: { lane: "bridgeLeft", shape: "square" },
+							prerequisites: ["longHaulArbitrage", "relayDockingStandards"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "transport_extra_stop_bonus", amount: 1, fuelMultiplierPerStop: 1.05 }],
+								[{ kind: "transport_extra_stop_bonus", amount: 1, fuelMultiplierPerStop: 1.05 }],
+								[{ kind: "transport_extra_stop_bonus", amount: 1, fuelMultiplierPerStop: 1.05 }],
+							],
+						}),
+						node({
+							branch: "expansionLogistics",
+							tier: 3,
+							id: "intermodalFreightStandards",
+							name: "Intermodal Freight Standards",
+							description:
+								"Cargo ships reserve extra target storage for in-flight own-colony deliveries.",
+							layout: { lane: "innerRight", shape: "square" },
+							prerequisites: ["transportEscrowProtocols", "relayDockingStandards"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "transport_storage_reservation", multiplier: 1.1 }],
+								[{ kind: "transport_storage_reservation", multiplier: 1.2 }],
+							],
+						}),
+						node({
+							branch: "expansionLogistics",
+							tier: 3,
+							id: "colonialLaunchWindows",
+							name: "Colonial Launch Windows",
+							description: "Colony ship builds and launches are tuned around efficient windows.",
+							layout: { lane: "bridgeRight", shape: "circle" },
+							prerequisites: ["frontierSupplyDoctrine", "relayDockingStandards"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "colony_ship_build_time_multiplier", multiplier: 0.8 }],
+								[
+									{ kind: "colony_ship_build_time_multiplier", multiplier: 0.8 },
+									{ kind: "colony_ship_fuel_multiplier", multiplier: 0.65 },
+								],
+							],
+						}),
+						node({
+							branch: "expansionLogistics",
+							tier: 3,
+							id: "surveyUplinks",
+							name: "Survey Uplinks",
+							description:
+								"Recent successful transports improve next-contract meta-matter rewards.",
+							layout: { lane: "outerRight", shape: "hex" },
+							prerequisites: ["sectorGatePlotting", "contractAnalytics"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[
+									{
+										kind: "contract_after_transport_meta_matter_multiplier",
+										multiplier: 1.1,
+										durationHours: 24,
+									},
+								],
+								[
+									{
+										kind: "contract_after_transport_meta_matter_multiplier",
+										multiplier: 1.2,
+										durationHours: 24,
+									},
+								],
+							],
+						}),
+						node({
+							branch: "expansionLogistics",
+							tier: 3,
+							id: "stargatePrecursorSurvey",
+							name: "Stargate Precursor Survey",
+							description: "Future fixed-route gate projects emerge from heavy route usage.",
+							layout: { lane: "axis", shape: "capstone" },
+							prerequisites: ["galacticVectoring", "surveyUplinks"],
+							maxLevel: 1,
+							effectsByLevel: [[]],
+							effectLabels: ["Unlocks the future fixed-route gate project"],
+							...planned.stargates,
+						}),
+					],
+				},
+			],
+		},
+		colonySpecialization: {
+			...branchThemes("colonySpecialization"),
+			tiers: [
+				{
+					tier: 1,
+					unlock: { type: "always" },
+					nodes: [
+						node({
+							branch: "colonySpecialization",
+							tier: 1,
+							id: "defenseGridArchitecture",
+							name: "Defense Grid Architecture",
+							description: "Defense Grid infrastructure stays ahead of shipyard escalation.",
+							layout: { lane: "innerLeft", shape: "hex" },
+							prerequisites: [],
+							maxLevel: 1,
+							effectsByLevel: [
+								[{ kind: "facility_max_level_bonus", facilityKey: "defense_grid", amount: 2 }],
+							],
+						}),
+						node({
+							branch: "colonySpecialization",
+							tier: 1,
+							id: "navalProductionCoordination",
+							name: "Naval Production Coordination",
+							description: "Shipyard teams coordinate a wider local production lane.",
+							layout: { lane: "innerRight", shape: "hex" },
+							prerequisites: [],
+							maxLevel: 1,
+							effectsByLevel: [
+								[{ kind: "shipyard_queue_capacity_bonus", amount: 1, minShipyardLevel: 3 }],
+							],
+						}),
+						node({
+							branch: "colonySpecialization",
+							tier: 1,
+							id: "colonialAdministration",
+							name: "Colonial Administration",
+							description: "Administrative overhead from future colony-cap pressure is reduced.",
+							layout: { lane: "bridgeLeft", shape: "square" },
+							prerequisites: [],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "colony_overcap_penalty_reduction", amount: 0.05 }],
+								[{ kind: "colony_overcap_penalty_reduction", amount: 0.05 }],
+							],
+						}),
+					],
+				},
+				{
+					tier: 2,
+					unlock: {
+						type: "all",
+						rules: [
+							{ type: "coloniesFounded", count: 2 },
+							{ type: "facilityLevelReached", level: 12 },
+							{ type: "highestResearchDirectorateLevelReached", level: 10 },
+						],
+					},
+					nodes: [
+						node({
+							branch: "colonySpecialization",
+							tier: 2,
+							id: "localSpecializationCharters",
+							name: "Local Specialization Charters",
+							description:
+								"Each colony can adopt an industrial, refinery, research, naval, or defensive charter.",
+							layout: { lane: "bridgeRight", shape: "square" },
+							prerequisites: ["colonialAdministration"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[
+									{
+										kind: "colony_charter_unlock",
+										productionMultiplier: 1.2,
+										penaltyMultiplier: 0.95,
+									},
+								],
+								[{ kind: "colony_charter_penalty_removed" }],
+							],
+						}),
+						node({
+							branch: "colonySpecialization",
+							tier: 2,
+							id: "frontierBootstrapping",
+							name: "Frontier Bootstrapping",
+							description: "New colonies begin with stronger basic infrastructure packages.",
+							layout: { lane: "outerLeft", shape: "square" },
+							prerequisites: ["colonialAdministration"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "new_colony_bootstrap", buildingLevel: 2, storageLevel: 2 }],
+								[
+									{
+										kind: "new_colony_bootstrap",
+										buildingLevel: 4,
+										storageLevel: 3,
+										roboticsHubLevel: 1,
+									},
+								],
+								[
+									{
+										kind: "new_colony_bootstrap",
+										buildingLevel: 6,
+										storageLevel: 5,
+										roboticsHubLevel: 2,
+										logisticsNexusLevel: 1,
+									},
+								],
+							],
+						}),
+						node({
+							branch: "colonySpecialization",
+							tier: 2,
+							id: "planetarySurveyMethods",
+							name: "Planetary Survey Methods",
+							description:
+								"Survey data gives colony specialization recommendations before settlement.",
+							layout: { lane: "innerLeft", shape: "hex" },
+							prerequisites: ["localSpecializationCharters", "stellarCartography"],
+							maxLevel: 1,
+							effectsByLevel: [[]],
+							effectLabels: ["Reveals planet specialization recommendations"],
+						}),
+						node({
+							branch: "colonySpecialization",
+							tier: 2,
+							id: "emergencyStockpileDoctrine",
+							name: "Emergency Stockpile Doctrine",
+							description: "New colonies start with protected local resources.",
+							layout: { lane: "innerRight", shape: "circle" },
+							prerequisites: ["frontierBootstrapping", "storageCompressionLattices"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[
+									{
+										kind: "protected_starting_resources",
+										storageFraction: 0.1,
+										durationHours: 24,
+									},
+								],
+								[
+									{
+										kind: "protected_starting_resources",
+										storageFraction: 0.2,
+										durationHours: 24,
+									},
+								],
+							],
+						}),
+						node({
+							branch: "colonySpecialization",
+							tier: 2,
+							id: "prefecturePlanning",
+							name: "Prefecture Planning",
+							description: "Chartered colonies execute facility upgrades more cleanly.",
+							layout: { lane: "outerRight", shape: "square" },
+							prerequisites: ["defenseGridArchitecture", "navalProductionCoordination"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "charter_facility_upgrade_time_multiplier", multiplier: 0.9 }],
+								[
+									{ kind: "charter_facility_upgrade_time_multiplier", multiplier: 0.9 },
+									{ kind: "charter_cooldown_hours", hours: 12 },
+								],
+							],
+						}),
+					],
+				},
+				{
+					tier: 3,
+					unlock: {
+						type: "all",
+						rules: [
+							{ type: "coloniesFounded", count: 4 },
+							{ type: "facilityLevelTotalOnOneColonyReached", level: 60 },
+							{ type: "highestResearchDirectorateLevelReached", level: 20 },
+						],
+					},
+					nodes: [
+						node({
+							branch: "colonySpecialization",
+							tier: 3,
+							id: "terraformerFacilityDesign",
+							name: "Terraformer Facility Design",
+							description: "Blueprints for future planet trait mitigation.",
+							layout: { lane: "outerLeft", shape: "hex" },
+							prerequisites: ["planetarySurveyMethods", "federatedDatabanks"],
+							maxLevel: 1,
+							effectsByLevel: [[]],
+							effectLabels: ["Unlocks the future terraformer facility"],
+							...planned.terraformer,
+						}),
+						node({
+							branch: "colonySpecialization",
+							tier: 3,
+							id: "habitatMegastructures",
+							name: "Habitat Megastructures",
+							description:
+								"Habitat support increases colony capacity once the empire is wide enough.",
+							layout: { lane: "innerLeft", shape: "hex" },
+							prerequisites: ["planetarySurveyMethods", "frontierBootstrapping"],
+							designPrerequisites: ["terraformerFacilityDesign", "frontierBootstrapping"],
+							maxLevel: 1,
+							effectsByLevel: [[{ kind: "colony_cap_bonus", amount: 1, minColonies: 4 }]],
+						}),
+						node({
+							branch: "colonySpecialization",
+							tier: 3,
+							id: "prefabColonyKits",
+							name: "Prefab Colony Kits",
+							description: "Colony ships arrive with queued upgrade kits ready to install.",
+							layout: { lane: "bridgeLeft", shape: "square" },
+							prerequisites: ["frontierBootstrapping", "colonialLaunchWindows"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "new_colony_prefab_queue", queuedBuildingUpgrades: 1 }],
+								[{ kind: "new_colony_prefab_queue", queuedBuildingUpgrades: 2 }],
+							],
+						}),
+						node({
+							branch: "colonySpecialization",
+							tier: 3,
+							id: "civicLogisticsAI",
+							name: "Civic Logistics AI",
+							description:
+								"Chartered colonies reserve incoming transport capacity for charter needs.",
+							layout: { lane: "innerRight", shape: "square" },
+							prerequisites: ["prefabColonyKits", "localSpecializationCharters"],
+							maxLevel: 2,
+							effectsByLevel: [
+								[{ kind: "charter_transport_reservation", storageFraction: 0.1 }],
+								[{ kind: "charter_transport_reservation", storageFraction: 0.2 }],
+							],
+						}),
+						node({
+							branch: "colonySpecialization",
+							tier: 3,
+							id: "orbitalShipworks",
+							name: "Orbital Shipworks",
+							description: "Naval charters accelerate ship builds through orbital staging.",
+							layout: { lane: "bridgeRight", shape: "circle" },
+							prerequisites: ["navalProductionCoordination", "prefecturePlanning"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "charter_ship_build_time_multiplier", multiplier: 0.9 }],
+								[{ kind: "charter_ship_build_time_multiplier", multiplier: 0.9 }],
+								[
+									{ kind: "charter_ship_build_time_multiplier", multiplier: 0.9 },
+									{ kind: "ship_build_time_multiplier", shipKey: "smallCargo", multiplier: 0.9 },
+									{ kind: "ship_build_time_multiplier", shipKey: "interceptor", multiplier: 0.9 },
+								],
+							],
+						}),
+						node({
+							branch: "colonySpecialization",
+							tier: 3,
+							id: "fortifiedCivicGrid",
+							name: "Fortified Civic Grid",
+							description:
+								"Defensive charters accelerate defense builds and reinforce early defenses.",
+							layout: { lane: "outerRight", shape: "circle" },
+							prerequisites: ["defenseGridArchitecture", "prefecturePlanning"],
+							maxLevel: 3,
+							effectsByLevel: [
+								[{ kind: "charter_defense_build_time_multiplier", multiplier: 0.9 }],
+								[{ kind: "charter_defense_build_time_multiplier", multiplier: 0.9 }],
+								[
+									{ kind: "charter_defense_build_time_multiplier", multiplier: 0.9 },
+									{
+										kind: "defense_stat_multiplier",
+										stat: "hull",
+										defenseKey: "missileBattery",
+										multiplier: 1.1,
+									},
+									{
+										kind: "defense_stat_multiplier",
+										stat: "hull",
+										defenseKey: "laserTurret",
+										multiplier: 1.1,
+									},
+								],
+							],
+						}),
+						node({
+							branch: "colonySpecialization",
+							tier: 3,
+							id: "sectorCapitalPlanning",
+							name: "Sector Capital Planning",
+							description: "One colony per sector can become a local production capital.",
+							layout: { lane: "axis", shape: "capstone" },
+							prerequisites: ["habitatMegastructures", "orbitalShipworks", "fortifiedCivicGrid"],
+							maxLevel: 1,
+							effectsByLevel: [
+								[
+									{
+										kind: "sector_capital_production",
+										capitalMultiplier: 1.25,
+										sectorColonyMultiplier: 1.08,
+									},
+								],
+							],
+						}),
+					],
+				},
+			],
+		},
+	};
+	return { branches } satisfies AuthoredResearchTree;
+}
+
+const RESEARCH_TREE = buildResearchTierThreeTree();
+
+export const RESEARCH_BRANCH_KEYS = [...RESEARCH_BRANCH_KEY_LIST];
 
 export type ResearchNodeLayout = {
 	lane: ResearchLayoutLane;
@@ -1113,7 +3173,11 @@ export type ResearchNodeDefinition = {
 	requiredCombinedResearchCapacity?: number;
 	costs: ResearchNodeCost[];
 	effects: ResearchEffect[];
+	effectsByLevel: ResearchEffect[][];
 	effectLabels: string[];
+	implementationStatus: ResearchImplementationStatus;
+	plannedReason?: string;
+	designPrerequisites: ResearchKey[];
 };
 
 export type ResearchTierDefinition = {
@@ -1153,6 +3217,29 @@ function multiplyIntoRecord<T extends string>(
 	value: number,
 ) {
 	record[key] = (record[key] ?? 1) * value;
+}
+
+function emptyStatMultipliers<T extends string>(
+	keys: readonly T[],
+): Record<T, { attack: number; hull: number; shield: number }> {
+	return Object.fromEntries(keys.map((key) => [key, { attack: 1, hull: 1, shield: 1 }])) as Record<
+		T,
+		{ attack: number; hull: number; shield: number }
+	>;
+}
+
+function mergeInterceptorWolfpack(
+	current: Extract<ResearchEffect, { kind: "interceptor_wolfpack" }> | undefined,
+	next: Extract<ResearchEffect, { kind: "interceptor_wolfpack" }>,
+) {
+	return {
+		kind: "interceptor_wolfpack",
+		minInterceptors: next.minInterceptors,
+		minShare: next.minShare,
+		attackMultiplier: (current?.attackMultiplier ?? 1) * (next.attackMultiplier ?? 1),
+		hullMultiplier: (current?.hullMultiplier ?? 1) * (next.hullMultiplier ?? 1),
+		fuelMultiplier: (current?.fuelMultiplier ?? 1) * (next.fuelMultiplier ?? 1),
+	} satisfies Extract<ResearchEffect, { kind: "interceptor_wolfpack" }>;
 }
 
 function researchLayoutPosition(lane: ResearchLayoutLane, tier: number) {
@@ -1212,43 +3299,152 @@ function describeResearchEffect(effect: ResearchEffect) {
 			return `${Math.round((effect.multiplier - 1) * 100)}% ${
 				effect.rarity ?? "all"
 			} meta-matter rewards`;
+		case "energy_consumption_multiplier":
+			return `${Math.round((1 - effect.multiplier) * 100)}% energy consumption`;
+		case "storage_pressure_production_bonus":
+			return `Up to +${Math.round(effect.maxBonus * 100)}% production when storage is low`;
+		case "overflow_reintegration_multiplier":
+			return `${effect.multiplier}x overflow reintegration`;
+		case "idle_building_queue_speed_bonus":
+			return `Idle building queues reduce upgrade duration`;
+		case "building_queue_capacity_bonus":
+			return `+${effect.amount} building queue slot${effect.amount === 1 ? "" : "s"}`;
+		case "shipyard_queue_capacity_bonus":
+			return `+${effect.amount} shipyard queue slot${effect.amount === 1 ? "" : "s"}`;
+		case "colony_count_production_bonus":
+			return `+${Math.round(effect.bonusPerExtraColony * 100)}% production per extra colony`;
+		case "industrial_focus_unlock":
+			return "Unlock colony industrial focus";
+		case "active_command_window":
+			return `Active command windows increase ${effect.scope} production`;
+		case "research_directorate_overlevel_duration":
+			return `Research Directorate overlevel duration discount`;
+		case "research_cost_multiplier":
+			return `${Math.round((1 - effect.metaMatterMultiplier) * 100)}% research meta-matter cost`;
+		case "ship_stat_multiplier":
+			return `${Math.round((effect.multiplier - 1) * 100)}% ${effect.shipKey ?? "combat ship"} ${effect.stat}`;
+		case "defense_stat_multiplier":
+			return `${Math.round((effect.multiplier - 1) * 100)}% ${effect.defenseKey ?? "defense"} ${effect.stat}`;
+		case "interceptor_wolfpack":
+			return "Interceptor wolfpack contract bonus";
+		case "enemy_attack_multiplier":
+			return `${Math.round((1 - effect.multiplier) * 100)}% enemy attack`;
+		case "contract_active_limit_bonus":
+			return `+${effect.amount} active contract limit`;
+		case "contract_visible_slot_bonus":
+			return `+${effect.amount} visible contract slot${effect.amount === 1 ? "" : "s"}`;
+		case "contract_dispatch_fuel_multiplier":
+			return `${Math.round((1 - effect.multiplier) * 100)}% contract dispatch fuel`;
+		case "contract_recovery_resources":
+			return `${Math.round(effect.recoveryRate * 100)}% contract recovery resources`;
+		case "contract_ship_capture":
+			return `${Math.round(effect.chance * 100)}% chance to capture enemy ships`;
+		case "contract_task_force_template_bonus":
+			return "Unlock task force template reuse bonus";
+		case "meta_matter_bonus_chance":
+			return `+${Math.round(effect.chance * 100)}pp ${effect.rarity} meta-matter chance`;
+		case "research_predictive_progress":
+			return `${Math.round(effect.progressFraction * 100)}% successful-contract research progress`;
+		case "research_cross_branch_discount":
+			return "Discount the next different-branch research";
+		case "meta_matter_daily_conversion":
+			return `Convert ${effect.fromAmount} ${effect.from} to ${effect.toAmount} ${effect.to} daily`;
+		case "directorate_exchange_duration":
+			return "Research duration scales with mature directorates";
+		case "route_speed_multiplier":
+			return `${Math.round((1 / effect.multiplier - 1) * 100)}% ${effect.routeClass} travel speed`;
+		case "route_streak_speed_bonus":
+			return "Repeated route transport speed bonus";
+		case "transport_extra_stop_bonus":
+			return `+${effect.amount} planned transport stop`;
+		case "transport_delivery_distance_bonus":
+			return "Own-colony transport delivery scales with distance";
+		case "transport_storage_reservation":
+			return "Own-colony transport storage reservation";
+		case "contract_after_transport_meta_matter_multiplier":
+			return "Recent transport boosts next contract meta-matter";
+		case "transport_return_duration_multiplier":
+			return `${Math.round((1 - effect.multiplier) * 100)}% transport return duration`;
+		case "colony_ship_build_time_multiplier":
+			return `${Math.round((1 - effect.multiplier) * 100)}% colony ship build time`;
+		case "colony_ship_fuel_multiplier":
+			return `${Math.round((1 - effect.multiplier) * 100)}% colony ship fuel`;
+		case "colony_overcap_penalty_reduction":
+			return `-${Math.round(effect.amount * 100)}pp future colony over-cap penalty`;
+		case "colony_charter_unlock":
+			return "Unlock colony specialization charters";
+		case "colony_charter_penalty_removed":
+			return "Remove colony charter production penalty";
+		case "charter_facility_upgrade_time_multiplier":
+			return `${Math.round((1 - effect.multiplier) * 100)}% chartered facility upgrade duration`;
+		case "charter_cooldown_hours":
+			return `${effect.hours}h charter change cooldown`;
+		case "charter_ship_build_time_multiplier":
+			return `${Math.round((1 - effect.multiplier) * 100)}% naval charter ship build time`;
+		case "charter_defense_build_time_multiplier":
+			return `${Math.round((1 - effect.multiplier) * 100)}% defensive charter defense build time`;
+		case "new_colony_bootstrap":
+			return `New colony bootstrap package level ${effect.buildingLevel}`;
+		case "new_colony_prefab_queue":
+			return `+${effect.queuedBuildingUpgrades} queued new-colony upgrade`;
+		case "protected_starting_resources":
+			return `${Math.round(effect.storageFraction * 100)}% protected starting resources`;
+		case "charter_transport_reservation":
+			return `${Math.round(effect.storageFraction * 100)}% charter transport reservation`;
+		case "colony_cap_bonus":
+			return `+${effect.amount} colony cap`;
+		case "sector_capital_production":
+			return "Unlock sector capital production";
 	}
 }
 
-function flattenResearchTree() {
+function flattenResearchTree(options?: { activeOnly?: boolean }) {
 	const branches: ResearchBranchDefinition[] = [];
 
 	for (const branchKey of RESEARCH_BRANCH_KEYS) {
-		const branch = AUTHORED_RESEARCH_TREE.branches[branchKey];
+		const branch = RESEARCH_TREE.branches[branchKey];
 		const tiers: ResearchTierDefinition[] = branch.tiers.map((tier) => ({
 			tier: tier.tier,
 			unlock: tier.unlock,
-			nodes: tier.nodes.map((node) => {
-				const authoredNode: AuthoredResearchNode = node;
-				const effects = [...authoredNode.effects];
-				return {
-					id: authoredNode.id as ResearchKey,
-					name: authoredNode.name,
-					branch: branchKey,
-					tier: tier.tier,
-					description: authoredNode.description,
-					position: researchLayoutPosition(authoredNode.layout.lane, tier.tier),
-					layout: { ...authoredNode.layout },
-					prerequisites: [...authoredNode.prerequisites] as ResearchKey[],
-					maxLevel: authoredNode.maxLevel,
-					requiredResearchFacilityLevel: authoredNode.requiredResearchFacilityLevel,
-					requiredCombinedResearchCapacity: authoredNode.requiredCombinedResearchCapacity,
-					costs: authoredNode.costs.map((cost) => ({
-						metaMatter: { ...cost.metaMatter },
-						resources: cost.resources ? { ...cost.resources } : undefined,
-						seconds: cost.seconds,
-					})),
-					effects,
-					effectLabels: authoredNode.effectLabels
-						? [...authoredNode.effectLabels]
-						: effects.map(describeResearchEffect),
-				};
-			}),
+			nodes: tier.nodes
+				.filter(
+					(node) => !options?.activeOnly || (node.implementationStatus ?? "active") === "active",
+				)
+				.map((node) => {
+					const authoredNode: AuthoredResearchNode = node;
+					const effectsByLevel = authoredNode.effectsByLevel?.map((effects) => [...effects]) ?? [
+						[...authoredNode.effects],
+					];
+					const effects = effectsByLevel.flat();
+					return {
+						id: authoredNode.id as ResearchKey,
+						name: authoredNode.name,
+						branch: branchKey,
+						tier: tier.tier,
+						description: authoredNode.description,
+						position: researchLayoutPosition(authoredNode.layout.lane, tier.tier),
+						layout: { ...authoredNode.layout },
+						prerequisites: [...authoredNode.prerequisites] as ResearchKey[],
+						maxLevel: authoredNode.maxLevel,
+						requiredResearchFacilityLevel: authoredNode.requiredResearchFacilityLevel,
+						requiredCombinedResearchCapacity: authoredNode.requiredCombinedResearchCapacity,
+						costs: authoredNode.costs.map((cost) => ({
+							metaMatter: { ...cost.metaMatter },
+							resources: cost.resources ? { ...cost.resources } : undefined,
+							seconds: cost.seconds,
+						})),
+						effects,
+						effectsByLevel,
+						effectLabels: authoredNode.effectLabels
+							? [...authoredNode.effectLabels]
+							: effects.map(describeResearchEffect),
+						implementationStatus: authoredNode.implementationStatus ?? "active",
+						plannedReason: authoredNode.plannedReason,
+						designPrerequisites: [
+							...(authoredNode.designPrerequisites ?? authoredNode.prerequisites),
+						],
+					};
+				}),
 		}));
 
 		branches.push({
@@ -1272,7 +3468,11 @@ const DEFAULT_RESOURCE_MULTIPLIERS = {
 	fuel: 1,
 } satisfies Record<Exclude<ResourceKey, "energy">, number>;
 
-export const DEFAULT_RESEARCH_BRANCHES = flattenResearchTree();
+export const AUTHORED_RESEARCH_BRANCHES = flattenResearchTree();
+export const AUTHORED_RESEARCH_TREE_NODES = AUTHORED_RESEARCH_BRANCHES.flatMap((branch) =>
+	branch.tiers.flatMap((tier) => tier.nodes),
+) as readonly ResearchNodeDefinition[];
+export const DEFAULT_RESEARCH_BRANCHES = flattenResearchTree({ activeOnly: true });
 export const DEFAULT_RESEARCH_TREE = DEFAULT_RESEARCH_BRANCHES.flatMap((branch) =>
 	branch.tiers.flatMap((tier) => tier.nodes),
 ) as readonly ResearchNodeDefinition[];
@@ -1293,6 +3493,14 @@ export function getResearchBranch(branchKey: ResearchBranchKey) {
 	return DEFAULT_RESEARCH_BRANCH_REGISTRY.get(branchKey);
 }
 
+export function getActiveResearchBranches() {
+	return DEFAULT_RESEARCH_BRANCHES;
+}
+
+export function getActiveResearchTree() {
+	return DEFAULT_RESEARCH_TREE;
+}
+
 export function getResearchTier(args: { branchKey: ResearchBranchKey; tier: number }) {
 	return getResearchBranch(args.branchKey)?.tiers.find((tier) => tier.tier === args.tier);
 }
@@ -1301,12 +3509,29 @@ export function emptyResearchTierUnlockContext(): ResearchTierUnlockContext {
 	return {
 		coloniesFounded: 0,
 		contractsCompleted: 0,
+		crossSectorColoniesFounded: 0,
+		crossSystemColoniesFounded: 0,
 		defensesOwned: 0,
+		facilityLevelTotalOnOneColony: 0,
 		highestBuildingLevel: 0,
+		highestFacilityLevel: 0,
 		highestResearchDirectorateLevel: 0,
+		maxResourceAndStorageLevelTotal: 0,
+		maxResourceProductionBuildingLevel: 0,
+		maxStorageBuildingLevel: 0,
+		metaMatterEarnedCommon: 0,
+		metaMatterEarnedMythic: 0,
+		metaMatterEarnedRare: 0,
+		metaMatterSpentTotal: 0,
+		raidDefensesSucceeded: 0,
+		rank3ContractsCompleted: 0,
 		shipsOwned: 0,
 		successfulTransports: 0,
 	};
+}
+
+function sanitizeTierUnlockMetric(value: number | undefined) {
+	return Math.max(0, Math.floor(value ?? 0));
 }
 
 function normalizeTierUnlockContext(
@@ -1314,26 +3539,59 @@ function normalizeTierUnlockContext(
 ): ResearchTierUnlockContext {
 	const defaults = emptyResearchTierUnlockContext();
 	return {
-		coloniesFounded: Math.max(0, Math.floor(context?.coloniesFounded ?? defaults.coloniesFounded)),
-		contractsCompleted: Math.max(
-			0,
-			Math.floor(context?.contractsCompleted ?? defaults.contractsCompleted),
+		coloniesFounded: sanitizeTierUnlockMetric(context?.coloniesFounded ?? defaults.coloniesFounded),
+		contractsCompleted: sanitizeTierUnlockMetric(
+			context?.contractsCompleted ?? defaults.contractsCompleted,
 		),
-		defensesOwned: Math.max(0, Math.floor(context?.defensesOwned ?? defaults.defensesOwned)),
-		highestBuildingLevel: Math.max(
-			0,
-			Math.floor(context?.highestBuildingLevel ?? defaults.highestBuildingLevel),
+		crossSectorColoniesFounded: sanitizeTierUnlockMetric(
+			context?.crossSectorColoniesFounded ?? defaults.crossSectorColoniesFounded,
 		),
-		highestResearchDirectorateLevel: Math.max(
-			0,
-			Math.floor(
-				context?.highestResearchDirectorateLevel ?? defaults.highestResearchDirectorateLevel,
-			),
+		crossSystemColoniesFounded: sanitizeTierUnlockMetric(
+			context?.crossSystemColoniesFounded ?? defaults.crossSystemColoniesFounded,
 		),
-		shipsOwned: Math.max(0, Math.floor(context?.shipsOwned ?? defaults.shipsOwned)),
-		successfulTransports: Math.max(
-			0,
-			Math.floor(context?.successfulTransports ?? defaults.successfulTransports),
+		defensesOwned: sanitizeTierUnlockMetric(context?.defensesOwned ?? defaults.defensesOwned),
+		facilityLevelTotalOnOneColony: sanitizeTierUnlockMetric(
+			context?.facilityLevelTotalOnOneColony ?? defaults.facilityLevelTotalOnOneColony,
+		),
+		highestBuildingLevel: sanitizeTierUnlockMetric(
+			context?.highestBuildingLevel ?? defaults.highestBuildingLevel,
+		),
+		highestFacilityLevel: sanitizeTierUnlockMetric(
+			context?.highestFacilityLevel ?? defaults.highestFacilityLevel,
+		),
+		highestResearchDirectorateLevel: sanitizeTierUnlockMetric(
+			context?.highestResearchDirectorateLevel ?? defaults.highestResearchDirectorateLevel,
+		),
+		maxResourceAndStorageLevelTotal: sanitizeTierUnlockMetric(
+			context?.maxResourceAndStorageLevelTotal ?? defaults.maxResourceAndStorageLevelTotal,
+		),
+		maxResourceProductionBuildingLevel: sanitizeTierUnlockMetric(
+			context?.maxResourceProductionBuildingLevel ?? defaults.maxResourceProductionBuildingLevel,
+		),
+		maxStorageBuildingLevel: sanitizeTierUnlockMetric(
+			context?.maxStorageBuildingLevel ?? defaults.maxStorageBuildingLevel,
+		),
+		metaMatterEarnedCommon: sanitizeTierUnlockMetric(
+			context?.metaMatterEarnedCommon ?? defaults.metaMatterEarnedCommon,
+		),
+		metaMatterEarnedMythic: sanitizeTierUnlockMetric(
+			context?.metaMatterEarnedMythic ?? defaults.metaMatterEarnedMythic,
+		),
+		metaMatterEarnedRare: sanitizeTierUnlockMetric(
+			context?.metaMatterEarnedRare ?? defaults.metaMatterEarnedRare,
+		),
+		metaMatterSpentTotal: sanitizeTierUnlockMetric(
+			context?.metaMatterSpentTotal ?? defaults.metaMatterSpentTotal,
+		),
+		raidDefensesSucceeded: sanitizeTierUnlockMetric(
+			context?.raidDefensesSucceeded ?? defaults.raidDefensesSucceeded,
+		),
+		rank3ContractsCompleted: sanitizeTierUnlockMetric(
+			context?.rank3ContractsCompleted ?? defaults.rank3ContractsCompleted,
+		),
+		shipsOwned: sanitizeTierUnlockMetric(context?.shipsOwned ?? defaults.shipsOwned),
+		successfulTransports: sanitizeTierUnlockMetric(
+			context?.successfulTransports ?? defaults.successfulTransports,
 		),
 	};
 }
@@ -1348,18 +3606,49 @@ export function isResearchTierUnlockSatisfied(
 			return true;
 		case "contractsCompleted":
 			return context.contractsCompleted >= rule.count;
+		case "rankedContractsCompleted":
+			if (rule.minRank <= 3) {
+				return context.rank3ContractsCompleted >= rule.count;
+			}
+			return false;
+		case "raidDefensesSucceeded":
+			return context.raidDefensesSucceeded >= rule.count;
 		case "highestBuildingLevelReached":
 			return context.highestBuildingLevel >= rule.level;
+		case "resourceProductionBuildingLevelReached":
+			return context.maxResourceProductionBuildingLevel >= rule.level;
+		case "storageBuildingLevelReached":
+			return context.maxStorageBuildingLevel >= rule.level;
+		case "resourceAndStorageLevelTotalReached":
+			return context.maxResourceAndStorageLevelTotal >= rule.level;
 		case "coloniesFounded":
 			return context.coloniesFounded >= rule.count;
+		case "colonyInDifferentSystemFounded":
+			return context.crossSystemColoniesFounded > 0;
+		case "colonyInDifferentSectorFounded":
+			return context.crossSectorColoniesFounded > 0;
 		case "highestResearchDirectorateLevelReached":
 			return context.highestResearchDirectorateLevel >= rule.level;
+		case "facilityLevelReached":
+			return context.highestFacilityLevel >= rule.level;
+		case "facilityLevelTotalOnOneColonyReached":
+			return context.facilityLevelTotalOnOneColony >= rule.level;
 		case "shipsOwned":
 			return context.shipsOwned >= rule.count;
 		case "defensesOwned":
 			return context.defensesOwned >= rule.count;
 		case "successfulTransports":
 			return context.successfulTransports >= rule.count;
+		case "metaMatterSpentTotal":
+			return context.metaMatterSpentTotal >= rule.amount;
+		case "metaMatterEarnedByRarity":
+			if (rule.rarity === "common") {
+				return context.metaMatterEarnedCommon >= rule.amount;
+			}
+			if (rule.rarity === "rare") {
+				return context.metaMatterEarnedRare >= rule.amount;
+			}
+			return context.metaMatterEarnedMythic >= rule.amount;
 		case "all":
 			return rule.rules.every((child) => isResearchTierUnlockSatisfied(child, context));
 		case "any":
@@ -1373,18 +3662,40 @@ function researchTierUnlockRequirementLabel(rule: ResearchTierUnlockRule): strin
 			return "Unlocked";
 		case "contractsCompleted":
 			return `Complete ${rule.count} contract${rule.count === 1 ? "" : "s"}`;
+		case "rankedContractsCompleted":
+			return `Complete ${rule.count} rank-${rule.minRank}+ contract${rule.count === 1 ? "" : "s"}`;
+		case "raidDefensesSucceeded":
+			return `Successfully defend against ${rule.count} raid${rule.count === 1 ? "" : "s"}`;
 		case "highestBuildingLevelReached":
 			return `Reach building level ${rule.level}`;
+		case "resourceProductionBuildingLevelReached":
+			return `Reach resource production building level ${rule.level}`;
+		case "storageBuildingLevelReached":
+			return `Reach storage building level ${rule.level}`;
+		case "resourceAndStorageLevelTotalReached":
+			return `Reach ${rule.level} combined resource production and storage levels on one colony`;
 		case "coloniesFounded":
 			return `Found ${rule.count} colon${rule.count === 1 ? "y" : "ies"}`;
+		case "colonyInDifferentSystemFounded":
+			return "Found a colony in another system";
+		case "colonyInDifferentSectorFounded":
+			return "Found a colony in another sector";
 		case "highestResearchDirectorateLevelReached":
 			return `Reach Research Directorate level ${rule.level}`;
+		case "facilityLevelReached":
+			return `Reach ${rule.facilityKey ?? "any"} facility level ${rule.level}`;
+		case "facilityLevelTotalOnOneColonyReached":
+			return `Reach ${rule.level} combined facility levels on one colony`;
 		case "shipsOwned":
 			return `Own ${rule.count} ship${rule.count === 1 ? "" : "s"}`;
 		case "defensesOwned":
 			return `Own ${rule.count} defense${rule.count === 1 ? "" : "s"}`;
 		case "successfulTransports":
 			return `Complete ${rule.count} transport deliver${rule.count === 1 ? "y" : "ies"}`;
+		case "metaMatterSpentTotal":
+			return `Spend ${rule.amount} total meta-matter`;
+		case "metaMatterEarnedByRarity":
+			return `Earn ${rule.amount} ${rule.rarity} meta-matter`;
 		case "all":
 			return "Meet all tier requirements";
 		case "any":
@@ -1469,6 +3780,8 @@ export function getResearchVisibility(args: {
 		: ("hidden" as const);
 }
 
+export const getResearchNodeVisibility = getResearchVisibility;
+
 export function getResearchNodeRequirementStatuses(args: {
 	combinedResearchCapacity: number;
 	localResearchFacilityLevel: number;
@@ -1545,6 +3858,41 @@ export function buildResearchModifierSnapshot(
 		metaMatterRewardMultipliers: {},
 		globalMetaMatterRewardMultiplier: 1,
 		combinedResearchCapacityUnlocked: false,
+		energyConsumptionMultiplier: 1,
+		overflowReintegrationMultiplier: 1,
+		buildingQueueCapacityBonus: 0,
+		shipyardQueueCapacityBonus: 0,
+		colonyCountProductionBonuses: [],
+		researchCostMultipliers: [],
+		shipStatMultipliers: emptyStatMultipliers(SHIP_KEYS),
+		globalShipStatMultipliers: { attack: 1, hull: 1, shield: 1 },
+		defenseStatMultipliers: emptyStatMultipliers(DEFENSE_KEYS),
+		globalDefenseStatMultipliers: { attack: 1, hull: 1, shield: 1 },
+		enemyAttackMultiplier: 1,
+		contractActiveLimitBonus: 0,
+		contractVisibleSlotBonus: 0,
+		contractDispatchFuelMultiplier: 1,
+		contractRecoveryRate: 0,
+		metaMatterBonusChances: [],
+		researchPredictiveProgressFraction: 0,
+		routeSpeedMultipliers: {
+			local: 1,
+			interSystem: 1,
+			interSector: 1,
+			interGalactic: 1,
+		},
+		transportExtraStops: 0,
+		transportExtraStopFuelMultiplier: 1,
+		transportStorageReservationMultiplier: 1,
+		transportReturnDurationMultiplier: 1,
+		colonyShipBuildTimeMultiplier: 1,
+		colonyShipFuelMultiplier: 1,
+		colonyOvercapPenaltyReduction: 0,
+		colonyCharterPenaltyRemoved: false,
+		charterFacilityUpgradeTimeMultiplier: 1,
+		charterShipBuildTimeMultiplier: 1,
+		charterDefenseBuildTimeMultiplier: 1,
+		colonyCapBonus: 0,
 	};
 
 	for (const node of DEFAULT_RESEARCH_TREE) {
@@ -1552,8 +3900,9 @@ export function buildResearchModifierSnapshot(
 		if (level <= 0) {
 			continue;
 		}
-		for (let rank = 0; rank < level; rank += 1) {
-			for (const effect of node.effects) {
+		const completedLevels = Math.min(level, node.maxLevel);
+		for (let rank = 0; rank < completedLevels; rank += 1) {
+			for (const effect of node.effectsByLevel[rank] ?? node.effects) {
 				switch (effect.kind) {
 					case "unlock_ship":
 						snapshot.unlockedShips.add(effect.shipKey);
@@ -1648,12 +3997,184 @@ export function buildResearchModifierSnapshot(
 							snapshot.globalMetaMatterRewardMultiplier *= effect.multiplier;
 						}
 						break;
+					case "energy_consumption_multiplier":
+						snapshot.energyConsumptionMultiplier *= effect.multiplier;
+						break;
+					case "storage_pressure_production_bonus":
+						snapshot.storagePressureProductionBonus = effect;
+						break;
+					case "overflow_reintegration_multiplier":
+						snapshot.overflowReintegrationMultiplier *= effect.multiplier;
+						break;
+					case "idle_building_queue_speed_bonus":
+						snapshot.idleBuildingQueueSpeedBonus = effect;
+						break;
+					case "building_queue_capacity_bonus":
+						snapshot.buildingQueueCapacityBonus += effect.amount;
+						break;
+					case "shipyard_queue_capacity_bonus":
+						snapshot.shipyardQueueCapacityBonus += effect.amount;
+						break;
+					case "colony_count_production_bonus":
+						snapshot.colonyCountProductionBonuses.push(effect);
+						break;
+					case "industrial_focus_unlock":
+						snapshot.industrialFocus = effect;
+						break;
+					case "active_command_window":
+						snapshot.activeCommandWindow = effect;
+						break;
+					case "research_directorate_overlevel_duration":
+						snapshot.researchDirectorateOverlevelDuration = effect;
+						break;
+					case "research_cost_multiplier":
+						snapshot.researchCostMultipliers.push(effect);
+						break;
+					case "ship_stat_multiplier":
+						if (effect.shipKey) {
+							snapshot.shipStatMultipliers[effect.shipKey][effect.stat] *= effect.multiplier;
+						} else {
+							snapshot.globalShipStatMultipliers[effect.stat] *= effect.multiplier;
+						}
+						break;
+					case "defense_stat_multiplier":
+						if (effect.defenseKey) {
+							snapshot.defenseStatMultipliers[effect.defenseKey][effect.stat] *= effect.multiplier;
+						} else {
+							snapshot.globalDefenseStatMultipliers[effect.stat] *= effect.multiplier;
+						}
+						break;
+					case "interceptor_wolfpack":
+						snapshot.interceptorWolfpack = mergeInterceptorWolfpack(
+							snapshot.interceptorWolfpack,
+							effect,
+						);
+						break;
+					case "enemy_attack_multiplier":
+						snapshot.enemyAttackMultiplier = Math.min(
+							snapshot.enemyAttackMultiplier,
+							effect.multiplier,
+						);
+						break;
+					case "contract_active_limit_bonus":
+						snapshot.contractActiveLimitBonus += effect.amount;
+						break;
+					case "contract_visible_slot_bonus":
+						snapshot.contractVisibleSlotBonus += effect.amount;
+						break;
+					case "contract_dispatch_fuel_multiplier":
+						snapshot.contractDispatchFuelMultiplier *= effect.multiplier;
+						break;
+					case "contract_recovery_resources":
+						snapshot.contractRecoveryRate = Math.max(
+							snapshot.contractRecoveryRate,
+							effect.recoveryRate,
+						);
+						break;
+					case "contract_ship_capture":
+						snapshot.contractShipCapture = effect;
+						break;
+					case "contract_task_force_template_bonus":
+						snapshot.contractTaskForceTemplateBonus = effect;
+						break;
+					case "meta_matter_bonus_chance":
+						snapshot.metaMatterBonusChances.push(effect);
+						break;
+					case "research_predictive_progress":
+						snapshot.researchPredictiveProgressFraction = Math.max(
+							snapshot.researchPredictiveProgressFraction,
+							effect.progressFraction,
+						);
+						break;
+					case "research_cross_branch_discount":
+						snapshot.researchCrossBranchDiscount = effect;
+						break;
+					case "meta_matter_daily_conversion":
+						snapshot.metaMatterDailyConversion = effect;
+						break;
+					case "directorate_exchange_duration":
+						snapshot.directorateExchange = effect;
+						break;
+					case "route_speed_multiplier":
+						snapshot.routeSpeedMultipliers[effect.routeClass] *= effect.multiplier;
+						break;
+					case "route_streak_speed_bonus":
+						snapshot.routeStreakSpeedBonus = effect;
+						break;
+					case "transport_extra_stop_bonus":
+						snapshot.transportExtraStops += effect.amount;
+						snapshot.transportExtraStopFuelMultiplier *= effect.fuelMultiplierPerStop;
+						break;
+					case "transport_delivery_distance_bonus":
+						snapshot.transportDeliveryDistanceBonus = effect;
+						break;
+					case "transport_storage_reservation":
+						snapshot.transportStorageReservationMultiplier = Math.max(
+							snapshot.transportStorageReservationMultiplier,
+							effect.multiplier,
+						);
+						break;
+					case "contract_after_transport_meta_matter_multiplier":
+						snapshot.contractAfterTransportMetaMatterMultiplier = effect;
+						break;
+					case "transport_return_duration_multiplier":
+						snapshot.transportReturnDurationMultiplier *= effect.multiplier;
+						break;
+					case "colony_ship_build_time_multiplier":
+						snapshot.colonyShipBuildTimeMultiplier *= effect.multiplier;
+						break;
+					case "colony_ship_fuel_multiplier":
+						snapshot.colonyShipFuelMultiplier *= effect.multiplier;
+						break;
+					case "colony_overcap_penalty_reduction":
+						snapshot.colonyOvercapPenaltyReduction += effect.amount;
+						break;
+					case "colony_charter_unlock":
+						snapshot.colonyCharter = effect;
+						break;
+					case "colony_charter_penalty_removed":
+						snapshot.colonyCharterPenaltyRemoved = true;
+						break;
+					case "charter_facility_upgrade_time_multiplier":
+						snapshot.charterFacilityUpgradeTimeMultiplier *= effect.multiplier;
+						break;
+					case "charter_cooldown_hours":
+						snapshot.charterCooldownHours = effect.hours;
+						break;
+					case "charter_ship_build_time_multiplier":
+						snapshot.charterShipBuildTimeMultiplier *= effect.multiplier;
+						break;
+					case "charter_defense_build_time_multiplier":
+						snapshot.charterDefenseBuildTimeMultiplier *= effect.multiplier;
+						break;
+					case "new_colony_bootstrap":
+						snapshot.newColonyBootstrap = effect;
+						break;
+					case "new_colony_prefab_queue":
+						snapshot.newColonyPrefabQueue = effect;
+						break;
+					case "protected_starting_resources":
+						snapshot.protectedStartingResources = effect;
+						break;
+					case "charter_transport_reservation":
+						snapshot.charterTransportReservation = effect;
+						break;
+					case "colony_cap_bonus":
+						snapshot.colonyCapBonus += effect.amount;
+						break;
+					case "sector_capital_production":
+						snapshot.sectorCapitalProduction = effect;
+						break;
 				}
 			}
 		}
 	}
 
 	return snapshot;
+}
+
+export function getResearchEffectSnapshot(levels: Partial<ResearchLevelMap> | undefined) {
+	return buildResearchModifierSnapshot(levels);
 }
 
 export function canResearchNodeStart(args: {

@@ -261,8 +261,15 @@ export function computeFacilityLevels(buildings: ColonyBuildings) {
 	} satisfies Partial<Record<string, number>>;
 }
 
-export function getBuildingLaneCapacity(buildings: ColonyBuildings) {
-	return BUILDING_LANE_BASE_CAPACITY + Math.floor(Math.max(0, buildings.roboticsHubLevel) / 2);
+export function getBuildingLaneCapacity(
+	buildings: ColonyBuildings,
+	modifierSnapshot?: Pick<ResearchModifierSnapshot, "buildingQueueCapacityBonus">,
+) {
+	return (
+		BUILDING_LANE_BASE_CAPACITY +
+		Math.floor(Math.max(0, buildings.roboticsHubLevel) / 2) +
+		Math.max(0, Math.floor(modifierSnapshot?.buildingQueueCapacityBonus ?? 0))
+	);
 }
 
 export function setFacilityLevel(
@@ -289,7 +296,14 @@ export function productionRatesPerMinute(args: {
 	buildings: ColonyBuildings;
 	overflow: ResourceBucket;
 	planetMultipliers: ColonySnapshot["planetMultipliers"];
-	modifierSnapshot?: Pick<ResearchModifierSnapshot, "resourceProductionMultipliers">;
+	modifierSnapshot?: Pick<
+		ResearchModifierSnapshot,
+		| "energyConsumptionMultiplier"
+		| "resourceProductionMultipliers"
+		| "storagePressureProductionBonus"
+	>;
+	resources?: Partial<ResourceBucket>;
+	storageCaps?: Partial<ResourceBucket>;
 }) {
 	const alloyGenerator = DEFAULT_GENERATOR_REGISTRY.get("alloy_mine");
 	const crystalGenerator = DEFAULT_GENERATOR_REGISTRY.get("crystal_mine");
@@ -315,11 +329,32 @@ export function productionRatesPerMinute(args: {
 		args.buildings.powerPlantLevel,
 	);
 	const energyConsumed =
-		getGeneratorConsumptionPerMinute(alloyGenerator, args.buildings.alloyMineLevel) +
-		getGeneratorConsumptionPerMinute(crystalGenerator, args.buildings.crystalMineLevel) +
-		getGeneratorConsumptionPerMinute(fuelGenerator, args.buildings.fuelRefineryLevel);
+		(getGeneratorConsumptionPerMinute(alloyGenerator, args.buildings.alloyMineLevel) +
+			getGeneratorConsumptionPerMinute(crystalGenerator, args.buildings.crystalMineLevel) +
+			getGeneratorConsumptionPerMinute(fuelGenerator, args.buildings.fuelRefineryLevel)) *
+		(args.modifierSnapshot?.energyConsumptionMultiplier ?? 1);
 	const energyRatio =
 		energyConsumed <= 0 ? 1 : Math.max(0, Math.min(1, energyProduced / energyConsumed));
+	const storagePressureMultiplier = (resource: keyof ResourceBucket) => {
+		const pressure = args.modifierSnapshot?.storagePressureProductionBonus;
+		if (!pressure || !args.resources || !args.storageCaps) {
+			return 1;
+		}
+		const cap = Math.max(0, args.storageCaps[resource] ?? 0);
+		if (cap <= 0) {
+			return 1;
+		}
+		const fill = Math.max(0, args.resources[resource] ?? 0) / cap;
+		if (fill <= pressure.fullBonusBelow) {
+			return 1 + pressure.maxBonus;
+		}
+		if (fill >= pressure.zeroBonusAt) {
+			return 1;
+		}
+		const falloff =
+			(pressure.zeroBonusAt - fill) / (pressure.zeroBonusAt - pressure.fullBonusBelow);
+		return 1 + pressure.maxBonus * Math.max(0, Math.min(1, falloff));
+	};
 
 	return {
 		energyConsumed,
@@ -331,19 +366,22 @@ export function productionRatesPerMinute(args: {
 					? 0
 					: rawAlloyRate *
 						energyRatio *
-						(args.modifierSnapshot?.resourceProductionMultipliers.alloy ?? 1),
+						(args.modifierSnapshot?.resourceProductionMultipliers.alloy ?? 1) *
+						storagePressureMultiplier("alloy"),
 			crystal:
 				args.overflow.crystal > 0
 					? 0
 					: rawCrystalRate *
 						energyRatio *
-						(args.modifierSnapshot?.resourceProductionMultipliers.crystal ?? 1),
+						(args.modifierSnapshot?.resourceProductionMultipliers.crystal ?? 1) *
+						storagePressureMultiplier("crystal"),
 			fuel:
 				args.overflow.fuel > 0
 					? 0
 					: rawFuelRate *
 						energyRatio *
-						(args.modifierSnapshot?.resourceProductionMultipliers.fuel ?? 1),
+						(args.modifierSnapshot?.resourceProductionMultipliers.fuel ?? 1) *
+						storagePressureMultiplier("fuel"),
 		},
 	};
 }
@@ -603,6 +641,8 @@ export function projectColonyEconomy(
 		overflow: settled.overflow,
 		planetMultipliers: settled.planetMultipliers,
 		modifierSnapshot,
+		resources: settled.resources,
+		storageCaps: settled.storageCaps,
 	});
 	return {
 		energyConsumed: rates.energyConsumed,
@@ -611,7 +651,7 @@ export function projectColonyEconomy(
 		lastAccruedAt: settled.lastAccruedAt,
 		overflow: settled.overflow,
 		queues: projectQueueLanes({
-			buildingMaxItems: getBuildingLaneCapacity(settled.buildings),
+			buildingMaxItems: getBuildingLaneCapacity(settled.buildings, modifierSnapshot),
 			now: nowMs,
 			openQueues: settled.openQueues,
 		}),

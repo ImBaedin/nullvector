@@ -123,10 +123,10 @@ export const POLAR_RESEARCH_LAYOUT_CONFIG: PolarResearchLayoutConfig = {
 		hub: 120,
 	},
 	tierSlotCapacities: {
-		1: 1,
-		2: 3,
-		3: 5,
-		4: 7,
+		1: 3,
+		2: 5,
+		3: 7,
+		4: 9,
 	},
 };
 

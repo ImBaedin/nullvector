@@ -69,6 +69,7 @@ export {
 	normalizeDefenseCounts,
 } from "./defenses";
 export {
+	AUTHORED_RESEARCH_BRANCHES,
 	buildResearchModifierSnapshot,
 	canResearchNodeStart,
 	DEFAULT_RESEARCH_BRANCHES,
@@ -284,6 +285,7 @@ export type {
 	ResearchTierUnlockContext,
 	ResearchTierUnlockRule,
 	ResearchVisibility,
+	RouteClass,
 } from "./research";
 export type {
 	CombatMissionTypeKey,
