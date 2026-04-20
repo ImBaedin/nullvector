@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";
 import { QuestsModal } from "./quests-modal";
+import { ResearchDitherBg } from "./research-dither-bg";
 import { useHeaderData } from "./use-header-data";
 
 type AppHeaderProps = {
@@ -118,51 +119,61 @@ export function AppHeader({
        grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 transition-all
        duration-200
      `, isCompact ? "py-2" : "py-2.5")}>
-						{/* Left: logo + colony name */}
-						<div className="flex items-center gap-2.5 justify-self-start">
+						{/* Left: logo + colony identity */}
+						<div className="flex min-w-0 items-center gap-2 justify-self-start">
 							<img alt="Nullvector" className={cn(`
-         shrink-0 rounded-md border border-white/10 bg-black/30 object-contain
-         p-0.5 transition-all
-       `, isCompact ? "size-7" : "size-8")} src="/game-icons/logo.png" />
-							<div className="min-w-0">
-								<p
-									className="
+           shrink-0 rounded-md border border-white/10 bg-black/30 object-contain
+           p-0.5 transition-all
+         `, isCompact ? "size-7" : "size-8")} src="/game-icons/logo.png" />
+							{isRenamingColony && activeColony ? (
+								<div className="min-w-0">
+									<p
+										className="
            text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
          "
-								>
-									NullVector
-								</p>
-								<h1 className={cn(`
-          font-(family-name:--nv-font-display) font-bold text-white
-          transition-all
-        `, isCompact ? "text-sm" : "text-[15px]")}>
-									{isRenamingColony && activeColony ? (
-										<ColonyRenameInput
-											key={`${activeColony.id}:${activeColony.name}`}
-											currentName={activeColony.name}
-											isSaving={isSavingColonyName}
-											onCancel={() => {
-												setIsRenamingColony(false);
-											}}
-											onCommit={commitColonyRename}
-										/>
-									) : (
-										<button
-											className="
-             cursor-pointer truncate text-left transition-colors
-             hover:text-cyan-100
-           "
-											disabled={!activeColony}
-											onClick={() => {
-												beginColonyRename();
-											}}
-											type="button"
-										>
-											{headerTitle}
-										</button>
-									)}
-								</h1>
-							</div>
+									>
+										NullVector
+									</p>
+									<ColonyRenameInput
+										key={`${activeColony.id}:${activeColony.name}`}
+										currentName={activeColony.name}
+										isSaving={isSavingColonyName}
+										onCancel={() => {
+											setIsRenamingColony(false);
+										}}
+										onCommit={commitColonyRename}
+									/>
+								</div>
+							) : config.colonies &&
+							  config.activeColonyId &&
+							  (config.onColonyChange || handleColonyChange) ? (
+								<ColonySwitcher
+									activeColonyId={config.activeColonyId}
+									colonies={config.colonies}
+									isCompact={isCompact}
+									onBeginRename={beginColonyRename}
+									onColonyChange={config.onColonyChange ?? handleColonyChange}
+									variant="identity"
+								/>
+							) : (
+								<div className="min-w-0">
+									<p
+										className="
+           text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
+         "
+									>
+										NullVector
+									</p>
+									<p
+										className={cn(
+											"truncate font-(family-name:--nv-font-display) font-bold text-white transition-all",
+											isCompact ? "text-sm" : "text-[15px]",
+										)}
+									>
+										{headerTitle}
+									</p>
+								</div>
+							)}
 						</div>
 
 						{/* Center: star map + research hero buttons */}
@@ -192,18 +203,31 @@ export function AppHeader({
 							</button>
 
 							<button className={cn(`
-         relative flex items-center justify-center gap-2 rounded-lg border
-         px-3.5 font-(family-name:--nv-font-display) text-xs font-semibold
-         transition-all
-       `, isResearchOpen ? `
-         border-cyan-300/40 bg-cyan-400/12 text-cyan-50
-         shadow-[0_0_16px_rgba(61,217,255,0.12)]
-       ` : `
-         border-white/12 bg-white/4 text-white/60
-         hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100
-       `, isCompact ? "h-8" : "h-9")} onClick={handleResearchToggle} type="button">
-								<FlaskConical className="relative z-10 size-3.5" />
-								<span className="relative z-10">Research</span>
+           nv-research-hero relative flex items-center justify-center gap-2
+           rounded-lg border px-3.5 font-(family-name:--nv-font-display) text-xs
+           font-semibold transition-all
+         `, isResearchOpen ? `
+            border-emerald-300/40 text-emerald-50
+            shadow-[0_0_16px_rgba(52,211,153,0.18)]
+          ` : `
+            border-white/12 bg-white/4 text-white/60
+            hover:border-emerald-300/30 hover:text-emerald-100
+          `, isCompact ? "h-8" : "h-9")} onClick={handleResearchToggle} type="button">
+								<ResearchDitherBg />
+								<FlaskConical
+									className="relative z-10 size-3.5"
+									style={{
+										filter: isResearchOpen
+											? "drop-shadow(0 0 6px rgba(52,211,153,0.6))"
+											: "drop-shadow(0 1px 6px rgba(0,0,0,0.9))",
+									}}
+								/>
+								<span
+									className="relative z-10"
+									style={{ textShadow: "0 1px 8px rgba(0,0,0,0.95)" }}
+								>
+									Research
+								</span>
 							</button>
 						</div>
 
@@ -215,7 +239,11 @@ export function AppHeader({
        "
 						>
 							{progressionOverview ? (
-								<div className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3">
+								<div
+									className="
+          mr-1 flex items-center gap-2 border-r border-white/8 pr-3
+        "
+								>
 									<div className="flex items-center gap-2">
 										<div
 											className="
@@ -251,18 +279,10 @@ export function AppHeader({
 													(progressionOverview.xpToNextRank ?? 0);
 												return (
 													<>
-														<p
-															className="
-                text-[8px] tracking-[0.12em] text-white/25 uppercase
-              "
-														>
+														<p className="text-[8px] tracking-[0.12em] text-white/25 uppercase">
 															XP
 														</p>
-														<div
-															className="
-                mt-1 h-1.5 overflow-hidden rounded-full bg-white/8
-              "
-														>
+														<div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/8">
 															<div
 																className="
                   h-full rounded-full
@@ -308,15 +328,6 @@ export function AppHeader({
 										<span className="text-[8px] text-white/25 uppercase">CR</span>
 									</div>
 								</div>
-							) : null}
-							{config.colonies &&
-							config.activeColonyId &&
-							(config.onColonyChange || handleColonyChange) ? (
-								<ColonySwitcher
-									activeColonyId={config.activeColonyId}
-									colonies={config.colonies}
-									onColonyChange={config.onColonyChange ?? handleColonyChange}
-								/>
 							) : null}
 							<button aria-label="Quests" className={cn(`
          relative flex size-8 items-center justify-center rounded-lg

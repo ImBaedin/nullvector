@@ -171,6 +171,26 @@
 	filter: blur(0.2px);
 }
 
+.nv-research-hero {
+	position: relative;
+	overflow: hidden;
+	isolation: isolate;
+}
+
+.nv-research-hero::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(
+		90deg,
+		rgba(5, 10, 20, 0.94),
+		rgba(5, 10, 20, 0.54) 30%,
+		rgba(5, 10, 20, 0.54) 70%,
+		rgba(5, 10, 20, 0.94)
+	);
+	pointer-events: none;
+}
+
 /* Fleet expand reveal animations */
 
 @keyframes nv-fleet-node-in {
