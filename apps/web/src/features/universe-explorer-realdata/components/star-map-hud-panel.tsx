@@ -175,11 +175,7 @@ export function StarMapHudPanel({
 				</div>
 			</div>
 
-			<div
-				className="
-     mx-3 h-px bg-linear-to-r from-white/8 via-white/4 to-transparent
-   "
-			/>
+			<div className="mx-3 h-px bg-linear-to-r from-white/8 via-white/4 to-transparent" />
 
 			{/* Breadcrumb path */}
 			<div className="p-3 pl-5">
@@ -218,11 +214,7 @@ export function StarMapHudPanel({
 				</div>
 			</div>
 
-			<div
-				className="
-     mx-3 h-px bg-linear-to-r from-white/8 via-white/4 to-transparent
-   "
-			/>
+			<div className="mx-3 h-px bg-linear-to-r from-white/8 via-white/4 to-transparent" />
 
 			{/* Entity list */}
 			<div className="flex min-h-0 flex-1 flex-col p-3 pl-5">

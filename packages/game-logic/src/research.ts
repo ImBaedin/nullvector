@@ -320,7 +320,7 @@ type AuthoredResearchNode = {
 	};
 	prerequisites: readonly string[];
 	maxLevel: number;
-	requiredResearchFacilityLevel: number;
+	requiredResearchFacilityLevel?: number;
 	requiredCombinedResearchCapacity?: number;
 	costs: readonly ResearchNodeCost[];
 	effects: readonly ResearchEffect[];
@@ -1423,12 +1423,17 @@ function researchNetworkRequirementForTier(tier: 1 | 2 | 3 | 4) {
 }
 
 function authoredNode(
-	args: Omit<AuthoredResearchNode, "costs" | "effects" | "requiredResearchFacilityLevel"> & {
+	args: Omit<AuthoredResearchNode, "costs" | "effects"> & {
 		branch: ResearchBranchKey;
 		tier: 1 | 2 | 3 | 4;
 	},
 ) {
 	const effectsByLevel = args.effectsByLevel ?? [];
+	const implementationStatus =
+		args.implementationStatus ??
+		(effectsByLevel.flat().some((effect) => UNIMPLEMENTED_RESEARCH_EFFECT_KINDS.has(effect.kind))
+			? "planned"
+			: "active");
 	return {
 		id: args.id,
 		name: args.name,
@@ -1436,8 +1441,6 @@ function authoredNode(
 		layout: args.layout,
 		prerequisites: args.prerequisites,
 		maxLevel: args.maxLevel,
-		requiredResearchFacilityLevel: researchNetworkRequirementForTier(args.tier),
-		requiredCombinedResearchCapacity: args.requiredCombinedResearchCapacity,
 		costs: makeResearchCosts({
 			branch: args.branch,
 			tier: args.tier,
@@ -1447,7 +1450,7 @@ function authoredNode(
 		effects: effectsByLevel.flat(),
 		effectsByLevel,
 		effectLabels: args.effectLabels,
-		implementationStatus: args.implementationStatus ?? "active",
+		implementationStatus,
 		plannedReason: args.plannedReason,
 		designPrerequisites: args.designPrerequisites ?? args.prerequisites,
 	} satisfies AuthoredResearchNode;
@@ -1459,6 +1462,43 @@ function plannedReason(reason: string) {
 		plannedReason: reason,
 	};
 }
+
+const UNIMPLEMENTED_RESEARCH_EFFECT_KINDS = new Set<ResearchEffect["kind"]>([
+	"active_command_window",
+	"charter_cooldown_hours",
+	"charter_defense_build_time_multiplier",
+	"charter_facility_upgrade_time_multiplier",
+	"charter_ship_build_time_multiplier",
+	"charter_transport_reservation",
+	"colony_cap_bonus",
+	"colony_charter_penalty_removed",
+	"colony_charter_unlock",
+	"colony_count_production_bonus",
+	"colony_overcap_penalty_reduction",
+	"colony_ship_build_time_multiplier",
+	"colony_ship_fuel_multiplier",
+	"contract_after_transport_meta_matter_multiplier",
+	"idle_building_queue_speed_bonus",
+	"industrial_focus_unlock",
+	"meta_matter_bonus_chance",
+	"new_colony_bootstrap",
+	"new_colony_prefab_queue",
+	"overflow_reintegration_multiplier",
+	"protected_starting_resources",
+	"research_cost_multiplier",
+	"research_cross_branch_discount",
+	"research_network_duration",
+	"research_network_exchange_duration",
+	"research_network_synchronization",
+	"research_predictive_progress",
+	"route_streak_speed_bonus",
+	"sector_capital_production",
+	"shipyard_queue_capacity_bonus",
+	"transport_extra_stop_bonus",
+	"transport_storage_reservation",
+	"unlock_building",
+	"unlock_facility",
+]);
 
 function buildResearchTierThreeTree() {
 	const planned = {
@@ -3154,8 +3194,6 @@ export type ResearchNodeDefinition = {
 	prerequisites: ResearchKey[];
 	maxLevel: number;
 	requiredResearchNetworkSize: number;
-	requiredResearchFacilityLevel: number;
-	requiredCombinedResearchCapacity?: number;
 	costs: ResearchNodeCost[];
 	effects: ResearchEffect[];
 	effectsByLevel: ResearchEffect[][];
@@ -3310,8 +3348,19 @@ function describeResearchEffect(effect: ResearchEffect) {
 			return `${Math.round((effect.multiplier - 1) * 100)}% ${effect.shipKey ?? "combat ship"} ${effect.stat}`;
 		case "defense_stat_multiplier":
 			return `${Math.round((effect.multiplier - 1) * 100)}% ${effect.defenseKey ?? "defense"} ${effect.stat}`;
-		case "interceptor_wolfpack":
-			return "Interceptor wolfpack contract bonus";
+		case "interceptor_wolfpack": {
+			const trigger = `${effect.minInterceptors}+ Interceptors at ${Math.round(effect.minShare * 100)}%+ force share`;
+			if (effect.attackMultiplier) {
+				return `Wolfpack: +${Math.round((effect.attackMultiplier - 1) * 100)}% Interceptor attack on contracts (${trigger})`;
+			}
+			if (effect.hullMultiplier) {
+				return `Wolfpack: +${Math.round((effect.hullMultiplier - 1) * 100)}% Interceptor hull on contracts (${trigger})`;
+			}
+			if (effect.fuelMultiplier) {
+				return `Wolfpack: ${Math.round((1 - effect.fuelMultiplier) * 100)}% lower contract fuel (${trigger})`;
+			}
+			return `Wolfpack contract formation bonus (${trigger})`;
+		}
 		case "enemy_attack_multiplier":
 			return `${Math.round((1 - effect.multiplier) * 100)}% enemy attack`;
 		case "contract_active_limit_bonus":
@@ -3429,8 +3478,6 @@ function flattenResearchTree(options?: { activeOnly?: boolean }) {
 						prerequisites: [...authoredNode.prerequisites] as ResearchKey[],
 						maxLevel: authoredNode.maxLevel,
 						requiredResearchNetworkSize: researchNetworkRequirementForTier(tier.tier),
-						requiredResearchFacilityLevel: authoredNode.requiredResearchFacilityLevel,
-						requiredCombinedResearchCapacity: authoredNode.requiredCombinedResearchCapacity,
 						costs: authoredNode.costs.map((cost) => ({
 							metaMatter: { ...cost.metaMatter },
 							resources: cost.resources ? { ...cost.resources } : undefined,
@@ -3794,8 +3841,6 @@ export function getResearchVisibility(args: {
 export const getResearchNodeVisibility = getResearchVisibility;
 
 export function getResearchNodeRequirementStatuses(args: {
-	combinedResearchCapacity?: number;
-	localResearchFacilityLevel?: number;
 	levels: Partial<ResearchLevelMap> | undefined;
 	researchKey: ResearchKey;
 	tierUnlockContext?: Partial<ResearchTierUnlockContext>;
@@ -4177,8 +4222,6 @@ export function getResearchEffectSnapshot(levels: Partial<ResearchLevelMap> | un
 }
 
 export function canResearchNodeStart(args: {
-	combinedResearchCapacity?: number;
-	localResearchFacilityLevel?: number;
 	levels: Partial<ResearchLevelMap> | undefined;
 	researchKey: ResearchKey;
 	tierUnlockContext?: Partial<ResearchTierUnlockContext>;

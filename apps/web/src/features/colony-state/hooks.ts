@@ -350,6 +350,7 @@ export function useColonySessionSnapshot(colonyId: Id<"colonies"> | null) {
 
 export function useColonyView(colonyId: Id<"colonies"> | null) {
 	const snapshot = useColonySnapshot(colonyId);
+	const researchLevels = useQuery(api.research.getLevels, colonyId ? { colonyId } : "skip");
 	const [nowMs, setNowMs] = useState(() =>
 		snapshot ? Math.max(snapshot.serverNowMs, Date.now()) : Date.now(),
 	);
@@ -372,22 +373,22 @@ export function useColonyView(colonyId: Id<"colonies"> | null) {
 	}, [snapshot?.serverNowMs]);
 
 	return useMemo(() => {
-		if (!snapshot) {
+		if (!snapshot || !researchLevels) {
 			return undefined;
 		}
-		const projected = projectColonyEconomy(snapshot, nowMs);
+		const projected = projectColonyEconomy(snapshot, nowMs, researchLevels);
 		return {
-			buildingCards: selectBuildingCards(snapshot, nowMs),
-			defenseState: selectDefenseView(snapshot, nowMs),
-			facilities: selectFacilityCards(snapshot, nowMs),
-			hudResources: selectHudResources(snapshot, nowMs),
+			buildingCards: selectBuildingCards(snapshot, nowMs, researchLevels),
+			defenseState: selectDefenseView(snapshot, nowMs, researchLevels),
+			facilities: selectFacilityCards(snapshot, nowMs, researchLevels),
+			hudResources: selectHudResources(snapshot, nowMs, researchLevels),
 			nowMs,
 			projected,
-			queueLanes: selectQueueLanes(snapshot, nowMs),
-			shipyardState: selectShipyardView(snapshot, nowMs),
+			queueLanes: selectQueueLanes(snapshot, nowMs, researchLevels),
+			shipyardState: selectShipyardView(snapshot, nowMs, researchLevels),
 			snapshot,
 		};
-	}, [nowMs, snapshot]);
+	}, [nowMs, researchLevels, snapshot]);
 }
 
 export function useColonySelectors(colonyId: Id<"colonies"> | null) {

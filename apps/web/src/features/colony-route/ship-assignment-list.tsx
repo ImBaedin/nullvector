@@ -233,7 +233,11 @@ function TaskForceMeter(props: {
          text-white/25
        `}
      `}>{props.selectedTaskForce}</span>
-					<span className="font-(family-name:--nv-font-mono) text-[10px] text-white/20">
+					<span
+						className="
+       font-(family-name:--nv-font-mono) text-[10px] text-white/20
+     "
+					>
 						/{props.taskForceCap}
 					</span>
 					{!overCap && hasSelection ? (
@@ -296,7 +300,12 @@ function TaskForceMeter(props: {
 							const count = props.selectedShips[key] ?? 0;
 							const contribution = count * CONTRACT_TASK_FORCE_SHIP_WEIGHTS[key];
 							return (
-								<span key={key} className="flex items-center gap-1 text-[8px] text-white/35">
+								<span
+									key={key}
+									className="
+          flex items-center gap-1 text-[8px] text-white/35
+        "
+								>
 									<span className={`
            inline-block size-1.5 rounded-[1px]
            ${SHIP_COLOR[key].dot}

@@ -1,4 +1,5 @@
 import type { ResourceBuildingCardData } from "./gameplay";
+import type { ResearchLevelMap } from "./research";
 
 import {
 	BUILDING_CONFIG,
@@ -91,6 +92,7 @@ export type ShipyardStateView = {
 	lane: ColonyProjectedEconomy["queues"]["lanes"]["shipyard"];
 	nextEventAt?: number;
 	shipStates: Array<{
+		isUnlocked: boolean;
 		key: (typeof SHIP_ORDER)[number];
 		owned: number;
 		perUnitDurationSeconds: number;
@@ -157,8 +159,9 @@ function countQueued(
 export function selectHudResources(
 	snapshot: ColonySnapshot,
 	nowMs = snapshot.serverNowMs,
+	researchLevels?: Partial<ResearchLevelMap>,
 ): ColonyHudDatum[] {
-	const economy = projectColonyEconomy(snapshot, nowMs);
+	const economy = projectColonyEconomy(snapshot, nowMs, researchLevels);
 	const alloyCap = economy.storageCaps.alloy;
 	const crystalCap = economy.storageCaps.crystal;
 	const fuelCap = economy.storageCaps.fuel;
@@ -229,8 +232,9 @@ export function selectHudResources(
 export function selectBuildingCards(
 	snapshot: ColonySnapshot,
 	nowMs = snapshot.serverNowMs,
+	researchLevels?: Partial<ResearchLevelMap>,
 ): BuildingCardView[] {
-	const settled = projectColonyEconomy(snapshot, nowMs);
+	const settled = projectColonyEconomy(snapshot, nowMs, researchLevels);
 	return BUILDING_KEYS.map((key) => {
 		const config = BUILDING_CONFIG[key];
 		const currentLevel = snapshot.buildings[key];
@@ -315,8 +319,9 @@ export function selectBuildingCards(
 export function selectFacilityCards(
 	snapshot: ColonySnapshot,
 	nowMs = snapshot.serverNowMs,
+	researchLevels?: Partial<ResearchLevelMap>,
 ): FacilityCardView[] {
-	const settled = projectColonyEconomy(snapshot, nowMs);
+	const settled = projectColonyEconomy(snapshot, nowMs, researchLevels);
 	const buildingLane = settled.queues.lanes.building;
 	return (["robotics_hub", "research_directorate", "shipyard", "defense_grid"] as const).map(
 		(facilityKey) => {
@@ -344,7 +349,11 @@ export function selectFacilityCards(
 				buildingLane.activeItem.payload.facilityKey === facilityKey;
 			const isQueued =
 				countQueued(snapshot.openQueues, "facilityUpgrade", facilityKey) > (isUpgrading ? 1 : 0);
-			const isUnlocked = isFacilityCurrentlyUnlocked(snapshot.buildings, facilityKey);
+			const isUnlocked = isFacilityCurrentlyUnlocked(
+				snapshot.buildings,
+				facilityKey,
+				researchLevels,
+			);
 			const isMaxLevel = projectedLevel >= facility.maxLevel;
 			return {
 				category: facility.category,
@@ -378,16 +387,19 @@ export function selectFacilityCards(
 export function selectShipyardView(
 	snapshot: ColonySnapshot,
 	nowMs = snapshot.serverNowMs,
+	researchLevels?: Partial<ResearchLevelMap>,
 ): ShipyardStateView {
-	const settled = projectColonyEconomy(snapshot, nowMs);
+	const settled = projectColonyEconomy(snapshot, nowMs, researchLevels);
 	return {
 		colonyId: snapshot.colonyId,
 		lane: settled.queues.lanes.shipyard,
 		nextEventAt: settled.queues.nextEventAt,
 		shipStates: SHIP_ORDER.map((shipKey) => ({
+			isUnlocked: getShipBuildInfo(snapshot.buildings, shipKey, { researchLevels }).isUnlocked,
 			key: shipKey,
 			owned: snapshot.ships[shipKey],
-			perUnitDurationSeconds: getShipBuildInfo(snapshot.buildings, shipKey).perUnitDurationSeconds,
+			perUnitDurationSeconds: getShipBuildInfo(snapshot.buildings, shipKey, { researchLevels })
+				.perUnitDurationSeconds,
 			queued: countQueued(snapshot.openQueues, "shipBuild", shipKey),
 		})),
 		shipyardLevel: snapshot.buildings.shipyardLevel,
@@ -397,19 +409,20 @@ export function selectShipyardView(
 export function selectDefenseView(
 	snapshot: ColonySnapshot,
 	nowMs = snapshot.serverNowMs,
+	researchLevels?: Partial<ResearchLevelMap>,
 ): DefenseStateView {
-	const settled = projectColonyEconomy(snapshot, nowMs);
+	const settled = projectColonyEconomy(snapshot, nowMs, researchLevels);
 	return {
 		colonyId: snapshot.colonyId,
 		defenseGridLevel: snapshot.buildings.defenseGridLevel,
 		defenseStates: DEFENSE_KEYS.map((defenseKey) => ({
-			isUnlocked:
-				snapshot.buildings.defenseGridLevel >=
-				DEFAULT_DEFENSE_DEFINITIONS[defenseKey].requiredDefenseGridLevel,
+			isUnlocked: getDefenseBuildInfo(snapshot.buildings, defenseKey, { researchLevels })
+				.isUnlocked,
 			key: defenseKey,
 			owned: snapshot.defenses[defenseKey],
-			perUnitDurationSeconds: getDefenseBuildInfo(snapshot.buildings, defenseKey)
-				.perUnitDurationSeconds,
+			perUnitDurationSeconds: getDefenseBuildInfo(snapshot.buildings, defenseKey, {
+				researchLevels,
+			}).perUnitDurationSeconds,
 			queued: countQueued(snapshot.openQueues, "defenseBuild", defenseKey),
 		})),
 		lane: settled.queues.lanes.defense,
@@ -417,8 +430,12 @@ export function selectDefenseView(
 	};
 }
 
-export function selectQueueLanes(snapshot: ColonySnapshot, nowMs = snapshot.serverNowMs) {
-	return projectColonyEconomy(snapshot, nowMs).queues;
+export function selectQueueLanes(
+	snapshot: ColonySnapshot,
+	nowMs = snapshot.serverNowMs,
+	researchLevels?: Partial<ResearchLevelMap>,
+) {
+	return projectColonyEconomy(snapshot, nowMs, researchLevels).queues;
 }
 
 export function selectShipCatalog() {

@@ -1,1 +1,1 @@
-export { cancel, enqueue, getState } from "../runtime/gameplay/research";
+export { cancel, enqueue, getLevels, getState } from "../runtime/gameplay/research";

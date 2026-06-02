@@ -182,8 +182,8 @@ export function ColonySwitcher({
 		return (
 			<div
 				className="
-     group relative z-(--nv-z-popover) flex min-w-0 items-center gap-1
-   "
+      group relative z-(--nv-z-popover) flex min-w-0 items-center gap-1
+    "
 				ref={rootRef}
 			>
 				<button
@@ -208,30 +208,25 @@ export function ColonySwitcher({
 						/>
 					) : activeColony ? (
 						<div className={cn(`
-          flex shrink-0 items-center justify-center rounded-md border
-          border-white/10
-        `, `
-          bg-[linear-gradient(150deg,rgba(61,217,255,0.15),rgba(255,145,79,0.15))]
-        `, "text-[9px] font-bold text-white/70", isCompact ? "size-6" : "size-8")}>{activeColony.name.slice(0, 2).toUpperCase()}</div>
+        flex shrink-0 items-center justify-center rounded-md border
+        border-white/10
+      `, `
+        bg-[linear-gradient(150deg,rgba(61,217,255,0.15),rgba(255,145,79,0.15))]
+      `, "text-[9px] font-bold text-white/70", isCompact ? "size-6" : "size-8")}>{activeColony.name.slice(0, 2).toUpperCase()}</div>
 					) : null}
 					<div className="min-w-0">
 						<p
 							className="
-        text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
-      "
+         text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
+       "
 						>
 							NullVector
 						</p>
 						<div className="flex items-center gap-1">
-							<span
-								className={cn(
-									"truncate font-(family-name:--nv-font-display) font-bold text-white transition-colors",
-									"group-hover:text-cyan-50",
-									isCompact ? "text-sm" : "text-[15px]",
-								)}
-							>
-								{activeColony?.name ?? "Select colony"}
-							</span>
+							<span className={cn(`
+           truncate font-(family-name:--nv-font-display) font-bold text-white
+           transition-colors
+         `, "group-hover:text-cyan-50", isCompact ? "text-sm" : "text-[15px]")}>{activeColony?.name ?? "Select colony"}</span>
 							<ChevronDown
 								className={cn(
 									"size-3 shrink-0 text-white/30 transition-transform",
@@ -246,11 +241,11 @@ export function ColonySwitcher({
 					<button
 						aria-label="Rename colony"
 						className="
-              flex size-6 shrink-0 items-center justify-center rounded-md
-              text-white/25 opacity-0 transition-all
-              group-hover:opacity-100 hover:bg-white/6
-              hover:text-white/60
-            "
+        flex size-6 shrink-0 items-center justify-center rounded-md
+        text-white/25 opacity-0 transition-all
+        group-hover:opacity-100
+        hover:bg-white/6 hover:text-white/60
+      "
 						onClick={() => {
 							setIsOpen(false);
 							onBeginRename();

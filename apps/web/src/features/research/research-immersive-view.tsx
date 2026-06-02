@@ -4,6 +4,12 @@ import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
 import {
+	DEFAULT_DEFENSE_DEFINITIONS,
+	DEFAULT_SHIP_DEFINITIONS,
+	type DefenseKey,
+	type ShipKey,
+} from "@nullvector/game-logic";
+import {
 	Background,
 	BaseEdge,
 	type Edge,
@@ -18,6 +24,7 @@ import {
 	useViewport,
 } from "@xyflow/react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { META_MATTER_ICON_SRC } from "@/features/game-ui/meta-matter-assets";
 import {
@@ -42,7 +49,7 @@ import {
 	getPolarBranchForAngle,
 	projectPolar,
 } from "@/features/research/polar-layout";
-import { useConvexAuth, useQuery } from "@/lib/convex-hooks";
+import { useConvexAuth, useMutation, useQuery } from "@/lib/convex-hooks";
 
 const BASE = {
 	bg: "#040810",
@@ -70,6 +77,23 @@ const GATE_RADII: Record<2 | 3 | 4, number> = {
 };
 
 const SECRET_SEAL_SIZE = 68;
+
+const SHIP_ASSET_SLUGS: Record<ShipKey, string> = {
+	bomber: "bomber",
+	colonyShip: "colony-ship",
+	cruiser: "cruiser",
+	frigate: "frigate",
+	interceptor: "interceptor",
+	largeCargo: "large-cargo",
+	smallCargo: "small-cargo",
+};
+
+const DEFENSE_ASSET_SLUGS: Record<DefenseKey, string> = {
+	gaussCannon: "gauss-cannon",
+	laserTurret: "laser-turret",
+	missileBattery: "missile-battery",
+	shieldDome: "shield-dome",
+};
 
 type TierSecret = { title: string; body: string; effect: string };
 const TIER_COMPLETION_SECRETS: Partial<
@@ -1268,15 +1292,552 @@ const edgeTypes = {
 	polarArc: PolarEdge,
 };
 
+type EffectPresentation = {
+	title: string;
+	detail: string;
+	category: string;
+	group: "unlock" | "effect";
+	tone: string;
+	imageSrc?: string;
+	imageAlt?: string;
+	glyph?: string;
+};
+
+type MilestoneEffectLabel = {
+	level: number;
+	label: string;
+	raw: string;
+	isMaxLevel: boolean;
+};
+
+type NodeEffectBuckets = {
+	standard: string[];
+	milestones: MilestoneEffectLabel[];
+	maxLevelBonuses: MilestoneEffectLabel[];
+};
+
+function isShipKey(value: string): value is ShipKey {
+	return value in DEFAULT_SHIP_DEFINITIONS;
+}
+
+function isDefenseKey(value: string): value is DefenseKey {
+	return value in DEFAULT_DEFENSE_DEFINITIONS;
+}
+
+function shipImageSrc(shipKey: ShipKey) {
+	return `/game-icons/ships/${SHIP_ASSET_SLUGS[shipKey]}.png`;
+}
+
+function defenseImageSrc(defenseKey: DefenseKey) {
+	return `/game-icons/defenses/${DEFENSE_ASSET_SLUGS[defenseKey]}.png`;
+}
+
+function splitCamelCase(value: string) {
+	return value.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/_/g, " ");
+}
+
+function sentenceCase(value: string) {
+	const spaced = splitCamelCase(value).trim();
+	return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : value;
+}
+
+function capitalizeLabel(value: string) {
+	const trimmed = value.trim();
+	return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : value;
+}
+
+function parseMilestoneEffectLabel(effect: string, maxLevel: number): MilestoneEffectLabel | null {
+	const match = effect.match(/^Level\s+(\d+)\s+(.*)$/i);
+	if (!match) return null;
+
+	const level = Number.parseInt(match[1] ?? "", 10);
+	if (!Number.isFinite(level)) return null;
+
+	return {
+		level,
+		label: capitalizeLabel(match[2] ?? ""),
+		raw: effect,
+		isMaxLevel: level === maxLevel,
+	};
+}
+
+function splitNodeEffectBuckets(effects: string[], maxLevel: number): NodeEffectBuckets {
+	const buckets: NodeEffectBuckets = {
+		standard: [],
+		milestones: [],
+		maxLevelBonuses: [],
+	};
+
+	for (const effect of effects) {
+		const milestone = parseMilestoneEffectLabel(effect, maxLevel);
+		if (!milestone) {
+			buckets.standard.push(effect);
+			continue;
+		}
+		if (milestone.isMaxLevel) {
+			buckets.maxLevelBonuses.push(milestone);
+			continue;
+		}
+		buckets.milestones.push(milestone);
+	}
+
+	return buckets;
+}
+
+function getEffectPresentation(effect: string, accent: string): EffectPresentation {
+	const shipUnlock = effect.match(/^Unlock ship: (.+)$/);
+	if (shipUnlock) {
+		const rawShipKey = shipUnlock[1] ?? "";
+		if (isShipKey(rawShipKey)) {
+			const ship = DEFAULT_SHIP_DEFINITIONS[rawShipKey];
+			return {
+				title: `Unlock ${ship.name}`,
+				detail: `${ship.role === "combat" ? "Combat hull" : "Fleet hull"} · ${ship.attack} atk · ${ship.hull} hull · Shipyard ${ship.requiredShipyardLevel}`,
+				category: "Shipyard",
+				group: "unlock",
+				tone: BASE.available,
+				imageSrc: shipImageSrc(rawShipKey),
+				imageAlt: ship.name,
+			};
+		}
+		return {
+			title: `Unlock ${sentenceCase(rawShipKey)}`,
+			detail: "New ship class becomes available.",
+			category: "Shipyard",
+			group: "unlock",
+			tone: BASE.available,
+			glyph: "SH",
+		};
+	}
+
+	const defenseUnlock = effect.match(/^Unlock defense: (.+)$/);
+	if (defenseUnlock) {
+		const rawDefenseKey = defenseUnlock[1] ?? "";
+		if (isDefenseKey(rawDefenseKey)) {
+			const defense = DEFAULT_DEFENSE_DEFINITIONS[rawDefenseKey];
+			return {
+				title: `Unlock ${defense.name}`,
+				detail: `${defense.attack} atk · ${defense.shield} shield · ${defense.hull} hull · Grid ${defense.requiredDefenseGridLevel}`,
+				category: "Defense Grid",
+				group: "unlock",
+				tone: BASE.researching,
+				imageSrc: defenseImageSrc(rawDefenseKey),
+				imageAlt: defense.name,
+			};
+		}
+		return {
+			title: `Unlock ${sentenceCase(rawDefenseKey)}`,
+			detail: "New defense platform becomes available.",
+			category: "Defense Grid",
+			group: "unlock",
+			tone: BASE.researching,
+			glyph: "DF",
+		};
+	}
+
+	const facilityUnlock = effect.match(/^Unlock facility: (.+)$/);
+	if (facilityUnlock) {
+		const rawFacilityKey = facilityUnlock[1] ?? "";
+		return {
+			title: `Unlock ${sentenceCase(rawFacilityKey)}`,
+			detail: "New colony facility becomes available.",
+			category: "Facility",
+			group: "unlock",
+			tone: "#ff914f",
+			glyph: "FC",
+		};
+	}
+
+	const buildingUnlock = effect.match(/^Unlock building: (.+)$/);
+	if (buildingUnlock) {
+		const rawBuildingKey = buildingUnlock[1] ?? "";
+		return {
+			title: `Unlock ${sentenceCase(rawBuildingKey)}`,
+			detail: "New colony building becomes available.",
+			category: "Building",
+			group: "unlock",
+			tone: BASE.completed,
+			glyph: "BD",
+		};
+	}
+
+	if (effect.startsWith("Wolfpack:")) {
+		const detail = effect.replace(/^Wolfpack:\s*/, "");
+		return {
+			title: "Interceptor Wolfpack",
+			detail,
+			category: "Contract Doctrine",
+			group: "effect",
+			tone: "#ff8fa3",
+			imageSrc: shipImageSrc("interceptor"),
+			imageAlt: DEFAULT_SHIP_DEFINITIONS.interceptor.name,
+		};
+	}
+
+	if (effect.includes("meta-matter")) {
+		return {
+			title: effect,
+			detail: "Improves contract and research material yield.",
+			category: "Meta-matter",
+			group: "effect",
+			tone: META_MATTER_COLORS.rare,
+			imageSrc: META_MATTER_ICON_SRC.rare,
+			imageAlt: "Rare meta-matter",
+		};
+	}
+
+	if (
+		effect.includes("production") ||
+		effect.includes("storage") ||
+		effect.includes("colony") ||
+		effect.includes("charter")
+	) {
+		return {
+			title: effect,
+			detail: "Applies to colony output, capacity, or specialization rules.",
+			category: "Colony",
+			group: "effect",
+			tone: "#ff914f",
+			glyph: "CY",
+		};
+	}
+
+	if (
+		effect.includes("duration") ||
+		effect.includes("time") ||
+		effect.includes("fuel") ||
+		effect.includes("speed") ||
+		effect.includes("cargo")
+	) {
+		return {
+			title: effect,
+			detail: "Changes fleet movement, construction timing, or operating cost.",
+			category: "Operations",
+			group: "effect",
+			tone: "#6ecbff",
+			glyph: "OP",
+		};
+	}
+
+	if (effect.includes("queue") || effect.includes("slot") || effect.includes("max")) {
+		return {
+			title: effect,
+			detail: "Raises a limit or expands an account capability.",
+			category: "Capacity",
+			group: "effect",
+			tone: BASE.completed,
+			glyph: "UP",
+		};
+	}
+
+	return {
+		title: effect,
+		detail: "Research modifier applied when this node completes.",
+		category: "Effect",
+		group: "effect",
+		tone: accent,
+		glyph: "FX",
+	};
+}
+
+function EffectRow({ effect, accent }: { accent: string; effect: EffectPresentation }) {
+	return (
+		<div
+			style={{
+				display: "grid",
+				gridTemplateColumns: "34px 1fr",
+				gap: 9,
+				alignItems: "center",
+				minHeight: 44,
+				padding: "7px 8px",
+				borderRadius: 8,
+				border: `1px solid ${effect.tone}26`,
+				background: `linear-gradient(135deg, ${effect.tone}12, rgba(255,255,255,0.025))`,
+				boxShadow: `inset 0 0 18px ${accent}05`,
+			}}
+		>
+			<div
+				style={{
+					width: 34,
+					height: 34,
+					borderRadius: 7,
+					border: `1px solid ${effect.tone}44`,
+					background: "rgba(4,8,16,0.62)",
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "center",
+					overflow: "hidden",
+					flexShrink: 0,
+				}}
+			>
+				{effect.imageSrc ? (
+					<img
+						alt={effect.imageAlt ?? effect.title}
+						src={effect.imageSrc}
+						style={{
+							width: 32,
+							height: 32,
+							objectFit: "contain",
+							filter: `drop-shadow(0 0 5px ${effect.tone}66)`,
+						}}
+					/>
+				) : (
+					<span
+						style={{
+							fontFamily: "var(--nv-font-mono)",
+							fontSize: 10,
+							fontWeight: 800,
+							color: effect.tone,
+							letterSpacing: "0.04em",
+						}}
+					>
+						{effect.glyph ?? "FX"}
+					</span>
+				)}
+			</div>
+
+			<div style={{ minWidth: 0 }}>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: 6,
+						marginBottom: 3,
+						minWidth: 0,
+					}}
+				>
+					<span
+						style={{
+							fontFamily: "var(--nv-font-mono)",
+							fontSize: 10,
+							letterSpacing: "0.08em",
+							textTransform: "uppercase",
+							color: effect.tone,
+							flexShrink: 0,
+						}}
+					>
+						{effect.category}
+					</span>
+				</div>
+				<div
+					style={{
+						fontSize: 12,
+						fontWeight: 700,
+						color: BASE.t1,
+						lineHeight: 1.25,
+						overflowWrap: "anywhere",
+					}}
+				>
+					{effect.title}
+				</div>
+				<div
+					style={{
+						marginTop: 2,
+						fontSize: 11,
+						color: BASE.t2,
+						lineHeight: 1.35,
+						overflowWrap: "anywhere",
+					}}
+				>
+					{effect.detail}
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function LevelMeter({
+	accent,
+	level,
+	maxLevel,
+	maxLevelBonuses,
+}: {
+	accent: string;
+	level: number;
+	maxLevel: number;
+	maxLevelBonuses: number;
+}) {
+	return (
+		<div
+			style={{
+				marginTop: 12,
+				padding: "10px 12px",
+				borderRadius: 10,
+				border: `1px solid ${BASE.stroke}`,
+				background: "rgba(255,255,255,0.025)",
+				display: "grid",
+				gap: 8,
+			}}
+		>
+			<div
+				style={{
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "space-between",
+					gap: 12,
+				}}
+			>
+				<span
+					style={{
+						fontFamily: "var(--nv-font-mono)",
+						fontSize: 8,
+						letterSpacing: "0.12em",
+						color: BASE.t3,
+						textTransform: "uppercase",
+					}}
+				>
+					Node Level
+				</span>
+				<span
+					style={{
+						fontFamily: "var(--nv-font-mono)",
+						fontSize: 11,
+						fontWeight: 700,
+						color: level >= maxLevel ? BASE.completed : BASE.t1,
+						letterSpacing: "0.06em",
+					}}
+				>
+					{level}/{maxLevel}
+				</span>
+			</div>
+
+			<div style={{ display: "flex", alignItems: "end", gap: 4 }}>
+				{Array.from({ length: maxLevel }).map((_, index) => {
+					const filled = index < level;
+					const finalSegment = index === maxLevel - 1;
+					const marksMaxBonus = finalSegment && maxLevelBonuses > 0;
+					return (
+						<div
+							key={index}
+							style={{
+								flex: 1,
+								height: filled ? 12 : 8,
+								borderRadius: 999,
+								border: `1px solid ${
+									filled
+										? marksMaxBonus
+											? `${BASE.researching}aa`
+											: `${accent}99`
+										: marksMaxBonus
+											? `${BASE.researching}44`
+											: `${BASE.stroke}`
+								}`,
+								background: filled
+									? marksMaxBonus
+										? `linear-gradient(90deg, ${BASE.researching}99, ${BASE.researching})`
+										: `linear-gradient(90deg, ${accent}66, ${accent})`
+									: marksMaxBonus
+										? `${BASE.researching}14`
+										: "rgba(255,255,255,0.04)",
+								boxShadow: filled
+									? `0 0 10px ${marksMaxBonus ? `${BASE.researching}55` : `${accent}33`}`
+									: "none",
+								transition: "all 160ms ease",
+							}}
+						/>
+					);
+				})}
+			</div>
+
+			{maxLevelBonuses > 0 ? (
+				<div
+					style={{
+						fontSize: 10,
+						lineHeight: 1.4,
+						color: BASE.t3,
+					}}
+				>
+					Final segment marks the max-level bonus.
+				</div>
+			) : null}
+		</div>
+	);
+}
+
+function MilestoneEffectRow({
+	milestone,
+	tone,
+}: {
+	milestone: MilestoneEffectLabel;
+	tone: string;
+}) {
+	return (
+		<div
+			style={{
+				display: "grid",
+				gridTemplateColumns: "auto 1fr",
+				gap: 9,
+				alignItems: "start",
+				minHeight: 44,
+				padding: "7px 8px",
+				borderRadius: 8,
+				border: `1px solid ${tone}26`,
+				background: `linear-gradient(180deg, ${tone}12, rgba(255,255,255,0.02))`,
+			}}
+		>
+			<div
+				style={{
+					minWidth: 44,
+					padding: "4px 6px",
+					borderRadius: 999,
+					border: `1px solid ${tone}46`,
+					background: `${tone}14`,
+					fontFamily: "var(--nv-font-mono)",
+					fontSize: 9,
+					fontWeight: 700,
+					letterSpacing: "0.08em",
+					textTransform: "uppercase",
+					color: tone,
+					textAlign: "center",
+				}}
+			>
+				Lvl {milestone.level}
+			</div>
+
+			<div style={{ minWidth: 0 }}>
+				<div
+					style={{
+						fontSize: 12,
+						fontWeight: 700,
+						color: BASE.t1,
+						lineHeight: 1.25,
+						overflowWrap: "anywhere",
+					}}
+				>
+					{milestone.label}
+				</div>
+				<div
+					style={{
+						marginTop: 2,
+						fontSize: 11,
+						color: BASE.t2,
+						lineHeight: 1.35,
+					}}
+				>
+					{milestone.isMaxLevel
+						? "Triggers when the node reaches its maximum level."
+						: `Triggers when this node reaches level ${milestone.level}.`}
+				</div>
+			</div>
+		</div>
+	);
+}
+
 function Popover({
+	actionDisabled,
+	actionLabel,
+	onAction,
 	node,
 	x,
 	y,
 	accent,
 	onClose,
 }: {
+	actionDisabled: boolean;
+	actionLabel: string;
 	accent: string;
 	node: AugNode;
+	onAction: (() => void) | null;
 	onClose: () => void;
 	x: number;
 	y: number;
@@ -1287,6 +1848,25 @@ function Popover({
 	const locked = node.status === "locked" || hidden;
 	const disclosedCosts = concealed ? null : node.costs;
 	const unmetRequirements = node.requirements.filter((requirement) => !requirement.met);
+	const isMaxed = node.level >= node.maxLevel;
+	const isUpgraded = node.level > 0;
+	const effectBuckets = concealed
+		? { standard: [], milestones: [], maxLevelBonuses: [] }
+		: splitNodeEffectBuckets(node.effects, node.maxLevel);
+	const effectItems = effectBuckets.standard.map((effect) => getEffectPresentation(effect, accent));
+	const unlockItems = effectItems.filter((effect) => effect.group === "unlock");
+	const modifierItems = effectItems.filter((effect) => effect.group === "effect");
+	const statusLabel = hidden
+		? "HIDDEN"
+		: node.status === "researching"
+			? "ACTIVE"
+			: isMaxed
+				? "MAXED"
+				: isUpgraded
+					? "UPGRADED"
+					: node.status === "available"
+						? "AVAILABLE"
+						: "LOCKED";
 
 	return (
 		<div
@@ -1295,7 +1875,7 @@ function Popover({
 				left: x,
 				top: y,
 				zIndex: 60,
-				width: 282,
+				width: 326,
 				borderRadius: 10,
 				border: `1px solid ${colors.border}3a`,
 				background: BASE.glass,
@@ -1344,15 +1924,18 @@ function Popover({
 									fontWeight: 600,
 								}}
 							>
-								{node.status === "completed"
-									? "DONE"
-									: node.status === "available"
-										? "AVAILABLE"
-										: node.status === "researching"
-											? "ACTIVE"
-											: hidden
-												? "HIDDEN"
-												: "LOCKED"}
+								{statusLabel}
+							</span>
+							<span
+								style={{
+									fontFamily: "var(--nv-font-mono)",
+									fontSize: 8,
+									color: isMaxed ? BASE.completed : isUpgraded ? colors.border : BASE.t3,
+									letterSpacing: "0.12em",
+									textTransform: "uppercase",
+								}}
+							>
+								Level {node.level}/{node.maxLevel}
 							</span>
 							<span
 								style={{
@@ -1399,6 +1982,15 @@ function Popover({
 						: node.description}
 				</p>
 
+				{hidden ? null : (
+					<LevelMeter
+						accent={accent}
+						level={node.level}
+						maxLevel={node.maxLevel}
+						maxLevelBonuses={effectBuckets.maxLevelBonuses.length}
+					/>
+				)}
+
 				<div
 					style={{
 						marginTop: 12,
@@ -1418,18 +2010,95 @@ function Popover({
 								textTransform: "uppercase",
 							}}
 						>
+							Unlocks
+						</span>
+						{concealed ? (
+							<div style={{ fontSize: 11, color: BASE.t3 }}>Unlocks classified</div>
+						) : unlockItems.length > 0 ? (
+							unlockItems.map((effect) => (
+								<EffectRow
+									accent={accent}
+									effect={effect}
+									key={`${node.id}:effect:${effect.category}:${effect.title}:${effect.detail}`}
+								/>
+							))
+						) : (
+							<div style={{ fontSize: 11, color: BASE.t3 }}>No new unlocks</div>
+						)}
+					</div>
+
+					<div style={{ display: "grid", gap: 4 }}>
+						<span
+							style={{
+								fontFamily: "var(--nv-font-mono)",
+								fontSize: 8,
+								letterSpacing: "0.12em",
+								color: BASE.t3,
+								textTransform: "uppercase",
+							}}
+						>
 							Effects
 						</span>
 						{concealed ? (
 							<div style={{ fontSize: 11, color: BASE.t3 }}>Effects classified</div>
-						) : (
-							node.effects.map((effect) => (
-								<div key={effect} style={{ fontSize: 11, color: BASE.t1 }}>
-									{effect}
-								</div>
+						) : modifierItems.length > 0 ? (
+							modifierItems.map((effect) => (
+								<EffectRow
+									accent={accent}
+									effect={effect}
+									key={`${node.id}:effect:${effect.category}:${effect.title}:${effect.detail}`}
+								/>
 							))
+						) : (
+							<div style={{ fontSize: 11, color: BASE.t3 }}>No passive effects</div>
 						)}
 					</div>
+
+					{effectBuckets.maxLevelBonuses.length > 0 ? (
+						<div style={{ display: "grid", gap: 4 }}>
+							<span
+								style={{
+									fontFamily: "var(--nv-font-mono)",
+									fontSize: 8,
+									letterSpacing: "0.12em",
+									color: BASE.researching,
+									textTransform: "uppercase",
+								}}
+							>
+								Max Level Bonus
+							</span>
+							{effectBuckets.maxLevelBonuses.map((milestone) => (
+								<MilestoneEffectRow
+									key={`${node.id}:max:${milestone.raw}`}
+									milestone={milestone}
+									tone={BASE.researching}
+								/>
+							))}
+						</div>
+					) : null}
+
+					{effectBuckets.milestones.length > 0 ? (
+						<div style={{ display: "grid", gap: 4 }}>
+							<span
+								style={{
+									fontFamily: "var(--nv-font-mono)",
+									fontSize: 8,
+									letterSpacing: "0.12em",
+									color: colors.border,
+									textTransform: "uppercase",
+								}}
+							>
+								Level Milestones
+							</span>
+							{effectBuckets.milestones.map((milestone) => (
+								<MilestoneEffectRow
+									key={`${node.id}:milestone:${milestone.raw}`}
+									milestone={milestone}
+									tone={colors.border}
+								/>
+							))}
+						</div>
+					) : null}
 
 					{node.requirements.length > 0 ? (
 						<div style={{ display: "grid", gap: 4 }}>
@@ -1477,8 +2146,17 @@ function Popover({
 						>
 							Research Time
 						</span>
-						<span style={{ fontSize: 11, color: concealed ? BASE.t3 : BASE.t1 }}>
-							{disclosedCosts ? formatDuration(disclosedCosts.seconds) : "Classified"}
+						<span
+							style={{
+								fontSize: 11,
+								color: concealed ? BASE.t3 : isMaxed ? BASE.completed : BASE.t1,
+							}}
+						>
+							{disclosedCosts
+								? formatDuration(disclosedCosts.seconds)
+								: isMaxed
+									? "Complete"
+									: "Classified"}
 						</span>
 					</div>
 
@@ -1515,32 +2193,29 @@ function Popover({
 									);
 								})
 							) : (
-								<span style={{ fontSize: 11, color: BASE.t3 }}>Costs classified</span>
+								<span style={{ fontSize: 11, color: isMaxed ? BASE.completed : BASE.t3 }}>
+									{isMaxed ? "No further cost" : "Costs classified"}
+								</span>
 							)}
 						</div>
 
 						<button
-							disabled={!node.canStart}
+							disabled={actionDisabled}
+							onClick={onAction ?? undefined}
 							style={{
 								padding: "7px 10px",
 								borderRadius: 8,
-								border: `1px solid ${!node.canStart ? BASE.stroke : colors.border}55`,
-								background: !node.canStart ? "rgba(255,255,255,0.02)" : `${colors.border}14`,
-								color: !node.canStart ? BASE.t3 : colors.border,
-								cursor: !node.canStart ? "not-allowed" : "pointer",
+								border: `1px solid ${actionDisabled ? BASE.stroke : colors.border}55`,
+								background: actionDisabled ? "rgba(255,255,255,0.02)" : `${colors.border}14`,
+								color: actionDisabled ? BASE.t3 : colors.border,
+								cursor: actionDisabled ? "not-allowed" : "pointer",
 								fontFamily: "var(--nv-font-display)",
 								fontSize: 11,
 								fontWeight: 700,
 							}}
 							type="button"
 						>
-							{node.status === "researching"
-								? "Track"
-								: node.canStart
-									? "Queue"
-									: unmetRequirements.length > 0
-										? "Requirements"
-										: "Locked"}
+							{actionLabel}
 						</button>
 					</div>
 				</div>
@@ -2024,8 +2699,6 @@ type ResearchStateNode = {
 	status: NodeStatus;
 	canStart: boolean;
 	requiredResearchNetworkSize: number;
-	requiredResearchFacilityLevel: number;
-	requiredCombinedResearchCapacity?: number;
 	requirements: Array<{ key: string; label: string; met: boolean }>;
 	effects: string[];
 	nextCost: {
@@ -2100,8 +2773,6 @@ function buildTreeByBranch(branches: ResearchStateBranch[] | undefined): {
 				effects: node.effects,
 				description: node.description,
 				requiredNetworkSize: node.requiredResearchNetworkSize,
-				requiredFacilityLevel: node.requiredResearchFacilityLevel,
-				requiredCombinedResearchCapacity: node.requiredCombinedResearchCapacity,
 				requirements: node.requirements,
 				costs: node.nextCost
 					? {
@@ -2139,6 +2810,8 @@ function InnerResearchImmersiveViewWithInsets({
 	hudInsetTop = 16,
 }: ResearchImmersiveViewProps) {
 	const { isAuthenticated } = useConvexAuth();
+	const startResearch = useMutation(api.research.enqueue);
+	const cancelResearch = useMutation(api.research.cancel);
 	const researchState = useQuery(
 		api.research.getState,
 		isAuthenticated && colonyId ? { colonyId } : "skip",
@@ -2149,6 +2822,7 @@ function InnerResearchImmersiveViewWithInsets({
 	const [hoveredBranch, setHoveredBranch] = useState<ResearchBranchKey | null>(null);
 	const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 	const [hoveredGate, setHoveredGate] = useState<HoveredGate | null>(null);
+	const [actingOnResearchKey, setActingOnResearchKey] = useState<string | null>(null);
 	const [popover, setPopover] = useState<{ node: AugNode; x: number; y: number } | null>(null);
 	const [sealPopover, setSealPopover] = useState<{
 		data: SecretSealData;
@@ -2187,6 +2861,48 @@ function InnerResearchImmersiveViewWithInsets({
 	const activeRemainingSeconds = activeResearch
 		? Math.max(0, Math.ceil((activeResearch.completesAt - serverNow) / 1_000))
 		: 0;
+
+	const handleResearchAction = useCallback(
+		(node: AugNode) => {
+			if (!colonyId) {
+				return;
+			}
+			if (node.status === "researching" && activeResearch?.queueItemId) {
+				setActingOnResearchKey(node.id);
+				cancelResearch({ queueItemId: activeResearch.queueItemId })
+					.then(() => {
+						toast.success("Research cancelled");
+						setPopover(null);
+					})
+					.catch((error) => {
+						toast.error(error instanceof Error ? error.message : "Failed to cancel research");
+					})
+					.finally(() => {
+						setActingOnResearchKey(null);
+					});
+				return;
+			}
+			if (!node.canStart || node.level >= node.maxLevel) {
+				return;
+			}
+			setActingOnResearchKey(node.id);
+			startResearch({
+				colonyId,
+				researchKey: node.id,
+			})
+				.then(() => {
+					toast.success("Research started");
+					setPopover(null);
+				})
+				.catch((error) => {
+					toast.error(error instanceof Error ? error.message : "Failed to start research");
+				})
+				.finally(() => {
+					setActingOnResearchKey(null);
+				});
+		},
+		[activeResearch?.queueItemId, cancelResearch, colonyId, startResearch],
+	);
 
 	const handleMouseMove = useCallback(
 		(event: React.MouseEvent<HTMLDivElement>) => {
@@ -2265,12 +2981,18 @@ function InnerResearchImmersiveViewWithInsets({
 			}
 
 			const data = node.data as AugNode;
+			const popoverWidth = 326;
+			const popoverHeight = 500;
 			let x = event.clientX - rect.left + 16;
 			let y = event.clientY - rect.top - 64;
 
-			if (x + 294 > rect.width) x = event.clientX - rect.left - 294;
+			if (x + popoverWidth + 12 > rect.width) {
+				x = event.clientX - rect.left - popoverWidth - 12;
+			}
 			if (y < hudInsetTop) y = hudInsetTop;
-			if (y + 360 > rect.height - hudInsetBottom) y = rect.height - hudInsetBottom - 360;
+			if (y + popoverHeight > rect.height - hudInsetBottom) {
+				y = Math.max(hudInsetTop, rect.height - hudInsetBottom - popoverHeight);
+			}
 
 			setSealPopover(null);
 			setPopover({ node: data, x, y });
@@ -2554,9 +3276,35 @@ function InnerResearchImmersiveViewWithInsets({
 
 			{popover ? (
 				<Popover
+					actionDisabled={
+						actingOnResearchKey === popover.node.id
+							? true
+							: popover.node.status === "researching"
+								? !activeResearch?.queueItemId
+								: popover.node.level >= popover.node.maxLevel || !popover.node.canStart
+					}
+					actionLabel={
+						actingOnResearchKey === popover.node.id
+							? popover.node.status === "researching"
+								? "Cancelling"
+								: "Starting"
+							: popover.node.status === "researching"
+								? "Cancel"
+								: popover.node.level >= popover.node.maxLevel
+									? "Maxed"
+									: popover.node.canStart
+										? "Begin"
+										: popover.node.requirements.some((requirement) => !requirement.met)
+											? "Requirements"
+											: "Locked"
+					}
 					node={popover.node}
+					onAction={() => {
+						handleResearchAction(popover.node);
+					}}
 					x={popover.x}
 					y={popover.y}
+					key={popover.node.id}
 					accent={
 						RESEARCH_TABS.find((tab) => tab.key === popover.node.branchKey)?.themeColor ??
 						BASE.available

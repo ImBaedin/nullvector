@@ -122,15 +122,15 @@ export function AppHeader({
 						{/* Left: logo + colony identity */}
 						<div className="flex min-w-0 items-center gap-2 justify-self-start">
 							<img alt="Nullvector" className={cn(`
-           shrink-0 rounded-md border border-white/10 bg-black/30 object-contain
-           p-0.5 transition-all
-         `, isCompact ? "size-7" : "size-8")} src="/game-icons/logo.png" />
+         shrink-0 rounded-md border border-white/10 bg-black/30 object-contain
+         p-0.5 transition-all
+       `, isCompact ? "size-7" : "size-8")} src="/game-icons/logo.png" />
 							{isRenamingColony && activeColony ? (
 								<div className="min-w-0">
 									<p
 										className="
-           text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
-         "
+            text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
+          "
 									>
 										NullVector
 									</p>
@@ -159,19 +159,15 @@ export function AppHeader({
 								<div className="min-w-0">
 									<p
 										className="
-           text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
-         "
+            text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
+          "
 									>
 										NullVector
 									</p>
-									<p
-										className={cn(
-											"truncate font-(family-name:--nv-font-display) font-bold text-white transition-all",
-											isCompact ? "text-sm" : "text-[15px]",
-										)}
-									>
-										{headerTitle}
-									</p>
+									<p className={cn(`
+             truncate font-(family-name:--nv-font-display) font-bold text-white
+             transition-all
+           `, isCompact ? "text-sm" : "text-[15px]")}>{headerTitle}</p>
 								</div>
 							)}
 						</div>
@@ -203,16 +199,16 @@ export function AppHeader({
 							</button>
 
 							<button className={cn(`
-           nv-research-hero relative flex items-center justify-center gap-2
-           rounded-lg border px-3.5 font-(family-name:--nv-font-display) text-xs
-           font-semibold transition-all
-         `, isResearchOpen ? `
-            border-emerald-300/40 text-emerald-50
-            shadow-[0_0_16px_rgba(52,211,153,0.18)]
-          ` : `
-            border-white/12 bg-white/4 text-white/60
-            hover:border-emerald-300/30 hover:text-emerald-100
-          `, isCompact ? "h-8" : "h-9")} onClick={handleResearchToggle} type="button">
+         nv-research-hero relative flex items-center justify-center gap-2
+         rounded-lg border px-3.5 font-(family-name:--nv-font-display) text-xs
+         font-semibold transition-all
+       `, isResearchOpen ? `
+         border-emerald-300/40 text-emerald-50
+         shadow-[0_0_16px_rgba(52,211,153,0.18)]
+       ` : `
+           border-white/12 bg-white/4 text-white/60
+           hover:border-emerald-300/30 hover:text-emerald-100
+         `, isCompact ? "h-8" : "h-9")} onClick={handleResearchToggle} type="button">
 								<ResearchDitherBg />
 								<FlaskConical
 									className="relative z-10 size-3.5"
@@ -239,11 +235,7 @@ export function AppHeader({
        "
 						>
 							{progressionOverview ? (
-								<div
-									className="
-          mr-1 flex items-center gap-2 border-r border-white/8 pr-3
-        "
-								>
+								<div className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3">
 									<div className="flex items-center gap-2">
 										<div
 											className="
@@ -279,10 +271,18 @@ export function AppHeader({
 													(progressionOverview.xpToNextRank ?? 0);
 												return (
 													<>
-														<p className="text-[8px] tracking-[0.12em] text-white/25 uppercase">
+														<p
+															className="
+                text-[8px] tracking-[0.12em] text-white/25 uppercase
+              "
+														>
 															XP
 														</p>
-														<div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/8">
+														<div
+															className="
+                mt-1 h-1.5 overflow-hidden rounded-full bg-white/8
+              "
+														>
 															<div
 																className="
                   h-full rounded-full

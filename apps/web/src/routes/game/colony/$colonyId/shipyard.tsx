@@ -73,16 +73,19 @@ function ShipyardRoute() {
 		const stateByShipKey = new Map(
 			colonyView.shipyardState.shipStates.map((state) => [state.key, state]),
 		);
-		const ships = shipCatalog.map((ship) => {
-			const state = stateByShipKey.get(ship.key);
-			return {
-				...ship,
-				accessState: progressionOverview.shipAccess[ship.key] as FeatureAccessState,
-				owned: state?.owned ?? 0,
-				perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
-				queued: state?.queued ?? 0,
-			};
-		});
+		const ships = shipCatalog
+			.map((ship) => {
+				const state = stateByShipKey.get(ship.key);
+				return {
+					...ship,
+					accessState: progressionOverview.shipAccess[ship.key] as FeatureAccessState,
+					isUnlocked: state?.isUnlocked ?? false,
+					owned: state?.owned ?? 0,
+					perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
+					queued: state?.queued ?? 0,
+				};
+			})
+			.filter((ship) => ship.isUnlocked);
 
 		return {
 			...colonyView.shipyardState,

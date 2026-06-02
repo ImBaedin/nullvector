@@ -19,3 +19,4 @@
   3. Will a change in one small subsystem unnecessarily invalidate a large response?
   4. Is this query doing per-row follow-up lookups on a hot path?
   5. Does the function really need a stitched response, or is it just more convenient for the caller?
+- Research rules update: live research no longer uses per-node local facility level or combined-capacity requirements; tier access is driven by research-network size, and incomplete/unsupported effect nodes should be marked `planned` so `DEFAULT_RESEARCH_BRANCHES` hides them from the live UI.

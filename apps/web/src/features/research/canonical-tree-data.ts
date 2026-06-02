@@ -28,8 +28,6 @@ export type RadialNode = {
 	effects: string[];
 	description: string;
 	requiredNetworkSize: number;
-	requiredFacilityLevel: number;
-	requiredCombinedResearchCapacity?: number;
 	requirements: ResearchRequirementStatus[];
 	costs: {
 		metaMatter: Record<MetaMatterRarity, number>;
@@ -127,8 +125,6 @@ function buildStaticTree(branchKey: ResearchBranchKey): RadialTree {
 				effects: node.effectLabels,
 				description: node.description,
 				requiredNetworkSize: node.requiredResearchNetworkSize,
-				requiredFacilityLevel: node.requiredResearchFacilityLevel,
-				requiredCombinedResearchCapacity: node.requiredCombinedResearchCapacity,
 				requirements: [],
 				costs: costs
 					? {
