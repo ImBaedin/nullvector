@@ -241,28 +241,10 @@ function getBranchTierRows(branchNodes: BranchTierNode[], config: PolarResearchL
 	const rowsByTier = new Map<Exclude<PolarTier, 0>, BranchTierNode[][]>();
 
 	for (const tier of ORDERED_TIERS) {
-		rowsByTier.set(tier, []);
-	}
-
-	const orderedNodes = [...branchNodes].sort((left, right) => {
-		if (left.node.tier !== right.node.tier) return left.node.tier - right.node.tier;
-		return left.localAngleDeg - right.localAngleDeg;
-	});
-
-	let cursor = 0;
-
-	for (const tier of [1, 2, 3] as const) {
-		const capacity = config.tierSlotCapacities[tier];
-		const slice = orderedNodes.slice(cursor, cursor + capacity);
-		cursor += slice.length;
-
-		if (slice.length > 0) {
-			rowsByTier.get(tier)?.push(slice);
-		}
-	}
-
-	for (const row of chunkNodes(orderedNodes.slice(cursor), config.tierSlotCapacities[4])) {
-		if (row.length > 0) rowsByTier.get(4)?.push(row);
+		const tierNodes = branchNodes
+			.filter(({ node }) => node.tier === tier)
+			.sort((left, right) => left.localAngleDeg - right.localAngleDeg);
+		rowsByTier.set(tier, chunkNodes(tierNodes, config.tierSlotCapacities[tier]));
 	}
 
 	return rowsByTier;
