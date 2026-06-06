@@ -29,8 +29,8 @@ export type PolarPlacedNode = {
 };
 
 export type PolarPlacedEdge = {
-	arc: boolean;
 	id: string;
+	kind: "line" | "tierArc" | "crossTierCurve";
 	path: string;
 	source: string;
 	target: string;
@@ -62,7 +62,7 @@ export type PolarResearchLayout = {
 };
 
 export type PolarResearchLayoutConfig = {
-	arcNodeInset: number;
+	angleAlignmentToleranceDeg: number;
 	branchStartAngle: number;
 	minNodeGap: number;
 	minTierRadii: Record<Exclude<PolarTier, 0>, number>;
@@ -107,6 +107,7 @@ export const POLAR_RESEARCH_LAYOUT_CONFIG: PolarResearchLayoutConfig = {
 	branchStartAngle: -126,
 	sectorPaddingDeg: 8,
 	minNodeGap: 40,
+	angleAlignmentToleranceDeg: 1,
 	minTierRadii: {
 		1: 380,
 		2: 620,
@@ -114,7 +115,6 @@ export const POLAR_RESEARCH_LAYOUT_CONFIG: PolarResearchLayoutConfig = {
 		4: 1160,
 	},
 	tierGap: 210,
-	arcNodeInset: 0.56,
 	shapeSizes: {
 		circle: 54,
 		hex: 54,
@@ -338,46 +338,68 @@ function pointOnNodePerimeter(node: PolarPlacedNode, toward: PolarPoint) {
 	return pointOnRect(node.center, half, half, dx, dy);
 }
 
-function arcEndpointAngle(
-	node: PolarPlacedNode,
-	direction: 1 | -1,
-	config: PolarResearchLayoutConfig,
+function buildCurvedPath(
+	sourceNode: PolarPlacedNode,
+	targetNode: PolarPlacedNode,
+	outwardBend: number,
 ) {
+	const midpoint = {
+		x: (sourceNode.center.x + targetNode.center.x) / 2,
+		y: (sourceNode.center.y + targetNode.center.y) / 2,
+	};
+	const midpointDistance = Math.hypot(midpoint.x, midpoint.y) || 1;
+	const control = {
+		x: midpoint.x + (midpoint.x / midpointDistance) * midpointDistance * outwardBend,
+		y: midpoint.y + (midpoint.y / midpointDistance) * midpointDistance * outwardBend,
+	};
+	const sourceAnchor = pointOnNodePerimeter(sourceNode, control);
+	const targetAnchor = pointOnNodePerimeter(targetNode, control);
+	const sourceDirection = normalizeVector(
+		control.x - sourceNode.center.x,
+		control.y - sourceNode.center.y,
+	);
+	const targetDirection = normalizeVector(
+		control.x - targetNode.center.x,
+		control.y - targetNode.center.y,
+	);
+	const handleLength = Math.max(
+		Math.hypot(targetAnchor.x - sourceAnchor.x, targetAnchor.y - sourceAnchor.y) * 0.35,
+		Math.max(sourceNode.size, targetNode.size) * 0.75,
+	);
+	const sourceControl = {
+		x: sourceAnchor.x + sourceDirection.x * handleLength,
+		y: sourceAnchor.y + sourceDirection.y * handleLength,
+	};
+	const targetControl = {
+		x: targetAnchor.x + targetDirection.x * handleLength,
+		y: targetAnchor.y + targetDirection.y * handleLength,
+	};
+
+	return `M ${sourceAnchor.x},${sourceAnchor.y} C ${sourceControl.x},${sourceControl.y} ${targetControl.x},${targetControl.y} ${targetAnchor.x},${targetAnchor.y}`;
+}
+
+function tierArcEndpointAngle(node: PolarPlacedNode, direction: 1 | -1) {
 	if (node.radius <= 1) return node.angleDeg;
 
-	const inset = Math.min(node.size * config.arcNodeInset, node.radius * 0.8);
-	const angularInsetDeg = radToDeg(Math.asin(Math.min(inset / node.radius, 0.98)));
+	const halfExtent =
+		node.shape === "circle" || node.shape === "hex"
+			? node.size * 0.52
+			: node.size * (node.shape === "capstone" ? 0.46 : 0.44);
+	const angularInsetDeg = radToDeg(Math.asin(Math.min(halfExtent / node.radius, 0.98)));
 	return node.angleDeg + angularInsetDeg * direction;
 }
 
-function buildArcPath(
-	sourceNode: PolarPlacedNode,
-	targetNode: PolarPlacedNode,
-	config: PolarResearchLayoutConfig,
-) {
-	const radius = Math.max((sourceNode.radius + targetNode.radius) / 2, 1);
-	const deltaDeg = normalizeAngle(targetNode.angleDeg - sourceNode.angleDeg);
-
+function buildTierArcPath(sourceNode: PolarPlacedNode, targetNode: PolarPlacedNode) {
 	if (Math.abs(sourceNode.radius - targetNode.radius) > 1) {
-		const sourceAnchor = pointOnNodePerimeter(sourceNode, targetNode.center);
-		const targetAnchor = pointOnNodePerimeter(targetNode, sourceNode.center);
-		const midpoint = {
-			x: (sourceAnchor.x + targetAnchor.x) / 2,
-			y: (sourceAnchor.y + targetAnchor.y) / 2,
-		};
-		const midpointDistance = Math.hypot(midpoint.x, midpoint.y) || 1;
-		const control = {
-			x: midpoint.x + (midpoint.x / midpointDistance) * midpointDistance * 0.18,
-			y: midpoint.y + (midpoint.y / midpointDistance) * midpointDistance * 0.18,
-		};
-
-		return `M ${sourceAnchor.x},${sourceAnchor.y} Q ${control.x},${control.y} ${targetAnchor.x},${targetAnchor.y}`;
+		return buildCurvedPath(sourceNode, targetNode, 0.1);
 	}
 
+	const radius = Math.max((sourceNode.radius + targetNode.radius) / 2, 1);
+	const deltaDeg = normalizeAngle(targetNode.angleDeg - sourceNode.angleDeg);
 	const direction: 1 | -1 = deltaDeg >= 0 ? 1 : -1;
 	const oppositeDirection: 1 | -1 = direction === 1 ? -1 : 1;
-	const startAngleDeg = arcEndpointAngle(sourceNode, direction, config);
-	const endAngleDeg = arcEndpointAngle(targetNode, oppositeDirection, config);
+	const startAngleDeg = tierArcEndpointAngle(sourceNode, direction);
+	const endAngleDeg = tierArcEndpointAngle(targetNode, oppositeDirection);
 	const startPoint = projectPolar(startAngleDeg, radius);
 	const endPoint = projectPolar(endAngleDeg, radius);
 	const angularDistance = Math.abs(normalizeAngle(endAngleDeg - startAngleDeg));
@@ -387,15 +409,26 @@ function buildArcPath(
 	return `M ${startPoint.x},${startPoint.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${endPoint.x} ${endPoint.y}`;
 }
 
+function getEdgeKind(
+	sourceNode: PolarPlacedNode,
+	targetNode: PolarPlacedNode,
+	config: PolarResearchLayoutConfig,
+): PolarPlacedEdge["kind"] {
+	if (sourceNode.tier === 0) return "line";
+
+	const angleDelta = Math.abs(normalizeAngle(targetNode.angleDeg - sourceNode.angleDeg));
+	if (angleDelta <= config.angleAlignmentToleranceDeg) return "line";
+
+	return sourceNode.tier === targetNode.tier ? "tierArc" : "crossTierCurve";
+}
+
 function buildEdgePath(
 	sourceNode: PolarPlacedNode,
 	targetNode: PolarPlacedNode,
-	arc: boolean,
-	config: PolarResearchLayoutConfig,
+	kind: PolarPlacedEdge["kind"],
 ) {
-	if (arc) {
-		return buildArcPath(sourceNode, targetNode, config);
-	}
+	if (kind === "tierArc") return buildTierArcPath(sourceNode, targetNode);
+	if (kind === "crossTierCurve") return buildCurvedPath(sourceNode, targetNode, 0.18);
 
 	const sourceAnchor = pointOnNodePerimeter(sourceNode, targetNode.center);
 	const targetAnchor = pointOnNodePerimeter(targetNode, sourceNode.center);
@@ -527,13 +560,14 @@ export function compilePolarResearchLayout(
 			const sourceNode = nodes.get(sourceId);
 			const targetNode = nodes.get(edge.target);
 			if (!sourceNode || !targetNode) continue;
+			const kind = getEdgeKind(sourceNode, targetNode, config);
 
 			edges.push({
 				id: `${edge.source}-${edge.target}`,
 				source: sourceId,
 				target: edge.target,
-				arc: edge.arc,
-				path: buildEdgePath(sourceNode, targetNode, edge.arc, config),
+				kind,
+				path: buildEdgePath(sourceNode, targetNode, kind),
 			});
 		}
 	}

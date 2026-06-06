@@ -734,7 +734,7 @@ function buildFlowEdges(hoveredNodeId: string | null, treeByBranch: TreeByBranch
 				id: geometry.id,
 				source: geometry.source,
 				target: geometry.target,
-				type: geometry.arc ? "polarArc" : "polarLine",
+				type: geometry.kind === "line" ? "polarLine" : "polarArc",
 				selectable: false,
 				animated: false,
 				data: { path: geometry.path } satisfies PolarPathData,
