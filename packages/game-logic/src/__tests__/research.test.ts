@@ -6,6 +6,7 @@ import {
 	canResearchNodeStart,
 	DEFAULT_RESEARCH_TREE,
 	getResearchVisibility,
+	getResearchTier,
 	isDefenseUnlocked,
 	isShipUnlocked,
 	rollMetaMatterBundle,
@@ -27,11 +28,11 @@ test("tier-three tree authors 3/5/7 nodes and hides planned nodes", () => {
 			?.requiredResearchNetworkSize,
 	).toBe(1);
 	expect(
-		DEFAULT_RESEARCH_TREE.find((node) => node.id === "parallelInquiry")
+		DEFAULT_RESEARCH_TREE.find((node) => node.id === "contractAnalytics")
 			?.requiredResearchNetworkSize,
 	).toBe(3);
 	expect(
-		DEFAULT_RESEARCH_TREE.find((node) => node.id === "federatedDatabanks")
+		DEFAULT_RESEARCH_TREE.find((node) => node.id === "advancedStrikeCraft")
 			?.requiredResearchNetworkSize,
 	).toBe(5);
 });
@@ -70,17 +71,17 @@ test("research start checks prerequisites and research network size", () => {
 	expect(
 		canResearchNodeStart({
 			levels: {},
-			researchKey: "parallelInquiry",
+			researchKey: "contractAnalytics",
 			tierUnlockContext: { researchNetworkSize: 1 },
 		}),
 	).toBe(false);
 
 	expect(
 		canResearchNodeStart({
-			levels: { archiveCompression: 1 },
-			researchKey: "parallelInquiry",
+			levels: { stellarCartography: 1 },
+			researchKey: "contractAnalytics",
 			tierUnlockContext: {
-				metaMatterSpentTotal: 50,
+				metaMatterSpentTotal: 200,
 				researchNetworkSize: 3,
 			},
 		}),
@@ -95,17 +96,64 @@ test("research visibility hides nodes until a direct prerequisite is complete", 
 			tierUnlockContext: { researchNetworkSize: 1 },
 		}),
 	).toBe("silhouette");
-	expect(getResearchVisibility({ levels: {}, researchKey: "parallelInquiry" })).toBe("hidden");
+	expect(getResearchVisibility({ levels: {}, researchKey: "contractAnalytics" })).toBe("hidden");
 	expect(
 		getResearchVisibility({
-			levels: { archiveCompression: 1 },
-			researchKey: "parallelInquiry",
+			levels: { stellarCartography: 1 },
+			researchKey: "contractAnalytics",
 			tierUnlockContext: {
-				metaMatterSpentTotal: 50,
+				metaMatterSpentTotal: 200,
 				researchNetworkSize: 3,
 			},
 		}),
 	).toBe("silhouette");
+});
+
+test("research costs use progressive tier balance multipliers", () => {
+	const archiveCompression = DEFAULT_RESEARCH_TREE.find((node) => node.id === "archiveCompression");
+	const contractAnalytics = DEFAULT_RESEARCH_TREE.find((node) => node.id === "contractAnalytics");
+	const advancedStrikeCraft = DEFAULT_RESEARCH_TREE.find(
+		(node) => node.id === "advancedStrikeCraft",
+	);
+
+	expect(archiveCompression?.costs[0]).toEqual({
+		metaMatter: { common: 16 },
+		resources: { alloy: 225, crystal: 585, fuel: 90 },
+		seconds: 1_800,
+	});
+	expect(contractAnalytics?.costs[0]).toEqual({
+		metaMatter: { common: 96, rare: 8 },
+		resources: { alloy: 1_000, crystal: 2_600, fuel: 400 },
+		seconds: 10_800,
+	});
+	expect(advancedStrikeCraft?.costs[0]).toEqual({
+		metaMatter: { rare: 60 },
+		resources: { alloy: 6_250, crystal: 3_750, fuel: 2_500 },
+		seconds: 36_000,
+	});
+});
+
+test("scientific research spend gates scale with the new cost bands", () => {
+	expect(getResearchTier({ branchKey: "scientificInfrastructure", tier: 2 })?.unlock).toEqual({
+		type: "all",
+		rules: [
+			{ type: "researchNetworkSize", count: 3 },
+			{ type: "all", rules: [{ type: "metaMatterSpentTotal", amount: 200 }] },
+		],
+	});
+	expect(getResearchTier({ branchKey: "scientificInfrastructure", tier: 3 })?.unlock).toEqual({
+		type: "all",
+		rules: [
+			{ type: "researchNetworkSize", count: 5 },
+			{
+				type: "all",
+				rules: [
+					{ type: "metaMatterSpentTotal", amount: 2_000 },
+					{ type: "metaMatterEarnedByRarity", rarity: "rare", amount: 25 },
+				],
+			},
+		],
+	});
 });
 
 test("ship and defense unlocks require research plus facility level gates separately", () => {

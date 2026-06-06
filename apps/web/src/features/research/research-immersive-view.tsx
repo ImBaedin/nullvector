@@ -2,6 +2,7 @@ import "@/features/game-ui/theme";
 import "@xyflow/react/dist/style.css";
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
+import { Popover as BasePopover } from "@base-ui/react/popover";
 import { api } from "@nullvector/backend/convex/_generated/api";
 import {
 	DEFAULT_DEFENSE_DEFINITIONS,
@@ -276,8 +277,27 @@ type AugNode = RadialNode & {
 	size: number;
 };
 
+function hasEnoughMetaMatter(
+	costs: AugNode["costs"],
+	balances: Record<"common" | "rare" | "mythic", number>,
+) {
+	if (!costs) {
+		return false;
+	}
+
+	return (["common", "rare", "mythic"] as const).every(
+		(rarity) => balances[rarity] >= costs.metaMatter[rarity],
+	);
+}
+
 type PolarPathData = { path: string };
 type TreeByBranch = Map<ResearchBranchKey, RadialTree>;
+
+function pointAnchor(x: number, y: number) {
+	return {
+		getBoundingClientRect: () => new DOMRect(x, y, 0, 0),
+	};
+}
 
 function edgeStrokeColor(args: {
 	hovered: boolean;
@@ -1855,7 +1875,7 @@ function MilestoneEffectRow({
 	);
 }
 
-function Popover({
+function NodeInfoPopover({
 	actionDisabled,
 	actionLabel,
 	onAction,
@@ -1863,11 +1883,15 @@ function Popover({
 	x,
 	y,
 	accent,
+	collisionBoundary,
+	collisionPadding,
 	onClose,
 }: {
 	actionDisabled: boolean;
 	actionLabel: string;
 	accent: string;
+	collisionBoundary: Element | null;
+	collisionPadding: { top: number; right: number; bottom: number; left: number };
 	node: AugNode;
 	onAction: (() => void) | null;
 	onClose: () => void;
@@ -1901,358 +1925,376 @@ function Popover({
 						: "LOCKED";
 
 	return (
-		<div
-			style={{
-				position: "absolute",
-				left: x,
-				top: y,
-				zIndex: 60,
-				width: 326,
-				borderRadius: 10,
-				border: `1px solid ${colors.border}3a`,
-				background: BASE.glass,
-				backdropFilter: "blur(24px)",
-				boxShadow: `0 16px 52px rgba(0,0,0,0.65), 0 0 20px ${colors.border}0C`,
-				animation: "popIn 0.18s cubic-bezier(0.21,1,0.34,1)",
-				overflow: "hidden",
-			}}
-		>
-			<div
-				style={{
-					height: 2,
-					background: `linear-gradient(90deg, transparent, ${colors.border}, transparent)`,
-					opacity: 0.5,
-				}}
-			/>
-
-			<div style={{ padding: "12px 14px 14px" }}>
-				<div
-					style={{
-						display: "flex",
-						justifyContent: "space-between",
-						alignItems: "flex-start",
-						marginBottom: 8,
-					}}
+		<BasePopover.Root onOpenChange={(open) => !open && onClose()} open>
+			<BasePopover.Portal>
+				<BasePopover.Positioner
+					align="start"
+					anchor={pointAnchor(x, y)}
+					collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "end" }}
+					collisionBoundary={collisionBoundary ?? undefined}
+					collisionPadding={collisionPadding}
+					positionMethod="fixed"
+					side="right"
+					sideOffset={16}
+					style={{ zIndex: 60 }}
 				>
-					<div>
+					<BasePopover.Popup
+						finalFocus={false}
+						initialFocus={false}
+						style={{
+							width: 326,
+							maxHeight: "var(--available-height)",
+							borderRadius: 10,
+							border: `1px solid ${colors.border}3a`,
+							background: BASE.glass,
+							backdropFilter: "blur(24px)",
+							boxShadow: `0 16px 52px rgba(0,0,0,0.65), 0 0 20px ${colors.border}0C`,
+							animation: "popoverOriginIn 0.18s cubic-bezier(0.21,1,0.34,1)",
+							overflowY: "auto",
+							transformOrigin: "var(--transform-origin)",
+						}}
+					>
 						<div
 							style={{
-								fontFamily: "var(--nv-font-display)",
-								fontSize: 13,
-								fontWeight: 700,
-								color: locked ? BASE.t3 : BASE.t1,
+								height: 2,
+								background: `linear-gradient(90deg, transparent, ${colors.border}, transparent)`,
+								opacity: 0.5,
 							}}
-						>
-							{hidden ? "Classified" : node.name}
-						</div>
-						<div style={{ display: "flex", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
-							<span
+						/>
+
+						<div style={{ padding: "12px 14px 14px" }}>
+							<div
 								style={{
-									fontFamily: "var(--nv-font-mono)",
-									fontSize: 8,
-									color: colors.border,
-									letterSpacing: "0.12em",
-									textTransform: "uppercase",
-									fontWeight: 600,
+									display: "flex",
+									justifyContent: "space-between",
+									alignItems: "flex-start",
+									marginBottom: 8,
 								}}
 							>
-								{statusLabel}
-							</span>
-							<span
-								style={{
-									fontFamily: "var(--nv-font-mono)",
-									fontSize: 8,
-									color: isMaxed ? BASE.completed : isUpgraded ? colors.border : BASE.t3,
-									letterSpacing: "0.12em",
-									textTransform: "uppercase",
-								}}
-							>
-								Level {node.level}/{node.maxLevel}
-							</span>
-							<span
-								style={{
-									fontFamily: "var(--nv-font-mono)",
-									fontSize: 8,
-									color: BASE.t3,
-									letterSpacing: "0.12em",
-									textTransform: "uppercase",
-								}}
-							>
-								Tier {node.tier}
-							</span>
-						</div>
-					</div>
+								<div>
+									<div
+										style={{
+											fontFamily: "var(--nv-font-display)",
+											fontSize: 13,
+											fontWeight: 700,
+											color: locked ? BASE.t3 : BASE.t1,
+										}}
+									>
+										{hidden ? "Classified" : node.name}
+									</div>
+									<div style={{ display: "flex", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
+										<span
+											style={{
+												fontFamily: "var(--nv-font-mono)",
+												fontSize: 8,
+												color: colors.border,
+												letterSpacing: "0.12em",
+												textTransform: "uppercase",
+												fontWeight: 600,
+											}}
+										>
+											{statusLabel}
+										</span>
+										<span
+											style={{
+												fontFamily: "var(--nv-font-mono)",
+												fontSize: 8,
+												color: isMaxed ? BASE.completed : isUpgraded ? colors.border : BASE.t3,
+												letterSpacing: "0.12em",
+												textTransform: "uppercase",
+											}}
+										>
+											Level {node.level}/{node.maxLevel}
+										</span>
+										<span
+											style={{
+												fontFamily: "var(--nv-font-mono)",
+												fontSize: 8,
+												color: BASE.t3,
+												letterSpacing: "0.12em",
+												textTransform: "uppercase",
+											}}
+										>
+											Tier {node.tier}
+										</span>
+									</div>
+								</div>
 
-					<button
-						onClick={onClose}
-						style={{
-							width: 22,
-							height: 22,
-							borderRadius: 6,
-							border: `1px solid ${BASE.stroke}`,
-							background: "rgba(255,255,255,0.03)",
-							color: BASE.t3,
-							cursor: "pointer",
-							fontSize: 11,
-						}}
-						type="button"
-					>
-						×
-					</button>
-				</div>
-
-				<p
-					style={{
-						fontSize: 11,
-						lineHeight: 1.55,
-						color: locked ? BASE.t3 : BASE.t2,
-						margin: 0,
-					}}
-				>
-					{hidden
-						? "Further analysis required before this technology can be decrypted."
-						: node.description}
-				</p>
-
-				{hidden ? null : (
-					<LevelMeter
-						accent={accent}
-						level={node.level}
-						maxLevel={node.maxLevel}
-						maxLevelBonuses={effectBuckets.maxLevelBonuses.length}
-					/>
-				)}
-
-				<div
-					style={{
-						marginTop: 12,
-						paddingTop: 10,
-						borderTop: `1px solid ${BASE.stroke}`,
-						display: "grid",
-						gap: 8,
-					}}
-				>
-					<div style={{ display: "grid", gap: 4 }}>
-						<span
-							style={{
-								fontFamily: "var(--nv-font-mono)",
-								fontSize: 8,
-								letterSpacing: "0.12em",
-								color: BASE.t3,
-								textTransform: "uppercase",
-							}}
-						>
-							Unlocks
-						</span>
-						{concealed ? (
-							<div style={{ fontSize: 11, color: BASE.t3 }}>Unlocks classified</div>
-						) : unlockItems.length > 0 ? (
-							unlockItems.map((effect) => (
-								<EffectRow
-									accent={accent}
-									effect={effect}
-									key={`${node.id}:effect:${effect.category}:${effect.title}:${effect.detail}`}
-								/>
-							))
-						) : (
-							<div style={{ fontSize: 11, color: BASE.t3 }}>No new unlocks</div>
-						)}
-					</div>
-
-					<div style={{ display: "grid", gap: 4 }}>
-						<span
-							style={{
-								fontFamily: "var(--nv-font-mono)",
-								fontSize: 8,
-								letterSpacing: "0.12em",
-								color: BASE.t3,
-								textTransform: "uppercase",
-							}}
-						>
-							Effects
-						</span>
-						{concealed ? (
-							<div style={{ fontSize: 11, color: BASE.t3 }}>Effects classified</div>
-						) : modifierItems.length > 0 ? (
-							modifierItems.map((effect) => (
-								<EffectRow
-									accent={accent}
-									effect={effect}
-									key={`${node.id}:effect:${effect.category}:${effect.title}:${effect.detail}`}
-								/>
-							))
-						) : (
-							<div style={{ fontSize: 11, color: BASE.t3 }}>No passive effects</div>
-						)}
-					</div>
-
-					{effectBuckets.maxLevelBonuses.length > 0 ? (
-						<div style={{ display: "grid", gap: 4 }}>
-							<span
-								style={{
-									fontFamily: "var(--nv-font-mono)",
-									fontSize: 8,
-									letterSpacing: "0.12em",
-									color: BASE.researching,
-									textTransform: "uppercase",
-								}}
-							>
-								Max Level Bonus
-							</span>
-							{effectBuckets.maxLevelBonuses.map((milestone) => (
-								<MilestoneEffectRow
-									key={`${node.id}:max:${milestone.raw}`}
-									milestone={milestone}
-									tone={BASE.researching}
-								/>
-							))}
-						</div>
-					) : null}
-
-					{effectBuckets.milestones.length > 0 ? (
-						<div style={{ display: "grid", gap: 4 }}>
-							<span
-								style={{
-									fontFamily: "var(--nv-font-mono)",
-									fontSize: 8,
-									letterSpacing: "0.12em",
-									color: colors.border,
-									textTransform: "uppercase",
-								}}
-							>
-								Level Milestones
-							</span>
-							{effectBuckets.milestones.map((milestone) => (
-								<MilestoneEffectRow
-									key={`${node.id}:milestone:${milestone.raw}`}
-									milestone={milestone}
-									tone={colors.border}
-								/>
-							))}
-						</div>
-					) : null}
-
-					{node.requirements.length > 0 ? (
-						<div style={{ display: "grid", gap: 4 }}>
-							<span
-								style={{
-									fontFamily: "var(--nv-font-mono)",
-									fontSize: 8,
-									letterSpacing: "0.12em",
-									color: BASE.t3,
-									textTransform: "uppercase",
-								}}
-							>
-								Requirements
-							</span>
-							{node.requirements.map((requirement) => (
-								<div
-									key={requirement.key}
+								<BasePopover.Close
 									style={{
+										width: 22,
+										height: 22,
+										borderRadius: 6,
+										border: `1px solid ${BASE.stroke}`,
+										background: "rgba(255,255,255,0.03)",
+										color: BASE.t3,
+										cursor: "pointer",
 										fontSize: 11,
-										color: requirement.met ? BASE.t2 : "#ff7a7a",
+									}}
+									type="button"
+								>
+									×
+								</BasePopover.Close>
+							</div>
+
+							<p
+								style={{
+									fontSize: 11,
+									lineHeight: 1.55,
+									color: locked ? BASE.t3 : BASE.t2,
+									margin: 0,
+								}}
+							>
+								{hidden
+									? "Further analysis required before this technology can be decrypted."
+									: node.description}
+							</p>
+
+							{hidden ? null : (
+								<LevelMeter
+									accent={accent}
+									level={node.level}
+									maxLevel={node.maxLevel}
+									maxLevelBonuses={effectBuckets.maxLevelBonuses.length}
+								/>
+							)}
+
+							<div
+								style={{
+									marginTop: 12,
+									paddingTop: 10,
+									borderTop: `1px solid ${BASE.stroke}`,
+									display: "grid",
+									gap: 8,
+								}}
+							>
+								<div style={{ display: "grid", gap: 4 }}>
+									<span
+										style={{
+											fontFamily: "var(--nv-font-mono)",
+											fontSize: 8,
+											letterSpacing: "0.12em",
+											color: BASE.t3,
+											textTransform: "uppercase",
+										}}
+									>
+										Unlocks
+									</span>
+									{concealed ? (
+										<div style={{ fontSize: 11, color: BASE.t3 }}>Unlocks classified</div>
+									) : unlockItems.length > 0 ? (
+										unlockItems.map((effect) => (
+											<EffectRow
+												accent={accent}
+												effect={effect}
+												key={`${node.id}:effect:${effect.category}:${effect.title}:${effect.detail}`}
+											/>
+										))
+									) : (
+										<div style={{ fontSize: 11, color: BASE.t3 }}>No new unlocks</div>
+									)}
+								</div>
+
+								<div style={{ display: "grid", gap: 4 }}>
+									<span
+										style={{
+											fontFamily: "var(--nv-font-mono)",
+											fontSize: 8,
+											letterSpacing: "0.12em",
+											color: BASE.t3,
+											textTransform: "uppercase",
+										}}
+									>
+										Effects
+									</span>
+									{concealed ? (
+										<div style={{ fontSize: 11, color: BASE.t3 }}>Effects classified</div>
+									) : modifierItems.length > 0 ? (
+										modifierItems.map((effect) => (
+											<EffectRow
+												accent={accent}
+												effect={effect}
+												key={`${node.id}:effect:${effect.category}:${effect.title}:${effect.detail}`}
+											/>
+										))
+									) : (
+										<div style={{ fontSize: 11, color: BASE.t3 }}>No passive effects</div>
+									)}
+								</div>
+
+								{effectBuckets.maxLevelBonuses.length > 0 ? (
+									<div style={{ display: "grid", gap: 4 }}>
+										<span
+											style={{
+												fontFamily: "var(--nv-font-mono)",
+												fontSize: 8,
+												letterSpacing: "0.12em",
+												color: BASE.researching,
+												textTransform: "uppercase",
+											}}
+										>
+											Max Level Bonus
+										</span>
+										{effectBuckets.maxLevelBonuses.map((milestone) => (
+											<MilestoneEffectRow
+												key={`${node.id}:max:${milestone.raw}`}
+												milestone={milestone}
+												tone={BASE.researching}
+											/>
+										))}
+									</div>
+								) : null}
+
+								{effectBuckets.milestones.length > 0 ? (
+									<div style={{ display: "grid", gap: 4 }}>
+										<span
+											style={{
+												fontFamily: "var(--nv-font-mono)",
+												fontSize: 8,
+												letterSpacing: "0.12em",
+												color: colors.border,
+												textTransform: "uppercase",
+											}}
+										>
+											Level Milestones
+										</span>
+										{effectBuckets.milestones.map((milestone) => (
+											<MilestoneEffectRow
+												key={`${node.id}:milestone:${milestone.raw}`}
+												milestone={milestone}
+												tone={colors.border}
+											/>
+										))}
+									</div>
+								) : null}
+
+								{node.requirements.length > 0 ? (
+									<div style={{ display: "grid", gap: 4 }}>
+										<span
+											style={{
+												fontFamily: "var(--nv-font-mono)",
+												fontSize: 8,
+												letterSpacing: "0.12em",
+												color: BASE.t3,
+												textTransform: "uppercase",
+											}}
+										>
+											Requirements
+										</span>
+										{node.requirements.map((requirement) => (
+											<div
+												key={requirement.key}
+												style={{
+													fontSize: 11,
+													color: requirement.met ? BASE.t2 : "#ff7a7a",
+												}}
+											>
+												{requirement.label}
+											</div>
+										))}
+									</div>
+								) : null}
+
+								<div
+									style={{
+										display: "grid",
+										gridTemplateColumns: "1fr auto",
+										gap: 6,
+										alignItems: "center",
 									}}
 								>
-									{requirement.label}
+									<span
+										style={{
+											fontFamily: "var(--nv-font-mono)",
+											fontSize: 8,
+											letterSpacing: "0.12em",
+											color: BASE.t3,
+											textTransform: "uppercase",
+										}}
+									>
+										Research Time
+									</span>
+									<span
+										style={{
+											fontSize: 11,
+											color: concealed ? BASE.t3 : isMaxed ? BASE.completed : BASE.t1,
+										}}
+									>
+										{disclosedCosts
+											? formatDuration(disclosedCosts.seconds)
+											: isMaxed
+												? "Complete"
+												: "Classified"}
+									</span>
 								</div>
-							))}
-						</div>
-					) : null}
 
-					<div
-						style={{
-							display: "grid",
-							gridTemplateColumns: "1fr auto",
-							gap: 6,
-							alignItems: "center",
-						}}
-					>
-						<span
-							style={{
-								fontFamily: "var(--nv-font-mono)",
-								fontSize: 8,
-								letterSpacing: "0.12em",
-								color: BASE.t3,
-								textTransform: "uppercase",
-							}}
-						>
-							Research Time
-						</span>
-						<span
-							style={{
-								fontSize: 11,
-								color: concealed ? BASE.t3 : isMaxed ? BASE.completed : BASE.t1,
-							}}
-						>
-							{disclosedCosts
-								? formatDuration(disclosedCosts.seconds)
-								: isMaxed
-									? "Complete"
-									: "Classified"}
-						</span>
-					</div>
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										justifyContent: "space-between",
+										gap: 10,
+									}}
+								>
+									<div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+										{disclosedCosts ? (
+											(["common", "rare", "mythic"] as const).map((rarity) => {
+												const amount = disclosedCosts.metaMatter[rarity];
+												if (!amount) return null;
 
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "space-between",
-							gap: 10,
-						}}
-					>
-						<div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-							{disclosedCosts ? (
-								(["common", "rare", "mythic"] as const).map((rarity) => {
-									const amount = disclosedCosts.metaMatter[rarity];
-									if (!amount) return null;
-
-									return (
-										<div key={rarity} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-											<img
-												alt={`${rarity} meta-matter`}
-												src={META_MATTER_ICON_SRC[rarity]}
-												style={{
-													width: 16,
-													height: 16,
-													objectFit: "contain",
-													filter: `drop-shadow(0 0 5px ${META_MATTER_COLORS[rarity]}44)`,
-												}}
-											/>
-											<span style={{ fontSize: 11, color: META_MATTER_COLORS[rarity] }}>
-												{fmt(amount)}
+												return (
+													<div
+														key={rarity}
+														style={{ display: "flex", alignItems: "center", gap: 4 }}
+													>
+														<img
+															alt={`${rarity} meta-matter`}
+															src={META_MATTER_ICON_SRC[rarity]}
+															style={{
+																width: 16,
+																height: 16,
+																objectFit: "contain",
+																filter: `drop-shadow(0 0 5px ${META_MATTER_COLORS[rarity]}44)`,
+															}}
+														/>
+														<span style={{ fontSize: 11, color: META_MATTER_COLORS[rarity] }}>
+															{fmt(amount)}
+														</span>
+													</div>
+												);
+											})
+										) : (
+											<span style={{ fontSize: 11, color: isMaxed ? BASE.completed : BASE.t3 }}>
+												{isMaxed ? "No further cost" : "Costs classified"}
 											</span>
-										</div>
-									);
-								})
-							) : (
-								<span style={{ fontSize: 11, color: isMaxed ? BASE.completed : BASE.t3 }}>
-									{isMaxed ? "No further cost" : "Costs classified"}
-								</span>
-							)}
-						</div>
+										)}
+									</div>
 
-						<button
-							disabled={actionDisabled}
-							onClick={onAction ?? undefined}
-							style={{
-								padding: "7px 10px",
-								borderRadius: 8,
-								border: `1px solid ${actionDisabled ? BASE.stroke : colors.border}55`,
-								background: actionDisabled ? "rgba(255,255,255,0.02)" : `${colors.border}14`,
-								color: actionDisabled ? BASE.t3 : colors.border,
-								cursor: actionDisabled ? "not-allowed" : "pointer",
-								fontFamily: "var(--nv-font-display)",
-								fontSize: 11,
-								fontWeight: 700,
-							}}
-							type="button"
-						>
-							{actionLabel}
-						</button>
-					</div>
-				</div>
-			</div>
-		</div>
+									<button
+										disabled={actionDisabled}
+										onClick={onAction ?? undefined}
+										style={{
+											padding: "7px 10px",
+											borderRadius: 8,
+											border: `1px solid ${actionDisabled ? BASE.stroke : colors.border}55`,
+											background: actionDisabled ? "rgba(255,255,255,0.02)" : `${colors.border}14`,
+											color: actionDisabled ? BASE.t3 : colors.border,
+											cursor: actionDisabled ? "not-allowed" : "pointer",
+											fontFamily: "var(--nv-font-display)",
+											fontSize: 11,
+											fontWeight: 700,
+										}}
+										type="button"
+									>
+										{actionLabel}
+									</button>
+								</div>
+							</div>
+						</div>
+					</BasePopover.Popup>
+				</BasePopover.Positioner>
+			</BasePopover.Portal>
+		</BasePopover.Root>
 	);
 }
 
@@ -2260,8 +2302,12 @@ function SecretSealPopover({
 	data,
 	x,
 	y,
+	collisionBoundary,
+	collisionPadding,
 	onClose,
 }: {
+	collisionBoundary: Element | null;
+	collisionPadding: { top: number; right: number; bottom: number; left: number };
 	data: SecretSealData;
 	x: number;
 	y: number;
@@ -2270,212 +2316,227 @@ function SecretSealPopover({
 	const { themeColor, tier, secretTitle, secretBody, secretEffect } = data;
 
 	return (
-		<div
-			style={{
-				position: "absolute",
-				left: x,
-				top: y,
-				zIndex: 65,
-				width: 310,
-				borderRadius: 12,
-				border: `1px solid ${themeColor}55`,
-				background: BASE.glass,
-				backdropFilter: "blur(28px)",
-				boxShadow: `0 20px 60px rgba(0,0,0,0.72), 0 0 36px ${themeColor}18, inset 0 0 24px ${themeColor}06`,
-				animation: "popIn 0.22s cubic-bezier(0.21,1,0.34,1)",
-				overflow: "hidden",
-			}}
-		>
-			{/* Top accent — full-brightness gradient in branch color */}
-			<div
-				style={{
-					height: 3,
-					background: `linear-gradient(90deg, transparent, ${themeColor}, ${themeColor}cc, transparent)`,
-				}}
-			/>
-
-			<div style={{ padding: "14px 16px 16px" }}>
-				{/* Classification header */}
-				<div
-					style={{
-						display: "flex",
-						justifyContent: "space-between",
-						alignItems: "center",
-						marginBottom: 12,
-					}}
+		<BasePopover.Root onOpenChange={(open) => !open && onClose()} open>
+			<BasePopover.Portal>
+				<BasePopover.Positioner
+					align="start"
+					anchor={pointAnchor(x, y)}
+					collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "end" }}
+					collisionBoundary={collisionBoundary ?? undefined}
+					collisionPadding={collisionPadding}
+					positionMethod="fixed"
+					side="right"
+					sideOffset={16}
+					style={{ zIndex: 65 }}
 				>
-					<div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-						{/* Radiant star icon */}
-						<svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-							<line
-								x1="10"
-								y1="1"
-								x2="10"
-								y2="19"
-								stroke={themeColor}
-								strokeWidth="1.8"
-								strokeLinecap="round"
-							/>
-							<line
-								x1="1"
-								y1="10"
-								x2="19"
-								y2="10"
-								stroke={themeColor}
-								strokeWidth="1.8"
-								strokeLinecap="round"
-							/>
-							<line
-								x1="3.2"
-								y1="3.2"
-								x2="16.8"
-								y2="16.8"
-								stroke={`${themeColor}99`}
-								strokeWidth="1.2"
-								strokeLinecap="round"
-							/>
-							<line
-								x1="16.8"
-								y1="3.2"
-								x2="3.2"
-								y2="16.8"
-								stroke={`${themeColor}99`}
-								strokeWidth="1.2"
-								strokeLinecap="round"
-							/>
-							<circle cx="10" cy="10" r="2.5" fill={themeColor} />
-						</svg>
-						<div>
-							<div
-								style={{
-									fontFamily: "var(--nv-font-mono)",
-									fontSize: 7.5,
-									color: themeColor,
-									letterSpacing: "0.22em",
-									textTransform: "uppercase",
-									fontWeight: 600,
-								}}
-							>
-								Tier {tier} — Mastery Unlocked
-							</div>
-							<div
-								style={{
-									fontFamily: "var(--nv-font-mono)",
-									fontSize: 6.5,
-									color: BASE.t3,
-									letterSpacing: "0.14em",
-									textTransform: "uppercase",
-									marginTop: 1,
-								}}
-							>
-								Classified protocol — decrypted
-							</div>
-						</div>
-					</div>
-
-					<button
-						onClick={onClose}
+					<BasePopover.Popup
+						finalFocus={false}
+						initialFocus={false}
 						style={{
-							width: 22,
-							height: 22,
-							borderRadius: 6,
-							border: `1px solid ${BASE.stroke}`,
-							background: "rgba(255,255,255,0.03)",
-							color: BASE.t3,
-							cursor: "pointer",
-							fontSize: 11,
-							flexShrink: 0,
-						}}
-						type="button"
-					>
-						×
-					</button>
-				</div>
-
-				{/* Divider */}
-				<div
-					style={{
-						height: 1,
-						background: `linear-gradient(90deg, ${themeColor}44, ${themeColor}18, transparent)`,
-						marginBottom: 12,
-					}}
-				/>
-
-				{/* Secret title */}
-				<div
-					style={{
-						fontFamily: "var(--nv-font-display)",
-						fontSize: 17,
-						fontWeight: 800,
-						color: BASE.t1,
-						letterSpacing: "0.04em",
-						marginBottom: 8,
-						textShadow: `0 0 18px ${themeColor}44`,
-					}}
-				>
-					{secretTitle}
-				</div>
-
-				{/* Secret body */}
-				<p
-					style={{
-						fontSize: 11,
-						lineHeight: 1.6,
-						color: BASE.t2,
-						margin: 0,
-						marginBottom: 12,
-					}}
-				>
-					{secretBody}
-				</p>
-
-				{/* Effect label */}
-				{secretEffect && (
-					<div
-						style={{
-							padding: "8px 10px",
-							borderRadius: 7,
-							border: `1px solid ${themeColor}35`,
-							background: `${themeColor}0c`,
-							display: "flex",
-							alignItems: "center",
-							gap: 8,
+							width: 310,
+							maxHeight: "var(--available-height)",
+							borderRadius: 12,
+							border: `1px solid ${themeColor}55`,
+							background: BASE.glass,
+							backdropFilter: "blur(28px)",
+							boxShadow: `0 20px 60px rgba(0,0,0,0.72), 0 0 36px ${themeColor}18, inset 0 0 24px ${themeColor}06`,
+							animation: "popoverOriginIn 0.22s cubic-bezier(0.21,1,0.34,1)",
+							overflowY: "auto",
+							transformOrigin: "var(--transform-origin)",
 						}}
 					>
-						{/* Small pulsing orb */}
+						{/* Top accent — full-brightness gradient in branch color */}
 						<div
 							style={{
-								width: 6,
-								height: 6,
-								borderRadius: "50%",
-								background: themeColor,
-								boxShadow: `0 0 8px ${themeColor}`,
-								animation: "pulseGlow 2.5s ease-in-out infinite",
-								flexShrink: 0,
+								height: 3,
+								background: `linear-gradient(90deg, transparent, ${themeColor}, ${themeColor}cc, transparent)`,
 							}}
 						/>
-						<span
-							style={{
-								fontFamily: "var(--nv-font-mono)",
-								fontSize: 10,
-								color: themeColor,
-								letterSpacing: "0.06em",
-							}}
-						>
-							{secretEffect}
-						</span>
-					</div>
-				)}
-			</div>
 
-			{/* Bottom accent line */}
-			<div
-				style={{
-					height: 1,
-					background: `linear-gradient(90deg, transparent, ${themeColor}30, transparent)`,
-				}}
-			/>
-		</div>
+						<div style={{ padding: "14px 16px 16px" }}>
+							{/* Classification header */}
+							<div
+								style={{
+									display: "flex",
+									justifyContent: "space-between",
+									alignItems: "center",
+									marginBottom: 12,
+								}}
+							>
+								<div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+									{/* Radiant star icon */}
+									<svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+										<line
+											x1="10"
+											y1="1"
+											x2="10"
+											y2="19"
+											stroke={themeColor}
+											strokeWidth="1.8"
+											strokeLinecap="round"
+										/>
+										<line
+											x1="1"
+											y1="10"
+											x2="19"
+											y2="10"
+											stroke={themeColor}
+											strokeWidth="1.8"
+											strokeLinecap="round"
+										/>
+										<line
+											x1="3.2"
+											y1="3.2"
+											x2="16.8"
+											y2="16.8"
+											stroke={`${themeColor}99`}
+											strokeWidth="1.2"
+											strokeLinecap="round"
+										/>
+										<line
+											x1="16.8"
+											y1="3.2"
+											x2="3.2"
+											y2="16.8"
+											stroke={`${themeColor}99`}
+											strokeWidth="1.2"
+											strokeLinecap="round"
+										/>
+										<circle cx="10" cy="10" r="2.5" fill={themeColor} />
+									</svg>
+									<div>
+										<div
+											style={{
+												fontFamily: "var(--nv-font-mono)",
+												fontSize: 7.5,
+												color: themeColor,
+												letterSpacing: "0.22em",
+												textTransform: "uppercase",
+												fontWeight: 600,
+											}}
+										>
+											Tier {tier} — Mastery Unlocked
+										</div>
+										<div
+											style={{
+												fontFamily: "var(--nv-font-mono)",
+												fontSize: 6.5,
+												color: BASE.t3,
+												letterSpacing: "0.14em",
+												textTransform: "uppercase",
+												marginTop: 1,
+											}}
+										>
+											Classified protocol — decrypted
+										</div>
+									</div>
+								</div>
+
+								<BasePopover.Close
+									style={{
+										width: 22,
+										height: 22,
+										borderRadius: 6,
+										border: `1px solid ${BASE.stroke}`,
+										background: "rgba(255,255,255,0.03)",
+										color: BASE.t3,
+										cursor: "pointer",
+										fontSize: 11,
+										flexShrink: 0,
+									}}
+									type="button"
+								>
+									×
+								</BasePopover.Close>
+							</div>
+
+							{/* Divider */}
+							<div
+								style={{
+									height: 1,
+									background: `linear-gradient(90deg, ${themeColor}44, ${themeColor}18, transparent)`,
+									marginBottom: 12,
+								}}
+							/>
+
+							{/* Secret title */}
+							<div
+								style={{
+									fontFamily: "var(--nv-font-display)",
+									fontSize: 17,
+									fontWeight: 800,
+									color: BASE.t1,
+									letterSpacing: "0.04em",
+									marginBottom: 8,
+									textShadow: `0 0 18px ${themeColor}44`,
+								}}
+							>
+								{secretTitle}
+							</div>
+
+							{/* Secret body */}
+							<p
+								style={{
+									fontSize: 11,
+									lineHeight: 1.6,
+									color: BASE.t2,
+									margin: 0,
+									marginBottom: 12,
+								}}
+							>
+								{secretBody}
+							</p>
+
+							{/* Effect label */}
+							{secretEffect && (
+								<div
+									style={{
+										padding: "8px 10px",
+										borderRadius: 7,
+										border: `1px solid ${themeColor}35`,
+										background: `${themeColor}0c`,
+										display: "flex",
+										alignItems: "center",
+										gap: 8,
+									}}
+								>
+									{/* Small pulsing orb */}
+									<div
+										style={{
+											width: 6,
+											height: 6,
+											borderRadius: "50%",
+											background: themeColor,
+											boxShadow: `0 0 8px ${themeColor}`,
+											animation: "pulseGlow 2.5s ease-in-out infinite",
+											flexShrink: 0,
+										}}
+									/>
+									<span
+										style={{
+											fontFamily: "var(--nv-font-mono)",
+											fontSize: 10,
+											color: themeColor,
+											letterSpacing: "0.06em",
+										}}
+									>
+										{secretEffect}
+									</span>
+								</div>
+							)}
+						</div>
+
+						{/* Bottom accent line */}
+						<div
+							style={{
+								height: 1,
+								background: `linear-gradient(90deg, transparent, ${themeColor}30, transparent)`,
+							}}
+						/>
+					</BasePopover.Popup>
+				</BasePopover.Positioner>
+			</BasePopover.Portal>
+		</BasePopover.Root>
 	);
 }
 
@@ -2851,6 +2912,7 @@ function InnerResearchImmersiveViewWithInsets({
 	const { screenToFlowPosition } = useReactFlow();
 	const viewport = useViewport();
 	const containerRef = useRef<HTMLDivElement>(null);
+	const [containerElement, setContainerElement] = useState<HTMLDivElement | null>(null);
 	const [hoveredBranch, setHoveredBranch] = useState<ResearchBranchKey | null>(null);
 	const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 	const [hoveredGate, setHoveredGate] = useState<HoveredGate | null>(null);
@@ -2863,6 +2925,10 @@ function InnerResearchImmersiveViewWithInsets({
 	} | null>(null);
 
 	const ditherColor = useDitherColor(hoveredBranch);
+	const setContainerRef = useCallback((element: HTMLDivElement | null) => {
+		containerRef.current = element;
+		setContainerElement(element);
+	}, []);
 
 	const hoveredTab = hoveredBranch
 		? (RESEARCH_TABS.find((tab) => tab.key === hoveredBranch) ?? null)
@@ -2917,6 +2983,9 @@ function InnerResearchImmersiveViewWithInsets({
 			if (!node.canStart || node.level >= node.maxLevel) {
 				return;
 			}
+			if (!hasEnoughMetaMatter(node.costs, balances)) {
+				return;
+			}
 			setActingOnResearchKey(node.id);
 			startResearch({
 				colonyId,
@@ -2933,7 +3002,7 @@ function InnerResearchImmersiveViewWithInsets({
 					setActingOnResearchKey(null);
 				});
 		},
-		[activeResearch?.queueItemId, cancelResearch, colonyId, startResearch],
+		[activeResearch, balances, cancelResearch, colonyId, startResearch],
 	);
 
 	const handleMouseMove = useCallback(
@@ -2991,46 +3060,23 @@ function InnerResearchImmersiveViewWithInsets({
 		setHoveredGate(null);
 	}, []);
 
-	const handleNodeClick = useCallback(
-		(event: React.MouseEvent, node: Node) => {
-			if (node.id === "hub_center") return;
-			const container = containerRef.current;
-			if (!container) return;
+	const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+		if (node.id === "hub_center") return;
+		const container = containerRef.current;
+		if (!container) return;
 
-			const rect = container.getBoundingClientRect();
+		// Secret seal node — special popover
+		if (node.type === "secretSeal") {
+			const sealData = node.data as SecretSealData;
+			setPopover(null);
+			setSealPopover({ data: sealData, x: event.clientX, y: event.clientY });
+			return;
+		}
 
-			// Secret seal node — special popover
-			if (node.type === "secretSeal") {
-				const sealData = node.data as SecretSealData;
-				let x = event.clientX - rect.left + 16;
-				let y = event.clientY - rect.top - 80;
-				if (x + 326 > rect.width) x = event.clientX - rect.left - 326;
-				if (y < hudInsetTop) y = hudInsetTop;
-				if (y + 420 > rect.height - hudInsetBottom) y = rect.height - hudInsetBottom - 420;
-				setPopover(null);
-				setSealPopover({ data: sealData, x, y });
-				return;
-			}
-
-			const data = node.data as AugNode;
-			const popoverWidth = 326;
-			const popoverHeight = 500;
-			let x = event.clientX - rect.left + 16;
-			let y = event.clientY - rect.top - 64;
-
-			if (x + popoverWidth + 12 > rect.width) {
-				x = event.clientX - rect.left - popoverWidth - 12;
-			}
-			if (y < hudInsetTop) y = hudInsetTop;
-			if (y + popoverHeight > rect.height - hudInsetBottom) {
-				y = Math.max(hudInsetTop, rect.height - hudInsetBottom - popoverHeight);
-			}
-
-			setSealPopover(null);
-			setPopover({ node: data, x, y });
-		},
-		[hudInsetBottom, hudInsetTop],
-	);
+		const data = node.data as AugNode;
+		setSealPopover(null);
+		setPopover({ node: data, x: event.clientX, y: event.clientY });
+	}, []);
 
 	const warningSummary = useMemo(() => {
 		if (POLAR_RESEARCH_LAYOUT.warnings.length === 0) return "layout clear";
@@ -3048,7 +3094,7 @@ function InnerResearchImmersiveViewWithInsets({
 
 	return (
 		<div
-			ref={containerRef}
+			ref={setContainerRef}
 			style={{
 				width: "100%",
 				height: "100%",
@@ -3307,13 +3353,15 @@ function InnerResearchImmersiveViewWithInsets({
 			</div>
 
 			{popover ? (
-				<Popover
+				<NodeInfoPopover
 					actionDisabled={
 						actingOnResearchKey === popover.node.id
 							? true
 							: popover.node.status === "researching"
 								? !activeResearch?.queueItemId
-								: popover.node.level >= popover.node.maxLevel || !popover.node.canStart
+								: popover.node.level >= popover.node.maxLevel ||
+									!popover.node.canStart ||
+									!hasEnoughMetaMatter(popover.node.costs, balances)
 					}
 					actionLabel={
 						actingOnResearchKey === popover.node.id
@@ -3334,6 +3382,13 @@ function InnerResearchImmersiveViewWithInsets({
 					onAction={() => {
 						handleResearchAction(popover.node);
 					}}
+					collisionBoundary={containerElement}
+					collisionPadding={{
+						top: hudInsetTop + 12,
+						right: hudInsetRight + 12,
+						bottom: hudInsetBottom + 12,
+						left: hudInsetLeft + 12,
+					}}
 					x={popover.x}
 					y={popover.y}
 					key={popover.node.id}
@@ -3347,6 +3402,13 @@ function InnerResearchImmersiveViewWithInsets({
 
 			{sealPopover ? (
 				<SecretSealPopover
+					collisionBoundary={containerElement}
+					collisionPadding={{
+						top: hudInsetTop + 12,
+						right: hudInsetRight + 12,
+						bottom: hudInsetBottom + 12,
+						left: hudInsetLeft + 12,
+					}}
 					data={sealPopover.data}
 					x={sealPopover.x}
 					y={sealPopover.y}
@@ -3360,6 +3422,10 @@ function InnerResearchImmersiveViewWithInsets({
         @keyframes popIn {
           from { opacity: 0; transform: scale(0.94) translateY(4px); }
           to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes popoverOriginIn {
+          from { opacity: 0; transform: scale(0.86); }
+          to   { opacity: 1; transform: scale(1); }
         }
         @keyframes pulseGlow {
           0%, 100% { opacity: 0.45; }

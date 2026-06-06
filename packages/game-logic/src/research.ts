@@ -1329,6 +1329,13 @@ const RESEARCH_TIER_COST_BASE = {
 
 const RESEARCH_LEVEL_COST_MULTIPLIERS = [1, 1.7, 2.8] as const;
 
+const RESEARCH_TIER_BALANCE_MULTIPLIERS = {
+	1: { metaMatter: 4, resources: 3, seconds: 10 },
+	2: { metaMatter: 8, resources: 4, seconds: 15 },
+	3: { metaMatter: 10, resources: 5, seconds: 20 },
+	4: { metaMatter: 10, resources: 5, seconds: 25 },
+} satisfies Record<1 | 2 | 3 | 4, { metaMatter: number; resources: number; seconds: number }>;
+
 export function makeResearchCosts(args: {
 	branch: ResearchBranchKey;
 	maxLevel: number;
@@ -1336,6 +1343,7 @@ export function makeResearchCosts(args: {
 	tier: 1 | 2 | 3 | 4;
 }): ResearchNodeCost[] {
 	const base = RESEARCH_TIER_COST_BASE[args.tier];
+	const tierMultipliers = RESEARCH_TIER_BALANCE_MULTIPLIERS[args.tier];
 	const weights = BRANCH_RESOURCE_WEIGHTS[args.branch];
 	const shapeMultiplier = args.shape === "capstone" ? 2 : 1;
 	const costs: ResearchNodeCost[] = [];
@@ -1350,17 +1358,31 @@ export function makeResearchCosts(args: {
 		for (const rarity of META_MATTER_RARITIES) {
 			const amount = baseMetaMatter[rarity];
 			if (typeof amount === "number" && amount > 0) {
-				metaMatter[rarity] = Math.max(1, Math.round(amount * multiplier));
+				metaMatter[rarity] = Math.max(
+					1,
+					Math.round(amount * multiplier * tierMultipliers.metaMatter),
+				);
 			}
 		}
 		costs.push({
 			metaMatter,
 			resources: {
-				alloy: Math.max(1, Math.round(base.resourcesTotal * weights.alloy * multiplier)),
-				crystal: Math.max(1, Math.round(base.resourcesTotal * weights.crystal * multiplier)),
-				fuel: Math.max(1, Math.round(base.resourcesTotal * weights.fuel * multiplier)),
+				alloy: Math.max(
+					1,
+					Math.round(base.resourcesTotal * weights.alloy * multiplier * tierMultipliers.resources),
+				),
+				crystal: Math.max(
+					1,
+					Math.round(
+						base.resourcesTotal * weights.crystal * multiplier * tierMultipliers.resources,
+					),
+				),
+				fuel: Math.max(
+					1,
+					Math.round(base.resourcesTotal * weights.fuel * multiplier * tierMultipliers.resources),
+				),
 			},
-			seconds: Math.max(1, Math.round(base.seconds * multiplier)),
+			seconds: Math.max(1, Math.round(base.seconds * multiplier * tierMultipliers.seconds)),
 		});
 	}
 	return costs;
@@ -2265,7 +2287,7 @@ function buildResearchTierThreeTree() {
 					tier: 2,
 					unlock: {
 						type: "all",
-						rules: [{ type: "metaMatterSpentTotal", amount: 50 }],
+						rules: [{ type: "metaMatterSpentTotal", amount: 200 }],
 					},
 					nodes: [
 						node({
@@ -2405,7 +2427,7 @@ function buildResearchTierThreeTree() {
 					unlock: {
 						type: "all",
 						rules: [
-							{ type: "metaMatterSpentTotal", amount: 250 },
+							{ type: "metaMatterSpentTotal", amount: 2_000 },
 							{ type: "metaMatterEarnedByRarity", rarity: "rare", amount: 25 },
 						],
 					},
