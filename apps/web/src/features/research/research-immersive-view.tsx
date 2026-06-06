@@ -26,6 +26,7 @@ import {
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { formatColonyDuration } from "@/features/colony-ui/time";
 import { META_MATTER_ICON_SRC } from "@/features/game-ui/meta-matter-assets";
 import {
 	edgesForNodes,
@@ -77,6 +78,37 @@ const GATE_RADII: Record<2 | 3 | 4, number> = {
 };
 
 const SECRET_SEAL_SIZE = 68;
+
+function getMonotonicNow() {
+	return typeof performance === "undefined" ? Date.now() : performance.now();
+}
+
+function useLiveServerNow(serverNow: number | undefined) {
+	const anchor = useMemo(
+		() => ({
+			monotonicNow: getMonotonicNow(),
+			serverNow: serverNow ?? 0,
+		}),
+		[serverNow],
+	);
+	const [monotonicNow, setMonotonicNow] = useState(getMonotonicNow);
+
+	useEffect(() => {
+		if (serverNow === undefined) {
+			return;
+		}
+
+		const intervalId = window.setInterval(() => {
+			setMonotonicNow(getMonotonicNow());
+		}, 1_000);
+
+		return () => {
+			window.clearInterval(intervalId);
+		};
+	}, [serverNow]);
+
+	return anchor.serverNow + Math.max(0, monotonicNow - anchor.monotonicNow);
+}
 
 const SHIP_ASSET_SLUGS: Record<ShipKey, string> = {
 	bomber: "bomber",
@@ -1844,10 +1876,10 @@ function Popover({
 }) {
 	const colors = statusColors(node.status, accent);
 	const hidden = node.visibility === "hidden";
-	const concealed = hidden || (node.visibility === "silhouette" && !node.canStart);
+	const unmetRequirements = node.requirements.filter((requirement) => !requirement.met);
+	const concealed = hidden || (node.visibility === "silhouette" && unmetRequirements.length > 0);
 	const locked = node.status === "locked" || hidden;
 	const disclosedCosts = concealed ? null : node.costs;
-	const unmetRequirements = node.requirements.filter((requirement) => !requirement.met);
 	const isMaxed = node.level >= node.maxLevel;
 	const isUpgraded = node.level > 0;
 	const effectBuckets = concealed
@@ -2840,7 +2872,7 @@ function InnerResearchImmersiveViewWithInsets({
 	const tierGatesByBranch = treeAndGates?.tierGatesByBranch ?? null;
 	const balances = researchState?.balances ?? META_MATTER_BALANCES;
 	const activeResearch = researchState?.activeResearch;
-	const serverNow = researchState?.serverNow ?? 0;
+	const liveServerNow = useLiveServerNow(researchState?.serverNow);
 	const activeTreeNode =
 		activeResearch && treeByBranch
 			? (Array.from(treeByBranch.values())
@@ -2852,14 +2884,14 @@ function InnerResearchImmersiveViewWithInsets({
 				0,
 				Math.min(
 					100,
-					((serverNow - activeResearch.startsAt) /
+					((liveServerNow - activeResearch.startsAt) /
 						Math.max(1, activeResearch.completesAt - activeResearch.startsAt)) *
 						100,
 				),
 			)
 		: 0;
 	const activeRemainingSeconds = activeResearch
-		? Math.max(0, Math.ceil((activeResearch.completesAt - serverNow) / 1_000))
+		? Math.max(0, Math.ceil((activeResearch.completesAt - liveServerNow) / 1_000))
 		: 0;
 
 	const handleResearchAction = useCallback(
@@ -3232,7 +3264,7 @@ function InnerResearchImmersiveViewWithInsets({
 					/>
 				</div>
 				<span style={{ fontFamily: "var(--nv-font-mono)", fontSize: 9, color: BASE.t3 }}>
-					{activeResearch ? formatDuration(activeRemainingSeconds) : "Ready"}
+					{activeResearch ? formatColonyDuration(activeRemainingSeconds, "seconds") : "Ready"}
 				</span>
 			</div>
 
