@@ -4425,6 +4425,13 @@ export function buildResearchModifierSnapshot(
 	return snapshot;
 }
 
+export function getEffectiveResearchDurationSeconds(args: {
+	baseSeconds: number;
+	researchDurationMultiplier: number;
+}) {
+	return Math.max(1, Math.round(args.baseSeconds * args.researchDurationMultiplier));
+}
+
 export function getResearchEffectSnapshot(levels: Partial<ResearchLevelMap> | undefined) {
 	return buildResearchModifierSnapshot(levels);
 }

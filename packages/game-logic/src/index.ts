@@ -77,6 +77,7 @@ export {
 	DEFAULT_RESEARCH_TREE,
 	describeResearchEffect,
 	emptyResearchTierUnlockContext,
+	getEffectiveResearchDurationSeconds,
 	getResearchBranch,
 	getResearchNode,
 	getResearchNodeRequirementStatuses,

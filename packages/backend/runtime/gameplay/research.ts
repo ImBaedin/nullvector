@@ -6,6 +6,7 @@ import {
 	getResearchNodeRequirementStatuses,
 	getResearchTierUnlockRequirementStatuses,
 	getResearchVisibility,
+	getEffectiveResearchDurationSeconds,
 	isResearchTierUnlockSatisfied,
 	rollMetaMatterBundle,
 	type MetaMatterBundle,
@@ -579,6 +580,7 @@ function buildResearchTreeView(args: {
 	activeResearchKey: string | null;
 	hasOpenResearch: boolean;
 	levels: ResearchLevelMap;
+	researchDurationMultiplier: number;
 	tierUnlockContext: ResearchTierUnlockContext;
 }) {
 	return DEFAULT_RESEARCH_BRANCHES.map((branch) => ({
@@ -655,7 +657,10 @@ function buildResearchTreeView(args: {
 										crystal: nextCost.resources?.crystal ?? 0,
 										fuel: nextCost.resources?.fuel ?? 0,
 									},
-									seconds: nextCost.seconds,
+									seconds: getEffectiveResearchDurationSeconds({
+										baseSeconds: nextCost.seconds,
+										researchDurationMultiplier: args.researchDurationMultiplier,
+									}),
 								}
 							: null,
 					};
@@ -805,6 +810,7 @@ export async function getResearchState(args: {
 		}),
 	]);
 	const levels = (state.levels ?? {}) as ResearchLevelMap;
+	const modifierSnapshot = buildResearchModifierSnapshot(levels);
 	const serverNow = Date.now();
 	return {
 		playerId: player._id,
@@ -818,6 +824,7 @@ export async function getResearchState(args: {
 			activeResearchKey: activeResearch?.status === "active" ? activeResearch.researchKey : null,
 			hasOpenResearch: activeResearch?.status === "active",
 			levels,
+			researchDurationMultiplier: modifierSnapshot.researchDurationMultiplier,
 			tierUnlockContext: researchFacts.tierUnlockContext,
 		}),
 		activeResearch: activeResearch
@@ -1022,10 +1029,10 @@ export const enqueue = mutation({
 			ctx,
 			now,
 		});
-		const durationSeconds = Math.max(
-			1,
-			Math.round(cost.seconds * modifierSnapshot.researchDurationMultiplier),
-		);
+		const durationSeconds = getEffectiveResearchDurationSeconds({
+			baseSeconds: cost.seconds,
+			researchDurationMultiplier: modifierSnapshot.researchDurationMultiplier,
+		});
 		const startsAt = now;
 		const completesAt = now + durationSeconds * 1000;
 		const queueItemId = await ctx.db.insert("playerResearchQueueItems", {

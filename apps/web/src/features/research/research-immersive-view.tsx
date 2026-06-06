@@ -29,6 +29,8 @@ import { toast } from "sonner";
 
 import { formatColonyDuration } from "@/features/colony-ui/time";
 import { META_MATTER_ICON_SRC } from "@/features/game-ui/meta-matter-assets";
+import { NvSwitch } from "@/features/game-ui/shell/settings-panel-primitives";
+import { useColonyDevConsole } from "@/features/game-ui/shell/use-colony-dev-console";
 import {
 	edgesForNodes,
 	type RadialEdge,
@@ -2821,7 +2823,10 @@ type ResearchStateBranch = {
 	}>;
 };
 
-function buildTreeByBranch(branches: ResearchStateBranch[] | undefined): {
+function buildTreeByBranch(
+	branches: ResearchStateBranch[] | undefined,
+	showEverything = false,
+): {
 	treeByBranch: TreeByBranch;
 	tierGatesByBranch: TierGatesByBranch;
 } | null {
@@ -2857,17 +2862,24 @@ function buildTreeByBranch(branches: ResearchStateBranch[] | undefined): {
 
 		const nodes: RadialNode[] = branch.tiers.flatMap((tier) => {
 			const tierNum = Math.max(1, Math.min(4, Math.floor(tier.tier))) as 1 | 2 | 3 | 4;
-			if (silhouetteTier !== null && tierNum > silhouetteTier) return [];
+			if (!showEverything && silhouetteTier !== null && tierNum > silhouetteTier) return [];
 
-			const isSilhouette = silhouetteTier !== null && tierNum === silhouetteTier;
+			const isSilhouette = !showEverything && silhouetteTier !== null && tierNum === silhouetteTier;
 			return tier.nodes.map((node) => ({
 				id: node.id,
 				name: node.name,
 				branch: branchKey,
 				tier: tierNum,
 				shape: node.layout.shape as RadialNode["shape"],
-				status: isSilhouette ? ("locked" as const) : node.status,
-				visibility: isSilhouette ? ("silhouette" as const) : node.visibility,
+				status:
+					isSilhouette || (showEverything && node.status === "hidden")
+						? ("locked" as const)
+						: node.status,
+				visibility: showEverything
+					? ("visible" as const)
+					: isSilhouette
+						? ("silhouette" as const)
+						: node.visibility,
 				canStart: isSilhouette ? false : node.canStart,
 				position: node.position,
 				prerequisites: node.prerequisites,
@@ -2913,6 +2925,8 @@ function InnerResearchImmersiveViewWithInsets({
 	hudInsetTop = 16,
 }: ResearchImmersiveViewProps) {
 	const { isAuthenticated } = useConvexAuth();
+	const devConsole = useColonyDevConsole(colonyId ?? null);
+	const [showEverything, setShowEverything] = useState(false);
 	const startResearch = useMutation(api.research.enqueue).withOptimisticUpdate(
 		(localStore, mutationArgs) => {
 			const state = localStore.getQuery(api.research.getState, {
@@ -2991,7 +3005,11 @@ function InnerResearchImmersiveViewWithInsets({
 	const hoveredTab = hoveredBranch
 		? (RESEARCH_TABS.find((tab) => tab.key === hoveredBranch) ?? null)
 		: null;
-	const treeAndGates = useMemo(() => buildTreeByBranch(researchState?.tree), [researchState?.tree]);
+	const developerRevealEnabled = devConsole.canUseDevConsole && showEverything;
+	const treeAndGates = useMemo(
+		() => buildTreeByBranch(researchState?.tree, developerRevealEnabled),
+		[developerRevealEnabled, researchState?.tree],
+	);
 	const treeByBranch = treeAndGates?.treeByBranch ?? null;
 	const tierGatesByBranch = treeAndGates?.tierGatesByBranch ?? null;
 	const balances = researchState?.balances ?? META_MATTER_BALANCES;
@@ -3232,33 +3250,67 @@ function InnerResearchImmersiveViewWithInsets({
 					left: hudInsetLeft,
 					zIndex: 10,
 					display: "flex",
-					alignItems: "baseline",
-					gap: 8,
+					flexDirection: "column",
+					alignItems: "flex-start",
+					gap: 7,
 				}}
 			>
-				<span
-					style={{
-						fontFamily: "var(--nv-font-display)",
-						fontSize: 13,
-						fontWeight: 800,
-						color: hoveredTab?.themeColor ?? "rgba(200,220,255,0.68)",
-						textShadow: hoveredTab ? `0 0 18px ${hoveredTab.themeColor}44` : "none",
-						transition: "color 0.3s, text-shadow 0.3s",
-					}}
-				>
-					RESEARCH
-				</span>
-				<span
-					style={{
-						fontFamily: "var(--nv-font-mono)",
-						fontSize: 8,
-						color: BASE.t3,
-						letterSpacing: "0.12em",
-						textTransform: "uppercase",
-					}}
-				>
-					{hoveredTab ? hoveredTab.label : "Polar progression grid · live research data"}
-				</span>
+				<div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+					<span
+						style={{
+							fontFamily: "var(--nv-font-display)",
+							fontSize: 13,
+							fontWeight: 800,
+							color: hoveredTab?.themeColor ?? "rgba(200,220,255,0.68)",
+							textShadow: hoveredTab ? `0 0 18px ${hoveredTab.themeColor}44` : "none",
+							transition: "color 0.3s, text-shadow 0.3s",
+						}}
+					>
+						RESEARCH
+					</span>
+					<span
+						style={{
+							fontFamily: "var(--nv-font-mono)",
+							fontSize: 8,
+							color: BASE.t3,
+							letterSpacing: "0.12em",
+							textTransform: "uppercase",
+						}}
+					>
+						{hoveredTab ? hoveredTab.label : "Polar progression grid · live research data"}
+					</span>
+				</div>
+				{devConsole.canUseDevConsole ? (
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: 7,
+							padding: "5px 8px",
+							borderRadius: 6,
+							background: BASE.glass,
+							border: `1px solid ${BASE.researching}33`,
+							backdropFilter: "blur(10px)",
+						}}
+					>
+						<NvSwitch
+							ariaLabel="Show all research"
+							checked={showEverything}
+							onCheckedChange={setShowEverything}
+						/>
+						<span
+							style={{
+								fontFamily: "var(--nv-font-mono)",
+								fontSize: 8,
+								color: developerRevealEnabled ? BASE.researching : BASE.t2,
+								letterSpacing: "0.08em",
+								textTransform: "uppercase",
+							}}
+						>
+							Dev: Show everything
+						</span>
+					</div>
+				) : null}
 			</div>
 
 			<div

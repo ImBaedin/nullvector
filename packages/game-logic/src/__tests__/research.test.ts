@@ -5,6 +5,7 @@ import {
 	buildResearchModifierSnapshot,
 	canResearchNodeStart,
 	DEFAULT_RESEARCH_TREE,
+	getEffectiveResearchDurationSeconds,
 	getResearchVisibility,
 	getResearchTier,
 	isDefenseUnlocked,
@@ -57,6 +58,19 @@ test("research effect stacking multiplies modifiers and adds cap bonuses", () =>
 	expect(snapshot.resourceProductionMultipliers.alloy).toBeCloseTo(1.06 * 1.06 * 1.06, 5);
 	expect(snapshot.buildingMaxLevelBonuses.alloyMineLevel).toBe(5);
 	expect(snapshot.facilityMaxLevelBonuses.robotics_hub).toBe(2);
+});
+
+test("research durations apply the current duration reduction", () => {
+	const snapshot = buildResearchModifierSnapshot({
+		archiveCompression: 2,
+	});
+
+	expect(
+		getEffectiveResearchDurationSeconds({
+			baseSeconds: 1_800,
+			researchDurationMultiplier: snapshot.researchDurationMultiplier,
+		}),
+	).toBe(1_590);
 });
 
 test("research start checks prerequisites and research network size", () => {
