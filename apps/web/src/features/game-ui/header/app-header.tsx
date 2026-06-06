@@ -165,9 +165,9 @@ export function AppHeader({
 										NullVector
 									</p>
 									<p className={cn(`
-             truncate font-(family-name:--nv-font-display) font-bold text-white
-             transition-all
-           `, isCompact ? "text-sm" : "text-[15px]")}>{headerTitle}</p>
+           truncate font-(family-name:--nv-font-display) font-bold text-white
+           transition-all
+         `, isCompact ? "text-sm" : "text-[15px]")}>{headerTitle}</p>
 								</div>
 							)}
 						</div>
@@ -206,9 +206,9 @@ export function AppHeader({
          border-emerald-300/40 text-emerald-50
          shadow-[0_0_16px_rgba(52,211,153,0.18)]
        ` : `
-           border-white/12 bg-white/4 text-white/60
-           hover:border-emerald-300/30 hover:text-emerald-100
-         `, isCompact ? "h-8" : "h-9")} onClick={handleResearchToggle} type="button">
+         border-white/12 bg-white/4 text-white/60
+         hover:border-emerald-300/30 hover:text-emerald-100
+       `, isCompact ? "h-8" : "h-9")} onClick={handleResearchToggle} type="button">
 								<ResearchDitherBg />
 								<FlaskConical
 									className="relative z-10 size-3.5"

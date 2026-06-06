@@ -1,7 +1,7 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import "@/features/game-ui/theme";
-import { Outlet, createFileRoute } from "@tanstack/react-router";
+import { Navigate, Outlet, createFileRoute } from "@tanstack/react-router";
 import { Activity } from "react";
 
 import {
@@ -42,7 +42,7 @@ function ColonyLayoutRoute() {
 function ColonyLayoutContent() {
 	const { colonyId } = Route.useParams();
 	const colonyIdAsId = colonyId as Id<"colonies">;
-	const { isAuthenticated } = useConvexAuth();
+	const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
 	const { pickerRequest } = useColonyStarMapPicker();
 	const layout = useColonyLayoutController({
 		pickerRequested: Boolean(pickerRequest),
@@ -51,6 +51,14 @@ function ColonyLayoutContent() {
 	const outletTransitionClass = layout.shouldCollapseContent
 		? "pointer-events-none -translate-y-3 opacity-0"
 		: "translate-y-0 opacity-100";
+
+	if (isAuthLoading) {
+		return null;
+	}
+
+	if (!isAuthenticated) {
+		return <Navigate to="/" replace />;
+	}
 
 	return (
 		<QuestProgressProvider activeColonyId={colonyIdAsId}>

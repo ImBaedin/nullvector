@@ -224,9 +224,9 @@ export function ColonySwitcher({
 						</p>
 						<div className="flex items-center gap-1">
 							<span className={cn(`
-           truncate font-(family-name:--nv-font-display) font-bold text-white
-           transition-colors
-         `, "group-hover:text-cyan-50", isCompact ? "text-sm" : "text-[15px]")}>{activeColony?.name ?? "Select colony"}</span>
+         truncate font-(family-name:--nv-font-display) font-bold text-white
+         transition-colors
+       `, "group-hover:text-cyan-50", isCompact ? "text-sm" : "text-[15px]")}>{activeColony?.name ?? "Select colony"}</span>
 							<ChevronDown
 								className={cn(
 									"size-3 shrink-0 text-white/30 transition-transform",

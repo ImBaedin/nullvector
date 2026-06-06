@@ -477,11 +477,11 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
             ` : `border-white/6 bg-black/20`}
           `}>
 											<img alt={`${facility.name} render`} className={`
-              size-full
-              object-contain${isMaxLevel ? `
-                drop-shadow-[0_0_6px_rgba(251,191,36,0.35)]
-              ` : ""}
-            `} src={visual.image} />
+             size-full
+             object-contain${isMaxLevel ? `
+               drop-shadow-[0_0_6px_rgba(251,191,36,0.35)]
+             ` : ""}
+           `} src={visual.image} />
 										</div>
 									</div>
 
@@ -497,17 +497,13 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
             `}
           `}>
 											<p className={`
-              text-[7px] tracking-widest uppercase
-              ${isMaxLevel ? `text-amber-200/35` : `
-              text-white/30
-            `}
-            `}>Level</p>
+             text-[7px] tracking-widest uppercase
+             ${isMaxLevel ? `text-amber-200/35` : `text-white/30`}
+           `}>Level</p>
 											<p className={`
-              mt-0.5 font-(family-name:--nv-font-mono) text-[10px] font-bold
-              ${isMaxLevel ? `text-amber-200/80` : `
-              text-white/80
-            `}
-            `}>{facility.currentLevel}</p>
+             mt-0.5 font-(family-name:--nv-font-mono) text-[10px] font-bold
+             ${isMaxLevel ? `text-amber-200/80` : `text-white/80`}
+           `}>{facility.currentLevel}</p>
 										</div>
 										<div className={`
             rounded-lg border px-2 py-1.5 text-center
@@ -516,17 +512,13 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
             `}
           `}>
 											<p className={`
-              text-[7px] tracking-widest uppercase
-              ${isMaxLevel ? `text-amber-200/35` : `
-              text-white/30
-            `}
-            `}>{isMaxLevel ? "Cap" : "Build Time"}</p>
+             text-[7px] tracking-widest uppercase
+             ${isMaxLevel ? `text-amber-200/35` : `text-white/30`}
+           `}>{isMaxLevel ? "Cap" : "Build Time"}</p>
 											<p className={`
-              mt-0.5 font-(family-name:--nv-font-mono) text-[10px] font-bold
-              ${isMaxLevel ? `text-amber-200/80` : `
-              text-white/80
-            `}
-            `}>{isMaxLevel ? facility.maxLevel : (durationLabel ?? "—")}</p>
+             mt-0.5 font-(family-name:--nv-font-mono) text-[10px] font-bold
+             ${isMaxLevel ? `text-amber-200/80` : `text-white/80`}
+           `}>{isMaxLevel ? facility.maxLevel : (durationLabel ?? "—")}</p>
 										</div>
 									</div>
 
@@ -534,9 +526,9 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 										<div className="mt-3 border-t border-amber-400/10 pt-3">
 											<div
 												className="
-             relative overflow-hidden rounded-xl border border-amber-400/20
-             bg-linear-to-b from-amber-400/8 to-amber-400/3 px-3 py-2.5
-           "
+              relative overflow-hidden rounded-xl border border-amber-400/20
+              bg-linear-to-b from-amber-400/8 to-amber-400/3 px-3 py-2.5
+            "
 											>
 												<div
 													className="pointer-events-none absolute inset-x-0 top-0 h-px"
@@ -550,30 +542,30 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 														<span className="relative flex size-1.5 shrink-0">
 															<span
 																className="
-                 absolute inline-flex size-full animate-ping rounded-full
-                 bg-amber-400/60 opacity-75
-               "
+                  absolute inline-flex size-full animate-ping rounded-full
+                  bg-amber-400/60 opacity-75
+                "
 															/>
 															<span
 																className="
-                 relative inline-flex size-1.5 rounded-full bg-amber-300
-               "
+                  relative inline-flex size-1.5 rounded-full bg-amber-300
+                "
 															/>
 														</span>
 														<span
 															className="
-                font-(family-name:--nv-font-display) text-[9px] font-bold
-                tracking-widest text-amber-200/80 uppercase
-              "
+                 font-(family-name:--nv-font-display) text-[9px] font-bold
+                 tracking-widest text-amber-200/80 uppercase
+               "
 														>
 															{isOneTimeOnly ? "Established" : "Operational"}
 														</span>
 													</div>
 													<span
 														className="
-               font-(family-name:--nv-font-mono) text-[10px] font-semibold
-               text-amber-200/50
-             "
+                font-(family-name:--nv-font-mono) text-[10px] font-semibold
+                text-amber-200/50
+              "
 													>
 														{facility.currentLevel} / {facility.maxLevel}
 													</span>
