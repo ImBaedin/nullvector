@@ -271,18 +271,10 @@ export function AppHeader({
 													(progressionOverview.xpToNextRank ?? 0);
 												return (
 													<>
-														<p
-															className="
-                text-[8px] tracking-[0.12em] text-white/25 uppercase
-              "
-														>
+														<p className="text-[8px] tracking-[0.12em] text-white/25 uppercase">
 															XP
 														</p>
-														<div
-															className="
-                mt-1 h-1.5 overflow-hidden rounded-full bg-white/8
-              "
-														>
+														<div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/8">
 															<div
 																className="
                   h-full rounded-full

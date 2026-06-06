@@ -70,10 +70,12 @@ export {
 } from "./defenses";
 export {
 	AUTHORED_RESEARCH_BRANCHES,
+	buildResearchEffectLabels,
 	buildResearchModifierSnapshot,
 	canResearchNodeStart,
 	DEFAULT_RESEARCH_BRANCHES,
 	DEFAULT_RESEARCH_TREE,
+	describeResearchEffect,
 	emptyResearchTierUnlockContext,
 	getResearchBranch,
 	getResearchNode,

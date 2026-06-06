@@ -80,35 +80,20 @@ const GATE_RADII: Record<2 | 3 | 4, number> = {
 
 const SECRET_SEAL_SIZE = 68;
 
-function getMonotonicNow() {
-	return typeof performance === "undefined" ? Date.now() : performance.now();
-}
-
-function useLiveServerNow(serverNow: number | undefined) {
-	const anchor = useMemo(
-		() => ({
-			monotonicNow: getMonotonicNow(),
-			serverNow: serverNow ?? 0,
-		}),
-		[serverNow],
-	);
-	const [monotonicNow, setMonotonicNow] = useState(getMonotonicNow);
+function useLiveNow() {
+	const [nowMs, setNowMs] = useState(Date.now);
 
 	useEffect(() => {
-		if (serverNow === undefined) {
-			return;
-		}
-
 		const intervalId = window.setInterval(() => {
-			setMonotonicNow(getMonotonicNow());
+			setNowMs(Date.now());
 		}, 1_000);
 
 		return () => {
 			window.clearInterval(intervalId);
 		};
-	}, [serverNow]);
+	}, []);
 
-	return anchor.serverNow + Math.max(0, monotonicNow - anchor.monotonicNow);
+	return nowMs;
 }
 
 const SHIP_ASSET_SLUGS: Record<ShipKey, string> = {
@@ -1376,6 +1361,24 @@ function isDefenseKey(value: string): value is DefenseKey {
 	return value in DEFAULT_DEFENSE_DEFINITIONS;
 }
 
+function resolveShipKey(value: string): ShipKey | null {
+	if (isShipKey(value)) return value;
+	return (
+		(Object.entries(DEFAULT_SHIP_DEFINITIONS).find(
+			([, definition]) => definition.name === value,
+		)?.[0] as ShipKey | undefined) ?? null
+	);
+}
+
+function resolveDefenseKey(value: string): DefenseKey | null {
+	if (isDefenseKey(value)) return value;
+	return (
+		(Object.entries(DEFAULT_DEFENSE_DEFINITIONS).find(
+			([, definition]) => definition.name === value,
+		)?.[0] as DefenseKey | undefined) ?? null
+	);
+}
+
 function shipImageSrc(shipKey: ShipKey) {
 	return `/game-icons/ships/${SHIP_ASSET_SLUGS[shipKey]}.png`;
 }
@@ -1437,18 +1440,20 @@ function splitNodeEffectBuckets(effects: string[], maxLevel: number): NodeEffect
 }
 
 function getEffectPresentation(effect: string, accent: string): EffectPresentation {
+	const normalizedEffect = effect.toLowerCase();
 	const shipUnlock = effect.match(/^Unlock ship: (.+)$/);
 	if (shipUnlock) {
 		const rawShipKey = shipUnlock[1] ?? "";
-		if (isShipKey(rawShipKey)) {
-			const ship = DEFAULT_SHIP_DEFINITIONS[rawShipKey];
+		const shipKey = resolveShipKey(rawShipKey);
+		if (shipKey) {
+			const ship = DEFAULT_SHIP_DEFINITIONS[shipKey];
 			return {
 				title: `Unlock ${ship.name}`,
 				detail: `${ship.role === "combat" ? "Combat hull" : "Fleet hull"} · ${ship.attack} atk · ${ship.hull} hull · Shipyard ${ship.requiredShipyardLevel}`,
 				category: "Shipyard",
 				group: "unlock",
 				tone: BASE.available,
-				imageSrc: shipImageSrc(rawShipKey),
+				imageSrc: shipImageSrc(shipKey),
 				imageAlt: ship.name,
 			};
 		}
@@ -1465,15 +1470,16 @@ function getEffectPresentation(effect: string, accent: string): EffectPresentati
 	const defenseUnlock = effect.match(/^Unlock defense: (.+)$/);
 	if (defenseUnlock) {
 		const rawDefenseKey = defenseUnlock[1] ?? "";
-		if (isDefenseKey(rawDefenseKey)) {
-			const defense = DEFAULT_DEFENSE_DEFINITIONS[rawDefenseKey];
+		const defenseKey = resolveDefenseKey(rawDefenseKey);
+		if (defenseKey) {
+			const defense = DEFAULT_DEFENSE_DEFINITIONS[defenseKey];
 			return {
 				title: `Unlock ${defense.name}`,
 				detail: `${defense.attack} atk · ${defense.shield} shield · ${defense.hull} hull · Grid ${defense.requiredDefenseGridLevel}`,
 				category: "Defense Grid",
 				group: "unlock",
 				tone: BASE.researching,
-				imageSrc: defenseImageSrc(rawDefenseKey),
+				imageSrc: defenseImageSrc(defenseKey),
 				imageAlt: defense.name,
 			};
 		}
@@ -1526,7 +1532,7 @@ function getEffectPresentation(effect: string, accent: string): EffectPresentati
 		};
 	}
 
-	if (effect.includes("meta-matter")) {
+	if (normalizedEffect.includes("meta-matter")) {
 		return {
 			title: effect,
 			detail: "Improves contract and research material yield.",
@@ -1539,10 +1545,10 @@ function getEffectPresentation(effect: string, accent: string): EffectPresentati
 	}
 
 	if (
-		effect.includes("production") ||
-		effect.includes("storage") ||
-		effect.includes("colony") ||
-		effect.includes("charter")
+		normalizedEffect.includes("production") ||
+		normalizedEffect.includes("storage") ||
+		normalizedEffect.includes("colony") ||
+		normalizedEffect.includes("charter")
 	) {
 		return {
 			title: effect,
@@ -1555,11 +1561,11 @@ function getEffectPresentation(effect: string, accent: string): EffectPresentati
 	}
 
 	if (
-		effect.includes("duration") ||
-		effect.includes("time") ||
-		effect.includes("fuel") ||
-		effect.includes("speed") ||
-		effect.includes("cargo")
+		normalizedEffect.includes("duration") ||
+		normalizedEffect.includes("time") ||
+		normalizedEffect.includes("fuel") ||
+		normalizedEffect.includes("speed") ||
+		normalizedEffect.includes("cargo")
 	) {
 		return {
 			title: effect,
@@ -1571,7 +1577,11 @@ function getEffectPresentation(effect: string, accent: string): EffectPresentati
 		};
 	}
 
-	if (effect.includes("queue") || effect.includes("slot") || effect.includes("max")) {
+	if (
+		normalizedEffect.includes("queue") ||
+		normalizedEffect.includes("slot") ||
+		normalizedEffect.includes("max")
+	) {
 		return {
 			title: effect,
 			detail: "Raises a limit or expands an account capability.",
@@ -2903,7 +2913,55 @@ function InnerResearchImmersiveViewWithInsets({
 	hudInsetTop = 16,
 }: ResearchImmersiveViewProps) {
 	const { isAuthenticated } = useConvexAuth();
-	const startResearch = useMutation(api.research.enqueue);
+	const startResearch = useMutation(api.research.enqueue).withOptimisticUpdate(
+		(localStore, mutationArgs) => {
+			const state = localStore.getQuery(api.research.getState, {
+				colonyId: mutationArgs.colonyId,
+			});
+			if (!state || state.activeResearch) {
+				return;
+			}
+			const node = state.tree
+				.flatMap((branch) => branch.tiers)
+				.flatMap((tier) => tier.nodes)
+				.find((candidate) => candidate.id === mutationArgs.researchKey);
+			if (!node?.nextCost) {
+				return;
+			}
+			const startsAt = Date.now();
+			localStore.setQuery(
+				api.research.getState,
+				{ colonyId: mutationArgs.colonyId },
+				{
+					...state,
+					serverNow: startsAt,
+					tree: state.tree.map((branch) => ({
+						...branch,
+						tiers: branch.tiers.map((tier) => ({
+							...tier,
+							nodes: tier.nodes.map((candidate) =>
+								candidate.id === mutationArgs.researchKey
+									? { ...candidate, canStart: false, status: "researching" as const }
+									: candidate,
+							),
+						})),
+					})),
+					activeResearch: {
+						queueItemId: "optimistic-research" as Id<"playerResearchQueueItems">,
+						researchKey: node.id,
+						fromLevel: node.level,
+						toLevel: node.level + 1,
+						status: "active" as const,
+						queuedAt: startsAt,
+						startsAt,
+						completesAt: startsAt + node.nextCost.seconds * 1_000,
+						costMetaMatter: node.nextCost.metaMatter,
+						costResources: node.nextCost.resources,
+					},
+				},
+			);
+		},
+	);
 	const cancelResearch = useMutation(api.research.cancel);
 	const researchState = useQuery(
 		api.research.getState,
@@ -2938,7 +2996,7 @@ function InnerResearchImmersiveViewWithInsets({
 	const tierGatesByBranch = treeAndGates?.tierGatesByBranch ?? null;
 	const balances = researchState?.balances ?? META_MATTER_BALANCES;
 	const activeResearch = researchState?.activeResearch;
-	const liveServerNow = useLiveServerNow(researchState?.serverNow);
+	const liveNow = useLiveNow();
 	const activeTreeNode =
 		activeResearch && treeByBranch
 			? (Array.from(treeByBranch.values())
@@ -2950,14 +3008,14 @@ function InnerResearchImmersiveViewWithInsets({
 				0,
 				Math.min(
 					100,
-					((liveServerNow - activeResearch.startsAt) /
+					((liveNow - activeResearch.startsAt) /
 						Math.max(1, activeResearch.completesAt - activeResearch.startsAt)) *
 						100,
 				),
 			)
 		: 0;
 	const activeRemainingSeconds = activeResearch
-		? Math.max(0, Math.ceil((activeResearch.completesAt - liveServerNow) / 1_000))
+		? Math.max(0, Math.ceil((activeResearch.completesAt - liveNow) / 1_000))
 		: 0;
 
 	const handleResearchAction = useCallback(

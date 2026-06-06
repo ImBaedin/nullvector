@@ -16,6 +16,47 @@ export type ColonyCharterKey = "industrial" | "refinery" | "research" | "naval" 
 export type IndustrialFocusKey = "alloy" | "crystal" | "fuel";
 export type RouteClass = "local" | "interSystem" | "interSector" | "interGalactic";
 
+const BUILDING_LABELS = {
+	alloyMineLevel: "Alloy Mine",
+	crystalMineLevel: "Crystal Mine",
+	fuelRefineryLevel: "Fuel Refinery",
+	powerPlantLevel: "Power Plant",
+	alloyStorageLevel: "Alloy Storage",
+	crystalStorageLevel: "Crystal Storage",
+	fuelStorageLevel: "Fuel Storage",
+} satisfies Record<BuildingKey, string>;
+
+const FACILITY_LABELS = {
+	robotics_hub: "Robotics Hub",
+	shipyard: "Shipyard",
+	defense_grid: "Defense Grid",
+	research_directorate: "Research Directorate",
+} satisfies Record<FacilityKey, string>;
+
+const SHIP_LABELS = {
+	smallCargo: "Small Cargo",
+	largeCargo: "Large Cargo",
+	colonyShip: "Colony Ship",
+	interceptor: "Interceptor",
+	frigate: "Frigate",
+	cruiser: "Cruiser",
+	bomber: "Bomber",
+} satisfies Record<ShipKey, string>;
+
+const DEFENSE_LABELS = {
+	missileBattery: "Missile Battery",
+	laserTurret: "Laser Turret",
+	gaussCannon: "Gauss Cannon",
+	shieldDome: "Shield Dome",
+} satisfies Record<DefenseKey, string>;
+
+const ROUTE_CLASS_LABELS = {
+	local: "local",
+	interSystem: "inter-system",
+	interSector: "inter-sector",
+	interGalactic: "intergalactic",
+} satisfies Record<RouteClass, string>;
+
 export type ResearchEffect =
 	| { kind: "unlock_ship"; shipKey: ShipKey }
 	| { kind: "unlock_defense"; defenseKey: DefenseKey }
@@ -1555,10 +1596,6 @@ function buildResearchTierThreeTree() {
 								[{ kind: "resource_production_multiplier", resource: "alloy", multiplier: 1.06 }],
 								[{ kind: "resource_production_multiplier", resource: "alloy", multiplier: 1.06 }],
 							],
-							effectLabels: [
-								"Alloy production +6% per level",
-								"Level 3 prepares future alloy boost buildings",
-							],
 						}),
 						node({
 							branch: "appliedIndustry",
@@ -1574,10 +1611,6 @@ function buildResearchTierThreeTree() {
 								[{ kind: "resource_production_multiplier", resource: "crystal", multiplier: 1.06 }],
 								[{ kind: "resource_production_multiplier", resource: "crystal", multiplier: 1.06 }],
 							],
-							effectLabels: [
-								"Crystal production +6% per level",
-								"Level 3 prepares future crystal boost buildings",
-							],
 						}),
 						node({
 							branch: "appliedIndustry",
@@ -1592,10 +1625,6 @@ function buildResearchTierThreeTree() {
 								[{ kind: "resource_production_multiplier", resource: "fuel", multiplier: 1.06 }],
 								[{ kind: "resource_production_multiplier", resource: "fuel", multiplier: 1.06 }],
 								[{ kind: "resource_production_multiplier", resource: "fuel", multiplier: 1.06 }],
-							],
-							effectLabels: [
-								"Fuel production +6% per level",
-								"Level 3 prepares future fuel boost buildings",
 							],
 						}),
 					],
@@ -1989,10 +2018,6 @@ function buildResearchTierThreeTree() {
 								[{ kind: "contract_dispatch_fuel_multiplier", multiplier: 0.9 }],
 								[{ kind: "contract_dispatch_fuel_multiplier", multiplier: 0.9 }],
 							],
-							effectLabels: [
-								"Contract dispatch fuel -10% per level",
-								"Level 2 improves recommendation safety margins",
-							],
 						}),
 						node({
 							branch: "militarySystems",
@@ -2246,10 +2271,6 @@ function buildResearchTierThreeTree() {
 								[{ kind: "research_duration_multiplier", multiplier: 0.94 }],
 								[{ kind: "research_duration_multiplier", multiplier: 0.94 }],
 								[{ kind: "research_duration_multiplier", multiplier: 0.94 }],
-							],
-							effectLabels: [
-								"Research duration -6% per level",
-								"Level 3 improves locked-tier previewing",
 							],
 						}),
 						node({
@@ -2645,10 +2666,7 @@ function buildResearchTierThreeTree() {
 								[{ kind: "transport_storage_reservation", multiplier: 1 }],
 								[{ kind: "transport_storage_reservation", multiplier: 1 }],
 							],
-							effectLabels: [
-								"Own-colony transports reserve delivery storage",
-								"Level 2 enables filled-storage fuel refund handling",
-							],
+							effectLabels: ["Own-colony transports reserve delivery storage"],
 						}),
 						node({
 							branch: "expansionLogistics",
@@ -3306,46 +3324,86 @@ function researchLayoutPosition(lane: ResearchLayoutLane, tier: number) {
 	};
 }
 
-function describeResearchEffect(effect: ResearchEffect) {
+function percentChange(multiplier: number) {
+	return Math.round(Math.abs(multiplier - 1) * 100);
+}
+
+function describeMultiplier(args: {
+	multiplier: number;
+	subject: string;
+	increaseVerb?: string;
+	reductionVerb?: string;
+}) {
+	const { multiplier, subject, increaseVerb = "increased", reductionVerb = "reduced" } = args;
+	const verb = multiplier >= 1 ? increaseVerb : reductionVerb;
+	return `${subject} ${verb} by ${percentChange(multiplier)}%`;
+}
+
+export function describeResearchEffect(effect: ResearchEffect): string {
 	switch (effect.kind) {
 		case "unlock_ship":
-			return `Unlock ship: ${effect.shipKey}`;
+			return `Unlock ship: ${SHIP_LABELS[effect.shipKey]}`;
 		case "unlock_defense":
-			return `Unlock defense: ${effect.defenseKey}`;
+			return `Unlock defense: ${DEFENSE_LABELS[effect.defenseKey]}`;
 		case "unlock_facility":
-			return `Unlock facility: ${effect.facilityKey}`;
+			return `Unlock facility: ${FACILITY_LABELS[effect.facilityKey]}`;
 		case "unlock_building":
-			return `Unlock building: ${effect.buildingKey}`;
+			return `Unlock building: ${BUILDING_LABELS[effect.buildingKey]}`;
 		case "resource_production_multiplier":
-			return `${Math.round((effect.multiplier - 1) * 100)}% ${effect.resource} production`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: `${effect.resource} production`,
+			});
 		case "resource_storage_multiplier":
-			return `${Math.round((effect.multiplier - 1) * 100)}% ${effect.resource} storage`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: `${effect.resource} storage`,
+			});
 		case "building_upgrade_time_multiplier":
-			return `${Math.round((1 - effect.multiplier) * 100)}% building upgrade time`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: effect.buildingKey
+					? `${BUILDING_LABELS[effect.buildingKey]} upgrade time`
+					: "Building upgrade time",
+			});
 		case "facility_upgrade_time_multiplier":
-			return `${Math.round((1 - effect.multiplier) * 100)}% facility upgrade time`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: effect.facilityKey
+					? `${FACILITY_LABELS[effect.facilityKey]} upgrade time`
+					: "Facility upgrade time",
+			});
 		case "research_duration_multiplier":
-			return `${Math.round((1 - effect.multiplier) * 100)}% research duration`;
+			return describeMultiplier({ multiplier: effect.multiplier, subject: "Research duration" });
 		case "ship_build_time_multiplier":
-			return `${Math.round((1 - effect.multiplier) * 100)}% ship build time`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: effect.shipKey ? `${SHIP_LABELS[effect.shipKey]} build time` : "Ship build time",
+			});
 		case "defense_build_time_multiplier":
-			return `${Math.round((1 - effect.multiplier) * 100)}% defense build time`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: effect.defenseKey
+					? `${DEFENSE_LABELS[effect.defenseKey]} build time`
+					: "Defense build time",
+			});
 		case "fleet_fuel_cost_multiplier":
-			return `${Math.round((1 - effect.multiplier) * 100)}% fleet fuel cost`;
+			return describeMultiplier({ multiplier: effect.multiplier, subject: "Fleet fuel cost" });
 		case "cargo_capacity_multiplier":
-			return `${Math.round((effect.multiplier - 1) * 100)}% cargo capacity`;
+			return describeMultiplier({ multiplier: effect.multiplier, subject: "Cargo capacity" });
 		case "building_max_level_bonus":
-			return `+${effect.amount} max ${effect.buildingKey}`;
+			return `${BUILDING_LABELS[effect.buildingKey]} max level +${effect.amount}`;
 		case "facility_max_level_bonus":
-			return `+${effect.amount} max ${effect.facilityKey}`;
+			return `${FACILITY_LABELS[effect.facilityKey]} max level +${effect.amount}`;
 		case "research_network_synchronization":
 			return "Synchronize the research network";
 		case "meta_matter_reward_multiplier":
-			return `${Math.round((effect.multiplier - 1) * 100)}% ${
-				effect.rarity ?? "all"
-			} meta-matter rewards`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: `${effect.rarity ?? "all"} meta-matter rewards`,
+			});
 		case "energy_consumption_multiplier":
-			return `${Math.round((1 - effect.multiplier) * 100)}% energy consumption`;
+			return describeMultiplier({ multiplier: effect.multiplier, subject: "Energy consumption" });
 		case "storage_pressure_production_bonus":
 			return `Up to +${Math.round(effect.maxBonus * 100)}% production when storage is low`;
 		case "overflow_reintegration_multiplier":
@@ -3367,9 +3425,15 @@ function describeResearchEffect(effect: ResearchEffect) {
 		case "research_cost_multiplier":
 			return `${Math.round((1 - effect.metaMatterMultiplier) * 100)}% research meta-matter cost`;
 		case "ship_stat_multiplier":
-			return `${Math.round((effect.multiplier - 1) * 100)}% ${effect.shipKey ?? "combat ship"} ${effect.stat}`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: `${effect.shipKey ? SHIP_LABELS[effect.shipKey] : "Combat ship"} ${effect.stat}`,
+			});
 		case "defense_stat_multiplier":
-			return `${Math.round((effect.multiplier - 1) * 100)}% ${effect.defenseKey ?? "defense"} ${effect.stat}`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: `${effect.defenseKey ? DEFENSE_LABELS[effect.defenseKey] : "Defense"} ${effect.stat}`,
+			});
 		case "interceptor_wolfpack": {
 			const trigger = `${effect.minInterceptors}+ Interceptors at ${Math.round(effect.minShare * 100)}%+ force share`;
 			if (effect.attackMultiplier) {
@@ -3384,13 +3448,16 @@ function describeResearchEffect(effect: ResearchEffect) {
 			return `Wolfpack contract formation bonus (${trigger})`;
 		}
 		case "enemy_attack_multiplier":
-			return `${Math.round((1 - effect.multiplier) * 100)}% enemy attack`;
+			return describeMultiplier({ multiplier: effect.multiplier, subject: "Enemy attack" });
 		case "contract_active_limit_bonus":
 			return `+${effect.amount} active contract limit`;
 		case "contract_visible_slot_bonus":
 			return `+${effect.amount} visible contract slot${effect.amount === 1 ? "" : "s"}`;
 		case "contract_dispatch_fuel_multiplier":
-			return `${Math.round((1 - effect.multiplier) * 100)}% contract dispatch fuel`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: "Contract dispatch fuel",
+			});
 		case "contract_recovery_resources":
 			return `${Math.round(effect.recoveryRate * 100)}% contract recovery resources`;
 		case "contract_ship_capture":
@@ -3408,7 +3475,9 @@ function describeResearchEffect(effect: ResearchEffect) {
 		case "research_network_exchange_duration":
 			return "Research duration scales with research network size";
 		case "route_speed_multiplier":
-			return `${Math.round((1 / effect.multiplier - 1) * 100)}% ${effect.routeClass} travel speed`;
+			return `${ROUTE_CLASS_LABELS[effect.routeClass]} travel time reduced by ${Math.round(
+				(1 - effect.multiplier) * 100,
+			)}%`;
 		case "route_streak_speed_bonus":
 			return "Repeated route transport speed bonus";
 		case "transport_extra_stop_bonus":
@@ -3420,11 +3489,20 @@ function describeResearchEffect(effect: ResearchEffect) {
 		case "contract_after_transport_meta_matter_multiplier":
 			return "Recent transport boosts next contract meta-matter";
 		case "transport_return_duration_multiplier":
-			return `${Math.round((1 - effect.multiplier) * 100)}% transport return duration`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: "Transport return duration",
+			});
 		case "colony_ship_build_time_multiplier":
-			return `${Math.round((1 - effect.multiplier) * 100)}% colony ship build time`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: "Colony Ship build time",
+			});
 		case "colony_ship_fuel_multiplier":
-			return `${Math.round((1 - effect.multiplier) * 100)}% colony ship fuel`;
+			return describeMultiplier({
+				multiplier: effect.multiplier,
+				subject: "Colony Ship fuel cost",
+			});
 		case "colony_overcap_penalty_reduction":
 			return `-${Math.round(effect.amount * 100)}pp future colony over-cap penalty`;
 		case "colony_charter_unlock":
@@ -3452,6 +3530,114 @@ function describeResearchEffect(effect: ResearchEffect) {
 		case "sector_capital_production":
 			return "Unlock sector capital production";
 	}
+}
+
+function isCumulativeResearchEffect(effect: ResearchEffect): boolean {
+	switch (effect.kind) {
+		case "resource_production_multiplier":
+		case "resource_storage_multiplier":
+		case "building_upgrade_time_multiplier":
+		case "facility_upgrade_time_multiplier":
+		case "research_duration_multiplier":
+		case "ship_build_time_multiplier":
+		case "defense_build_time_multiplier":
+		case "fleet_fuel_cost_multiplier":
+		case "cargo_capacity_multiplier":
+		case "building_max_level_bonus":
+		case "facility_max_level_bonus":
+		case "meta_matter_reward_multiplier":
+		case "energy_consumption_multiplier":
+		case "overflow_reintegration_multiplier":
+		case "building_queue_capacity_bonus":
+		case "shipyard_queue_capacity_bonus":
+		case "colony_count_production_bonus":
+		case "research_cost_multiplier":
+		case "ship_stat_multiplier":
+		case "defense_stat_multiplier":
+		case "interceptor_wolfpack":
+		case "contract_active_limit_bonus":
+		case "contract_visible_slot_bonus":
+		case "contract_dispatch_fuel_multiplier":
+		case "meta_matter_bonus_chance":
+		case "route_speed_multiplier":
+		case "transport_extra_stop_bonus":
+		case "transport_return_duration_multiplier":
+		case "colony_ship_build_time_multiplier":
+		case "colony_ship_fuel_multiplier":
+		case "colony_overcap_penalty_reduction":
+		case "charter_facility_upgrade_time_multiplier":
+		case "charter_ship_build_time_multiplier":
+		case "charter_defense_build_time_multiplier":
+		case "colony_cap_bonus":
+			return true;
+		case "unlock_ship":
+		case "unlock_defense":
+		case "unlock_facility":
+		case "unlock_building":
+		case "research_network_synchronization":
+		case "storage_pressure_production_bonus":
+		case "idle_building_queue_speed_bonus":
+		case "industrial_focus_unlock":
+		case "active_command_window":
+		case "research_network_duration":
+		case "enemy_attack_multiplier":
+		case "contract_recovery_resources":
+		case "contract_ship_capture":
+		case "contract_task_force_template_bonus":
+		case "research_predictive_progress":
+		case "research_cross_branch_discount":
+		case "meta_matter_daily_conversion":
+		case "research_network_exchange_duration":
+		case "route_streak_speed_bonus":
+		case "transport_delivery_distance_bonus":
+		case "transport_storage_reservation":
+		case "contract_after_transport_meta_matter_multiplier":
+		case "colony_charter_unlock":
+		case "colony_charter_penalty_removed":
+		case "charter_cooldown_hours":
+		case "new_colony_bootstrap":
+		case "new_colony_prefab_queue":
+		case "protected_starting_resources":
+		case "charter_transport_reservation":
+		case "sector_capital_production":
+			return false;
+	}
+}
+
+export function buildResearchEffectLabels(effectsByLevel: readonly (readonly ResearchEffect[])[]) {
+	const grouped = new Map<string, { effect: ResearchEffect; levels: number[] }>();
+
+	for (const [levelIndex, effects] of effectsByLevel.entries()) {
+		for (const effect of effects) {
+			const key = JSON.stringify(effect);
+			const existing = grouped.get(key);
+			if (existing) {
+				if (!existing.levels.includes(levelIndex + 1)) {
+					existing.levels.push(levelIndex + 1);
+				}
+			} else {
+				grouped.set(key, { effect, levels: [levelIndex + 1] });
+			}
+		}
+	}
+
+	return [...grouped.values()].flatMap(({ effect, levels }) => {
+		const label = describeResearchEffect(effect);
+		if (
+			effectsByLevel.length > 1 &&
+			levels.length === effectsByLevel.length &&
+			isCumulativeResearchEffect(effect)
+		) {
+			return [`${label} per level`];
+		}
+		if (levels.length === effectsByLevel.length) {
+			return [label];
+		}
+		if (effectsByLevel.length === 1) {
+			return [label];
+		}
+		return levels.map((level) => `Level ${level} ${label}`);
+	});
 }
 
 function withResearchNetworkTierRequirement(
@@ -3509,7 +3695,7 @@ function flattenResearchTree(options?: { activeOnly?: boolean }) {
 						effectsByLevel,
 						effectLabels: authoredNode.effectLabels
 							? [...authoredNode.effectLabels]
-							: effects.map(describeResearchEffect),
+							: buildResearchEffectLabels(effectsByLevel),
 						implementationStatus: authoredNode.implementationStatus ?? "active",
 						plannedReason: authoredNode.plannedReason,
 						designPrerequisites: [

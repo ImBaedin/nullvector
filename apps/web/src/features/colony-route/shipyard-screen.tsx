@@ -920,7 +920,11 @@ function PendingQueueList(props: {
 								) : null}
 								<div>
 									<p className="text-[11px] font-semibold text-white/80">{item.shipName}</p>
-									<p className="font-(family-name:--nv-font-mono) text-[9px] text-white/30">
+									<p
+										className="
+           font-(family-name:--nv-font-mono) text-[9px] text-white/30
+         "
+									>
 										{item.total.toLocaleString()} ships •{" "}
 										{formatColonyDuration(item.timeLeftSeconds, "seconds")}
 									</p>

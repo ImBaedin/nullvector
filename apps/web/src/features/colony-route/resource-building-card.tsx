@@ -607,11 +607,7 @@ export function ResourceBuildingCard(props: {
 					{/* Name + Level + Actions */}
 					<div className="flex items-start justify-between gap-2">
 						<div className="min-w-0">
-							<h3
-								className="
-         font-(family-name:--nv-font-display) text-sm/tight font-bold
-       "
-							>
+							<h3 className="font-(family-name:--nv-font-display) text-sm/tight font-bold">
 								{building.name}
 							</h3>
 							{showOverflowBadgePopover ? (
