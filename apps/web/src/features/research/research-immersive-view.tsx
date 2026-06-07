@@ -2925,7 +2925,7 @@ function InnerResearchImmersiveViewWithInsets({
 	hudInsetTop = 16,
 }: ResearchImmersiveViewProps) {
 	const { isAuthenticated } = useConvexAuth();
-	const devConsole = useColonyDevConsole(colonyId ?? null);
+	const devConsole = useColonyDevConsole(isAuthenticated ? (colonyId ?? null) : null);
 	const [showEverything, setShowEverything] = useState(false);
 	const startResearch = useMutation(api.research.enqueue).withOptimisticUpdate(
 		(localStore, mutationArgs) => {

@@ -1723,9 +1723,7 @@ const fleetOperationColonySummaryValidator = v.object({
 
 const fleetOwnedOperationsHealthValidator = v.object({
 	colonyId: v.id("colonies"),
-	hasStaleOwnedOperations: v.boolean(),
 	nextEventAt: v.optional(v.number()),
-	serverNowMs: v.number(),
 });
 
 const missionKindValidator = v.union(v.literal("transport"), v.literal("colonize"));
@@ -2207,7 +2205,6 @@ export const getFleetOwnedOperationsHealth = query({
 	},
 	returns: fleetOwnedOperationsHealthValidator,
 	handler: async (ctx, args) => {
-		const serverNowMs = Date.now();
 		const { colony, player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
@@ -2266,9 +2263,7 @@ export const getFleetOwnedOperationsHealth = query({
 
 		return {
 			colonyId: colony._id,
-			hasStaleOwnedOperations: activeOps.some((operation) => operation.nextEventAt <= serverNowMs),
 			nextEventAt: activeOps[0]?.nextEventAt,
-			serverNowMs,
 		};
 	},
 });

@@ -57,7 +57,7 @@ export function useHeaderData() {
 	);
 	const publicOverviewHeader = useQuery(
 		api.colonyOverview.getColonyOverviewHeader,
-		colonyIdAsId ? { colonyId: colonyIdAsId } : "skip",
+		colonyIdAsId && isAuthenticated ? { colonyId: colonyIdAsId } : "skip",
 	);
 	const raidStatus = useQuery(
 		api.raids.getRaidStatusForColony,
