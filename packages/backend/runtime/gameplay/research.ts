@@ -29,7 +29,14 @@ import {
 } from "../../convex/_generated/server";
 import { adjustResearchMetaMatterSpent, ensurePlayerResearchRuntimeState } from "./researchMetrics";
 import { scaledUnits } from "./shared";
-import { getOwnedColony, resolveCurrentPlayer, upsertColonyCompanionRows } from "./shared";
+import {
+	getOwnedColony,
+	loadColonyState,
+	requireOwnedColonyAccess,
+	requireOwnedColonyRow,
+	resolveCurrentPlayer,
+	upsertColonyCompanionRows,
+} from "./shared";
 
 const metaMatterValidator = v.object({
 	common: v.number(),
@@ -151,7 +158,6 @@ const researchStateViewValidator = v.object({
 	levels: v.record(v.string(), v.number()),
 	balances: metaMatterValidator,
 	researchNetworkSize: v.number(),
-	serverNow: v.number(),
 	tierUnlockContext: researchTierUnlockContextValidator,
 	tree: v.array(researchBranchViewValidator),
 	activeResearch: v.union(
@@ -191,59 +197,47 @@ function cloneMetaMatter(bundle: Partial<MetaMatterBundle> | undefined): MetaMat
 	};
 }
 
-function pickCanonicalRow<T extends { _creationTime: number }>(rows: T[]) {
-	if (rows.length === 0) {
-		return null;
-	}
-	rows.sort((left, right) => left._creationTime - right._creationTime);
-	return rows[0]!;
-}
-
 async function getPlayerResearchStateRow(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
-	const rows = await args.ctx.db
+	return args.ctx.db
 		.query("playerResearchState")
 		.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
-		.collect();
-	return pickCanonicalRow(rows);
+		.first();
 }
 
 async function getPlayerResearchBalancesRow(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
-	const rows = await args.ctx.db
+	return args.ctx.db
 		.query("playerResearchBalances")
 		.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
-		.collect();
-	return pickCanonicalRow(rows);
+		.first();
 }
 
 async function getPlayerResearchSchedulingRow(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
-	const rows = await args.ctx.db
+	return args.ctx.db
 		.query("playerResearchScheduling")
 		.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
-		.collect();
-	return pickCanonicalRow(rows);
+		.first();
 }
 
 async function getOpenResearchQueueRow(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
-	const rows = await args.ctx.db
+	return args.ctx.db
 		.query("playerResearchQueueItems")
 		.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "active"))
-		.collect();
-	return pickCanonicalRow(rows);
+		.first();
 }
 
-export async function ensurePlayerResearchState(args: {
+async function loadPlayerResearchState(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
@@ -251,15 +245,23 @@ export async function ensurePlayerResearchState(args: {
 	if (existing) {
 		return existing;
 	}
-	if (!("patch" in args.ctx.db)) {
-		return {
-			_id: undefined,
-			playerId: args.playerId,
-			levels: {},
-			unlockedAtByKey: {},
-			createdAt: 0,
-			updatedAt: 0,
-		} as const;
+	return {
+		_id: undefined,
+		playerId: args.playerId,
+		levels: {},
+		unlockedAtByKey: {},
+		createdAt: 0,
+		updatedAt: 0,
+	} as const;
+}
+
+export async function ensurePlayerResearchState(args: {
+	ctx: MutationCtx;
+	playerId: Id<"players">;
+}) {
+	const existing = await getPlayerResearchStateRow(args);
+	if (existing) {
+		return existing;
 	}
 	const now = Date.now();
 	const id = await args.ctx.db.insert("playerResearchState", {
@@ -272,7 +274,7 @@ export async function ensurePlayerResearchState(args: {
 	return (await args.ctx.db.get(id))!;
 }
 
-export async function ensurePlayerResearchBalances(args: {
+async function loadPlayerResearchBalances(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }) {
@@ -280,14 +282,22 @@ export async function ensurePlayerResearchBalances(args: {
 	if (existing) {
 		return existing;
 	}
-	if (!("patch" in args.ctx.db)) {
-		return {
-			_id: undefined,
-			playerId: args.playerId,
-			...emptyMetaMatter(),
-			createdAt: 0,
-			updatedAt: 0,
-		} as const;
+	return {
+		_id: undefined,
+		playerId: args.playerId,
+		...emptyMetaMatter(),
+		createdAt: 0,
+		updatedAt: 0,
+	} as const;
+}
+
+export async function ensurePlayerResearchBalances(args: {
+	ctx: MutationCtx;
+	playerId: Id<"players">;
+}) {
+	const existing = await getPlayerResearchBalancesRow(args);
+	if (existing) {
+		return existing;
 	}
 	const now = Date.now();
 	const id = await args.ctx.db.insert("playerResearchBalances", {
@@ -319,7 +329,7 @@ export async function loadPlayerResearchLevels(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }): Promise<ResearchLevelMap> {
-	const row = await ensurePlayerResearchState(args);
+	const row = await loadPlayerResearchState(args);
 	return { ...(row.levels ?? {}) };
 }
 
@@ -346,10 +356,20 @@ async function getResearchAccountFacts(args: {
 	ctx: QueryCtx | MutationCtx;
 	playerId: Id<"players">;
 }): Promise<ResearchAccountFacts> {
-	const colonies = await args.ctx.db
-		.query("colonies")
-		.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
-		.collect();
+	const [colonies, playerResearchMetrics, colonyResearchMetrics] = await Promise.all([
+		args.ctx.db
+			.query("colonies")
+			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+			.collect(),
+		args.ctx.db
+			.query("playerResearchMetrics")
+			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+			.first(),
+		args.ctx.db
+			.query("colonyResearchMetrics")
+			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+			.collect(),
+	]);
 	let researchNetworkSize = 0;
 	let highestBuildingLevel = 0;
 	let highestFacilityLevel = 0;
@@ -379,11 +399,11 @@ async function getResearchAccountFacts(args: {
 		}
 	}
 	for (const colony of colonies) {
-		const infraRows = await args.ctx.db
+		const infra = await args.ctx.db
 			.query("colonyInfrastructure")
 			.withIndex("by_colony_id", (q) => q.eq("colonyId", colony._id))
-			.collect();
-		const buildings = pickCanonicalRow(infraRows)?.buildings;
+			.first();
+		const buildings = infra?.buildings;
 		if (!buildings) {
 			continue;
 		}
@@ -441,30 +461,33 @@ async function getResearchAccountFacts(args: {
 			highestBuildingLevel = Math.max(highestBuildingLevel, Math.max(0, Math.floor(level ?? 0)));
 		}
 	}
-	const [contractResults, transportResults, raidResults, shipRows, defenseRows] = await Promise.all(
-		[
-			args.ctx.db
-				.query("contractResults")
-				.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
-				.collect(),
-			args.ctx.db
-				.query("fleetOperationResults")
-				.withIndex("by_owner_id", (q) => q.eq("ownerPlayerId", args.playerId))
-				.collect(),
-			args.ctx.db
-				.query("npcRaidResults")
-				.withIndex("by_target_player_id", (q) => q.eq("targetPlayerId", args.playerId))
-				.collect(),
-			args.ctx.db
-				.query("colonyShips")
-				.withIndex("by_player", (q) => q.eq("playerId", args.playerId))
-				.collect(),
-			args.ctx.db
-				.query("colonyDefenses")
-				.withIndex("by_player", (q) => q.eq("playerId", args.playerId))
-				.collect(),
-		],
-	);
+	const [shipRows, defenseRows] = await Promise.all([
+		args.ctx.db
+			.query("colonyShips")
+			.withIndex("by_player", (q) => q.eq("playerId", args.playerId))
+			.collect(),
+		args.ctx.db
+			.query("colonyDefenses")
+			.withIndex("by_player", (q) => q.eq("playerId", args.playerId))
+			.collect(),
+	]);
+	const legacyResults = playerResearchMetrics
+		? null
+		: await Promise.all([
+				args.ctx.db
+					.query("contractResults")
+					.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+					.collect(),
+				args.ctx.db
+					.query("fleetOperationResults")
+					.withIndex("by_owner_id", (q) => q.eq("ownerPlayerId", args.playerId))
+					.collect(),
+				args.ctx.db
+					.query("npcRaidResults")
+					.withIndex("by_target_player_id", (q) => q.eq("targetPlayerId", args.playerId))
+					.collect(),
+			]);
+	const [contractResults, transportResults, raidResults] = legacyResults ?? [[], [], []];
 	const contractsForResults = await Promise.all(
 		contractResults.map((result) => args.ctx.db.get(result.contractId)),
 	);
@@ -474,16 +497,6 @@ async function getResearchAccountFacts(args: {
 			result.success && (contract?.difficultyTier ?? contract?.snapshot.difficultyTier ?? 0) >= 3
 		);
 	}).length;
-	const [playerResearchMetrics, colonyResearchMetrics] = await Promise.all([
-		args.ctx.db
-			.query("playerResearchMetrics")
-			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
-			.unique(),
-		args.ctx.db
-			.query("colonyResearchMetrics")
-			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
-			.collect(),
-	]);
 	for (const metric of colonyResearchMetrics) {
 		maxResourceProductionBuildingLevel = Math.max(
 			maxResourceProductionBuildingLevel,
@@ -521,10 +534,9 @@ async function getResearchAccountFacts(args: {
 				crossSystemColoniesFounded,
 				playerResearchMetrics?.crossSystemColoniesFounded ?? 0,
 			),
-			contractsCompleted: Math.max(
+			contractsCompleted:
+				playerResearchMetrics?.contractsCompleted ??
 				contractResults.filter((result) => result.success).length,
-				playerResearchMetrics?.contractsCompleted ?? 0,
-			),
 			defensesOwned: defenseRows.reduce((sum, row) => sum + Math.max(0, Math.floor(row.count)), 0),
 			facilityLevelTotalOnOneColony,
 			highestBuildingLevel,
@@ -533,39 +545,28 @@ async function getResearchAccountFacts(args: {
 			maxResourceAndStorageLevelTotal,
 			maxResourceProductionBuildingLevel,
 			maxStorageBuildingLevel,
-			metaMatterEarnedCommon: Math.max(
-				metaMatterEarned.common,
-				playerResearchMetrics?.metaMatterEarnedCommon ?? 0,
-			),
-			metaMatterEarnedMythic: Math.max(
-				metaMatterEarned.mythic,
-				playerResearchMetrics?.metaMatterEarnedMythic ?? 0,
-			),
-			metaMatterEarnedRare: Math.max(
-				metaMatterEarned.rare,
-				playerResearchMetrics?.metaMatterEarnedRare ?? 0,
-			),
+			metaMatterEarnedCommon:
+				playerResearchMetrics?.metaMatterEarnedCommon ?? metaMatterEarned.common,
+			metaMatterEarnedMythic:
+				playerResearchMetrics?.metaMatterEarnedMythic ?? metaMatterEarned.mythic,
+			metaMatterEarnedRare: playerResearchMetrics?.metaMatterEarnedRare ?? metaMatterEarned.rare,
 			metaMatterSpentTotal: playerResearchMetrics
 				? playerResearchMetrics.metaMatterSpentCommon +
 					playerResearchMetrics.metaMatterSpentRare +
 					playerResearchMetrics.metaMatterSpentMythic
 				: 0,
-			raidDefensesSucceeded: Math.max(
+			raidDefensesSucceeded:
+				playerResearchMetrics?.raidDefensesSucceeded ??
 				raidResults.filter((result) => result.success === false).length,
-				playerResearchMetrics?.raidDefensesSucceeded ?? 0,
-			),
-			rank3ContractsCompleted: Math.max(
-				rank3ContractsCompleted,
-				playerResearchMetrics?.rank3ContractsCompleted ?? 0,
-			),
+			rank3ContractsCompleted:
+				playerResearchMetrics?.rank3ContractsCompleted ?? rank3ContractsCompleted,
 			researchNetworkSize,
 			shipsOwned: shipRows.reduce((sum, row) => sum + Math.max(0, Math.floor(row.count)), 0),
-			successfulTransports: Math.max(
+			successfulTransports:
+				playerResearchMetrics?.successfulTransports ??
 				transportResults.filter(
 					(result) => result.operationKind === "transport" && result.resultCode === "delivered",
 				).length,
-				playerResearchMetrics?.successfulTransports ?? 0,
-			),
 		},
 	};
 }
@@ -710,11 +711,10 @@ export async function reconcileResearchSchedule(args: {
 		ctx: args.ctx,
 		playerId: args.playerId,
 	});
-	const activeRows = await args.ctx.db
+	const active = await args.ctx.db
 		.query("playerResearchQueueItems")
 		.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "active"))
-		.collect();
-	const active = pickCanonicalRow(activeRows);
+		.first();
 	if (!active) {
 		if (!args.skipCancel) {
 			await cancelScheduledResearchIfPresent({
@@ -787,16 +787,16 @@ export async function getResearchState(args: {
 	colonyId: Id<"colonies">;
 	ctx: QueryCtx | MutationCtx;
 }) {
-	const { colony, player } = await getOwnedColony({
+	const { colonyId, player } = await requireOwnedColonyAccess({
 		ctx: args.ctx,
 		colonyId: args.colonyId,
 	});
 	const [state, balances, activeResearch, researchFacts] = await Promise.all([
-		ensurePlayerResearchState({
+		loadPlayerResearchState({
 			ctx: args.ctx,
 			playerId: player._id,
 		}),
-		ensurePlayerResearchBalances({
+		loadPlayerResearchBalances({
 			ctx: args.ctx,
 			playerId: player._id,
 		}),
@@ -811,14 +811,12 @@ export async function getResearchState(args: {
 	]);
 	const levels = (state.levels ?? {}) as ResearchLevelMap;
 	const modifierSnapshot = buildResearchModifierSnapshot(levels);
-	const serverNow = Date.now();
 	return {
 		playerId: player._id,
-		colonyId: colony._id,
+		colonyId,
 		levels,
 		balances: cloneMetaMatter(balances),
 		researchNetworkSize: researchFacts.researchNetworkSize,
-		serverNow,
 		tierUnlockContext: researchFacts.tierUnlockContext,
 		tree: buildResearchTreeView({
 			activeResearchKey: activeResearch?.status === "active" ? activeResearch.researchKey : null,
@@ -849,11 +847,10 @@ export async function settleResearchQueue(args: {
 	now: number;
 	playerId: Id<"players">;
 }) {
-	const activeRows = await args.ctx.db
+	const active = await args.ctx.db
 		.query("playerResearchQueueItems")
 		.withIndex("by_player_status", (q) => q.eq("playerId", args.playerId).eq("status", "active"))
-		.collect();
-	const active = pickCanonicalRow(activeRows);
+		.first();
 	if (!active || active.completesAt > args.now) {
 		return { resolvedQueueItemId: null as Id<"playerResearchQueueItems"> | null };
 	}
@@ -932,7 +929,7 @@ export const enqueue = mutation({
 	},
 	returns: researchStateViewValidator.fields.activeResearch,
 	handler: async (ctx, args) => {
-		const { colony, player } = await getOwnedColony({
+		const { colony: colonyRow, player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
 		});
@@ -948,7 +945,11 @@ export const enqueue = mutation({
 		if (!node) {
 			throw new ConvexError("Unknown research node");
 		}
-		const [state, balances, researchFacts, modifierSnapshot] = await Promise.all([
+		const [colony, state, balances, researchFacts] = await Promise.all([
+			loadColonyState({
+				colony: colonyRow,
+				ctx,
+			}),
 			ensurePlayerResearchState({
 				ctx,
 				playerId: player._id,
@@ -961,12 +962,9 @@ export const enqueue = mutation({
 				ctx,
 				playerId: player._id,
 			}),
-			loadPlayerResearchModifierSnapshot({
-				ctx,
-				playerId: player._id,
-			}),
 		]);
 		const levels = (state.levels ?? {}) as Record<string, number>;
+		const modifierSnapshot = buildResearchModifierSnapshot(levels);
 		const fromLevel = Math.max(0, Math.floor(levels[node.id] ?? 0));
 		if (
 			!canResearchNodeStart({

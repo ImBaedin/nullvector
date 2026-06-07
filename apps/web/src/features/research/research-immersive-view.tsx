@@ -2948,7 +2948,6 @@ function InnerResearchImmersiveViewWithInsets({
 				{ colonyId: mutationArgs.colonyId },
 				{
 					...state,
-					serverNow: startsAt,
 					tree: state.tree.map((branch) => ({
 						...branch,
 						tiers: branch.tiers.map((tier) => ({
