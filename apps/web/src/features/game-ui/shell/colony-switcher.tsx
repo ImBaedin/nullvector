@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Search } from "lucide-react";
+import { Check, ChevronDown, Pencil, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -10,9 +10,19 @@ type ColonySwitcherProps = {
 	activeColonyId: string;
 	colonies: ColonyOption[];
 	onColonyChange: (colonyId: string) => void;
+	variant?: "compact" | "identity";
+	isCompact?: boolean;
+	onBeginRename?: () => void;
 };
 
-export function ColonySwitcher({ activeColonyId, colonies, onColonyChange }: ColonySwitcherProps) {
+export function ColonySwitcher({
+	activeColonyId,
+	colonies,
+	onColonyChange,
+	variant = "compact",
+	isCompact = false,
+	onBeginRename,
+}: ColonySwitcherProps) {
 	const rootRef = useRef<HTMLDivElement | null>(null);
 	const triggerRef = useRef<HTMLButtonElement | null>(null);
 	const menuRef = useRef<HTMLDivElement | null>(null);
@@ -52,10 +62,16 @@ export function ColonySwitcher({ activeColonyId, colonies, onColonyChange }: Col
 			const rect = trigger.getBoundingClientRect();
 			const viewportPadding = 8;
 			const width = Math.min(420, Math.max(300, window.innerWidth - viewportPadding * 2));
-			const left = Math.min(
-				Math.max(viewportPadding, rect.right - width),
-				window.innerWidth - width - viewportPadding,
-			);
+			const left =
+				variant === "identity"
+					? Math.min(
+							Math.max(viewportPadding, rect.left),
+							window.innerWidth - width - viewportPadding,
+						)
+					: Math.min(
+							Math.max(viewportPadding, rect.right - width),
+							window.innerWidth - width - viewportPadding,
+						);
 			const top = rect.bottom + 8;
 
 			setMenuStyle({
@@ -88,7 +104,7 @@ export function ColonySwitcher({ activeColonyId, colonies, onColonyChange }: Col
 			window.removeEventListener("resize", updateMenuPosition);
 			window.removeEventListener("scroll", updateMenuPosition, true);
 		};
-	}, [isOpen]);
+	}, [isOpen, variant]);
 
 	const selectColony = (colonyId: string) => {
 		onColonyChange(colonyId);
@@ -161,6 +177,91 @@ export function ColonySwitcher({ activeColonyId, colonies, onColonyChange }: Col
 			</div>
 		</div>
 	);
+
+	if (variant === "identity") {
+		return (
+			<div
+				className="
+      group relative z-(--nv-z-popover) flex min-w-0 items-center gap-1
+    "
+				ref={rootRef}
+			>
+				<button
+					aria-label={`Switch colony${activeColony ? `, currently ${activeColony.name}` : ""}`}
+					className="
+       flex min-w-0 cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1
+       text-left transition-colors
+       hover:bg-white/4
+     "
+					onClick={() => setIsOpen((open) => !open)}
+					ref={triggerRef}
+					type="button"
+				>
+					{activeColony?.imageUrl ? (
+						<img
+							alt={`${activeColony.name} thumbnail`}
+							className={cn(
+								"shrink-0 rounded-md border border-white/12 object-cover",
+								isCompact ? "size-6" : "size-8",
+							)}
+							src={activeColony.imageUrl}
+						/>
+					) : activeColony ? (
+						<div className={cn(`
+        flex shrink-0 items-center justify-center rounded-md border
+        border-white/10
+      `, `
+        bg-[linear-gradient(150deg,rgba(61,217,255,0.15),rgba(255,145,79,0.15))]
+      `, "text-[9px] font-bold text-white/70", isCompact ? "size-6" : "size-8")}>{activeColony.name.slice(0, 2).toUpperCase()}</div>
+					) : null}
+					<div className="min-w-0">
+						<p
+							className="
+         text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
+       "
+						>
+							NullVector
+						</p>
+						<div className="flex items-center gap-1">
+							<span className={cn(`
+         truncate font-(family-name:--nv-font-display) font-bold text-white
+         transition-colors
+       `, "group-hover:text-cyan-50", isCompact ? "text-sm" : "text-[15px]")}>{activeColony?.name ?? "Select colony"}</span>
+							<ChevronDown
+								className={cn(
+									"size-3 shrink-0 text-white/30 transition-transform",
+									isOpen ? "rotate-180" : null,
+								)}
+							/>
+						</div>
+					</div>
+				</button>
+
+				{onBeginRename ? (
+					<button
+						aria-label="Rename colony"
+						className="
+        flex size-6 shrink-0 items-center justify-center rounded-md
+        text-white/25 opacity-0 transition-all
+        group-hover:opacity-100
+        hover:bg-white/6 hover:text-white/60
+      "
+						onClick={() => {
+							setIsOpen(false);
+							onBeginRename();
+						}}
+						type="button"
+					>
+						<Pencil className="size-3" />
+					</button>
+				) : null}
+
+				{isOpen && menuStyle && typeof document !== "undefined"
+					? createPortal(menu, document.body)
+					: null}
+			</div>
+		);
+	}
 
 	return (
 		<div className="relative z-(--nv-z-popover) min-w-[220px]" ref={rootRef}>

@@ -25,11 +25,11 @@ function TabItem({ activeId, item }: { activeId: string; item: ContextNavItem })
    border-cyan-400/80 text-cyan-50
    [&_img]:opacity-90
  ` : `
-    border-transparent text-white/35
-    hover:border-white/15 hover:text-white/60
-    [&_img]:opacity-40
-    [&_img]:hover:opacity-60
-  `, highlightProps.className);
+   border-transparent text-white/35
+   hover:border-white/15 hover:text-white/60
+   [&_img]:opacity-40
+   [&_img]:hover:opacity-60
+ `, highlightProps.className);
 	const content = (
 		<>
 			{item.icon}

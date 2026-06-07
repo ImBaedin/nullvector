@@ -7,6 +7,7 @@ import {
 import { ConvexError, v } from "convex/values";
 
 import { mutation } from "../../convex/_generated/server";
+import { loadPlayerResearchModifierSnapshot } from "./research";
 import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	BUILDING_CONFIG,
@@ -49,6 +50,10 @@ export const enqueueBuildingUpgrade = mutation({
 			ctx,
 			colonyId: args.colonyId,
 		});
+		const researchModifiers = await loadPlayerResearchModifierSnapshot({
+			ctx,
+			playerId: player._id,
+		});
 
 		const settledColony = await settleColonyAndPersist({
 			ctx,
@@ -84,7 +89,9 @@ export const enqueueBuildingUpgrade = mutation({
 			config.kind === "generator"
 				? getGeneratorOrThrow(config.generatorId).maxLevel
 				: config.maxLevel;
-		if (fromLevel >= maxLevel) {
+		const effectiveMaxLevel =
+			maxLevel + (researchModifiers.buildingMaxLevelBonuses[args.buildingKey] ?? 0);
+		if (fromLevel >= effectiveMaxLevel) {
 			throw new ConvexError("Building is already at max level");
 		}
 
@@ -113,7 +120,14 @@ export const enqueueBuildingUpgrade = mutation({
 			if (config.kind === "generator") {
 				return getUpgradeDurationSeconds(getGeneratorOrThrow(config.generatorId), fromLevel);
 			}
-			return getBuildingUpgradeDurationSeconds(args.buildingKey, fromLevel);
+			return Math.max(
+				1,
+				Math.round(
+					getBuildingUpgradeDurationSeconds(args.buildingKey, fromLevel) *
+						researchModifiers.globalBuildingUpgradeTimeMultiplier *
+						(researchModifiers.buildingUpgradeTimeMultipliers[args.buildingKey] ?? 1),
+				),
+			);
 		})();
 		const laneTail = queueRows[queueRows.length - 1];
 		const startsAt = laneTail ? laneTail.completesAt : now;

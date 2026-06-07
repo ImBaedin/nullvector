@@ -5,6 +5,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { internal } from "../../convex/_generated/api";
 import { internalMutation } from "../../convex/_generated/server";
 import { settleDueFleetOperations } from "./fleetV2";
+import { reconcileResearchSchedule, settleResearchQueue } from "./research";
 import {
 	ACTIVE_FLEET_OPERATION_STATUSES,
 	reconcileFleetOperationSchedule,
@@ -194,6 +195,69 @@ export const rearmFleetOperationSchedules = internalMutation({
 		}
 		return {
 			operationIds: args.operationIds,
+		};
+	},
+});
+
+export const resolvePlayerResearch = internalMutation({
+	args: {
+		playerId: v.id("players"),
+		scheduledAt: v.number(),
+	},
+	returns: v.object({
+		playerId: v.id("players"),
+		resolvedAt: v.number(),
+		stale: v.boolean(),
+	}),
+	handler: async (ctx, args) => {
+		const now = Date.now();
+		const schedulingRows = await ctx.db
+			.query("playerResearchScheduling")
+			.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+			.collect();
+		schedulingRows.sort((left, right) => left._creationTime - right._creationTime);
+		const scheduling = schedulingRows[0] ?? null;
+		if (!scheduling || scheduling.resolutionScheduledAt !== args.scheduledAt) {
+			return {
+				playerId: args.playerId,
+				resolvedAt: now,
+				stale: true,
+			};
+		}
+		await settleResearchQueue({
+			ctx,
+			now,
+			playerId: args.playerId,
+		});
+		await ctx.scheduler.runAfter(0, internal.scheduler.rearmPlayerResearchSchedule, {
+			playerId: args.playerId,
+		});
+		return {
+			playerId: args.playerId,
+			resolvedAt: now,
+			stale: false,
+		};
+	},
+});
+
+export const rearmPlayerResearchSchedule = internalMutation({
+	args: {
+		playerId: v.id("players"),
+	},
+	returns: v.object({
+		playerId: v.id("players"),
+		nextDueAt: v.union(v.number(), v.null()),
+	}),
+	handler: async (ctx, args) => {
+		const result = await reconcileResearchSchedule({
+			ctx,
+			playerId: args.playerId,
+			force: true,
+			skipCancel: true,
+		});
+		return {
+			playerId: args.playerId,
+			nextDueAt: result.nextDueAt,
 		};
 	},
 });

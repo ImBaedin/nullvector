@@ -307,6 +307,7 @@ export async function emitContractResolvedNotification(args: {
 	rewardCargoLoaded: ContractResolvedNotification["rewardCargoLoaded"];
 	rewardCargoLostByCapacity: ContractResolvedNotification["rewardCargoLostByCapacity"];
 	rewardCreditsGranted: number;
+	rewardMetaMatterGranted: ContractResolvedNotification["rewardMetaMatterGranted"];
 	rewardXpGranted: number;
 	roundsFought: number;
 	success: boolean;
@@ -322,6 +323,7 @@ export async function emitContractResolvedNotification(args: {
 		success: args.success,
 		roundsFought: args.roundsFought,
 		rewardCreditsGranted: args.rewardCreditsGranted,
+		rewardMetaMatterGranted: args.rewardMetaMatterGranted,
 		rewardXpGranted: args.rewardXpGranted,
 		rewardCargoLoaded: args.rewardCargoLoaded,
 		rewardCargoLostByCapacity: args.rewardCargoLostByCapacity,

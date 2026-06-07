@@ -5,7 +5,10 @@ import {
 	getFleetSlowestSpeed,
 	normalizeShipCounts,
 	simulateCombat,
+	SHIP_KEYS,
 	type ResourceBucket,
+	type ResearchModifierSnapshot,
+	type RouteClass,
 	type ShipCounts,
 	type ShipKey,
 } from "@nullvector/game-logic";
@@ -46,12 +49,20 @@ import {
 	markQuestMetricSourceProcessed,
 	transportDeliveredResourcesTotal,
 } from "./questMetrics";
+import { grantMetaMatter, loadPlayerResearchModifierSnapshot } from "./research";
+import {
+	incrementResearchColonizationMetrics,
+	incrementResearchContractMetrics,
+	incrementResearchTransportMetrics,
+	markResearchMetricSourceProcessed,
+} from "./researchMetrics";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	cloneResourceBucket,
 	ensureColonyAccessRow,
 	emptyResourceBucket,
 	getOwnedColony,
+	hashString,
 	incrementColonyShipCount,
 	loadColonyState,
 	loadPlanetState,
@@ -169,12 +180,119 @@ function missionCargoTotal(cargo: ResourceBucket) {
 	return cargo.alloy + cargo.crystal + cargo.fuel;
 }
 
-export function durationMsForFleet(args: { distance: number; shipCounts: ShipCounts }) {
+export function durationMsForFleet(args: {
+	distance: number;
+	routeSpeedMultiplier?: number;
+	shipCounts: ShipCounts;
+}) {
 	const speed = getFleetSlowestSpeed(args.shipCounts);
 	if (speed <= 0) {
 		throw new ConvexError("Operation fleet has no ships");
 	}
-	return Math.max(30_000, Math.ceil((args.distance / speed) * 3_600_000));
+	return Math.max(
+		30_000,
+		Math.ceil((args.distance / speed) * 3_600_000 * (args.routeSpeedMultiplier ?? 1)),
+	);
+}
+
+function committedShipCount(shipCounts: ShipCounts) {
+	return SHIP_KEYS.reduce((sum, key) => sum + Math.max(0, Math.floor(shipCounts[key])), 0);
+}
+
+function shouldApplyInterceptorWolfpack(args: {
+	researchModifiers: ResearchModifierSnapshot;
+	shipCounts: ShipCounts;
+}) {
+	const wolfpack = args.researchModifiers.interceptorWolfpack;
+	if (!wolfpack) {
+		return false;
+	}
+	const committed = committedShipCount(args.shipCounts);
+	if (committed <= 0) {
+		return false;
+	}
+	return (
+		args.shipCounts.interceptor >= wolfpack.minInterceptors &&
+		args.shipCounts.interceptor / committed >= wolfpack.minShare
+	);
+}
+
+function contractCombatModifiers(args: {
+	researchModifiers: ResearchModifierSnapshot;
+	shipCounts: ShipCounts;
+}) {
+	if (!shouldApplyInterceptorWolfpack(args)) {
+		return args.researchModifiers;
+	}
+	const wolfpack = args.researchModifiers.interceptorWolfpack!;
+	return {
+		...args.researchModifiers,
+		shipStatMultipliers: {
+			...args.researchModifiers.shipStatMultipliers,
+			interceptor: {
+				...args.researchModifiers.shipStatMultipliers.interceptor,
+				attack:
+					args.researchModifiers.shipStatMultipliers.interceptor.attack *
+					(wolfpack.attackMultiplier ?? 1),
+				hull:
+					args.researchModifiers.shipStatMultipliers.interceptor.hull *
+					(wolfpack.hullMultiplier ?? 1),
+			},
+		},
+	} satisfies ResearchModifierSnapshot;
+}
+
+function captureContractShips(args: {
+	contractId: Id<"contracts">;
+	defenderRemaining: ShipCounts;
+	enemyFleet: ShipCounts;
+	operationId: Id<"fleetOperations">;
+	researchModifiers: ResearchModifierSnapshot;
+}) {
+	const capture = args.researchModifiers.contractShipCapture;
+	const captured = normalizeShipCounts({});
+	if (!capture) {
+		return captured;
+	}
+	let capturedTotal = 0;
+	for (const shipKey of capture.eligibleShips) {
+		const destroyed = Math.max(0, args.enemyFleet[shipKey] - args.defenderRemaining[shipKey]);
+		for (let index = 0; index < destroyed && capturedTotal < capture.maxShips; index += 1) {
+			const roll =
+				(hashString(`${args.contractId}:${args.operationId}:${shipKey}:${index}:capture`) %
+					10_000) /
+				10_000;
+			if (roll < capture.chance) {
+				captured[shipKey] += 1;
+				capturedTotal += 1;
+			}
+		}
+	}
+	return captured;
+}
+
+function addShipCounts(left: ShipCounts, right: ShipCounts) {
+	const counts = normalizeShipCounts(left);
+	for (const key of SHIP_KEYS) {
+		counts[key] += right[key];
+	}
+	return counts;
+}
+
+function routeClassForEndpoints(
+	origin: { galaxyId: Id<"galaxies">; sectorId: Id<"sectors">; systemId: Id<"systems"> },
+	target: { galaxyId: Id<"galaxies">; sectorId: Id<"sectors">; systemId: Id<"systems"> },
+): RouteClass {
+	if (origin.galaxyId !== target.galaxyId) {
+		return "interGalactic";
+	}
+	if (origin.sectorId !== target.sectorId) {
+		return "interSector";
+	}
+	if (origin.systemId !== target.systemId) {
+		return "interSystem";
+	}
+	return "local";
 }
 
 export function euclideanDistance(args: { x1: number; x2: number; y1: number; y2: number }) {
@@ -244,6 +362,9 @@ export async function colonySystemCoords(args: {
 		throw new ConvexError("System not found for colony");
 	}
 	return {
+		galaxyId: system.galaxyId,
+		sectorId: system.sectorId,
+		systemId: system._id,
 		x: system.x,
 		y: system.y,
 	};
@@ -259,6 +380,9 @@ async function planetSystemCoords(args: { planetId: Id<"planets">; ctx: QueryCtx
 		throw new ConvexError("System not found for planet");
 	}
 	return {
+		galaxyId: system.galaxyId,
+		sectorId: system.sectorId,
+		systemId: system._id,
 		x: system.x,
 		y: system.y,
 	};
@@ -274,6 +398,7 @@ function starterColonyBuildings(): Doc<"colonyInfrastructure">["buildings"] {
 		crystalStorageLevel: 1,
 		fuelStorageLevel: 1,
 		roboticsHubLevel: 0,
+		researchDirectorateLevel: 0,
 		shipyardLevel: 0,
 		defenseGridLevel: 0,
 	};
@@ -518,9 +643,27 @@ async function settleTransportAtTarget(args: {
 		});
 		return;
 	}
+	const researchModifiers = await loadPlayerResearchModifierSnapshot({
+		ctx: args.ctx,
+		playerId: args.operation.ownerPlayerId,
+	});
+	const deliveryCargo = { ...args.operation.cargoRequested };
+	if (
+		destination.playerId === args.operation.ownerPlayerId &&
+		researchModifiers.transportDeliveryDistanceBonus
+	) {
+		const bonus = researchModifiers.transportDeliveryDistanceBonus;
+		const multiplier = Math.min(
+			bonus.capMultiplier,
+			1 + (args.operation.distance * bonus.percentPerDistance) / 100,
+		);
+		deliveryCargo.alloy = Math.round(deliveryCargo.alloy * multiplier);
+		deliveryCargo.crystal = Math.round(deliveryCargo.crystal * multiplier);
+		deliveryCargo.fuel = Math.round(deliveryCargo.fuel * multiplier);
+	}
 
 	const delivery = await applyCargoToColony({
-		cargoScaled: args.operation.cargoRequested,
+		cargoScaled: deliveryCargo,
 		colony: destination,
 		ctx: args.ctx,
 		now: args.now,
@@ -592,6 +735,21 @@ async function settleTransportAtTarget(args: {
 				});
 			}
 		}
+		if (
+			await markResearchMetricSourceProcessed({
+				ctx: args.ctx,
+				now: args.now,
+				sourceKind: "fleetOperationResult",
+				sourceId: String(operationResultId),
+			})
+		) {
+			await incrementResearchTransportMetrics({
+				ctx: args.ctx,
+				playerId: args.operation.ownerPlayerId,
+				originColonyId: args.operation.originColonyId,
+				targetColonyId: destination._id,
+			});
+		}
 
 		await appendFleetEvent({
 			ctx: args.ctx,
@@ -629,7 +787,13 @@ async function settleTransportAtTarget(args: {
 		updatedAt: args.now,
 	});
 
-	const returnDuration = Math.max(30_000, args.operation.arriveAt - args.operation.departAt);
+	const returnDuration = Math.max(
+		30_000,
+		Math.round(
+			(args.operation.arriveAt - args.operation.departAt) *
+				researchModifiers.transportReturnDurationMultiplier,
+		),
+	);
 	await args.ctx.db.patch(args.operation._id, {
 		status: "returning",
 		departAt: args.now,
@@ -671,6 +835,21 @@ async function settleTransportAtTarget(args: {
 				resourceAmount,
 			});
 		}
+	}
+	if (
+		await markResearchMetricSourceProcessed({
+			ctx: args.ctx,
+			now: args.now,
+			sourceKind: "fleetOperationResult",
+			sourceId: String(operationResultId),
+		})
+	) {
+		await incrementResearchTransportMetrics({
+			ctx: args.ctx,
+			playerId: args.operation.ownerPlayerId,
+			originColonyId: args.operation.originColonyId,
+			targetColonyId: destination._id,
+		});
 	}
 
 	await appendFleetEvent({
@@ -907,6 +1086,21 @@ async function settleColonizeAtTarget(args: {
 			playerId: args.operation.ownerPlayerId,
 		});
 	}
+	if (
+		await markResearchMetricSourceProcessed({
+			ctx: args.ctx,
+			now: args.now,
+			sourceKind: "fleetOperationResult",
+			sourceId: String(operationResultId),
+		})
+	) {
+		await incrementResearchColonizationMetrics({
+			ctx: args.ctx,
+			playerId: args.operation.ownerPlayerId,
+			originColonyId: args.operation.originColonyId,
+			targetPlanetId,
+		});
+	}
 
 	await appendFleetEvent({
 		ctx: args.ctx,
@@ -952,22 +1146,60 @@ async function settleContractAtTarget(args: {
 		return;
 	}
 
+	const researchModifiers = await loadPlayerResearchModifierSnapshot({
+		ctx: args.ctx,
+		playerId: args.operation.ownerPlayerId,
+	});
+	const operationShips = normalizeShipCounts(args.operation.shipCounts);
+	const enemyFleet = normalizeShipCounts(contract.snapshot.enemyFleet);
+	const attackerModifiers = contractCombatModifiers({
+		researchModifiers,
+		shipCounts: operationShips,
+	});
 	const combat = simulateCombat({
 		attacker: {
-			ships: args.operation.shipCounts,
+			ships: operationShips,
 			targetPriority: contract.snapshot.priorityProfile.attackerTargetPriority,
 		},
+		attackerModifiers,
 		defender: {
-			ships: contract.snapshot.enemyFleet,
+			ships: enemyFleet,
 			defenses: contract.snapshot.enemyDefenses,
 			targetPriority: contract.snapshot.priorityProfile.defenderTargetPriority,
 		},
+		defenderAttackMultiplier: researchModifiers.enemyAttackMultiplier,
 		maxRounds: 6,
 	});
 
 	const rewardCargoWhole = combat.success
-		? contract.snapshot.rewardResources
+		? {
+				alloy:
+					contract.snapshot.rewardResources.alloy +
+					Math.floor(
+						contract.snapshot.rewardResources.alloy * researchModifiers.contractRecoveryRate,
+					),
+				crystal:
+					contract.snapshot.rewardResources.crystal +
+					Math.floor(
+						contract.snapshot.rewardResources.crystal * researchModifiers.contractRecoveryRate,
+					),
+				fuel:
+					contract.snapshot.rewardResources.fuel +
+					Math.floor(
+						contract.snapshot.rewardResources.fuel * researchModifiers.contractRecoveryRate,
+					),
+			}
 		: emptyResourceBucket();
+	const capturedShips = combat.success
+		? captureContractShips({
+				contractId: contract._id,
+				defenderRemaining: combat.defenderFleetRemaining,
+				enemyFleet,
+				operationId: args.operation._id,
+				researchModifiers,
+			})
+		: normalizeShipCounts({});
+	const returningShips = addShipCounts(combat.attackerRemaining, capturedShips);
 	const rewardCapacity = combat.cargoCapacityRemaining;
 	let remainingCapacity = rewardCapacity;
 	const rewardCargoLoadedWhole = {
@@ -1008,6 +1240,11 @@ async function settleContractAtTarget(args: {
 			ctx: args.ctx,
 			playerId: contract.playerId,
 		});
+		await grantMetaMatter({
+			amounts: contract.snapshot.rewardMetaMatter,
+			ctx: args.ctx,
+			playerId: contract.playerId,
+		});
 	}
 	await grantProgressionXp({
 		amount: xpGranted,
@@ -1029,12 +1266,15 @@ async function settleContractAtTarget(args: {
 		originColonyId: args.operation.originColonyId,
 		success: combat.success,
 		roundsFought: combat.roundsFought,
-		attackerSurvivors: combat.attackerRemaining,
+		attackerSurvivors: returningShips,
 		defenderSurvivors: {
 			fleet: combat.defenderFleetRemaining,
 			defenses: combat.defenderDefenseRemaining,
 		},
 		rewardCreditsGranted: combat.success ? contract.snapshot.rewardCredits : 0,
+		rewardMetaMatterGranted: combat.success
+			? contract.snapshot.rewardMetaMatter
+			: { common: 0, rare: 0, mythic: 0 },
 		rewardXpGranted: xpGranted,
 		rewardCargoLoaded: rewardCargoScaled,
 		rewardCargoLostByCapacity: rewardCargoLostScaled,
@@ -1060,18 +1300,37 @@ async function settleContractAtTarget(args: {
 			}),
 		});
 	}
+	if (
+		await markResearchMetricSourceProcessed({
+			ctx: args.ctx,
+			now: args.now,
+			sourceKind: "contractResult",
+			sourceId: String(contractResultId),
+		})
+	) {
+		await incrementResearchContractMetrics({
+			ctx: args.ctx,
+			playerId: contract.playerId,
+			originColonyId: contract.originColonyId ?? args.operation.originColonyId,
+			rank: contract.difficultyTier,
+			rewardMetaMatter: combat.success
+				? contract.snapshot.rewardMetaMatter
+				: { common: 0, rare: 0, mythic: 0 },
+			success: combat.success,
+		});
+	}
 
 	await args.ctx.db.patch(args.operation.fleetId, {
 		state: "returning",
 		locationKind: "route",
 		routeOperationId: args.operation._id,
-		shipCounts: combat.attackerRemaining,
+		shipCounts: returningShips,
 		cargo: rewardCargoScaled,
 		updatedAt: args.now,
 	});
 	await args.ctx.db.patch(args.operation._id, {
 		status: "returning",
-		shipCounts: combat.attackerRemaining,
+		shipCounts: returningShips,
 		departAt: args.now,
 		arriveAt: args.now + returnDuration,
 		nextEventAt: args.now + returnDuration,
@@ -1113,6 +1372,9 @@ async function settleContractAtTarget(args: {
 		rewardCargoLoaded: rewardCargoScaled,
 		rewardCargoLostByCapacity: rewardCargoLostScaled,
 		rewardCreditsGranted: combat.success ? contract.snapshot.rewardCredits : 0,
+		rewardMetaMatterGranted: combat.success
+			? contract.snapshot.rewardMetaMatter
+			: { common: 0, rare: 0, mythic: 0 },
 		rewardXpGranted: xpGranted,
 		roundsFought: combat.roundsFought,
 		success: combat.success,
@@ -1122,6 +1384,7 @@ async function settleContractAtTarget(args: {
 
 	const originColonyId = contract.originColonyId ?? args.operation.originColonyId;
 	await advanceContractBoardSlot({
+		acceptedOfferSequence: contract.offerSequence,
 		ctx: args.ctx,
 		colonyId: originColonyId,
 		now: args.now,
@@ -1460,9 +1723,7 @@ const fleetOperationColonySummaryValidator = v.object({
 
 const fleetOwnedOperationsHealthValidator = v.object({
 	colonyId: v.id("colonies"),
-	hasStaleOwnedOperations: v.boolean(),
 	nextEventAt: v.optional(v.number()),
-	serverNowMs: v.number(),
 });
 
 const missionKindValidator = v.union(v.literal("transport"), v.literal("colonize"));
@@ -1944,7 +2205,6 @@ export const getFleetOwnedOperationsHealth = query({
 	},
 	returns: fleetOwnedOperationsHealthValidator,
 	handler: async (ctx, args) => {
-		const serverNowMs = Date.now();
 		const { colony, player } = await requireOwnedColonyRow({
 			ctx,
 			colonyId: args.colonyId,
@@ -2003,9 +2263,7 @@ export const getFleetOwnedOperationsHealth = query({
 
 		return {
 			colonyId: colony._id,
-			hasStaleOwnedOperations: activeOps.some((operation) => operation.nextEventAt <= serverNowMs),
 			nextEventAt: activeOps[0]?.nextEventAt,
-			serverNowMs,
 		};
 	},
 });
@@ -2407,14 +2665,20 @@ export const createOperation = mutation({
 			throw new ConvexError(`${args.kind} operations are not implemented yet`);
 		}
 
-		if (missionCargoTotal(cargoRequested) > getFleetCargoCapacity(normalizedShips)) {
-			throw new ConvexError("Cargo exceeds fleet cargo capacity");
-		}
-
 		const origin = await getOwnedColony({
 			colonyId: args.originColonyId,
 			ctx,
 		});
+		const researchModifiers = await loadPlayerResearchModifierSnapshot({
+			ctx,
+			playerId: origin.player._id,
+		});
+		if (
+			missionCargoTotal(cargoRequested) >
+			Math.round(getFleetCargoCapacity(normalizedShips) * researchModifiers.cargoCapacityMultiplier)
+		) {
+			throw new ConvexError("Cargo exceeds fleet cargo capacity");
+		}
 		const progression = await buildProgressionRules({
 			ctx,
 			playerId: origin.player._id,
@@ -2461,6 +2725,7 @@ export const createOperation = mutation({
 		});
 
 		let distance = 1;
+		let routeClass: RouteClass = "local";
 		if (args.kind === "transport") {
 			if (normalizedShips.colonyShip > 0) {
 				throw new ConvexError("Transport operations cannot include colony ships");
@@ -2508,6 +2773,7 @@ export const createOperation = mutation({
 				x2: destinationCoords.x,
 				y2: destinationCoords.y,
 			});
+			routeClass = routeClassForEndpoints(originCoords, destinationCoords);
 		}
 
 		if (args.kind === "colonize") {
@@ -2577,15 +2843,18 @@ export const createOperation = mutation({
 				x2: targetCoords.x,
 				y2: targetCoords.y,
 			});
+			routeClass = routeClassForEndpoints(originCoords, targetCoords);
 		}
 
 		const durationMs = durationMsForFleet({
 			distance,
+			routeSpeedMultiplier: researchModifiers.routeSpeedMultipliers[routeClass],
 			shipCounts: normalizedShips,
 		});
 
 		const oneWayFuelScaled = scaledUnits(
-			getFleetFuelCostForDistance({ distance, shipCounts: normalizedShips }),
+			getFleetFuelCostForDistance({ distance, shipCounts: normalizedShips }) *
+				researchModifiers.fleetFuelCostMultiplier,
 		);
 		const fuelScaled =
 			args.kind === "transport" && args.postDeliveryAction === "returnToOrigin"
@@ -2791,11 +3060,15 @@ export const cancelOperation = mutation({
 		let additionalFuelCharged = 0;
 		let fuelWaived = 0;
 		if (!(operation.kind === "transport" && operation.postDeliveryAction === "returnToOrigin")) {
+			const researchModifiers = await loadPlayerResearchModifierSnapshot({
+				ctx,
+				playerId: operation.ownerPlayerId,
+			});
 			const extraFuelScaled = scaledUnits(
 				getFleetFuelCostForDistance({
 					distance: returnDistance,
 					shipCounts: operation.shipCounts,
-				}),
+				}) * researchModifiers.fleetFuelCostMultiplier,
 			);
 			const originBase = await ctx.db.get(operation.originColonyId);
 			if (!originBase) {
@@ -2870,6 +3143,7 @@ export const cancelOperation = mutation({
 				updatedAt: now,
 			});
 			await advanceContractBoardSlot({
+				acceptedOfferSequence: linkedContract.offerSequence,
 				ctx,
 				colonyId: linkedContract.originColonyId ?? operation.originColonyId,
 				now,

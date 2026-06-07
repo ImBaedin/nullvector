@@ -30,6 +30,7 @@ describe("queue view helpers", () => {
 					alloyStorageLevel: 1,
 					crystalStorageLevel: 1,
 					fuelStorageLevel: 1,
+					researchDirectorateLevel: 0,
 					roboticsHubLevel,
 					shipyardLevel: 0,
 					defenseGridLevel: 0,

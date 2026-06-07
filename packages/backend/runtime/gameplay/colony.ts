@@ -28,6 +28,7 @@ const colonyBuildingsValidator = v.object({
 	fuelRefineryLevel: v.number(),
 	fuelStorageLevel: v.number(),
 	powerPlantLevel: v.number(),
+	researchDirectorateLevel: v.number(),
 	roboticsHubLevel: v.number(),
 	shipyardLevel: v.number(),
 });
@@ -132,6 +133,7 @@ function normalizeBuildings(
 	return {
 		...infrastructure,
 		defenseGridLevel: infrastructure.defenseGridLevel ?? 0,
+		researchDirectorateLevel: infrastructure.researchDirectorateLevel ?? 0,
 		roboticsHubLevel: infrastructure.roboticsHubLevel ?? 0,
 	};
 }

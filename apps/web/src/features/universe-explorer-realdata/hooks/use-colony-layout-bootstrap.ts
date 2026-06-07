@@ -17,7 +17,6 @@ export function useColonyLayoutBootstrap(args: {
 	const convex = useConvex();
 	const explorer = useExplorerContext();
 	const prefetchedColonyIdsRef = useRef(new Set<string>());
-	const initializedColonyIdRef = useRef<Id<"colonies"> | null>(null);
 	const coordinates = useQuery(
 		api.colonyNav.getColonyCoordinates,
 		args.isAuthenticated ? { colonyId: args.colonyId } : "skip",
@@ -80,7 +79,7 @@ export function useColonyLayoutBootstrap(args: {
 		if (!coordinates) {
 			return;
 		}
-		if (initializedColonyIdRef.current === args.colonyId) {
+		if (explorer.bootstrappedColonyId === args.colonyId) {
 			return;
 		}
 
@@ -97,12 +96,14 @@ export function useColonyLayoutBootstrap(args: {
 				x: focusX,
 				y: focusY,
 				zoom: ZOOM.planet,
+				transition: "instant",
 			},
 		);
-		initializedColonyIdRef.current = args.colonyId;
+		explorer.setBootstrappedColonyId(args.colonyId);
 	}, [args.colonyId, coordinates, explorer]);
 
 	return {
 		coordinates,
+		isReady: !args.isAuthenticated || explorer.bootstrappedColonyId === args.colonyId,
 	};
 }

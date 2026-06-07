@@ -173,26 +173,28 @@ function DefensesRoute() {
 		const stateByDefenseKey = new Map(
 			colonyView.defenseState.defenseStates.map((state) => [state.key, state]),
 		);
-		const defenses = defenseCatalog.map((defense) => {
-			const state = stateByDefenseKey.get(defense.key);
-			const presentation = DEFENSE_PRESENTATION[defense.key];
+		const defenses = defenseCatalog
+			.map((defense) => {
+				const state = stateByDefenseKey.get(defense.key);
+				const presentation = DEFENSE_PRESENTATION[defense.key];
 
-			return {
-				attack: defense.attack,
-				buildSeconds: state?.perUnitDurationSeconds ?? 0,
-				cost: defense.cost,
-				description: presentation.description,
-				hull: defense.hull,
-				image: presentation.image,
-				isUnlocked: state?.isUnlocked ?? false,
-				key: defense.key,
-				name: defense.name,
-				owned: state?.owned ?? 0,
-				queued: state?.queued ?? 0,
-				requiredLevel: defense.requiredDefenseGridLevel,
-				shield: defense.shield,
-			} satisfies DefenseDisplay;
-		});
+				return {
+					attack: defense.attack,
+					buildSeconds: state?.perUnitDurationSeconds ?? 0,
+					cost: defense.cost,
+					description: presentation.description,
+					hull: defense.hull,
+					image: presentation.image,
+					isUnlocked: state?.isUnlocked ?? false,
+					key: defense.key,
+					name: defense.name,
+					owned: state?.owned ?? 0,
+					queued: state?.queued ?? 0,
+					requiredLevel: defense.requiredDefenseGridLevel,
+					shield: defense.shield,
+				} satisfies DefenseDisplay;
+			})
+			.filter((defense) => defense.isUnlocked);
 
 		return {
 			colonyId: colonyView.defenseState.colonyId,

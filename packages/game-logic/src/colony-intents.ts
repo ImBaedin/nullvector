@@ -252,6 +252,7 @@ export function applyColonyIntent(
 		const buildingLane = economy.queues.lanes.building;
 		const facilityLevels = {
 			defense_grid: snapshot.buildings.defenseGridLevel,
+			research_directorate: snapshot.buildings.researchDirectorateLevel,
 			robotics_hub: snapshot.buildings.roboticsHubLevel,
 			shipyard: snapshot.buildings.shipyardLevel,
 		};

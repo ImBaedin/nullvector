@@ -942,11 +942,7 @@ export function ResourceBuildingCard(props: {
 								>
 									{effectiveOutputPerMinute.toLocaleString()}
 								</span>
-								<span
-									className="
-          font-(family-name:--nv-font-mono) text-[9px] text-white/35
-        "
-								>
+								<span className="font-(family-name:--nv-font-mono) text-[9px] text-white/35">
 									/m
 								</span>
 							</div>

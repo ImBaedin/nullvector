@@ -57,6 +57,7 @@ export {
 	getFleetFuelCostForDistance,
 	getFleetSlowestSpeed,
 	getShipBuildDurationSeconds,
+	isShipUnlocked,
 	normalizeShipCounts,
 } from "./ships";
 export {
@@ -64,8 +65,33 @@ export {
 	DEFENSE_KEYS,
 	EMPTY_DEFENSE_COUNTS,
 	getDefenseBuildDurationSeconds,
+	isDefenseUnlocked,
 	normalizeDefenseCounts,
 } from "./defenses";
+export {
+	AUTHORED_RESEARCH_BRANCHES,
+	buildResearchEffectLabels,
+	buildResearchModifierSnapshot,
+	canResearchNodeStart,
+	DEFAULT_RESEARCH_BRANCHES,
+	DEFAULT_RESEARCH_TREE,
+	describeResearchEffect,
+	emptyResearchTierUnlockContext,
+	getEffectiveResearchDurationSeconds,
+	getResearchBranch,
+	getResearchNode,
+	getResearchNodeRequirementStatuses,
+	getResearchTier,
+	getResearchTierUnlockRequirementStatuses,
+	getResearchVisibility,
+	isResearchTierUnlocked,
+	isResearchTierUnlockSatisfied,
+	isResearchUnlocked,
+	META_MATTER_RARITIES,
+	RESEARCH_BRANCH_KEYS,
+	RESEARCH_KEYS,
+	rollMetaMatterBundle,
+} from "./research";
 export {
 	estimateColonyDefensePower,
 	generateNpcRaidSnapshot,
@@ -243,6 +269,27 @@ export type {
 } from "./progression";
 export type { ShipCounts, ShipDefinition } from "./ships";
 export type { DefenseCounts, DefenseDefinition, DefenseKey } from "./defenses";
+export type {
+	MetaMatterBundle,
+	MetaMatterRarity,
+	ResearchBranchKey,
+	ResearchBranchDefinition,
+	ResearchEffect,
+	ResearchKey,
+	ResearchLayoutLane,
+	ResearchLevelMap,
+	ResearchModifierSnapshot,
+	ResearchNodeCost,
+	ResearchNodeDefinition,
+	ResearchNodeLayout,
+	ResearchNodeShape,
+	ResearchRequirementStatus,
+	ResearchTierDefinition,
+	ResearchTierUnlockContext,
+	ResearchTierUnlockRule,
+	ResearchVisibility,
+	RouteClass,
+} from "./research";
 export type {
 	CombatMissionTypeKey,
 	CombatPriorityProfile,

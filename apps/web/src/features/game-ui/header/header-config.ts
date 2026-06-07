@@ -17,6 +17,7 @@ export type HeaderConfig = {
 	notificationsCount?: number;
 	onColonyChange?: (colonyId: string) => void;
 	onOpenNotifications?: () => void;
+	onOpenResearch?: () => void;
 	onOpenSettings?: () => void;
 	onOpenStarMap?: () => void;
 	resources?: ResourceDatum[];
@@ -140,6 +141,7 @@ export function getHeaderConfig(
 	const fleetPath = `/game/colony/${encodedColonyId}/fleet`;
 	const shipyardPath = `/game/colony/${encodedColonyId}/shipyard`;
 	const contractsPath = `/game/colony/${encodedColonyId}/contracts`;
+	const isOverviewRoute = pathname === overviewPath;
 	const isResourcesRoute = pathname === resourcesPath;
 	const isFacilitiesRoute = pathname === facilitiesPath;
 	const isDefensesRoute = pathname === defensesPath;
@@ -147,19 +149,21 @@ export function getHeaderConfig(
 	const isShipyardRoute = pathname === shipyardPath;
 	const isContractsRoute = pathname === contractsPath;
 
-	const activeTabId = isResourcesRoute
-		? "resources"
-		: isFacilitiesRoute
-			? "facilities"
-			: isDefensesRoute
-				? "defenses"
-				: isFleetRoute
-					? "fleet"
-					: isShipyardRoute
-						? "shipyard"
-						: isContractsRoute
-							? "contracts"
-							: "resources";
+	const activeTabId = isOverviewRoute
+		? "overview"
+		: isResourcesRoute
+			? "resources"
+			: isFacilitiesRoute
+				? "facilities"
+				: isDefensesRoute
+					? "defenses"
+					: isFleetRoute
+						? "fleet"
+						: isShipyardRoute
+							? "shipyard"
+							: isContractsRoute
+								? "contracts"
+								: "resources";
 
 	const tabPaths = {
 		overview: overviewPath,

@@ -11,6 +11,7 @@ import type {
 import {
 	BUILDING_KEYS,
 	DEFAULT_GENERATOR_REGISTRY,
+	buildResearchModifierSnapshot,
 	getBuildingUpgradeCost,
 	getBuildingUpgradeDurationSeconds,
 	getGeneratorConsumptionPerMinute,
@@ -43,6 +44,7 @@ type ColonyState = {
 		alloyStorageLevel: number;
 		crystalStorageLevel: number;
 		fuelStorageLevel: number;
+		researchDirectorateLevel: number;
 		roboticsHubLevel: number;
 		shipyardLevel: number;
 		defenseGridLevel: number;
@@ -116,6 +118,7 @@ const ALL_BUILDING_KEYS = [
 	"alloyStorageLevel",
 	"crystalStorageLevel",
 	"fuelStorageLevel",
+	"researchDirectorateLevel",
 	"roboticsHubLevel",
 	"shipyardLevel",
 	"defenseGridLevel",
@@ -151,6 +154,7 @@ const facilityKeyValidator = v.union(
 	v.literal("robotics_hub"),
 	v.literal("shipyard"),
 	v.literal("defense_grid"),
+	v.literal("research_directorate"),
 );
 
 const queueLaneValidator = v.union(
@@ -246,6 +250,7 @@ function buildingLevelsEqual(
 		left.alloyStorageLevel === right.alloyStorageLevel &&
 		left.crystalStorageLevel === right.crystalStorageLevel &&
 		left.fuelStorageLevel === right.fuelStorageLevel &&
+		left.researchDirectorateLevel === right.researchDirectorateLevel &&
 		left.roboticsHubLevel === right.roboticsHubLevel &&
 		left.shipyardLevel === right.shipyardLevel &&
 		left.defenseGridLevel === right.defenseGridLevel
@@ -399,6 +404,7 @@ async function loadColonyState(args: { colony: Doc<"colonies">; ctx: QueryCtx | 
 	const buildings = {
 		...infrastructure.buildings,
 		roboticsHubLevel: infrastructure.buildings.roboticsHubLevel ?? 0,
+		researchDirectorateLevel: infrastructure.buildings.researchDirectorateLevel ?? 0,
 		defenseGridLevel: infrastructure.buildings.defenseGridLevel ?? 0,
 	};
 	return {
@@ -563,6 +569,7 @@ const BUILDING_CONFIG: Record<BuildingKey, BuildingConfig> = {
 const SHIPYARD_FACILITY_KEY: FacilityKey = "shipyard";
 const ROBOTICS_HUB_FACILITY_KEY: FacilityKey = "robotics_hub";
 const DEFENSE_GRID_FACILITY_KEY: FacilityKey = "defense_grid";
+const RESEARCH_DIRECTORATE_FACILITY_KEY: FacilityKey = "research_directorate";
 const EMPTY_RESEARCH_LEVELS: Record<string, number> = {};
 
 function getBuildingLaneCapacity(colony: Pick<ColonyState, "buildings">) {
@@ -581,6 +588,9 @@ function facilityLevelFromColony(colony: Pick<ColonyState, "buildings">, facilit
 	if (facilityKey === DEFENSE_GRID_FACILITY_KEY) {
 		return colony.buildings.defenseGridLevel;
 	}
+	if (facilityKey === RESEARCH_DIRECTORATE_FACILITY_KEY) {
+		return colony.buildings.researchDirectorateLevel;
+	}
 	return 0;
 }
 
@@ -589,6 +599,7 @@ function facilityLevelsFromColony(colony: Pick<ColonyState, "buildings">) {
 		robotics_hub: colony.buildings.roboticsHubLevel,
 		shipyard: colony.buildings.shipyardLevel,
 		defense_grid: colony.buildings.defenseGridLevel,
+		research_directorate: colony.buildings.researchDirectorateLevel,
 	} satisfies Partial<Record<string, number>>;
 }
 
@@ -603,6 +614,13 @@ function setFacilityLevelOnBuildings(args: {
 	}
 	if (args.facilityKey === "shipyard") {
 		args.buildings.shipyardLevel = Math.max(args.level, args.buildings.shipyardLevel);
+		return;
+	}
+	if (args.facilityKey === RESEARCH_DIRECTORATE_FACILITY_KEY) {
+		args.buildings.researchDirectorateLevel = Math.max(
+			args.level,
+			args.buildings.researchDirectorateLevel,
+		);
 		return;
 	}
 	if (args.facilityKey === DEFENSE_GRID_FACILITY_KEY) {
@@ -633,11 +651,23 @@ function isStorageBuildingKey(buildingKey: BuildingKey): buildingKey is StorageB
 	);
 }
 
-function storageCapsFromBuildings(buildings: ColonyState["buildings"]): ResourceBucket {
+function storageCapsFromBuildings(
+	buildings: ColonyState["buildings"],
+	modifierSnapshot = buildResearchModifierSnapshot(EMPTY_RESEARCH_LEVELS),
+): ResourceBucket {
 	return {
-		alloy: scaledUnits(storageCapForLevel(buildings.alloyStorageLevel)),
-		crystal: scaledUnits(storageCapForLevel(buildings.crystalStorageLevel)),
-		fuel: scaledUnits(storageCapForLevel(buildings.fuelStorageLevel)),
+		alloy: scaledUnits(
+			storageCapForLevel(buildings.alloyStorageLevel) *
+				modifierSnapshot.resourceStorageMultipliers.alloy,
+		),
+		crystal: scaledUnits(
+			storageCapForLevel(buildings.crystalStorageLevel) *
+				modifierSnapshot.resourceStorageMultipliers.crystal,
+		),
+		fuel: scaledUnits(
+			storageCapForLevel(buildings.fuelStorageLevel) *
+				modifierSnapshot.resourceStorageMultipliers.fuel,
+		),
 	};
 }
 
@@ -680,6 +710,9 @@ function productionRatesPerMinute(args: {
 	buildings: ColonyState["buildings"];
 	overflow: ResourceBucket;
 	planet: Doc<"planets"> & PlanetEconomyState;
+	modifierSnapshot?: ReturnType<typeof buildResearchModifierSnapshot>;
+	resources?: ResourceBucket;
+	storageCaps?: ResourceBucket;
 }) {
 	const { buildings, overflow, planet } = args;
 
@@ -708,16 +741,55 @@ function productionRatesPerMinute(args: {
 
 	const energyProduced = getGeneratorProductionPerMinute(powerGenerator, buildings.powerPlantLevel);
 	const energyConsumed =
-		getGeneratorConsumptionPerMinute(alloyGenerator, buildings.alloyMineLevel) +
-		getGeneratorConsumptionPerMinute(crystalGenerator, buildings.crystalMineLevel) +
-		getGeneratorConsumptionPerMinute(fuelGenerator, buildings.fuelRefineryLevel);
+		(getGeneratorConsumptionPerMinute(alloyGenerator, buildings.alloyMineLevel) +
+			getGeneratorConsumptionPerMinute(crystalGenerator, buildings.crystalMineLevel) +
+			getGeneratorConsumptionPerMinute(fuelGenerator, buildings.fuelRefineryLevel)) *
+		(args.modifierSnapshot?.energyConsumptionMultiplier ?? 1);
 
 	const energyRatio =
 		energyConsumed <= 0 ? 1 : Math.max(0, Math.min(1, energyProduced / energyConsumed));
+	const storagePressureMultiplier = (resource: keyof ResourceBucket) => {
+		const pressure = args.modifierSnapshot?.storagePressureProductionBonus;
+		if (!pressure || !args.resources || !args.storageCaps) {
+			return 1;
+		}
+		const cap = Math.max(0, args.storageCaps[resource]);
+		if (cap <= 0) {
+			return 1;
+		}
+		const fill = Math.max(0, args.resources[resource]) / cap;
+		if (fill <= pressure.fullBonusBelow) {
+			return 1 + pressure.maxBonus;
+		}
+		if (fill >= pressure.zeroBonusAt) {
+			return 1;
+		}
+		const falloff =
+			(pressure.zeroBonusAt - fill) / (pressure.zeroBonusAt - pressure.fullBonusBelow);
+		return 1 + pressure.maxBonus * Math.max(0, Math.min(1, falloff));
+	};
 
-	const alloyRate = overflow.alloy > 0 ? 0 : rawAlloyRate * energyRatio;
-	const crystalRate = overflow.crystal > 0 ? 0 : rawCrystalRate * energyRatio;
-	const fuelRate = overflow.fuel > 0 ? 0 : rawFuelRate * energyRatio;
+	const alloyRate =
+		overflow.alloy > 0
+			? 0
+			: rawAlloyRate *
+				energyRatio *
+				(args.modifierSnapshot?.resourceProductionMultipliers.alloy ?? 1) *
+				storagePressureMultiplier("alloy");
+	const crystalRate =
+		overflow.crystal > 0
+			? 0
+			: rawCrystalRate *
+				energyRatio *
+				(args.modifierSnapshot?.resourceProductionMultipliers.crystal ?? 1) *
+				storagePressureMultiplier("crystal");
+	const fuelRate =
+		overflow.fuel > 0
+			? 0
+			: rawFuelRate *
+				energyRatio *
+				(args.modifierSnapshot?.resourceProductionMultipliers.fuel ?? 1) *
+				storagePressureMultiplier("fuel");
 
 	return {
 		resources: {
@@ -733,6 +805,7 @@ function productionRatesPerMinute(args: {
 
 export function applyAccrualSegment(args: {
 	colony: Doc<"colonies"> & ColonyState;
+	modifierSnapshot?: ReturnType<typeof buildResearchModifierSnapshot>;
 	planet: Doc<"planets"> & PlanetEconomyState;
 	segmentEndMs: number;
 	resources: ResourceBucket;
@@ -751,6 +824,9 @@ export function applyAccrualSegment(args: {
 		buildings: colony.buildings,
 		overflow: colony.overflow,
 		planet,
+		modifierSnapshot: args.modifierSnapshot,
+		resources,
+		storageCaps: colony.storageCaps,
 	});
 
 	const nextResources = cloneResourceBucket(resources);
@@ -843,6 +919,19 @@ async function resolveCurrentPlayer(ctx: QueryCtx | MutationCtx) {
 		},
 		player: players[0],
 	};
+}
+
+async function loadPlayerResearchModifierSnapshot(args: {
+	ctx: QueryCtx | MutationCtx;
+	playerId: Id<"players">;
+}) {
+	const rows = await args.ctx.db
+		.query("playerResearchState")
+		.withIndex("by_player_id", (q) => q.eq("playerId", args.playerId))
+		.collect();
+	rows.sort((left, right) => left._creationTime - right._creationTime);
+	const state = rows[0] ?? null;
+	return buildResearchModifierSnapshot(state?.levels ?? EMPTY_RESEARCH_LEVELS);
 }
 
 async function requirePlayer(ctx: QueryCtx | MutationCtx) {
@@ -1294,6 +1383,11 @@ async function settleColonyAndPersist(args: {
 		storageCaps: cloneResourceBucket(colony.storageCaps),
 		overflow: cloneResourceBucket(colony.overflow),
 	};
+	const researchModifiers = await loadPlayerResearchModifierSnapshot({
+		ctx,
+		playerId: colony.playerId,
+	});
+	workingColony.storageCaps = storageCapsFromBuildings(workingColony.buildings, researchModifiers);
 	const queueRows = await listOpenLaneQueueItems({
 		colonyId: colony._id,
 		ctx,
@@ -1337,6 +1431,7 @@ async function settleColonyAndPersist(args: {
 
 		const accrued = applyAccrualSegment({
 			colony: workingColony,
+			modifierSnapshot: researchModifiers,
 			planet,
 			segmentEndMs,
 			resources: workingColony.resources,
@@ -1381,7 +1476,10 @@ async function settleColonyAndPersist(args: {
 				level: toLevel,
 			});
 		}
-		workingColony.storageCaps = storageCapsFromBuildings(workingColony.buildings);
+		workingColony.storageCaps = storageCapsFromBuildings(
+			workingColony.buildings,
+			researchModifiers,
+		);
 		reconcileOverflowIntoStorage({
 			overflow: workingColony.overflow,
 			resources: workingColony.resources,
@@ -2003,6 +2101,7 @@ const colonyCoordinatesValidator = v.object({
 
 function buildHudResources(args: {
 	colony: Doc<"colonies"> & ColonyState;
+	modifierSnapshot?: ReturnType<typeof buildResearchModifierSnapshot>;
 	planet: Doc<"planets"> & PlanetEconomyState;
 }) {
 	const { colony, planet } = args;
@@ -2010,6 +2109,9 @@ function buildHudResources(args: {
 		buildings: colony.buildings,
 		overflow: colony.overflow,
 		planet,
+		modifierSnapshot: args.modifierSnapshot,
+		resources: colony.resources,
+		storageCaps: colony.storageCaps,
 	});
 
 	const alloyUnits = storedToWholeUnits(colony.resources.alloy);

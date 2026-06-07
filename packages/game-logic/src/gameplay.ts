@@ -9,7 +9,12 @@ export const BUILDING_KEYS = [
 ] as const;
 
 export type BuildingKey = (typeof BUILDING_KEYS)[number];
-export const FACILITY_KEYS = ["robotics_hub", "shipyard", "defense_grid"] as const;
+export const FACILITY_KEYS = [
+	"robotics_hub",
+	"shipyard",
+	"defense_grid",
+	"research_directorate",
+] as const;
 export type FacilityKey = (typeof FACILITY_KEYS)[number];
 
 export type ResourceBucket = {

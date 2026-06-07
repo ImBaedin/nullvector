@@ -1,5 +1,6 @@
 import type { DefenseCounts } from "./defenses";
 import type { ShipKey } from "./gameplay";
+import type { ResearchModifierSnapshot } from "./research";
 import type { ShipCounts } from "./ships";
 
 import { DEFAULT_DEFENSE_DEFINITIONS, normalizeDefenseCounts, type DefenseKey } from "./defenses";
@@ -8,12 +9,21 @@ import { DEFAULT_SHIP_DEFINITIONS, getFleetCargoCapacity, normalizeShipCounts } 
 type CombatUnitKey = ShipKey | DefenseKey;
 
 type CombatUnitState = {
+	attack: number;
 	count: number;
 	damageOnFrontUnit: number;
 	hull: number;
 	key: CombatUnitKey;
 	shield: number;
 };
+
+type CombatStatModifiers = Pick<
+	ResearchModifierSnapshot,
+	| "defenseStatMultipliers"
+	| "globalDefenseStatMultipliers"
+	| "globalShipStatMultipliers"
+	| "shipStatMultipliers"
+>;
 
 export type CombatSide = {
 	defenses?: Partial<DefenseCounts>;
@@ -42,46 +52,57 @@ function isDefenseKey(key: CombatUnitKey): key is DefenseKey {
 	return key in DEFAULT_DEFENSE_DEFINITIONS;
 }
 
-function getUnitAttack(key: CombatUnitKey) {
-	return isDefenseKey(key)
-		? DEFAULT_DEFENSE_DEFINITIONS[key].attack
-		: DEFAULT_SHIP_DEFINITIONS[key].attack;
+function shipStatMultiplier(
+	key: ShipKey,
+	stat: "attack" | "hull" | "shield",
+	modifiers?: CombatStatModifiers,
+) {
+	return (
+		(modifiers?.globalShipStatMultipliers[stat] ?? 1) *
+		(modifiers?.shipStatMultipliers[key]?.[stat] ?? 1)
+	);
 }
 
-function getUnitHull(key: CombatUnitKey) {
-	return isDefenseKey(key)
-		? DEFAULT_DEFENSE_DEFINITIONS[key].hull
-		: DEFAULT_SHIP_DEFINITIONS[key].hull;
+function defenseStatMultiplier(
+	key: DefenseKey,
+	stat: "attack" | "hull" | "shield",
+	modifiers?: CombatStatModifiers,
+) {
+	return (
+		(modifiers?.globalDefenseStatMultipliers[stat] ?? 1) *
+		(modifiers?.defenseStatMultipliers[key]?.[stat] ?? 1)
+	);
 }
 
-function getUnitShield(key: CombatUnitKey) {
-	return isDefenseKey(key)
-		? DEFAULT_DEFENSE_DEFINITIONS[key].shield
-		: DEFAULT_SHIP_DEFINITIONS[key].shield;
-}
-
-function createShipState(shipCounts: Partial<ShipCounts>) {
+function createShipState(shipCounts: Partial<ShipCounts>, modifiers?: CombatStatModifiers) {
 	const normalized = normalizeShipCounts(shipCounts);
 	return (Object.keys(DEFAULT_SHIP_DEFINITIONS) as ShipKey[])
 		.map((key) => ({
 			key,
+			attack: DEFAULT_SHIP_DEFINITIONS[key].attack * shipStatMultiplier(key, "attack", modifiers),
 			count: normalized[key],
 			damageOnFrontUnit: 0,
-			hull: DEFAULT_SHIP_DEFINITIONS[key].hull,
-			shield: DEFAULT_SHIP_DEFINITIONS[key].shield,
+			hull: DEFAULT_SHIP_DEFINITIONS[key].hull * shipStatMultiplier(key, "hull", modifiers),
+			shield: DEFAULT_SHIP_DEFINITIONS[key].shield * shipStatMultiplier(key, "shield", modifiers),
 		}))
 		.filter((unit) => unit.count > 0);
 }
 
-function createDefenseState(defenseCounts: Partial<DefenseCounts>) {
+function createDefenseState(
+	defenseCounts: Partial<DefenseCounts>,
+	modifiers?: CombatStatModifiers,
+) {
 	const normalized = normalizeDefenseCounts(defenseCounts);
 	return (Object.keys(DEFAULT_DEFENSE_DEFINITIONS) as DefenseKey[])
 		.map((key) => ({
 			key,
+			attack:
+				DEFAULT_DEFENSE_DEFINITIONS[key].attack * defenseStatMultiplier(key, "attack", modifiers),
 			count: normalized[key],
 			damageOnFrontUnit: 0,
-			hull: DEFAULT_DEFENSE_DEFINITIONS[key].hull,
-			shield: DEFAULT_DEFENSE_DEFINITIONS[key].shield,
+			hull: DEFAULT_DEFENSE_DEFINITIONS[key].hull * defenseStatMultiplier(key, "hull", modifiers),
+			shield:
+				DEFAULT_DEFENSE_DEFINITIONS[key].shield * defenseStatMultiplier(key, "shield", modifiers),
 		}))
 		.filter((unit) => unit.count > 0);
 }
@@ -141,7 +162,7 @@ function resolveSideAttack(args: {
 		if (attacker.count <= 0) {
 			continue;
 		}
-		let remainingDamage = attacker.count * getUnitAttack(attacker.key);
+		let remainingDamage = attacker.count * attacker.attack;
 
 		while (remainingDamage > 0) {
 			const target = pickTarget(args.targetPriority, args.targetShips, args.targetDefenses);
@@ -149,8 +170,8 @@ function resolveSideAttack(args: {
 				return;
 			}
 
-			const fullTargetHull = getUnitHull(target.key);
-			const targetShield = getUnitShield(target.key);
+			const fullTargetHull = target.hull;
+			const targetShield = target.shield;
 			const frontRemaining = fullTargetHull - target.damageOnFrontUnit;
 			const effectiveHull =
 				frontRemaining + targetShield + Math.max(0, (target.count - 1) * fullTargetHull);
@@ -193,12 +214,15 @@ function hasLivingUnits(units: CombatUnitState[]) {
 
 export function simulateCombat(args: {
 	attacker: CombatSide;
+	attackerModifiers?: CombatStatModifiers;
 	defender: CombatSide;
+	defenderAttackMultiplier?: number;
+	defenderModifiers?: CombatStatModifiers;
 	maxRounds?: number;
 }) {
-	const attackerShips = createShipState(args.attacker.ships ?? {});
-	const defenderShips = createShipState(args.defender.ships ?? {});
-	const defenderDefenses = createDefenseState(args.defender.defenses ?? {});
+	const attackerShips = createShipState(args.attacker.ships ?? {}, args.attackerModifiers);
+	const defenderShips = createShipState(args.defender.ships ?? {}, args.defenderModifiers);
+	const defenderDefenses = createDefenseState(args.defender.defenses ?? {}, args.defenderModifiers);
 	const rounds = Math.max(1, Math.floor(args.maxRounds ?? 6));
 	const combatLogSummary: CombatRoundSummary[] = [];
 
@@ -219,7 +243,10 @@ export function simulateCombat(args: {
 
 		if (hasLivingUnits(defenderShips) || hasLivingUnits(defenderDefenses)) {
 			resolveSideAttack({
-				attackers: [...defenderShips, ...defenderDefenses],
+				attackers: [...defenderShips, ...defenderDefenses].map((unit) => ({
+					...unit,
+					attack: unit.attack * (args.defenderAttackMultiplier ?? 1),
+				})),
 				targetShips: attackerShips,
 				targetDefenses: [],
 				targetPriority: args.defender.targetPriority,

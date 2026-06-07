@@ -30,6 +30,8 @@ import {
 	computeNpcRaidTravelDurationMs,
 	pickNpcRaidFaction,
 } from "./raidScheduling";
+import { loadPlayerResearchModifierSnapshot } from "./research";
+import { incrementResearchRaidMetrics, markResearchMetricSourceProcessed } from "./researchMetrics";
 import {
 	cloneResourceBucket,
 	emptyResourceBucket,
@@ -747,6 +749,10 @@ export async function resolveNpcRaidNow(args: {
 			ctx: args.ctx,
 		}),
 	]);
+	const defenderResearchModifiers = await loadPlayerResearchModifierSnapshot({
+		ctx: args.ctx,
+		playerId: settledColony.playerId,
+	});
 
 	const combat = simulateCombat({
 		attacker: {
@@ -758,6 +764,7 @@ export async function resolveNpcRaidNow(args: {
 			defenses: defenderDefenses,
 			targetPriority: raid.defenderTargetPriority,
 		},
+		defenderModifiers: defenderResearchModifiers,
 		maxRounds: 6,
 	});
 
@@ -853,6 +860,21 @@ export async function resolveNpcRaidNow(args: {
 			ctx: args.ctx,
 			playerId: raid.targetPlayerId,
 			colonyId: raid.targetColonyId,
+		});
+	}
+	if (
+		await markResearchMetricSourceProcessed({
+			ctx: args.ctx,
+			now,
+			sourceKind: "npcRaidResult",
+			sourceId: String(raidResultId),
+		})
+	) {
+		await incrementResearchRaidMetrics({
+			ctx: args.ctx,
+			playerId: raid.targetPlayerId,
+			colonyId: raid.targetColonyId,
+			defended: combat.success === false,
 		});
 	}
 	await emitRaidResolvedNotification({

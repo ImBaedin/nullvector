@@ -40,7 +40,9 @@ export function getContractTaskForceCap(args: { playerRank: number; shipyardLeve
 	}
 	const rankBonus = Math.max(0, Math.floor((safeRank - 3) / 5));
 	const shipyardThresholds = [2, 4, 6, 8, 10];
-	const shipyardBonus = shipyardThresholds.filter((threshold) => safeShipyardLevel >= threshold).length;
+	const shipyardBonus = shipyardThresholds.filter(
+		(threshold) => safeShipyardLevel >= threshold,
+	).length;
 	return 5 + rankBonus + shipyardBonus;
 }
 
@@ -356,6 +358,7 @@ const DEFAULT_FACILITY_ACCESS: FacilityAccessMap = {
 	robotics_hub: HIDDEN,
 	shipyard: LOCKED,
 	defense_grid: HIDDEN,
+	research_directorate: LOCKED,
 };
 
 const DEFAULT_SHIP_ACCESS: ShipAccessMap = {
@@ -480,6 +483,7 @@ function createOnboardingRankDefinition(
 					robotics_hub: UNLOCKED,
 					defense_grid: UNLOCKED,
 					shipyard: UNLOCKED,
+					research_directorate: UNLOCKED,
 				},
 				shipAccess: {
 					...DEFAULT_SHIP_ACCESS,
@@ -510,6 +514,7 @@ function createOnboardingRankDefinition(
 					robotics_hub: UNLOCKED,
 					defense_grid: UNLOCKED,
 					shipyard: UNLOCKED,
+					research_directorate: UNLOCKED,
 				},
 				shipAccess: {
 					...DEFAULT_SHIP_ACCESS,
@@ -540,6 +545,7 @@ function createOnboardingRankDefinition(
 					robotics_hub: UNLOCKED,
 					defense_grid: UNLOCKED,
 					shipyard: UNLOCKED,
+					research_directorate: UNLOCKED,
 				},
 				shipAccess: {
 					...DEFAULT_SHIP_ACCESS,
@@ -573,6 +579,7 @@ function createOnboardingRankDefinition(
 					robotics_hub: UNLOCKED,
 					defense_grid: UNLOCKED,
 					shipyard: UNLOCKED,
+					research_directorate: UNLOCKED,
 				},
 				shipAccess: {
 					...DEFAULT_SHIP_ACCESS,

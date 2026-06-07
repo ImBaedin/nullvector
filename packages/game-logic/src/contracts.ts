@@ -1,6 +1,7 @@
 import type { DefenseCounts } from "./defenses";
 import type { ResourceBucket, ShipKey } from "./gameplay";
 import type { HostileFactionKey } from "./hostility";
+import type { MetaMatterBundle } from "./research";
 
 import { DEFENSE_KEYS, EMPTY_DEFENSE_COUNTS, normalizeDefenseCounts } from "./defenses";
 import { HOSTILE_FACTION_KEYS } from "./hostility";
@@ -55,6 +56,7 @@ export type ContractSnapshot = {
 	priorityProfile: CombatPriorityProfile;
 	requiredRank: number;
 	rewardCredits: number;
+	rewardMetaMatter: MetaMatterBundle;
 	rewardXpFailure: number;
 	rewardXpSuccess: number;
 	rewardResources: ResourceBucket;
@@ -470,16 +472,17 @@ export function getTaskForceWeightForShipCounts(shipCounts: Partial<ShipCounts>)
 export function getTaskForceWeightForDefenseCounts(defenseCounts: Partial<DefenseCounts>) {
 	const normalized = normalizeDefenseCounts(defenseCounts);
 	let total = 0;
-	for (const key of Object.keys(CONTRACT_TASK_FORCE_DEFENSE_WEIGHTS) as Array<keyof DefenseCounts>) {
+	for (const key of Object.keys(CONTRACT_TASK_FORCE_DEFENSE_WEIGHTS) as Array<
+		keyof DefenseCounts
+	>) {
 		total += normalized[key] * CONTRACT_TASK_FORCE_DEFENSE_WEIGHTS[key];
 	}
 	return total;
 }
 
-export function getContractRecommendedTaskForce(snapshot: Pick<
-	ContractSnapshot,
-	"enemyFleet" | "enemyDefenses"
->) {
+export function getContractRecommendedTaskForce(
+	snapshot: Pick<ContractSnapshot, "enemyFleet" | "enemyDefenses">,
+) {
 	return (
 		getTaskForceWeightForShipCounts(snapshot.enemyFleet) +
 		getTaskForceWeightForDefenseCounts(snapshot.enemyDefenses)
@@ -655,6 +658,11 @@ export function generateContractSnapshot(args: {
 		priorityProfile: template.priorityProfile,
 		requiredRank: template.minRank,
 		rewardCredits: scaleValue(template.baseCredits, difficultyTier),
+		rewardMetaMatter: {
+			common: 0,
+			rare: 0,
+			mythic: 0,
+		},
 		rewardXpFailure: Math.floor(rewardXpSuccess * 0.2),
 		rewardXpSuccess,
 		rewardResources,

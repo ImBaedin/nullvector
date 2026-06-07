@@ -1,7 +1,7 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useMutation, useQuery } from "@/lib/convex-hooks";
 
@@ -32,6 +32,24 @@ export function useSelfHealingFleetOperations(args: {
 	const lastAttemptKeyRef = useRef<string | null>(null);
 	const lastAttemptAtRef = useRef(0);
 	const inFlightRef = useRef(false);
+	const [nowMs, setNowMs] = useState(() => Date.now());
+
+	useEffect(() => {
+		if (health?.nextEventAt === undefined) {
+			return;
+		}
+		let timeout: number;
+		const scheduleWakeUp = (delayMs: number) => {
+			timeout = window.setTimeout(() => {
+				setNowMs(Date.now());
+				scheduleWakeUp(SELF_HEAL_RETRY_MS);
+			}, delayMs);
+		};
+		scheduleWakeUp(Math.min(Math.max(0, health.nextEventAt - Date.now()), SELF_HEAL_RETRY_MS));
+		return () => {
+			window.clearTimeout(timeout);
+		};
+	}, [health?.nextEventAt]);
 
 	const operations = useMemo(() => {
 		if (!originOperations || !targetOperations || !health) {
@@ -67,20 +85,19 @@ export function useSelfHealingFleetOperations(args: {
 
 		return {
 			active: unique,
-			hasStaleOwnedOperations: health.hasStaleOwnedOperations,
+			hasStaleOwnedOperations: health.nextEventAt !== undefined && health.nextEventAt <= nowMs,
 			nextEventAt:
 				unique[0]?.nextEventAt ??
 				minDefined([originOperations.nextEventAt, targetOperations.nextEventAt]),
-			serverNowMs: health.serverNowMs,
 		};
-	}, [health, originOperations, targetOperations]);
+	}, [health, nowMs, originOperations, targetOperations]);
 
 	useEffect(() => {
 		if (!args.isAuthenticated || !operations?.hasStaleOwnedOperations) {
 			return;
 		}
 
-		const signature = `${args.colonyId}:${operations.serverNowMs}:${operations.active.length}`;
+		const signature = `${args.colonyId}:${operations.nextEventAt ?? "none"}:${operations.active.length}`;
 		const now = Date.now();
 		if (inFlightRef.current) {
 			return;

@@ -53,6 +53,7 @@ export const backfillRoboticsHubLevel = mutation({
 		for (const row of rows) {
 			if (
 				typeof row.buildings.roboticsHubLevel === "number" &&
+				typeof row.buildings.researchDirectorateLevel === "number" &&
 				typeof row.buildings.defenseGridLevel === "number"
 			) {
 				continue;
@@ -61,6 +62,7 @@ export const backfillRoboticsHubLevel = mutation({
 				buildings: {
 					...row.buildings,
 					roboticsHubLevel: 0,
+					researchDirectorateLevel: row.buildings.researchDirectorateLevel ?? 0,
 					defenseGridLevel: row.buildings.defenseGridLevel ?? 0,
 				},
 				updatedAt: Date.now(),

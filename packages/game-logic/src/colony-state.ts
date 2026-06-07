@@ -3,6 +3,7 @@ import type { BuildingKey, FacilityKey, ResourceBucket, ShipKey } from "./gamepl
 import {
 	DEFAULT_DEFENSE_DEFINITIONS,
 	getDefenseBuildDurationSeconds,
+	isDefenseUnlocked,
 	normalizeDefenseCounts,
 	type DefenseCounts,
 	type DefenseKey,
@@ -18,9 +19,15 @@ import {
 	queueEventsNextAt,
 } from "./queue";
 import {
+	buildResearchModifierSnapshot,
+	type ResearchLevelMap,
+	type ResearchModifierSnapshot,
+} from "./research";
+import {
 	DEFAULT_SHIP_DEFINITIONS,
 	getFleetCargoCapacity,
 	getShipBuildDurationSeconds,
+	isShipUnlocked,
 	type ShipCounts,
 	normalizeShipCounts,
 } from "./ships";
@@ -35,6 +42,7 @@ export type ColonyBuildings = {
 	fuelRefineryLevel: number;
 	fuelStorageLevel: number;
 	powerPlantLevel: number;
+	researchDirectorateLevel: number;
 	roboticsHubLevel: number;
 	shipyardLevel: number;
 };
@@ -170,6 +178,7 @@ const ALL_BUILDING_KEYS: Array<keyof ColonyBuildings> = [
 	"alloyStorageLevel",
 	"crystalStorageLevel",
 	"fuelStorageLevel",
+	"researchDirectorateLevel",
 	"roboticsHubLevel",
 	"shipyardLevel",
 	"defenseGridLevel",
@@ -213,11 +222,23 @@ function storageCapForLevel(level: number) {
 	return Math.round(10_000 * Math.pow(1.7, level - 1));
 }
 
-export function computeStorageCaps(buildings: ColonyBuildings): ResourceBucket {
+export function computeStorageCaps(
+	buildings: ColonyBuildings,
+	modifierSnapshot?: Pick<ResearchModifierSnapshot, "resourceStorageMultipliers">,
+): ResourceBucket {
 	return {
-		alloy: storageCapForLevel(buildings.alloyStorageLevel),
-		crystal: storageCapForLevel(buildings.crystalStorageLevel),
-		fuel: storageCapForLevel(buildings.fuelStorageLevel),
+		alloy: Math.round(
+			storageCapForLevel(buildings.alloyStorageLevel) *
+				(modifierSnapshot?.resourceStorageMultipliers.alloy ?? 1),
+		),
+		crystal: Math.round(
+			storageCapForLevel(buildings.crystalStorageLevel) *
+				(modifierSnapshot?.resourceStorageMultipliers.crystal ?? 1),
+		),
+		fuel: Math.round(
+			storageCapForLevel(buildings.fuelStorageLevel) *
+				(modifierSnapshot?.resourceStorageMultipliers.fuel ?? 1),
+		),
 	};
 }
 
@@ -234,13 +255,21 @@ export function computeUsedSlots(buildings: ColonyBuildings) {
 export function computeFacilityLevels(buildings: ColonyBuildings) {
 	return {
 		defense_grid: buildings.defenseGridLevel,
+		research_directorate: buildings.researchDirectorateLevel,
 		robotics_hub: buildings.roboticsHubLevel,
 		shipyard: buildings.shipyardLevel,
 	} satisfies Partial<Record<string, number>>;
 }
 
-export function getBuildingLaneCapacity(buildings: ColonyBuildings) {
-	return BUILDING_LANE_BASE_CAPACITY + Math.floor(Math.max(0, buildings.roboticsHubLevel) / 2);
+export function getBuildingLaneCapacity(
+	buildings: ColonyBuildings,
+	modifierSnapshot?: Pick<ResearchModifierSnapshot, "buildingQueueCapacityBonus">,
+) {
+	return (
+		BUILDING_LANE_BASE_CAPACITY +
+		Math.floor(Math.max(0, buildings.roboticsHubLevel) / 2) +
+		Math.max(0, Math.floor(modifierSnapshot?.buildingQueueCapacityBonus ?? 0))
+	);
 }
 
 export function setFacilityLevel(
@@ -256,6 +285,10 @@ export function setFacilityLevel(
 		buildings.shipyardLevel = Math.max(buildings.shipyardLevel, level);
 		return;
 	}
+	if (facilityKey === "research_directorate") {
+		buildings.researchDirectorateLevel = Math.max(buildings.researchDirectorateLevel, level);
+		return;
+	}
 	buildings.defenseGridLevel = Math.max(buildings.defenseGridLevel, level);
 }
 
@@ -263,6 +296,14 @@ export function productionRatesPerMinute(args: {
 	buildings: ColonyBuildings;
 	overflow: ResourceBucket;
 	planetMultipliers: ColonySnapshot["planetMultipliers"];
+	modifierSnapshot?: Pick<
+		ResearchModifierSnapshot,
+		| "energyConsumptionMultiplier"
+		| "resourceProductionMultipliers"
+		| "storagePressureProductionBonus"
+	>;
+	resources?: Partial<ResourceBucket>;
+	storageCaps?: Partial<ResourceBucket>;
 }) {
 	const alloyGenerator = DEFAULT_GENERATOR_REGISTRY.get("alloy_mine");
 	const crystalGenerator = DEFAULT_GENERATOR_REGISTRY.get("crystal_mine");
@@ -288,20 +329,59 @@ export function productionRatesPerMinute(args: {
 		args.buildings.powerPlantLevel,
 	);
 	const energyConsumed =
-		getGeneratorConsumptionPerMinute(alloyGenerator, args.buildings.alloyMineLevel) +
-		getGeneratorConsumptionPerMinute(crystalGenerator, args.buildings.crystalMineLevel) +
-		getGeneratorConsumptionPerMinute(fuelGenerator, args.buildings.fuelRefineryLevel);
+		(getGeneratorConsumptionPerMinute(alloyGenerator, args.buildings.alloyMineLevel) +
+			getGeneratorConsumptionPerMinute(crystalGenerator, args.buildings.crystalMineLevel) +
+			getGeneratorConsumptionPerMinute(fuelGenerator, args.buildings.fuelRefineryLevel)) *
+		(args.modifierSnapshot?.energyConsumptionMultiplier ?? 1);
 	const energyRatio =
 		energyConsumed <= 0 ? 1 : Math.max(0, Math.min(1, energyProduced / energyConsumed));
+	const storagePressureMultiplier = (resource: keyof ResourceBucket) => {
+		const pressure = args.modifierSnapshot?.storagePressureProductionBonus;
+		if (!pressure || !args.resources || !args.storageCaps) {
+			return 1;
+		}
+		const cap = Math.max(0, args.storageCaps[resource] ?? 0);
+		if (cap <= 0) {
+			return 1;
+		}
+		const fill = Math.max(0, args.resources[resource] ?? 0) / cap;
+		if (fill <= pressure.fullBonusBelow) {
+			return 1 + pressure.maxBonus;
+		}
+		if (fill >= pressure.zeroBonusAt) {
+			return 1;
+		}
+		const falloff =
+			(pressure.zeroBonusAt - fill) / (pressure.zeroBonusAt - pressure.fullBonusBelow);
+		return 1 + pressure.maxBonus * Math.max(0, Math.min(1, falloff));
+	};
 
 	return {
 		energyConsumed,
 		energyProduced,
 		energyRatio,
 		resources: {
-			alloy: args.overflow.alloy > 0 ? 0 : rawAlloyRate * energyRatio,
-			crystal: args.overflow.crystal > 0 ? 0 : rawCrystalRate * energyRatio,
-			fuel: args.overflow.fuel > 0 ? 0 : rawFuelRate * energyRatio,
+			alloy:
+				args.overflow.alloy > 0
+					? 0
+					: rawAlloyRate *
+						energyRatio *
+						(args.modifierSnapshot?.resourceProductionMultipliers.alloy ?? 1) *
+						storagePressureMultiplier("alloy"),
+			crystal:
+				args.overflow.crystal > 0
+					? 0
+					: rawCrystalRate *
+						energyRatio *
+						(args.modifierSnapshot?.resourceProductionMultipliers.crystal ?? 1) *
+						storagePressureMultiplier("crystal"),
+			fuel:
+				args.overflow.fuel > 0
+					? 0
+					: rawFuelRate *
+						energyRatio *
+						(args.modifierSnapshot?.resourceProductionMultipliers.fuel ?? 1) *
+						storagePressureMultiplier("fuel"),
 		},
 	};
 }
@@ -342,6 +422,7 @@ export function applyAccrualSegment<
 		buildings: state.buildings,
 		overflow: state.overflow,
 		planetMultipliers: state.planetMultipliers,
+		modifierSnapshot: undefined,
 	});
 	const resources = cloneResourceBucket(state.resources);
 	for (const key of RESOURCE_KEYS) {
@@ -549,7 +630,9 @@ export function settleBuildingAndFacilityQueue(snapshot: ColonySnapshot, nowMs: 
 export function projectColonyEconomy(
 	snapshot: ColonySnapshot,
 	nowMs: number,
+	researchLevels?: Partial<ResearchLevelMap>,
 ): ColonyProjectedEconomy {
+	const modifierSnapshot = buildResearchModifierSnapshot(researchLevels);
 	const settledBuildings = settleBuildingAndFacilityQueue(snapshot, nowMs);
 	const settledShips = settleShipyardQueue(settledBuildings, nowMs);
 	const settled = settleDefenseQueue(settledShips, nowMs);
@@ -557,6 +640,9 @@ export function projectColonyEconomy(
 		buildings: settled.buildings,
 		overflow: settled.overflow,
 		planetMultipliers: settled.planetMultipliers,
+		modifierSnapshot,
+		resources: settled.resources,
+		storageCaps: settled.storageCaps,
 	});
 	return {
 		energyConsumed: rates.energyConsumed,
@@ -565,7 +651,7 @@ export function projectColonyEconomy(
 		lastAccruedAt: settled.lastAccruedAt,
 		overflow: settled.overflow,
 		queues: projectQueueLanes({
-			buildingMaxItems: getBuildingLaneCapacity(settled.buildings),
+			buildingMaxItems: getBuildingLaneCapacity(settled.buildings, modifierSnapshot),
 			now: nowMs,
 			openQueues: settled.openQueues,
 		}),
@@ -575,7 +661,7 @@ export function projectColonyEconomy(
 			fuel: Math.max(0, Math.floor(rates.resources.fuel)),
 		},
 		resources: settled.resources,
-		storageCaps: settled.storageCaps,
+		storageCaps: computeStorageCaps(settled.buildings, modifierSnapshot),
 	};
 }
 
@@ -601,6 +687,7 @@ export function buildEmptyBuildings(): ColonyBuildings {
 		fuelRefineryLevel: 0,
 		fuelStorageLevel: 0,
 		powerPlantLevel: 0,
+		researchDirectorateLevel: 0,
 		roboticsHubLevel: 0,
 		shipyardLevel: 0,
 	};
@@ -664,22 +751,36 @@ export function getFacilityUpgradeCost(
 	};
 }
 
-export function getFacilityUpgradeDurationSeconds(facilityKey: FacilityKey, currentLevel: number) {
+export function getFacilityUpgradeDurationSeconds(
+	facilityKey: FacilityKey,
+	currentLevel: number,
+	modifierSnapshot?: Pick<
+		ResearchModifierSnapshot,
+		"facilityUpgradeTimeMultipliers" | "globalFacilityUpgradeTimeMultiplier"
+	>,
+) {
 	const facility = DEFAULT_FACILITY_REGISTRY.get(facilityKey);
 	if (!facility) {
 		throw new Error(`Missing facility config for ${facilityKey}`);
 	}
-	return getUpgradeDurationSeconds(facility, currentLevel);
+	const multiplier =
+		(modifierSnapshot?.globalFacilityUpgradeTimeMultiplier ?? 1) *
+		(modifierSnapshot?.facilityUpgradeTimeMultipliers?.[facilityKey] ?? 1);
+	return Math.max(1, Math.round(getUpgradeDurationSeconds(facility, currentLevel) * multiplier));
 }
 
-export function isFacilityCurrentlyUnlocked(buildings: ColonyBuildings, facilityKey: FacilityKey) {
+export function isFacilityCurrentlyUnlocked(
+	buildings: ColonyBuildings,
+	facilityKey: FacilityKey,
+	researchLevels?: Partial<ResearchLevelMap>,
+) {
 	const facility = DEFAULT_FACILITY_REGISTRY.get(facilityKey);
 	if (!facility) {
 		return false;
 	}
 	return isFacilityUnlocked(facility, {
 		facilityLevels: computeFacilityLevels(buildings),
-		researchLevels: EMPTY_RESEARCH_LEVELS,
+		researchLevels: researchLevels ?? EMPTY_RESEARCH_LEVELS,
 	});
 }
 
@@ -744,26 +845,78 @@ export function getDefenseBuildBatchCost(defenseKey: DefenseKey, quantity: numbe
 	};
 }
 
-export function getShipBuildInfo(buildings: ColonyBuildings, shipKey: ShipKey) {
+export function getShipBuildInfo(
+	buildings: ColonyBuildings,
+	shipKey: ShipKey,
+	args?: {
+		modifierSnapshot?: Pick<
+			ResearchModifierSnapshot,
+			"shipBuildTimeMultipliers" | "globalShipBuildTimeMultiplier"
+		>;
+		researchLevels?: Partial<ResearchLevelMap>;
+	},
+) {
+	const multiplier =
+		(args?.modifierSnapshot?.globalShipBuildTimeMultiplier ?? 1) *
+		(args?.modifierSnapshot?.shipBuildTimeMultipliers?.[shipKey] ?? 1);
 	return {
 		cost: getShipCost(shipKey),
-		perUnitDurationSeconds: getShipBuildDurationSeconds({
-			shipKey,
-			shipyardLevel: buildings.shipyardLevel,
+		isUnlocked: isShipUnlocked(shipKey, {
+			facilityLevels: computeFacilityLevels(buildings),
+			researchLevels: args?.researchLevels ?? EMPTY_RESEARCH_LEVELS,
 		}),
+		perUnitDurationSeconds: Math.max(
+			1,
+			Math.round(
+				getShipBuildDurationSeconds({
+					shipKey,
+					shipyardLevel: buildings.shipyardLevel,
+				}) * multiplier,
+			),
+		),
 	};
 }
 
-export function getDefenseBuildInfo(buildings: ColonyBuildings, defenseKey: DefenseKey) {
+export function getDefenseBuildInfo(
+	buildings: ColonyBuildings,
+	defenseKey: DefenseKey,
+	args?: {
+		modifierSnapshot?: Pick<
+			ResearchModifierSnapshot,
+			"defenseBuildTimeMultipliers" | "globalDefenseBuildTimeMultiplier"
+		>;
+		researchLevels?: Partial<ResearchLevelMap>;
+	},
+) {
+	const multiplier =
+		(args?.modifierSnapshot?.globalDefenseBuildTimeMultiplier ?? 1) *
+		(args?.modifierSnapshot?.defenseBuildTimeMultipliers?.[defenseKey] ?? 1);
 	return {
 		cost: getDefenseCost(defenseKey),
-		perUnitDurationSeconds: getDefenseBuildDurationSeconds({
-			defenseGridLevel: buildings.defenseGridLevel,
-			defenseKey,
+		isUnlocked: isDefenseUnlocked(defenseKey, {
+			facilityLevels: computeFacilityLevels(buildings),
+			researchLevels: args?.researchLevels ?? EMPTY_RESEARCH_LEVELS,
 		}),
+		perUnitDurationSeconds: Math.max(
+			1,
+			Math.round(
+				getDefenseBuildDurationSeconds({
+					defenseGridLevel: buildings.defenseGridLevel,
+					defenseKey,
+				}) * multiplier,
+			),
+		),
 	};
 }
 
-export function getFleetCargoCapacityForSnapshot(snapshot: ColonySnapshot) {
-	return getFleetCargoCapacity(snapshot.ships);
+export function getFleetCargoCapacityForSnapshot(
+	snapshot: ColonySnapshot,
+	modifierSnapshot?: Pick<ResearchModifierSnapshot, "cargoCapacityMultiplier">,
+) {
+	return Math.max(
+		0,
+		Math.round(
+			getFleetCargoCapacity(snapshot.ships) * (modifierSnapshot?.cargoCapacityMultiplier ?? 1),
+		),
+	);
 }

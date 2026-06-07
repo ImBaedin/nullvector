@@ -443,10 +443,12 @@ function UniverseExplorerScene() {
 					antialias={antialiasEnabled}
 					dpr={canvasDpr}
 					focusTarget={explorer.focusTarget}
+					initialView={explorer.getCameraView()}
 					cameraMode={explorer.cameraLock.mode === "planet" ? "followPlanet" : "free"}
 					trackingOrbit={trackingOrbit}
 					onPanWhileLocked={handlePanWhileLocked}
 					onPointerMissed={clearHover}
+					onViewChange={explorer.setCameraView}
 					quality={resolvedQuality}
 					sceneKey={explorer.level}
 				>

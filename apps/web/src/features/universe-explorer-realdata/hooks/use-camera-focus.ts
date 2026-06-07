@@ -29,6 +29,7 @@ type CameraFocusControllerProps = {
 		y: number;
 		z: number;
 	};
+	onViewChange?: (view: { x: number; y: number; zoom: number }) => void;
 };
 
 const POSITION_DAMPING = 8;
@@ -46,10 +47,12 @@ export function CameraFocusController({
 	mode,
 	trackingOrbit = null,
 	cameraOffset,
+	onViewChange,
 }: CameraFocusControllerProps) {
 	const camera = useThree((state) => state.camera as OrthographicCamera);
 	const goal = useRef<CameraFocusTarget | null>(focusTarget);
 	const state = useRef<CameraControllerState>("free");
+	const hasInitializedView = useRef(false);
 
 	useEffect(() => {
 		goal.current = focusTarget;
@@ -68,17 +71,30 @@ export function CameraFocusController({
 		}
 
 		if (nextGoal) {
-			state.current = "transition";
 			const liveTrackingTarget = followOrbit
 				? computeOrbitWorldPosition(followOrbit, Date.now())
 				: null;
 			const targetX = liveTrackingTarget?.x ?? nextGoal.x;
 			const targetY = liveTrackingTarget?.y ?? nextGoal.y;
-			const nextTargetX = smoothStep(controls.target.x, targetX, delta);
-			const nextTargetY = smoothStep(controls.target.y, targetY, delta);
 			const desiredCameraX = targetX + cameraOffset.x;
 			const desiredCameraY = targetY + cameraOffset.y;
 			const desiredCameraZ = cameraOffset.z;
+
+			if (!hasInitializedView.current || nextGoal.transition === "instant") {
+				controls.target.set(targetX, targetY, 0);
+				camera.position.set(desiredCameraX, desiredCameraY, desiredCameraZ);
+				camera.zoom = nextGoal.zoom;
+				camera.updateProjectionMatrix();
+				controls.update();
+				onViewChange?.({ x: targetX, y: targetY, zoom: nextGoal.zoom });
+				goal.current = null;
+				hasInitializedView.current = true;
+				return;
+			}
+
+			state.current = "transition";
+			const nextTargetX = smoothStep(controls.target.x, targetX, delta);
+			const nextTargetY = smoothStep(controls.target.y, targetY, delta);
 			const nextCameraX = smoothStep(camera.position.x, desiredCameraX, delta);
 			const nextCameraY = smoothStep(camera.position.y, desiredCameraY, delta);
 			const nextCameraZ = smoothStep(camera.position.z, desiredCameraZ, delta);
@@ -89,6 +105,8 @@ export function CameraFocusController({
 			camera.zoom = nextZoom;
 			camera.updateProjectionMatrix();
 			controls.update();
+			onViewChange?.({ x: nextTargetX, y: nextTargetY, zoom: nextZoom });
+			hasInitializedView.current = true;
 
 			const closeEnough =
 				Math.abs(nextCameraZ - desiredCameraZ) < EPSILON &&
@@ -107,6 +125,8 @@ export function CameraFocusController({
 				return;
 			}
 		}
+
+		hasInitializedView.current = true;
 
 		if (followOrbit) {
 			state.current = "follow";
@@ -135,6 +155,7 @@ export function CameraFocusController({
 		controls.target.set(lockedTargetX, lockedTargetY, 0);
 		camera.position.set(lockedCameraX, lockedCameraY, camera.position.z);
 		controls.update();
+		onViewChange?.({ x: lockedTargetX, y: lockedTargetY, zoom: camera.zoom });
 	});
 
 	return null;

@@ -60,6 +60,18 @@ export function AppHeaderMobileDrawer({
 					>
 						Star Map
 					</NvButton>
+					{config.onOpenResearch ? (
+						<NvButton
+							className="w-full justify-start"
+							onClick={() => {
+								config.onOpenResearch?.();
+								onClose();
+							}}
+							variant="ghost"
+						>
+							Research
+						</NvButton>
+					) : null}
 					{onOpenQuests ? (
 						<NvButton
 							className="w-full justify-start"

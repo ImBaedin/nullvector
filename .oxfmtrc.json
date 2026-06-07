@@ -8,7 +8,9 @@
 		"dist/",
 		"coverage/",
 		".expo/",
-		".next/"
+		".next/",
+		"packages/backend/convex/_generated/",
+		"apps/web/src/routeTree.gen.ts"
 	],
 	"useTabs": true,
 	"sortTailwindcss": {

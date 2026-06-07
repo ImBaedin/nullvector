@@ -14,6 +14,7 @@ const FACILITY_NAMES: Record<string, string> = {
 	robotics_hub: "Robotics Hub",
 	shipyard: "Shipyard",
 	defense_grid: "Defense Grid",
+	research_directorate: "Research Directorate",
 };
 
 const SHIP_NAMES: Record<string, string> = {

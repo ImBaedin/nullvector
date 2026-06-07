@@ -70,6 +70,13 @@ export type CameraFocusTarget = {
 	y: number;
 	zoom: number;
 	key: number;
+	transition: "instant" | "smooth";
+};
+
+export type ExplorerCameraView = {
+	x: number;
+	y: number;
+	zoom: number;
 };
 
 export type ExplorerCameraLock =

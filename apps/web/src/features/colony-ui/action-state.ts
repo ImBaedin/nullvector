@@ -1,4 +1,4 @@
-export type ColonyActionTone = "success" | "warning" | "danger" | "neutral" | "info";
+export type ColonyActionTone = "success" | "warning" | "danger" | "neutral" | "info" | "complete";
 
 export type ColonyActionState =
 	| "available"
@@ -43,7 +43,7 @@ type QueueableBuildActionArgs = {
 };
 
 type UpgradeActionArgs = {
-	actionLabel: "Build" | "Upgrade";
+	actionLabel: "Build" | "Upgrade" | "Establish";
 	availableResources: ResourceBucket | null;
 	cost: ResourceCost;
 	hasQueuedItem: boolean;
@@ -53,6 +53,7 @@ type UpgradeActionArgs = {
 	isMaxLevel: boolean;
 	isQueueFull: boolean;
 	lockMessage?: string;
+	maxLevel?: number;
 };
 
 function canAfford(
@@ -161,10 +162,11 @@ export function getUpgradeActionPresentation(args: UpgradeActionArgs): ColonyAct
 	}
 
 	if (args.isMaxLevel) {
+		const isOneTimeOnly = args.maxLevel === 1;
 		return {
-			badgeLabel: "Max Level",
-			badgeTone: "neutral",
-			buttonLabel: "Max Level",
+			badgeLabel: isOneTimeOnly ? "Established" : "Max Level",
+			badgeTone: "complete",
+			buttonLabel: isOneTimeOnly ? "Established" : "Max Level",
 			isActionEnabled: false,
 			state: "maxLevel",
 		};

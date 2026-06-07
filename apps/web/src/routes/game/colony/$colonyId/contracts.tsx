@@ -10,7 +10,6 @@ import { ChevronDown, Layers3 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { ContractView } from "@/features/colony-route/contracts-screen-shared";
-import { getSelectedTaskForce } from "@/features/colony-route/contracts-screen-shared";
 
 import {
 	useContractDiscoveryRebuild,
@@ -18,6 +17,7 @@ import {
 	useContractSelection,
 	useContractsRouteData,
 } from "@/features/colony-route/contracts-hooks";
+import { getSelectedTaskForce } from "@/features/colony-route/contracts-screen-shared";
 import {
 	ContractDetailPanel,
 	ContractHistory,

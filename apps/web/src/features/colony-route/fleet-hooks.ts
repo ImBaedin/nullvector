@@ -137,7 +137,7 @@ export function useFleetRouteData(colonyId: Id<"colonies">) {
 	const garrison = useQuery(api.fleetV2.getFleetGarrison, isAuthenticated ? { colonyId } : "skip");
 	const operations = useSelfHealingFleetOperations({ colonyId, isAuthenticated });
 	const colonyNav = useQuery(api.colonyNav.getColonyNav, isAuthenticated ? { colonyId } : "skip");
-	const devConsole = useColonyDevConsole(colonyId);
+	const devConsole = useColonyDevConsole(isAuthenticated ? colonyId : null);
 	const colonyResources = useColonyResources(isAuthenticated ? colonyId : null);
 	const nowMs = colonyResources.nowMs;
 

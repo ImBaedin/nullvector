@@ -48,7 +48,7 @@ export function useContractsRouteData(args: {
 		api.contracts.getContractHistory,
 		isAuthenticated && args.historyExpanded ? { limit: 10 } : "skip",
 	);
-	const devConsole = useColonyDevConsole(args.colonyId);
+	const devConsole = useColonyDevConsole(isAuthenticated ? args.colonyId : null);
 
 	const ships = useMemo<ShipAssignment[]>(() => {
 		if (!garrison) {

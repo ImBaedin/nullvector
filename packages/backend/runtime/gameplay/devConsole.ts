@@ -92,6 +92,7 @@ type DevActionType =
 
 const facilityLevelsPatchValidator = v.object({
 	robotics_hub: v.optional(v.number()),
+	research_directorate: v.optional(v.number()),
 	shipyard: v.optional(v.number()),
 	defense_grid: v.optional(v.number()),
 });
@@ -206,10 +207,20 @@ const clearAllPlayerDataDeletedValidator = v.object({
 	playerProgression: v.number(),
 	playerQuestStates: v.number(),
 	playerQuestMetrics: v.number(),
+	playerResearchMetrics: v.number(),
+	playerResearchRuntimeState: v.number(),
+	playerResearchRouteMetrics: v.number(),
+	playerResearchState: v.number(),
+	playerResearchBalances: v.number(),
+	playerResearchQueueItems: v.number(),
+	playerResearchScheduling: v.number(),
 	devConsoleActions: v.number(),
 	playerNotificationPreferences: v.number(),
 	notifications: v.number(),
 	colonyQuestMetrics: v.number(),
+	colonyResearchMetrics: v.number(),
+	colonyResearchSettings: v.number(),
+	researchMetricMarks: v.number(),
 	colonyContractCandidates: v.number(),
 	colonyContractDiscoveryState: v.number(),
 	contractBoardState: v.number(),
@@ -549,6 +560,7 @@ export const setFacilityLevels = mutation({
 		colonyId: v.id("colonies"),
 		facilityLevels: v.object({
 			robotics_hub: v.number(),
+			research_directorate: v.number(),
 			shipyard: v.number(),
 			defense_grid: v.number(),
 		}),
@@ -566,9 +578,9 @@ export const setFacilityLevels = mutation({
 			now,
 		});
 
-		const provided = (["robotics_hub", "shipyard", "defense_grid"] as const).filter(
-			(key) => args.facilityLevels[key] !== undefined,
-		);
+		const provided = (
+			["robotics_hub", "research_directorate", "shipyard", "defense_grid"] as const
+		).filter((key) => args.facilityLevels[key] !== undefined);
 		if (provided.length === 0) {
 			throw new ConvexError("Provide at least one facility level value");
 		}
@@ -594,6 +606,9 @@ export const setFacilityLevels = mutation({
 			if (key === "defense_grid") {
 				nextBuildings.defenseGridLevel = clamped;
 			}
+			if (key === "research_directorate") {
+				nextBuildings.researchDirectorateLevel = clamped;
+			}
 		}
 
 		await ctx.db.patch(settledColony._id, {
@@ -618,6 +633,7 @@ export const setFacilityLevels = mutation({
 			colonyId: settledColony._id,
 			facilityLevels: {
 				robotics_hub: nextBuildings.roboticsHubLevel,
+				research_directorate: nextBuildings.researchDirectorateLevel,
 				shipyard: nextBuildings.shipyardLevel,
 				defense_grid: nextBuildings.defenseGridLevel,
 			},
@@ -1224,6 +1240,41 @@ export const clearAllPlayerData = internalMutation({
 				dryRun,
 				queryFactory: (limit) => ctx.db.query("playerQuestMetrics").take(limit),
 			}),
+			playerResearchMetrics: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerResearchMetrics").take(limit),
+			}),
+			playerResearchRuntimeState: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerResearchRuntimeState").take(limit),
+			}),
+			playerResearchRouteMetrics: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerResearchRouteMetrics").take(limit),
+			}),
+			playerResearchState: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerResearchState").take(limit),
+			}),
+			playerResearchBalances: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerResearchBalances").take(limit),
+			}),
+			playerResearchQueueItems: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerResearchQueueItems").take(limit),
+			}),
+			playerResearchScheduling: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerResearchScheduling").take(limit),
+			}),
 			devConsoleActions: await deleteAllTableRows({
 				ctx,
 				dryRun,
@@ -1243,6 +1294,21 @@ export const clearAllPlayerData = internalMutation({
 				ctx,
 				dryRun,
 				queryFactory: (limit) => ctx.db.query("colonyQuestMetrics").take(limit),
+			}),
+			colonyResearchMetrics: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyResearchMetrics").take(limit),
+			}),
+			colonyResearchSettings: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("colonyResearchSettings").take(limit),
+			}),
+			researchMetricMarks: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("researchMetricMarks").take(limit),
 			}),
 			colonyContractCandidates: await deleteAllTableRows({
 				ctx,

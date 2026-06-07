@@ -3,6 +3,7 @@ import type { ColonyActionTone } from "@/features/colony-ui/action-state";
 import { cn } from "@/lib/utils";
 
 const TONE_CLASSNAMES: Record<ColonyActionTone, string> = {
+	complete: "border-amber-300/40 bg-amber-400/10 text-amber-200/85",
 	danger: "border-rose-300/35 bg-rose-400/10 text-rose-200/80",
 	info: "border-cyan-300/30 bg-cyan-400/8 text-cyan-200/80",
 	neutral: "border-white/20 bg-white/6 text-white/70",

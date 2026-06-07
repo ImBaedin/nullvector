@@ -49,7 +49,11 @@ const FACILITY_VISUALS: Record<
 	},
 	defense_grid: {
 		description: "Unlocks planetary defenses and accelerates their production as the grid expands.",
-		image: "/game-icons/nav/defenses.png",
+		image: "/game-icons/facilities/defense-matrix.png",
+	},
+	research_directorate: {
+		description: "Adds this colony to the empire-wide research network.",
+		image: "/game-icons/facilities/command-nexus.png",
 	},
 };
 
@@ -57,6 +61,7 @@ const FACILITY_KEY_LABELS: Record<FacilityKey, string> = {
 	robotics_hub: "Robotics Hub",
 	shipyard: "Shipyard",
 	defense_grid: "Defense Grid",
+	research_directorate: "Research Directorate",
 };
 
 function FacilitiesRoute(): ReactElement {
@@ -340,13 +345,17 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 							(item) => item.payload.facilityKey === facility.key,
 						);
 						const isBusy = props.upgradingKey === facility.key;
-						const actionLabel: "Build" | "Upgrade" =
-							facility.currentLevel <= 0 ? "Build" : "Upgrade";
+						const isOneTimeOnly = facility.maxLevel === 1;
+						const actionLabel: "Build" | "Upgrade" | "Establish" = isOneTimeOnly
+							? "Establish"
+							: facility.currentLevel <= 0
+								? "Build"
+								: "Upgrade";
 						const durationLabel = facility.nextUpgradeDurationSeconds
 							? formatColonyDuration(facility.nextUpgradeDurationSeconds, "seconds")
 							: null;
 						const isLocked = facility.status === "Locked";
-						const isMaxLevel = facility.nextUpgradeDurationSeconds === undefined;
+						const isMaxLevel = facility.currentLevel >= facility.maxLevel;
 						const actionPresentation = getUpgradeActionPresentation({
 							actionLabel,
 							availableResources: props.availableResources,
@@ -357,13 +366,16 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 							isLocked,
 							isMaxLevel,
 							isQueueFull: props.buildingLaneIsFull,
+							maxLevel: facility.maxLevel,
 						});
 
 						return (
 							<article
 								className={`
           group relative overflow-hidden rounded-xl border
-          ${isLocked ? "border-white/8 opacity-60 grayscale" : `border-white/10`}
+          ${isLocked ? "border-white/8 opacity-60 grayscale" : isMaxLevel ? `
+            border-amber-400/25
+          ` : `border-white/10`}
           bg-[linear-gradient(160deg,rgba(10,16,28,0.9),rgba(6,10,16,0.95))]
           text-[13px]
         `}
@@ -376,8 +388,9 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 								<div
 									className="pointer-events-none absolute inset-x-0 top-0 h-px"
 									style={{
-										background:
-											"linear-gradient(90deg, transparent, rgba(167,139,250,0.5), transparent)",
+										background: isMaxLevel
+											? "linear-gradient(90deg, transparent, rgba(251,191,36,0.45), transparent)"
+											: "linear-gradient(90deg, transparent, rgba(167,139,250,0.5), transparent)",
 									}}
 								/>
 								<div
@@ -385,7 +398,9 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
            pointer-events-none absolute -top-8 -right-8 size-32 rounded-full
            blur-3xl
          "
-									style={{ background: "rgba(167,139,250,0.08)" }}
+									style={{
+										background: isMaxLevel ? "rgba(251,191,36,0.07)" : "rgba(167,139,250,0.08)",
+									}}
 								/>
 								<div className="relative z-10 p-4">
 									<div className="flex items-start justify-between gap-2">
@@ -434,14 +449,13 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 													{facility.currentLevel}
 												</button>
 											) : (
-												<span
-													className="
-               inline-flex size-6 items-center justify-center rounded-md border
-               border-white/15 bg-black/25 font-(family-name:--nv-font-mono)
-               text-[10px] font-bold text-white/80
-             "
-													title={`Level ${facility.currentLevel}`}
-												>
+												<span className={`
+              inline-flex size-6 items-center justify-center rounded-md border
+              font-(family-name:--nv-font-mono) text-[10px] font-bold
+              ${isMaxLevel ? `
+                border-amber-400/30 bg-amber-400/8 text-amber-200/85
+              ` : `border-white/15 bg-black/25 text-white/80`}
+            `} title={`Level ${facility.currentLevel}`}>
 													{facility.currentLevel}
 												</span>
 											)}
@@ -455,16 +469,19 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 									/>
 
 									<div className="mt-3 flex items-center justify-center">
-										<div
-											className="
-             relative size-28 rounded-full border border-white/6 bg-black/20 p-2
-           "
-										>
-											<img
-												alt={`${facility.name} render`}
-												className="size-full object-contain"
-												src={visual.image}
-											/>
+										<div className={`
+            relative size-28 rounded-full border p-2
+            ${isMaxLevel ? `
+              border-amber-400/20 bg-black/20
+              shadow-[0_0_28px_rgba(251,191,36,0.13)]
+            ` : `border-white/6 bg-black/20`}
+          `}>
+											<img alt={`${facility.name} render`} className={`
+             size-full
+             object-contain${isMaxLevel ? `
+               drop-shadow-[0_0_6px_rgba(251,191,36,0.35)]
+             ` : ""}
+           `} src={visual.image} />
 										</div>
 									</div>
 
@@ -473,67 +490,115 @@ function FacilityCatalogSection(props: FacilityCatalogSectionProps): ReactElemen
 									</p>
 
 									<div className="mt-2.5 grid grid-cols-2 gap-1.5">
-										<div
-											className="
-             rounded-lg border border-white/6 bg-black/20 px-2 py-1.5
-             text-center
-           "
-										>
-											<p className="text-[7px] tracking-widest text-white/30 uppercase">Level</p>
-											<p
-												className="
-              mt-0.5 font-(family-name:--nv-font-mono) text-[10px] font-bold
-              text-white/80
-            "
-											>
-												{facility.currentLevel}
-											</p>
+										<div className={`
+            rounded-lg border px-2 py-1.5 text-center
+            ${isMaxLevel ? "border-amber-400/12 bg-amber-400/5" : `
+              border-white/6 bg-black/20
+            `}
+          `}>
+											<p className={`
+             text-[7px] tracking-widest uppercase
+             ${isMaxLevel ? `text-amber-200/35` : `text-white/30`}
+           `}>Level</p>
+											<p className={`
+             mt-0.5 font-(family-name:--nv-font-mono) text-[10px] font-bold
+             ${isMaxLevel ? `text-amber-200/80` : `text-white/80`}
+           `}>{facility.currentLevel}</p>
 										</div>
-										<div
-											className="
-             rounded-lg border border-white/6 bg-black/20 px-2 py-1.5
-             text-center
-           "
-										>
-											<p className="text-[7px] tracking-widest text-white/30 uppercase">
-												Build Time
-											</p>
-											<p
-												className="
-              mt-0.5 font-(family-name:--nv-font-mono) text-[10px] font-bold
-              text-white/80
-            "
-											>
-												{durationLabel ?? "—"}
-											</p>
+										<div className={`
+            rounded-lg border px-2 py-1.5 text-center
+            ${isMaxLevel ? "border-amber-400/12 bg-amber-400/5" : `
+              border-white/6 bg-black/20
+            `}
+          `}>
+											<p className={`
+             text-[7px] tracking-widest uppercase
+             ${isMaxLevel ? `text-amber-200/35` : `text-white/30`}
+           `}>{isMaxLevel ? "Cap" : "Build Time"}</p>
+											<p className={`
+             mt-0.5 font-(family-name:--nv-font-mono) text-[10px] font-bold
+             ${isMaxLevel ? `text-amber-200/80` : `text-white/80`}
+           `}>{isMaxLevel ? facility.maxLevel : (durationLabel ?? "—")}</p>
 										</div>
 									</div>
 
-									<div className="mt-3 border-t border-white/6 pt-3">
-										<ActionButton
-											className="w-full"
-											disabled={!actionPresentation.isActionEnabled}
-											label={actionPresentation.buttonLabel}
-											leadingIcon={<Zap className="size-3.5" />}
-											loading={isBusy}
-											onClick={() => props.onUpgrade(facility.key, facility.name)}
-											tone="facility"
-										/>
-
-										<div className="mt-2 flex flex-wrap justify-center gap-1.5">
-											<CostPill
-												amount={facility.nextUpgradeCost.alloy}
-												kind="alloy"
-												label="Alloy"
-											/>
-											<CostPill
-												amount={facility.nextUpgradeCost.crystal}
-												kind="crystal"
-												label="Crystal"
-											/>
-											<CostPill amount={facility.nextUpgradeCost.fuel} kind="fuel" label="Fuel" />
+									{isMaxLevel ? (
+										<div className="mt-3 border-t border-amber-400/10 pt-3">
+											<div
+												className="
+              relative overflow-hidden rounded-xl border border-amber-400/20
+              bg-linear-to-b from-amber-400/8 to-amber-400/3 px-3 py-2.5
+            "
+											>
+												<div
+													className="pointer-events-none absolute inset-x-0 top-0 h-px"
+													style={{
+														background:
+															"linear-gradient(90deg, transparent, rgba(251,191,36,0.35), transparent)",
+													}}
+												/>
+												<div className="flex items-center justify-between gap-2">
+													<div className="flex items-center gap-2">
+														<span className="relative flex size-1.5 shrink-0">
+															<span
+																className="
+                  absolute inline-flex size-full animate-ping rounded-full
+                  bg-amber-400/60 opacity-75
+                "
+															/>
+															<span
+																className="
+                  relative inline-flex size-1.5 rounded-full bg-amber-300
+                "
+															/>
+														</span>
+														<span
+															className="
+                 font-(family-name:--nv-font-display) text-[9px] font-bold
+                 tracking-widest text-amber-200/80 uppercase
+               "
+														>
+															{isOneTimeOnly ? "Established" : "Operational"}
+														</span>
+													</div>
+													<span
+														className="
+                font-(family-name:--nv-font-mono) text-[10px] font-semibold
+                text-amber-200/50
+              "
+													>
+														{facility.currentLevel} / {facility.maxLevel}
+													</span>
+												</div>
+											</div>
 										</div>
-									</div>
+									) : (
+										<div className="mt-3 border-t border-white/6 pt-3">
+											<ActionButton
+												className="w-full"
+												disabled={!actionPresentation.isActionEnabled}
+												label={actionPresentation.buttonLabel}
+												leadingIcon={<Zap className="size-3.5" />}
+												loading={isBusy}
+												onClick={() => props.onUpgrade(facility.key, facility.name)}
+												tone="facility"
+											/>
+
+											<div className="mt-2 flex flex-wrap justify-center gap-1.5">
+												<CostPill
+													amount={facility.nextUpgradeCost.alloy}
+													kind="alloy"
+													label="Alloy"
+												/>
+												<CostPill
+													amount={facility.nextUpgradeCost.crystal}
+													kind="crystal"
+													label="Crystal"
+												/>
+												<CostPill amount={facility.nextUpgradeCost.fuel} kind="fuel" label="Fuel" />
+											</div>
+										</div>
+									)}
 								</div>
 							</article>
 						);

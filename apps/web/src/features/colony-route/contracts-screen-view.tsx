@@ -10,9 +10,10 @@ import {
 	type CombatMissionTypeKey,
 	type ShipKey,
 } from "@nullvector/game-logic";
-import { Clock3, Crosshair, Layers3, Lock, Shield, Ship, Sparkles, Swords } from "lucide-react";
+import { Clock3, Crosshair, Lock, Shield, Ship, Sparkles, Swords } from "lucide-react";
 
 import { formatColonyDuration } from "@/features/colony-ui/time";
+import { META_MATTER_ICON_SRC, META_MATTER_LABELS } from "@/features/game-ui/meta-matter-assets";
 
 import {
 	buildContractForecast,
@@ -134,6 +135,7 @@ function RecommendedContractCard(props: {
 		? Math.max(0, Math.ceil((contract.expiresAt - props.nowMs) / 1_000))
 		: 0;
 	const dominantReward = contract.rewardResources[contract.primaryRewardResource];
+	const metaMatterTotal = getMetaMatterTotal(contract.rewardMetaMatter);
 	const threatClassMap = {
 		routine: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
 		standard: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100",
@@ -182,10 +184,15 @@ function RecommendedContractCard(props: {
 			</div>
 
 			<div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px]">
-				<span className={`rounded-full border px-2 py-0.5 font-semibold ${threatBadgeClass}`}>
-					{formatThreatBand(contract.threatBand)}
-				</span>
-				<span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/75">
+				<span className={`
+      rounded-full border px-2 py-0.5 font-semibold
+      ${threatBadgeClass}
+    `}>{formatThreatBand(contract.threatBand)}</span>
+				<span
+					className="
+       rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/75
+     "
+				>
 					{formatPrimaryRewardResource(contract.primaryRewardResource)}
 				</span>
 				<span className="font-(family-name:--nv-font-mono) text-emerald-200/70">
@@ -197,6 +204,9 @@ function RecommendedContractCard(props: {
 				<span className="font-(family-name:--nv-font-mono) text-cyan-200/60">
 					{contract.rewardXpSuccess} XP
 				</span>
+				{metaMatterTotal > 0 ? (
+					<MetaMatterBundle bundle={contract.rewardMetaMatter} compact />
+				) : null}
 				<span className="font-(family-name:--nv-font-mono) text-white/30">
 					{contract.distance.toFixed(1)} AU
 				</span>
@@ -677,14 +687,23 @@ function ContractForecastSection(props: { forecast: ContractForecast | null }): 
 }
 
 function RewardsSection(props: { contract: ContractView }): ReactNode {
+	const metaMatterTotal = getMetaMatterTotal(props.contract.rewardMetaMatter);
 	return (
 		<div>
 			<SectionLabel>Rewards</SectionLabel>
 			<div className="mt-1 flex flex-wrap items-center gap-2 text-[9px]">
-				<span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/70">
+				<span
+					className="
+       rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/70
+     "
+				>
 					Primary Reward: {formatPrimaryRewardResource(props.contract.primaryRewardResource)}
 				</span>
-				<span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/70">
+				<span
+					className="
+       rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-white/70
+     "
+				>
 					Threat: {formatThreatBand(props.contract.threatBand)}
 				</span>
 			</div>
@@ -695,6 +714,13 @@ function RewardsSection(props: { contract: ContractView }): ReactNode {
 					value={props.contract.rewardCredits.toLocaleString()}
 				/>
 				<RewardCard accent="cyan" label="XP" value={`${props.contract.rewardXpSuccess}`} />
+				{metaMatterTotal > 0 ? (
+					<RewardCard
+						accent="violet"
+						label="Meta-Matter"
+						value={<MetaMatterBundle bundle={props.contract.rewardMetaMatter} />}
+					/>
+				) : null}
 				{props.contract.rewardResources.alloy > 0 ? (
 					<RewardCard
 						accent="neutral"
@@ -728,9 +754,52 @@ function RewardsSection(props: { contract: ContractView }): ReactNode {
 	);
 }
 
+function getMetaMatterTotal(bundle: { common: number; rare: number; mythic: number }) {
+	return Math.max(0, bundle.common) + Math.max(0, bundle.rare) + Math.max(0, bundle.mythic);
+}
+
+function MetaMatterBundle(props: {
+	bundle: { common: number; rare: number; mythic: number };
+	compact?: boolean;
+}): ReactNode {
+	const entries = (
+		[
+			{ amount: props.bundle.common, rarity: "common" },
+			{ amount: props.bundle.rare, rarity: "rare" },
+			{ amount: props.bundle.mythic, rarity: "mythic" },
+		] as const
+	).filter((entry) => entry.amount > 0);
+
+	if (entries.length === 0) {
+		return <span className="text-white/30">None</span>;
+	}
+
+	return (
+		<span className="inline-flex flex-wrap items-center gap-1.5 align-middle">
+			{entries.map((entry) => (
+				<span key={entry.rarity} className={`
+      inline-flex items-center gap-1 font-(family-name:--nv-font-mono)
+      ${props.compact ? "text-[9px] text-fuchsia-200/70" : "text-xs font-bold"}
+    `}>
+					<img
+						alt={`${META_MATTER_LABELS[entry.rarity]} meta-matter`}
+						className={props.compact ? "size-3.5 object-contain" : `
+        size-4 object-contain
+      `}
+						src={META_MATTER_ICON_SRC[entry.rarity]}
+					/>
+					{props.compact
+						? `${entry.amount.toLocaleString()}${entry.rarity[0].toUpperCase()}`
+						: entry.amount.toLocaleString()}
+				</span>
+			))}
+		</span>
+	);
+}
+
 function RewardCard(props: {
 	label: string;
-	value: string;
+	value: ReactNode;
 	accent: string;
 	iconSrc?: string;
 }): ReactNode {
@@ -738,6 +807,7 @@ function RewardCard(props: {
 		amber: "bg-amber-400/6 text-amber-200",
 		cyan: "bg-cyan-400/6 text-cyan-200",
 		rose: "bg-rose-400/6 text-rose-200",
+		violet: "bg-fuchsia-400/8 text-fuchsia-100",
 		neutral: "bg-white/4 text-white/80",
 	};
 

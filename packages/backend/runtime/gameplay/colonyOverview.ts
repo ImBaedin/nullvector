@@ -34,6 +34,7 @@ const BUILDING_LABELS = {
 
 const FACILITY_LABELS = {
 	robotics_hub: "Robotics Hub",
+	research_directorate: "Research Directorate",
 	shipyard: "Shipyard",
 	defense_grid: "Defense Grid",
 } as const;
@@ -144,7 +145,12 @@ const overviewInfrastructureValidator = v.object({
 	),
 	facilities: v.array(
 		v.object({
-			key: v.union(v.literal("robotics_hub"), v.literal("shipyard"), v.literal("defense_grid")),
+			key: v.union(
+				v.literal("robotics_hub"),
+				v.literal("research_directorate"),
+				v.literal("shipyard"),
+				v.literal("defense_grid"),
+			),
 			name: v.string(),
 			level: v.number(),
 		}),
@@ -900,6 +906,11 @@ export const getColonyOverviewInfrastructure = query({
 						key: "robotics_hub" as const,
 						level: infrastructure.buildings.roboticsHubLevel ?? 0,
 						name: FACILITY_LABELS.robotics_hub,
+					},
+					{
+						key: "research_directorate" as const,
+						level: infrastructure.buildings.researchDirectorateLevel ?? 0,
+						name: FACILITY_LABELS.research_directorate,
 					},
 					{
 						key: "shipyard" as const,

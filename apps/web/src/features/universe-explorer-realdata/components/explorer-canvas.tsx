@@ -3,13 +3,15 @@ import type { Group, Material, Object3D, OrthographicCamera, Vector3 } from "thr
 import { MapControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { Vector3 as ThreeVector3 } from "three";
 
-import type { CameraFocusTarget, ExplorerResolvedQuality } from "../types";
+import type { CameraFocusTarget, ExplorerCameraView, ExplorerResolvedQuality } from "../types";
 
 import { CameraFocusController } from "../hooks/use-camera-focus";
 import { NebulaBackground } from "./nebula-background";
 
 type BasicMapControls = {
+	object: OrthographicCamera;
 	target: Vector3;
 	update: () => void;
 };
@@ -18,6 +20,7 @@ type ExplorerCanvasProps = {
 	antialias: boolean;
 	dpr: [number, number];
 	focusTarget: CameraFocusTarget | null;
+	initialView: ExplorerCameraView;
 	cameraMode?: "free" | "followPlanet";
 	trackingOrbit?: {
 		centerX: number;
@@ -28,8 +31,12 @@ type ExplorerCanvasProps = {
 		orbitEpochMs: number;
 	} | null;
 	maxFps?: number;
+	onProjectWorldToScreenChange?: (
+		project: ((x: number, y: number) => { x: number; y: number } | null) | null,
+	) => void;
 	onPanWhileLocked?: () => void;
 	onPointerMissed: () => void;
+	onViewChange?: (view: ExplorerCameraView) => void;
 	quality: ExplorerResolvedQuality;
 	sceneKey: string | number;
 	children: React.ReactNode;
@@ -369,15 +376,57 @@ function DemandFrameTicker({ fps }: { fps: number }) {
 	return null;
 }
 
+function ScreenProjector({
+	onProjectWorldToScreenChange,
+}: {
+	onProjectWorldToScreenChange?: (
+		project: ((x: number, y: number) => { x: number; y: number } | null) | null,
+	) => void;
+}) {
+	const camera = useThree((state) => state.camera as OrthographicCamera);
+	const size = useThree((state) => state.size);
+	const vectorRef = useRef(new ThreeVector3());
+
+	useEffect(() => {
+		if (!onProjectWorldToScreenChange) {
+			return;
+		}
+
+		onProjectWorldToScreenChange((x, y) => {
+			if (size.width <= 0 || size.height <= 0) {
+				return null;
+			}
+
+			const vector = vectorRef.current;
+			vector.set(x, y, 0);
+			vector.project(camera);
+
+			return {
+				x: ((vector.x + 1) / 2) * size.width,
+				y: ((1 - vector.y) / 2) * size.height,
+			};
+		});
+
+		return () => {
+			onProjectWorldToScreenChange(null);
+		};
+	}, [camera, onProjectWorldToScreenChange, size.height, size.width]);
+
+	return null;
+}
+
 export function ExplorerCanvas({
 	antialias,
 	dpr,
 	focusTarget,
+	initialView,
 	cameraMode = "free",
 	trackingOrbit = null,
 	maxFps = 60,
+	onProjectWorldToScreenChange,
 	onPanWhileLocked,
 	onPointerMissed,
+	onViewChange,
 	quality,
 	sceneKey,
 	children,
@@ -508,18 +557,19 @@ export function ExplorerCanvas({
 				orthographic
 				camera={{
 					position: [
-						ISOMETRIC_CAMERA_OFFSET.x,
-						ISOMETRIC_CAMERA_OFFSET.y,
+						initialView.x + ISOMETRIC_CAMERA_OFFSET.x,
+						initialView.y + ISOMETRIC_CAMERA_OFFSET.y,
 						ISOMETRIC_CAMERA_OFFSET.z,
 					],
 					up: [0, 0, 1],
-					zoom: 0.08,
+					zoom: initialView.zoom,
 					near: -100_000,
 					far: 100_000,
 				}}
 				onPointerMissed={onPointerMissed}
 			>
 				{maxFps < 50 ? <DemandFrameTicker fps={maxFps} /> : null}
+				<ScreenProjector onProjectWorldToScreenChange={onProjectWorldToScreenChange} />
 				<color attach="background" args={["#030812"]} />
 				<NebulaBackground controlsRef={controlsRef} quality={quality} />
 				<ambientLight intensity={0.85} />
@@ -532,6 +582,7 @@ export function ExplorerCanvas({
 					mode={cameraMode}
 					trackingOrbit={trackingOrbit}
 					cameraOffset={ISOMETRIC_CAMERA_OFFSET}
+					onViewChange={onViewChange}
 				/>
 
 				{exitingScene ? (
@@ -563,12 +614,25 @@ export function ExplorerCanvas({
 					ref={(instance) => {
 						controlsRef.current = instance as BasicMapControls | null;
 					}}
+					target={[initialView.x, initialView.y, 0]}
 					makeDefault
 					enableRotate={false}
 					minZoom={0.015}
 					maxZoom={24}
 					zoomSpeed={0.8}
 					panSpeed={1.2}
+					onChange={() => {
+						const controls = controlsRef.current;
+						if (!controls) {
+							return;
+						}
+
+						onViewChange?.({
+							x: controls.target.x,
+							y: controls.target.y,
+							zoom: (controls.object as OrthographicCamera).zoom,
+						});
+					}}
 				/>
 			</Canvas>
 		</div>

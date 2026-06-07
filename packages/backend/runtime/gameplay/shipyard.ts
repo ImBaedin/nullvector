@@ -1,6 +1,10 @@
 import type { ResourceBucket, ShipKey } from "@nullvector/game-logic";
 
-import { DEFAULT_SHIP_DEFINITIONS, getShipBuildDurationSeconds } from "@nullvector/game-logic";
+import {
+	DEFAULT_SHIP_DEFINITIONS,
+	getShipBuildDurationSeconds,
+	isShipUnlocked,
+} from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
 import type { Id } from "../../convex/_generated/dataModel";
@@ -8,6 +12,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { mutation } from "../../convex/_generated/server";
 import { RESOURCE_SCALE } from "../../convex/schema";
 import { buildProgressionRules, requireShipAccess } from "./progression";
+import { loadPlayerResearchLevels, loadPlayerResearchModifierSnapshot } from "./research";
 import { rescheduleColonyQueueResolution } from "./scheduling";
 import {
 	LANE_QUEUE_CAPACITY,
@@ -130,6 +135,16 @@ export const enqueueShipBuild = mutation({
 			ctx,
 			playerId: player._id,
 		});
+		const [researchLevels, researchModifiers] = await Promise.all([
+			loadPlayerResearchLevels({
+				ctx,
+				playerId: player._id,
+			}),
+			loadPlayerResearchModifierSnapshot({
+				ctx,
+				playerId: player._id,
+			}),
+		]);
 		requireShipAccess({
 			label: "Ship",
 			progression,
@@ -153,6 +168,19 @@ export const enqueueShipBuild = mutation({
 		});
 
 		const definition = DEFAULT_SHIP_DEFINITIONS[args.shipKey];
+		if (
+			!isShipUnlocked(args.shipKey, {
+				facilityLevels: {
+					shipyard: settledColony.buildings.shipyardLevel,
+					defense_grid: settledColony.buildings.defenseGridLevel,
+					robotics_hub: settledColony.buildings.roboticsHubLevel,
+					research_directorate: settledColony.buildings.researchDirectorateLevel,
+				},
+				researchLevels,
+			})
+		) {
+			throw new ConvexError("Ship research is not unlocked");
+		}
 		if (settledColony.buildings.shipyardLevel < definition.requiredShipyardLevel) {
 			throw new ConvexError("Shipyard level is too low for this ship");
 		}
@@ -188,10 +216,18 @@ export const enqueueShipBuild = mutation({
 			shipKey: args.shipKey,
 			shipyardLevel: settledColony.buildings.shipyardLevel,
 		});
+		const modifiedPerUnitDurationSeconds = Math.max(
+			1,
+			Math.round(
+				perUnitDurationSeconds *
+					researchModifiers.globalShipBuildTimeMultiplier *
+					(researchModifiers.shipBuildTimeMultipliers[args.shipKey] ?? 1),
+			),
+		);
 
 		const laneTail = queueRows[queueRows.length - 1];
 		const startsAt = laneTail ? laneTail.completesAt : now;
-		const completesAt = startsAt + perUnitDurationSeconds * quantity * 1_000;
+		const completesAt = startsAt + modifiedPerUnitDurationSeconds * quantity * 1_000;
 		const status: "active" | "queued" = queueRows.length === 0 ? "active" : "queued";
 		const laneOrder = (laneTail?.order ?? 0) + 1;
 
@@ -233,7 +269,7 @@ export const enqueueShipBuild = mutation({
 						shipKey: args.shipKey,
 						quantity,
 						completedQuantity: 0,
-						perUnitDurationSeconds,
+						perUnitDurationSeconds: modifiedPerUnitDurationSeconds,
 					},
 				},
 				now,
@@ -251,7 +287,7 @@ export const enqueueShipBuild = mutation({
 			quantity,
 			startsAt,
 			completesAt,
-			perUnitDurationSeconds,
+			perUnitDurationSeconds: modifiedPerUnitDurationSeconds,
 			status,
 		};
 	},

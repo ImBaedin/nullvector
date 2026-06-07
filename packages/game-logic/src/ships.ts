@@ -1,4 +1,7 @@
 import type { ResourceBucket, ShipKey } from "./gameplay";
+import type { UnlockContext, UnlockRule } from "./types";
+
+import { isUnlockSatisfied } from "./unlocks";
 
 export type ShipDefinition = {
 	attack: number;
@@ -14,6 +17,7 @@ export type ShipDefinition = {
 	role: "civilian" | "combat";
 	shield: number;
 	speed: number;
+	unlock?: UnlockRule;
 };
 
 export type ShipCounts = Record<ShipKey, number>;
@@ -66,6 +70,11 @@ export const DEFAULT_SHIP_DEFINITIONS: Record<ShipKey, ShipDefinition> = {
 			crystal: 6_000,
 			fuel: 0,
 		},
+		unlock: {
+			type: "research_level",
+			researchId: "frontierSupplyDoctrine",
+			minLevel: 1,
+		},
 	},
 	colonyShip: {
 		key: "colonyShip",
@@ -84,6 +93,11 @@ export const DEFAULT_SHIP_DEFINITIONS: Record<ShipKey, ShipDefinition> = {
 			alloy: 10_000,
 			crystal: 20_000,
 			fuel: 10_000,
+		},
+		unlock: {
+			type: "research_level",
+			researchId: "frontierSupplyDoctrine",
+			minLevel: 1,
 		},
 	},
 	interceptor: {
@@ -123,6 +137,11 @@ export const DEFAULT_SHIP_DEFINITIONS: Record<ShipKey, ShipDefinition> = {
 			crystal: 4_500,
 			fuel: 1_500,
 		},
+		unlock: {
+			type: "research_level",
+			researchId: "missileGuidanceSuites",
+			minLevel: 1,
+		},
 	},
 	cruiser: {
 		key: "cruiser",
@@ -141,6 +160,11 @@ export const DEFAULT_SHIP_DEFINITIONS: Record<ShipKey, ShipDefinition> = {
 			alloy: 20_000,
 			crystal: 11_000,
 			fuel: 4_500,
+		},
+		unlock: {
+			type: "research_level",
+			researchId: "advancedStrikeCraft",
+			minLevel: 1,
 		},
 	},
 	bomber: {
@@ -161,8 +185,17 @@ export const DEFAULT_SHIP_DEFINITIONS: Record<ShipKey, ShipDefinition> = {
 			crystal: 18_000,
 			fuel: 9_000,
 		},
+		unlock: {
+			type: "research_level",
+			researchId: "advancedStrikeCraft",
+			minLevel: 1,
+		},
 	},
 };
+
+export function isShipUnlocked(shipKey: ShipKey, context: UnlockContext) {
+	return isUnlockSatisfied(DEFAULT_SHIP_DEFINITIONS[shipKey].unlock, context);
+}
 
 function sanitizeCount(count: number | undefined) {
 	if (!Number.isFinite(count ?? 0)) {

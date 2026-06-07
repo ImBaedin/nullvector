@@ -5,14 +5,13 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import type {
 	CameraFocusTarget,
 	ExplorerCameraLock,
+	ExplorerCameraView,
 	ExplorerLevel,
 	ExplorerPathState,
 } from "../types";
 
-type FocusRequest = {
-	x: number;
-	y: number;
-	zoom: number;
+type FocusRequest = ExplorerCameraView & {
+	transition?: "instant" | "smooth";
 };
 
 type ExplorerContextValue = {
@@ -20,6 +19,10 @@ type ExplorerContextValue = {
 	path: ExplorerPathState;
 	focusTarget: CameraFocusTarget | null;
 	cameraLock: ExplorerCameraLock;
+	bootstrappedColonyId: Id<"colonies"> | null;
+	setBootstrappedColonyId: (colonyId: Id<"colonies"> | null) => void;
+	getCameraView: () => ExplorerCameraView;
+	setCameraView: (view: ExplorerCameraView) => void;
 	unlockCameraLock: () => void;
 	setUniverseLevel: (focus?: FocusRequest) => void;
 	setGalaxyLevel: (galaxyId: Id<"galaxies">, focus: FocusRequest) => void;
@@ -52,19 +55,39 @@ const ExplorerContext = createContext<ExplorerContextValue | null>(null);
 
 export function ExplorerProvider({ children }: { children: React.ReactNode }) {
 	const focusKey = useRef(0);
+	const cameraViewRef = useRef<ExplorerCameraView>(UNIVERSE_FOCUS);
 	const [level, setLevel] = useState<ExplorerLevel>("universe");
 	const [path, setPath] = useState<ExplorerPathState>({});
 	const [cameraLock, setCameraLock] = useState<ExplorerCameraLock>({
 		mode: "free",
 	});
+	const [bootstrappedColonyId, setBootstrappedColonyId] = useState<Id<"colonies"> | null>(null);
 	const [focusTarget, setFocusTarget] = useState<CameraFocusTarget | null>({
 		...UNIVERSE_FOCUS,
 		key: focusKey.current,
+		transition: "instant",
 	});
 
 	const pushFocus = useCallback((focus: FocusRequest) => {
 		focusKey.current += 1;
-		setFocusTarget({ ...focus, key: focusKey.current });
+		cameraViewRef.current = {
+			x: focus.x,
+			y: focus.y,
+			zoom: focus.zoom,
+		};
+		setFocusTarget({
+			x: focus.x,
+			y: focus.y,
+			zoom: focus.zoom,
+			key: focusKey.current,
+			transition: focus.transition ?? "smooth",
+		});
+	}, []);
+
+	const getCameraView = useCallback(() => cameraViewRef.current, []);
+
+	const setCameraView = useCallback((view: ExplorerCameraView) => {
+		cameraViewRef.current = view;
 	}, []);
 
 	const setUniverseLevel = useCallback(
@@ -151,6 +174,10 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
 			path,
 			focusTarget,
 			cameraLock,
+			bootstrappedColonyId,
+			setBootstrappedColonyId,
+			getCameraView,
+			setCameraView,
 			unlockCameraLock,
 			setUniverseLevel,
 			setGalaxyLevel,
@@ -160,9 +187,13 @@ export function ExplorerProvider({ children }: { children: React.ReactNode }) {
 		}),
 		[
 			cameraLock,
+			bootstrappedColonyId,
 			focusTarget,
+			getCameraView,
 			level,
 			path,
+			setCameraView,
+			setBootstrappedColonyId,
 			unlockCameraLock,
 			setGalaxyLevel,
 			setPlanetLevel,

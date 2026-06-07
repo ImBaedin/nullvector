@@ -1,11 +1,7 @@
 import type { Id } from "@nullvector/backend/convex/_generated/dataModel";
 
 import { api } from "@nullvector/backend/convex/_generated/api";
-import {
-	selectShipCatalog,
-	type FeatureAccessState,
-	type ShipKey,
-} from "@nullvector/game-logic";
+import { selectShipCatalog, type FeatureAccessState, type ShipKey } from "@nullvector/game-logic";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -83,11 +79,13 @@ function ShipyardRoute() {
 				return {
 					...ship,
 					accessState: progressionOverview.shipAccess[ship.key] as FeatureAccessState,
+					isUnlocked: state?.isUnlocked ?? false,
 					owned: state?.owned ?? 0,
 					perUnitDurationSeconds: state?.perUnitDurationSeconds ?? 0,
 					queued: state?.queued ?? 0,
 				};
-			});
+			})
+			.filter((ship) => ship.isUnlocked);
 
 		return {
 			...colonyView.shipyardState,

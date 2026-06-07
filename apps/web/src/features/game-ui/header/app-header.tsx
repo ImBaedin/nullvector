@@ -1,8 +1,5 @@
-import { Tooltip } from "@base-ui/react/tooltip";
-import { Bell, ChevronDown, Compass, Earth, Menu, Settings, Trophy } from "lucide-react";
+import { Bell, Compass, FlaskConical, Menu, Settings, Trophy } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-import type { ExplorerQualityPreset } from "@/features/universe-explorer-realdata/types";
 
 import { QUEST_MODAL_OPEN_EVENT } from "@/features/game-ui/quests/quest-modal-events";
 import { useHighlightTarget } from "@/features/game-ui/quests/use-highlight-target";
@@ -15,50 +12,25 @@ import { cn } from "@/lib/utils";
 
 import { AppHeaderMobileDrawer } from "./app-header-mobile-drawer";
 import { QuestsModal } from "./quests-modal";
+import { ResearchDitherBg } from "./research-dither-bg";
 import { useHeaderData } from "./use-header-data";
 
 type AppHeaderProps = {
 	collapseContextNav?: boolean;
 	collapseResources?: boolean;
+	isResearchOpen?: boolean;
 	isStarMapOpen?: boolean;
+	onToggleResearch?: () => void;
 	onToggleStarMap?: () => void;
-	starMapNavigation?: StarMapHeaderNavigation | null;
 };
-
-export type StarMapHeaderNavigation = {
-	pathItems: Array<{
-		id: string;
-		label: string;
-		onSelect: () => void;
-	}>;
-	entityItems: Array<{
-		id: string;
-		label: string;
-		subtitle: string;
-	}>;
-	levelLabel: string;
-	onExit: () => void;
-	onSelectEntity: (itemId: string) => void;
-	qualityPreset: ExplorerQualityPreset;
-	onQualityPresetChange: (preset: ExplorerQualityPreset) => void;
-};
-
-const QUALITY_OPTIONS: Array<{
-	label: string;
-	value: ExplorerQualityPreset;
-}> = [
-	{ label: "Auto", value: "auto" },
-	{ label: "Low", value: "low" },
-	{ label: "Medium", value: "medium" },
-	{ label: "High", value: "high" },
-];
 
 export function AppHeader({
 	collapseContextNav = false,
 	collapseResources = false,
+	isResearchOpen = false,
 	isStarMapOpen = false,
+	onToggleResearch,
 	onToggleStarMap,
-	starMapNavigation = null,
 }: AppHeaderProps = {}) {
 	const header = useHeaderData();
 	const [drawerOpen, setDrawerOpen] = useState(false);
@@ -66,8 +38,6 @@ export function AppHeader({
 	const [focusedQuestId, setFocusedQuestId] = useState<string | null>(null);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [notificationsOpen, setNotificationsOpen] = useState(false);
-	const [starMapEntitiesOpen, setStarMapEntitiesOpen] = useState(false);
-	const [starMapQualityOpen, setStarMapQualityOpen] = useState(false);
 	const {
 		activeColony,
 		activeQuestCount,
@@ -88,6 +58,7 @@ export function AppHeader({
 		setIsRenamingColony,
 	} = header;
 	const handleStarMapToggle = onToggleStarMap ?? config.onOpenStarMap ?? (() => {});
+	const handleResearchToggle = onToggleResearch ?? (() => {});
 	const starMapHighlight = useHighlightTarget("star-map-button");
 	const questButtonHighlight = useHighlightTarget("quest-button");
 	const drawerConfig = useMemo(
@@ -96,9 +67,17 @@ export function AppHeader({
 			contextTabs,
 			notificationsCount: liveNotificationsCount,
 			onOpenNotifications: () => setNotificationsOpen(true),
+			onOpenResearch: handleResearchToggle,
 			onOpenSettings: () => setSettingsOpen(true),
+			onOpenStarMap: handleStarMapToggle,
 		}),
-		[contextTabs, headerDrawerConfig, liveNotificationsCount],
+		[
+			contextTabs,
+			handleResearchToggle,
+			handleStarMapToggle,
+			headerDrawerConfig,
+			liveNotificationsCount,
+		],
 	);
 
 	useEffect(() => {
@@ -128,297 +107,124 @@ export function AppHeader({
      sticky top-0 z-(--nv-z-popover) px-2 pt-2 transition-all duration-200
      lg:px-3
    `, isCompact ? "pb-0.5" : "pb-2")}>
-				<div className={cn(`
-      rounded-xl border border-white/8
-      bg-[linear-gradient(170deg,rgba(10,16,28,0.94),rgba(6,10,18,0.98))]
-      shadow-[0_4px_20px_rgba(0,0,0,0.4)]
-    `, isStarMapOpen && starMapNavigation ? "overflow-visible" : `
-      overflow-hidden
-    `)}>
+				<div
+					className="
+       overflow-hidden rounded-xl border border-white/8
+       bg-[linear-gradient(170deg,rgba(10,16,28,0.94),rgba(6,10,18,0.98))]
+       shadow-[0_4px_20px_rgba(0,0,0,0.4)]
+     "
+				>
 					{/* ═══ Command Bar ═══ */}
 					<div className={cn(`
        grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 transition-all
        duration-200
      `, isCompact ? "py-2" : "py-2.5")}>
-						{/* Left: logo + colony name */}
-						<div className="flex items-center gap-2.5 justify-self-start">
+						{/* Left: logo + colony identity */}
+						<div className="flex min-w-0 items-center gap-2 justify-self-start">
 							<img alt="Nullvector" className={cn(`
          shrink-0 rounded-md border border-white/10 bg-black/30 object-contain
          p-0.5 transition-all
        `, isCompact ? "size-7" : "size-8")} src="/game-icons/logo.png" />
-							<div className="min-w-0">
-								<p
-									className="
-           text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
-         "
-								>
-									NullVector
-								</p>
-								<h1 className={cn(`
-          font-(family-name:--nv-font-display) font-bold text-white
-          transition-all
-        `, isCompact ? "text-sm" : "text-[15px]")}>
-									{isRenamingColony && activeColony ? (
-										<ColonyRenameInput
-											key={`${activeColony.id}:${activeColony.name}`}
-											currentName={activeColony.name}
-											isSaving={isSavingColonyName}
-											onCancel={() => {
-												setIsRenamingColony(false);
-											}}
-											onCommit={commitColonyRename}
-										/>
-									) : (
-										<button
-											className="
-             cursor-pointer truncate text-left transition-colors
-             hover:text-cyan-100
-           "
-											disabled={!activeColony}
-											onClick={() => {
-												beginColonyRename();
-											}}
-											type="button"
-										>
-											{headerTitle}
-										</button>
-									)}
-								</h1>
-							</div>
+							{isRenamingColony && activeColony ? (
+								<div className="min-w-0">
+									<p
+										className="
+            text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
+          "
+									>
+										NullVector
+									</p>
+									<ColonyRenameInput
+										key={`${activeColony.id}:${activeColony.name}`}
+										currentName={activeColony.name}
+										isSaving={isSavingColonyName}
+										onCancel={() => {
+											setIsRenamingColony(false);
+										}}
+										onCommit={commitColonyRename}
+									/>
+								</div>
+							) : config.colonies &&
+							  config.activeColonyId &&
+							  (config.onColonyChange || handleColonyChange) ? (
+								<ColonySwitcher
+									activeColonyId={config.activeColonyId}
+									colonies={config.colonies}
+									isCompact={isCompact}
+									onBeginRename={beginColonyRename}
+									onColonyChange={config.onColonyChange ?? handleColonyChange}
+									variant="identity"
+								/>
+							) : (
+								<div className="min-w-0">
+									<p
+										className="
+            text-[8px] font-semibold tracking-[0.14em] text-white/25 uppercase
+          "
+									>
+										NullVector
+									</p>
+									<p className={cn(`
+           truncate font-(family-name:--nv-font-display) font-bold text-white
+           transition-all
+         `, isCompact ? "text-sm" : "text-[15px]")}>{headerTitle}</p>
+								</div>
+							)}
 						</div>
 
-						{/* Center: star map button / navigation */}
-						<div
-							key={isStarMapOpen && starMapNavigation ? starMapNavigation.levelLabel : "hero"}
-							className={cn(
-								"justify-self-center",
-								isStarMapOpen && starMapNavigation ? "w-full max-w-[min(62vw,780px)]" : null,
-							)}
-						>
-							{isStarMapOpen && starMapNavigation ? (
-								<div className="relative flex items-center gap-2 text-left">
-									<Tooltip.Root>
-										<Tooltip.Trigger
-											className="
-             inline-flex size-7 shrink-0 items-center justify-center rounded-md
-             border border-white/12 bg-white/4 text-white/50 transition-colors
-             hover:bg-white/8 hover:text-white/80
-           "
-											delay={160}
-											onClick={starMapNavigation.onExit}
-										>
-											<Earth className="size-3.5" />
-										</Tooltip.Trigger>
-										<Tooltip.Portal>
-											<Tooltip.Positioner
-												className="z-(--nv-z-tooltip)"
-												side="bottom"
-												sideOffset={6}
-											>
-												<Tooltip.Popup
-													className="
-               rounded-md border border-white/12 bg-[rgba(7,14,28,0.96)] px-2
-               py-1 text-[10px] font-medium text-white/80
-               shadow-[0_8px_20px_rgba(0,0,0,0.4)]
-             "
-												>
-													Return to colony
-												</Tooltip.Popup>
-											</Tooltip.Positioner>
-										</Tooltip.Portal>
-									</Tooltip.Root>
+						{/* Center: star map + research hero buttons */}
+						<div className="flex items-center gap-2 justify-self-center">
+							<button className={cn(`
+         nv-starmap-hero relative flex items-center justify-center gap-2
+         rounded-lg border px-4 font-(family-name:--nv-font-display) text-xs
+         font-semibold transition-all
+       `, isStarMapOpen ? `
+         border-cyan-300/40 bg-cyan-400/12 text-cyan-50
+         shadow-[0_0_16px_rgba(61,217,255,0.12)]
+       ` : `
+         border-white/12 bg-white/4 text-white/60
+         hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100
+       `, isCompact ? "h-8" : "h-9", starMapHighlight.highlightProps.className)} onClick={handleStarMapToggle} title={starMapHighlight.highlightProps.title} type="button">
+								<span className="nv-starmap-stars" />
+								<span className="nv-starmap-stars is-slower" />
+								<img
+									alt="Star map"
+									className="
+           relative z-10 size-4 object-contain
+           drop-shadow-[0_0_6px_rgba(61,217,255,0.4)]
+         "
+									src="/game-icons/nav/starmap.png"
+								/>
+								<span className="relative z-10">Star Map</span>
+							</button>
 
-									<span
-										className="
-            hidden text-[9px] font-semibold tracking-[0.14em] text-cyan-200/50
-            uppercase
-            lg:inline
-          "
-									>
-										{starMapNavigation.levelLabel}
-									</span>
-
-									<div
-										className="
-            flex min-w-0 items-center gap-0.5 overflow-x-auto text-[11px]
-            whitespace-nowrap text-white/70
-          "
-									>
-										{starMapNavigation.pathItems.map((item, index) => (
-											<span className="inline-flex items-center gap-0.5" key={item.id}>
-												{index > 0 ? <span className="text-white/20">/</span> : null}
-												<button
-													className="
-               rounded-sm px-1 py-0.5 transition-colors
-               hover:bg-white/6 hover:text-white
-             "
-													onClick={item.onSelect}
-													type="button"
-												>
-													{item.label}
-												</button>
-											</span>
-										))}
-									</div>
-
-									{/* Entities dropdown */}
-									<div className="relative shrink-0">
-										<button
-											className={cn(`
-             inline-flex h-7 items-center gap-1 rounded-md border px-2
-             text-[10px] font-semibold transition-all
-           `, starMapEntitiesOpen ? `
-             border-cyan-300/30 bg-cyan-400/10 text-cyan-100
-           ` : `
-             border-white/12 bg-white/4 text-white/60
-             hover:bg-white/8
-           `)}
-											onClick={() => {
-												setStarMapQualityOpen(false);
-												setStarMapEntitiesOpen((current) => !current);
-											}}
-											type="button"
-										>
-											Entities ({starMapNavigation.entityItems.length})
-											<ChevronDown
-												className={cn(
-													"size-3 transition-transform",
-													starMapEntitiesOpen ? "rotate-180" : null,
-												)}
-											/>
-										</button>
-
-										{starMapEntitiesOpen ? (
-											<div
-												className="
-              absolute top-[calc(100%+6px)] right-0 z-20 w-[min(86vw,400px)]
-              rounded-xl border border-white/12 bg-[rgba(8,14,26,0.97)] p-1
-              shadow-[0_10px_28px_rgba(0,0,0,0.5)]
-            "
-											>
-												<div className="max-h-56 space-y-0.5 overflow-y-auto">
-													{starMapNavigation.entityItems.map((item) => (
-														<button
-															className="
-                 flex w-full items-center justify-between rounded-lg px-2.5
-                 py-1.5 text-left text-[11px] text-white/70 transition-colors
-                 hover:bg-white/4 hover:text-white
-               "
-															key={item.id}
-															onClick={() => {
-																starMapNavigation.onSelectEntity(item.id);
-																setStarMapEntitiesOpen(false);
-															}}
-															type="button"
-														>
-															<span className="truncate font-semibold">{item.label}</span>
-															<span
-																className="
-                  ml-2 font-(family-name:--nv-font-mono) text-[10px]
-                  text-white/25
-                "
-															>
-																{item.subtitle}
-															</span>
-														</button>
-													))}
-												</div>
-											</div>
-										) : null}
-									</div>
-
-									{/* Quality dropdown */}
-									<div className="relative shrink-0">
-										<button
-											className={cn(`
-             inline-flex h-7 items-center gap-1 rounded-md border px-2
-             text-[10px] font-semibold transition-all
-           `, starMapQualityOpen ? `
-             border-cyan-300/30 bg-cyan-400/10 text-cyan-100
-           ` : `
-             border-white/12 bg-white/4 text-white/60
-             hover:bg-white/8
-           `)}
-											onClick={() => {
-												setStarMapEntitiesOpen(false);
-												setStarMapQualityOpen((current) => !current);
-											}}
-											type="button"
-										>
-											Quality:{" "}
-											{
-												QUALITY_OPTIONS.find(
-													(entry) => entry.value === starMapNavigation.qualityPreset,
-												)?.label
-											}
-											<ChevronDown
-												className={cn(
-													"size-3 transition-transform",
-													starMapQualityOpen ? "rotate-180" : null,
-												)}
-											/>
-										</button>
-
-										{starMapQualityOpen ? (
-											<div
-												className="
-              absolute top-[calc(100%+6px)] right-0 z-20 w-36 rounded-xl border
-              border-white/12 bg-[rgba(8,14,26,0.97)] p-1
-              shadow-[0_10px_28px_rgba(0,0,0,0.5)]
-            "
-											>
-												<div className="space-y-0.5">
-													{QUALITY_OPTIONS.map((entry) => (
-														<button
-															className={cn(`
-                 flex w-full items-center rounded-lg px-2.5 py-1.5 text-left
-                 text-[11px] font-medium transition-colors
-               `, entry.value === starMapNavigation.qualityPreset ? `
-                 bg-cyan-400/10 text-cyan-100
-               ` : `
-                 text-white/50
-                 hover:bg-white/4 hover:text-white/80
-               `)}
-															key={entry.value}
-															onClick={() => {
-																starMapNavigation.onQualityPresetChange(entry.value);
-																setStarMapQualityOpen(false);
-															}}
-															type="button"
-														>
-															{entry.label}
-														</button>
-													))}
-												</div>
-											</div>
-										) : null}
-									</div>
-								</div>
-							) : (
-								<button className={cn(`
-          nv-starmap-hero relative flex items-center justify-center gap-2
-          rounded-lg border px-4 font-(family-name:--nv-font-display) text-xs
-          font-semibold transition-all
-        `, isStarMapOpen ? `
-          border-cyan-300/40 bg-cyan-400/12 text-cyan-50
-          shadow-[0_0_16px_rgba(61,217,255,0.12)]
-        ` : `
-          border-white/12 bg-white/4 text-white/60
-          hover:border-cyan-300/25 hover:bg-cyan-400/6 hover:text-cyan-100
-        `, isCompact ? "h-8" : "h-9", starMapHighlight.highlightProps.className)} onClick={handleStarMapToggle} title={starMapHighlight.highlightProps.title} type="button">
-									<span className="nv-starmap-stars" />
-									<span className="nv-starmap-stars is-slower" />
-									<img
-										alt="Star map"
-										className="
-            relative z-10 size-4 object-contain
-            drop-shadow-[0_0_6px_rgba(61,217,255,0.4)]
-          "
-										src="/game-icons/nav/starmap.png"
-									/>
-									<span className="relative z-10">Star Map</span>
-								</button>
-							)}
+							<button className={cn(`
+         nv-research-hero relative flex items-center justify-center gap-2
+         rounded-lg border px-3.5 font-(family-name:--nv-font-display) text-xs
+         font-semibold transition-all
+       `, isResearchOpen ? `
+         border-emerald-300/40 text-emerald-50
+         shadow-[0_0_16px_rgba(52,211,153,0.18)]
+       ` : `
+         border-white/12 bg-white/4 text-white/60
+         hover:border-emerald-300/30 hover:text-emerald-100
+       `, isCompact ? "h-8" : "h-9")} onClick={handleResearchToggle} type="button">
+								<ResearchDitherBg />
+								<FlaskConical
+									className="relative z-10 size-3.5"
+									style={{
+										filter: isResearchOpen
+											? "drop-shadow(0 0 6px rgba(52,211,153,0.6))"
+											: "drop-shadow(0 1px 6px rgba(0,0,0,0.9))",
+									}}
+								/>
+								<span
+									className="relative z-10"
+									style={{ textShadow: "0 1px 8px rgba(0,0,0,0.95)" }}
+								>
+									Research
+								</span>
+							</button>
 						</div>
 
 						{/* Right: colony switcher + utilities (desktop) */}
@@ -429,11 +235,7 @@ export function AppHeader({
        "
 						>
 							{progressionOverview ? (
-								<div
-									className="
-          mr-1 flex items-center gap-2 border-r border-white/8 pr-3
-        "
-								>
+								<div className="mr-1 flex items-center gap-2 border-r border-white/8 pr-3">
 									<div className="flex items-center gap-2">
 										<div
 											className="
@@ -518,15 +320,6 @@ export function AppHeader({
 										<span className="text-[8px] text-white/25 uppercase">CR</span>
 									</div>
 								</div>
-							) : null}
-							{config.colonies &&
-							config.activeColonyId &&
-							(config.onColonyChange || handleColonyChange) ? (
-								<ColonySwitcher
-									activeColonyId={config.activeColonyId}
-									colonies={config.colonies}
-									onColonyChange={config.onColonyChange ?? handleColonyChange}
-								/>
 							) : null}
 							<button aria-label="Quests" className={cn(`
          relative flex size-8 items-center justify-center rounded-lg

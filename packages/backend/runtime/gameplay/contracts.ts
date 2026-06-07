@@ -1,4 +1,5 @@
 import {
+	buildResearchModifierSnapshot,
 	generateContractSnapshot,
 	getContractRecommendedTaskForce,
 	getContractTaskForceCap,
@@ -11,9 +12,13 @@ import {
 	normalizeDefenseCounts,
 	normalizeShipCounts,
 	simulateCombat,
+	SHIP_KEYS,
 	type ContractSnapshot,
 	type ContractThreatBand,
 	type PrimaryRewardResource,
+	type ResearchLevelMap,
+	type ResearchModifierSnapshot,
+	type ShipCounts,
 } from "@nullvector/game-logic";
 import { ConvexError, v } from "convex/values";
 
@@ -40,6 +45,7 @@ import {
 	requireFeatureAccess,
 	requireMissionAccess,
 } from "./progression";
+import { buildAcceptedContractMetaMatterReward, loadPlayerResearchLevels } from "./research";
 import { reconcileFleetOperationSchedule } from "./scheduling";
 import {
 	emptyResourceBucket,
@@ -66,6 +72,28 @@ const contractStatusValidator = v.union(
 	v.literal("replaced"),
 );
 
+function committedShipCount(shipCounts: ShipCounts) {
+	return SHIP_KEYS.reduce((sum, key) => sum + Math.max(0, Math.floor(shipCounts[key])), 0);
+}
+
+function contractWolfpackFuelMultiplier(args: {
+	researchModifiers: ResearchModifierSnapshot;
+	shipCounts: ShipCounts;
+}) {
+	const wolfpack = args.researchModifiers.interceptorWolfpack;
+	if (!wolfpack) {
+		return 1;
+	}
+	const committed = committedShipCount(args.shipCounts);
+	if (committed <= 0) {
+		return 1;
+	}
+	return args.shipCounts.interceptor >= wolfpack.minInterceptors &&
+		args.shipCounts.interceptor / committed >= wolfpack.minShare
+		? (wolfpack.fuelMultiplier ?? 1)
+		: 1;
+}
+
 const contractViewValidator = v.object({
 	id: v.union(v.id("contracts"), v.string()),
 	planetId: v.id("planets"),
@@ -85,6 +113,11 @@ const contractViewValidator = v.object({
 		alloy: v.number(),
 		crystal: v.number(),
 		fuel: v.number(),
+	}),
+	rewardMetaMatter: v.object({
+		common: v.number(),
+		rare: v.number(),
+		mythic: v.number(),
 	}),
 	controlReduction: v.number(),
 	recommendedTaskForce: v.number(),
@@ -129,6 +162,7 @@ const recommendedContractViewValidator = v.object({
 	rewardXpSuccess: contractViewValidator.fields.rewardXpSuccess,
 	rewardXpFailure: contractViewValidator.fields.rewardXpFailure,
 	rewardResources: contractViewValidator.fields.rewardResources,
+	rewardMetaMatter: contractViewValidator.fields.rewardMetaMatter,
 	controlReduction: contractViewValidator.fields.controlReduction,
 	recommendedTaskForce: contractViewValidator.fields.recommendedTaskForce,
 	threatBand: contractViewValidator.fields.threatBand,
@@ -261,7 +295,7 @@ async function getColonyOriginCoords(args: {
 	if (!system) {
 		throw new ConvexError("System not found for colony");
 	}
-	return { x: system.x, y: system.y };
+	return { sectorId: system.sectorId, systemId: system._id, x: system.x, y: system.y };
 }
 
 async function getPlanetSystemCoords(args: {
@@ -276,7 +310,7 @@ async function getPlanetSystemCoords(args: {
 	if (!system) {
 		throw new ConvexError("System not found for planet");
 	}
-	return { x: system.x, y: system.y };
+	return { sectorId: system.sectorId, systemId: system._id, x: system.x, y: system.y };
 }
 
 async function getInProgressContractCount(args: {
@@ -423,7 +457,7 @@ async function getTaskForceCapsForContractRows(args: {
 		args.contracts.map((row) => [
 			row._id,
 			row.originColonyId
-				? taskForceCapByColonyId.get(row.originColonyId) ?? defaultTaskForceCap
+				? (taskForceCapByColonyId.get(row.originColonyId) ?? defaultTaskForceCap)
 				: defaultTaskForceCap,
 		]),
 	);
@@ -451,26 +485,27 @@ function enrichContractSnapshotView(args: {
 
 function snapshotToView(args: {
 	contract: {
-	_id: Id<"contracts">;
-	acceptedAt?: number;
-	difficultyTier: number;
-	expiresAt?: number;
-	missionTypeKey: string;
-	offerSequence?: number;
-	planetId: Id<"planets">;
-	requiredRank: number;
-	resolvedAt?: number;
-	slot: number;
-	snapshot: {
-		controlReduction: number;
-		enemyDefenses: Partial<ContractSnapshot["enemyDefenses"]>;
-		enemyFleet: Partial<ContractSnapshot["enemyFleet"]>;
-		rewardCredits: number;
-		rewardXpFailure: number;
-		rewardXpSuccess: number;
-		rewardResources: ContractSnapshot["rewardResources"];
-	};
-	status: ContractStatus;
+		_id: Id<"contracts">;
+		acceptedAt?: number;
+		difficultyTier: number;
+		expiresAt?: number;
+		missionTypeKey: string;
+		offerSequence?: number;
+		planetId: Id<"planets">;
+		requiredRank: number;
+		resolvedAt?: number;
+		slot: number;
+		snapshot: {
+			controlReduction: number;
+			enemyDefenses: Partial<ContractSnapshot["enemyDefenses"]>;
+			enemyFleet: Partial<ContractSnapshot["enemyFleet"]>;
+			rewardCredits: number;
+			rewardMetaMatter: ContractSnapshot["rewardMetaMatter"];
+			rewardXpFailure: number;
+			rewardXpSuccess: number;
+			rewardResources: ContractSnapshot["rewardResources"];
+		};
+		status: ContractStatus;
 	};
 	taskForceCap: number;
 }) {
@@ -479,21 +514,19 @@ function snapshotToView(args: {
 		enemyFleet: normalizeShipCounts(args.contract.snapshot.enemyFleet),
 		enemyDefenses: normalizeDefenseCounts(args.contract.snapshot.enemyDefenses),
 	};
-	const enriched =
-		enrichContractSnapshotView({
-			snapshot,
-			taskForceCap: args.taskForceCap,
-		}) ??
-		{
-			// enrichContractSnapshotView can return null when taskForceCap is invalid for threat-band
-			// derivation. In that edge case we still surface a safe "stretch" view using the raw
-			// snapshot via getContractRecommendedTaskForce(snapshot) and
-			// getPrimaryRewardResource(snapshot.rewardResources) so the UI can render and flag it.
-			recommendedTaskForce: getContractRecommendedTaskForce(snapshot),
-			threatBand: "stretch" as const,
-			primaryRewardResource: getPrimaryRewardResource(snapshot.rewardResources),
-			isStretch: true,
-		};
+	const enriched = enrichContractSnapshotView({
+		snapshot,
+		taskForceCap: args.taskForceCap,
+	}) ?? {
+		// enrichContractSnapshotView can return null when taskForceCap is invalid for threat-band
+		// derivation. In that edge case we still surface a safe "stretch" view using the raw
+		// snapshot via getContractRecommendedTaskForce(snapshot) and
+		// getPrimaryRewardResource(snapshot.rewardResources) so the UI can render and flag it.
+		recommendedTaskForce: getContractRecommendedTaskForce(snapshot),
+		threatBand: "stretch" as const,
+		primaryRewardResource: getPrimaryRewardResource(snapshot.rewardResources),
+		isStretch: true,
+	};
 	return {
 		id: args.contract._id,
 		planetId: args.contract.planetId,
@@ -507,6 +540,7 @@ function snapshotToView(args: {
 		resolvedAt: args.contract.resolvedAt,
 		offerSequence: args.contract.offerSequence,
 		rewardCredits: snapshot.rewardCredits,
+		rewardMetaMatter: snapshot.rewardMetaMatter,
 		rewardXpSuccess: snapshot.rewardXpSuccess,
 		rewardXpFailure: snapshot.rewardXpFailure,
 		rewardResources: snapshot.rewardResources,
@@ -547,6 +581,18 @@ function advanceSlotSequences(slotSequences: number[], slot: number) {
 		nextSequences[index] = nextSequences[index] ?? 1;
 	}
 	nextSequences[slot] = sequenceForSlot(nextSequences, slot) + 1;
+	return nextSequences;
+}
+
+function advanceSlotSequencesPastOffer(args: {
+	acceptedOfferSequence?: number;
+	slot: number;
+	slotSequences: number[];
+}) {
+	const nextSequences = advanceSlotSequences(args.slotSequences, args.slot);
+	if (args.acceptedOfferSequence !== undefined) {
+		nextSequences[args.slot] = Math.max(nextSequences[args.slot]!, args.acceptedOfferSequence + 1);
+	}
 	return nextSequences;
 }
 
@@ -591,16 +637,26 @@ function deriveOffer(args: {
 	offerSequence: number;
 	planetId: Id<"planets">;
 	planetSeed: string;
+	playerResearchLevels: Partial<ResearchLevelMap>;
 	playerRank: number;
 	slot: number;
 }) {
-	const snapshot = generateContractSnapshot({
+	const baseSnapshot = generateContractSnapshot({
 		difficultyTier: args.difficultyTier,
 		planetControlMax: args.controlMax,
 		playerRank: args.playerRank,
 		seed: `${args.planetSeed}:${args.colonyId}:${args.slot}:${args.offerSequence}`,
 		slot: args.slot,
 	});
+	const rewardMetaMatter = buildAcceptedContractMetaMatterReward({
+		difficultyTier: baseSnapshot.difficultyTier,
+		playerResearchLevels: args.playerResearchLevels,
+		seed: `${args.planetSeed}:${args.colonyId}:${args.slot}:${args.offerSequence}:metaMatter`,
+	});
+	const snapshot = {
+		...baseSnapshot,
+		rewardMetaMatter,
+	} satisfies ContractSnapshot;
 	return {
 		id: `derived:${args.planetId}:${args.slot}:${args.offerSequence}`,
 		planetId: args.planetId,
@@ -611,6 +667,7 @@ function deriveOffer(args: {
 		difficultyTier: snapshot.difficultyTier,
 		offerSequence: args.offerSequence,
 		rewardCredits: snapshot.rewardCredits,
+		rewardMetaMatter: snapshot.rewardMetaMatter,
 		rewardXpSuccess: snapshot.rewardXpSuccess,
 		rewardXpFailure: snapshot.rewardXpFailure,
 		rewardResources: snapshot.rewardResources,
@@ -652,6 +709,7 @@ function deriveTutorialSafeOffer(args: {
 	candidate: ComputedCandidate;
 	colonyId: Id<"colonies">;
 	difficultyTier: number;
+	playerResearchLevels: Partial<ResearchLevelMap>;
 	playerRank: number;
 	slot: number;
 }) {
@@ -663,6 +721,7 @@ function deriveTutorialSafeOffer(args: {
 			offerSequence: args.baseOfferSequence + offset,
 			planetId: args.candidate.planetId,
 			planetSeed: args.candidate.planetSeed,
+			playerResearchLevels: args.playerResearchLevels,
 			playerRank: args.playerRank,
 			slot: args.slot,
 		});
@@ -676,7 +735,11 @@ function deriveTutorialSafeOffer(args: {
 function buildRecommendedOfferView(args: {
 	candidate: Pick<
 		HydratedCandidateRow,
-		"distance" | "hostileFactionKey" | "planetAddressLabel" | "planetDisplayName" | "sectorDisplayName"
+		| "distance"
+		| "hostileFactionKey"
+		| "planetAddressLabel"
+		| "planetDisplayName"
+		| "sectorDisplayName"
 	>;
 	offer: DerivedOffer & { snapshot: ContractSnapshot };
 	taskForceCap: number;
@@ -1071,24 +1134,29 @@ async function deriveRecommendedContractsByOrdinal(args: {
 	if (!player) {
 		throw new ConvexError("Player not found");
 	}
-	const [progression, discoveryState, inProgressRows, taskForceCap] = await Promise.all([
-		buildProgressionOverview({ ctx: args.ctx, player }),
-		args.ctx.db
-			.query("colonyContractDiscoveryState")
-			.withIndex("by_colony", (q) => q.eq("colonyId", args.colony._id))
-			.unique(),
-		args.ctx.db
-			.query("contracts")
-			.withIndex("by_player_status", (q) =>
-				q.eq("playerId", args.playerId).eq("status", "inProgress"),
-			)
-			.collect(),
-		getColonyTaskForceCap({
-			ctx: args.ctx,
-			colony: args.colony,
-			player,
-		}),
-	]);
+	const [progression, discoveryState, inProgressRows, taskForceCap, playerResearchLevels] =
+		await Promise.all([
+			buildProgressionOverview({ ctx: args.ctx, player }),
+			args.ctx.db
+				.query("colonyContractDiscoveryState")
+				.withIndex("by_colony", (q) => q.eq("colonyId", args.colony._id))
+				.unique(),
+			args.ctx.db
+				.query("contracts")
+				.withIndex("by_player_status", (q) =>
+					q.eq("playerId", args.playerId).eq("status", "inProgress"),
+				)
+				.collect(),
+			getColonyTaskForceCap({
+				ctx: args.ctx,
+				colony: args.colony,
+				player,
+			}),
+			loadPlayerResearchLevels({
+				ctx: args.ctx,
+				playerId: args.playerId,
+			}),
+		]);
 	if (!discoveryState || discoveryState.hostileCount <= 0) {
 		return [] as (typeof recommendedContractViewValidator.type)[];
 	}
@@ -1150,8 +1218,10 @@ async function deriveRecommendedContractsByOrdinal(args: {
 		}
 	}
 
+	const researchModifiers = buildResearchModifierSnapshot(playerResearchLevels);
 	const difficultyTier = progression.contractRules.difficultyTier;
-	const visibleSlots = progression.contractRules.visibleSlots;
+	const visibleSlots =
+		progression.contractRules.visibleSlots + researchModifiers.contractVisibleSlotBonus;
 	const viableOffers: Array<typeof recommendedContractViewValidator.type> = [];
 	const stretchOffers: Array<typeof recommendedContractViewValidator.type> = [];
 	let tutorialSafeInserted = false;
@@ -1180,6 +1250,7 @@ async function deriveRecommendedContractsByOrdinal(args: {
 								candidate,
 								colonyId: args.colony._id,
 								difficultyTier,
+								playerResearchLevels,
 								playerRank: progression.rank,
 								slot,
 							}) ??
@@ -1190,6 +1261,7 @@ async function deriveRecommendedContractsByOrdinal(args: {
 								offerSequence,
 								planetId: candidate.planetId,
 								planetSeed: candidate.planetSeed,
+								playerResearchLevels,
 								playerRank: progression.rank,
 								slot,
 							}))
@@ -1200,6 +1272,7 @@ async function deriveRecommendedContractsByOrdinal(args: {
 								offerSequence,
 								planetId: candidate.planetId,
 								planetSeed: candidate.planetSeed,
+								playerResearchLevels,
 								playerRank: progression.rank,
 								slot,
 							});
@@ -1207,7 +1280,8 @@ async function deriveRecommendedContractsByOrdinal(args: {
 					tutorialSafeInserted = true;
 				}
 				const view = buildRecommendedOfferView({
-					candidate: (candidateByPlanetId.get(candidate.planetId) ?? candidate) as HydratedCandidateRow,
+					candidate: (candidateByPlanetId.get(candidate.planetId) ??
+						candidate) as HydratedCandidateRow,
 					offer,
 					taskForceCap,
 				});
@@ -1266,6 +1340,7 @@ async function deriveRecommendedContractsByOrdinal(args: {
 }
 
 export async function advanceContractBoardSlot(args: {
+	acceptedOfferSequence?: number;
 	ctx: MutationCtx;
 	colonyId: Id<"colonies">;
 	now: number;
@@ -1284,7 +1359,11 @@ export async function advanceContractBoardSlot(args: {
 		planetId: args.planetId,
 		playerId: args.playerId,
 	});
-	const slotSequences = advanceSlotSequences(boardState.slotSequences, args.slot);
+	const slotSequences = advanceSlotSequencesPastOffer({
+		acceptedOfferSequence: args.acceptedOfferSequence,
+		slot: args.slot,
+		slotSequences: boardState.slotSequences,
+	});
 	await args.ctx.db.patch(boardState._id, {
 		slotSequences,
 		version: boardState.version + 1,
@@ -1480,12 +1559,19 @@ export const launchContract = mutation({
 			ctx,
 			player,
 		});
-		const visibleSlots = progressionOverview.contractRules.visibleSlots;
+		const playerResearchLevels = await loadPlayerResearchLevels({
+			ctx,
+			playerId: player._id,
+		});
+		const researchModifiers = buildResearchModifierSnapshot(playerResearchLevels);
+		const visibleSlots =
+			progressionOverview.contractRules.visibleSlots + researchModifiers.contractVisibleSlotBonus;
 		if (args.slot < 0 || args.slot >= visibleSlots) {
 			throw new ConvexError("Contract slot is not available at your rank");
 		}
 
-		const activeContractLimit = progressionOverview.contractRules.activeLimit;
+		const activeContractLimit =
+			progressionOverview.contractRules.activeLimit + researchModifiers.contractActiveLimitBonus;
 		const activeContractCount = await getInProgressContractCount({
 			ctx,
 			playerId: player._id,
@@ -1514,24 +1600,26 @@ export const launchContract = mutation({
 			playerId: player._id,
 		});
 		const currentSequence = sequenceForSlot(boardState.slotSequences, args.slot);
+		const lookaheadLimit =
+			progression.rank === 3 ? CONTRACT_LOOKAHEAD_SEQUENCES + 23 : CONTRACT_LOOKAHEAD_SEQUENCES;
 		let offer =
-			currentSequence === args.offerSequence
+			args.offerSequence >= currentSequence && args.offerSequence < currentSequence + lookaheadLimit
 				? deriveOffer({
 						colonyId: colony._id,
 						controlMax: hostility.controlMax,
 						difficultyTier: progression.contractRules.difficultyTier,
-						offerSequence: currentSequence,
+						offerSequence: args.offerSequence,
 						planetId: args.planetId,
 						planetSeed: candidate.planetSeed,
+						playerResearchLevels,
 						playerRank: progression.rank,
 						slot: args.slot,
 					})
 				: null;
 		if (
-			offer === null &&
 			progression.rank === 3 &&
 			args.offerSequence >= currentSequence &&
-			args.offerSequence < currentSequence + 24
+			args.offerSequence < currentSequence + lookaheadLimit
 		) {
 			const tutorialOffer = deriveTutorialSafeOffer({
 				baseOfferSequence: currentSequence,
@@ -1544,6 +1632,7 @@ export const launchContract = mutation({
 				},
 				colonyId: colony._id,
 				difficultyTier: progression.contractRules.difficultyTier,
+				playerResearchLevels,
 				playerRank: progression.rank,
 				slot: args.slot,
 			});
@@ -1565,22 +1654,24 @@ export const launchContract = mutation({
 		if (normalizedShips.colonyShip > 0) {
 			throw new ConvexError("Colony ships cannot be assigned to contract missions");
 		}
+		const selectedTaskForce = getTaskForceWeightForShipCounts(normalizedShips);
+		const now = Date.now();
+		await settleShipyardQueue({ colony, ctx, now });
+		await settleDefenseQueue({ colony, ctx, now });
 		const colonyState = await loadColonyState({
 			colony,
 			ctx,
 		});
-		const selectedTaskForce = getTaskForceWeightForShipCounts(normalizedShips);
 		const taskForceCap = getContractTaskForceCap({
 			playerRank: progressionOverview.rank,
 			shipyardLevel: colonyState.buildings.shipyardLevel,
 		});
 		if (selectedTaskForce > taskForceCap) {
-			throw new ConvexError(`Contract task force exceeds cap (${selectedTaskForce}/${taskForceCap})`);
+			throw new ConvexError(
+				`Contract task force exceeds cap (${selectedTaskForce}/${taskForceCap})`,
+			);
 		}
 
-		const now = Date.now();
-		await settleShipyardQueue({ colony, ctx, now });
-		await settleDefenseQueue({ colony, ctx, now });
 		await decrementShipsOrThrow({
 			colony,
 			ctx,
@@ -1604,10 +1695,25 @@ export const launchContract = mutation({
 		});
 		const durationMs = durationMsForFleet({
 			distance,
+			routeSpeedMultiplier:
+				researchModifiers.routeSpeedMultipliers[
+					originCoords.sectorId !== targetCoords.sectorId
+						? "interSector"
+						: originCoords.systemId !== targetCoords.systemId
+							? "interSystem"
+							: "local"
+				],
 			shipCounts: normalizedShips,
 		});
 		const fuelScaled = Math.round(
-			getFleetFuelCostForDistance({ distance, shipCounts: normalizedShips }) * 1_000,
+			getFleetFuelCostForDistance({ distance, shipCounts: normalizedShips }) *
+				researchModifiers.fleetFuelCostMultiplier *
+				researchModifiers.contractDispatchFuelMultiplier *
+				contractWolfpackFuelMultiplier({
+					researchModifiers,
+					shipCounts: normalizedShips,
+				}) *
+				1_000,
 		);
 		const latestOrigin = await loadColonyState({
 			colony,

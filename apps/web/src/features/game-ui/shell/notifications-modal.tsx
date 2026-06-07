@@ -588,11 +588,7 @@ export function NotificationsModal({
 															key={option.value}
 															value={option.value}
 														>
-															<Select.ItemIndicator
-																className="
-                 flex size-4 items-center justify-center
-               "
-															>
+															<Select.ItemIndicator className="flex size-4 items-center justify-center">
 																<Check className="size-3 text-cyan-400" />
 															</Select.ItemIndicator>
 															<Select.ItemText>{option.label}</Select.ItemText>
