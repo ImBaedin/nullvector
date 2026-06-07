@@ -794,11 +794,10 @@ function BranchMenu({
 						transition: "background 0.15s",
 					}}
 					onMouseEnter={(ev) => {
-						(ev.target as HTMLElement).style.background = `${tab.themeColor}14`;
+						ev.currentTarget.style.background = `${tab.themeColor}14`;
 					}}
 					onMouseLeave={(ev) => {
-						if (tab.key !== activeBranch)
-							(ev.target as HTMLElement).style.background = "transparent";
+						if (tab.key !== activeBranch) ev.currentTarget.style.background = "transparent";
 					}}
 				>
 					<div

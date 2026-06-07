@@ -46,7 +46,10 @@ export const Route = createFileRoute("/game/colony/$colonyId/research4")({
 
 /* ── Palette — emerald cartography ────────────────────────────────────────── */
 
-const EXP_TAB = RESEARCH_TABS[3]!;
+const EXP_TAB = RESEARCH_TABS[3] ?? RESEARCH_TABS[0];
+if (!EXP_TAB) {
+	throw new Error("Research tabs must include at least one tab");
+}
 
 const G = {
 	accent: EXP_TAB.themeColor,

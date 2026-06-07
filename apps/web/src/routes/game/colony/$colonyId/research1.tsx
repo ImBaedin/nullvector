@@ -203,6 +203,7 @@ function HexNode({ data }: NodeProps) {
 							textAlign: "center",
 							lineHeight: 1.2,
 							padding: "0 10px",
+							whiteSpace: "pre-line",
 						}}
 					>
 						{d.name.split(" ").slice(0, 2).join("\n")}
@@ -246,6 +247,7 @@ function SquareNode({ data }: NodeProps) {
 						textAlign: "center",
 						lineHeight: 1.2,
 						padding: "0 6px",
+						whiteSpace: "pre-line",
 					}}
 				>
 					{d.name.split(" ").slice(0, 2).join("\n")}

@@ -1647,10 +1647,6 @@ export const launchContract = mutation({
 			throw new ConvexError("Rank is too low for this contract");
 		}
 
-		const colonyState = await loadColonyState({
-			colony,
-			ctx,
-		});
 		const normalizedShips = normalizeShipCounts(args.shipCounts);
 		if (getFleetCargoCapacity(normalizedShips) <= 0) {
 			throw new ConvexError("Operation fleet has no ships");
@@ -1659,6 +1655,13 @@ export const launchContract = mutation({
 			throw new ConvexError("Colony ships cannot be assigned to contract missions");
 		}
 		const selectedTaskForce = getTaskForceWeightForShipCounts(normalizedShips);
+		const now = Date.now();
+		await settleShipyardQueue({ colony, ctx, now });
+		await settleDefenseQueue({ colony, ctx, now });
+		const colonyState = await loadColonyState({
+			colony,
+			ctx,
+		});
 		const taskForceCap = getContractTaskForceCap({
 			playerRank: progressionOverview.rank,
 			shipyardLevel: colonyState.buildings.shipyardLevel,
@@ -1669,9 +1672,6 @@ export const launchContract = mutation({
 			);
 		}
 
-		const now = Date.now();
-		await settleShipyardQueue({ colony, ctx, now });
-		await settleDefenseQueue({ colony, ctx, now });
 		await decrementShipsOrThrow({
 			colony,
 			ctx,

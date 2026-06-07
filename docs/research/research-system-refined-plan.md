@@ -13,7 +13,7 @@ The current best-fit direction is:
 - The research tree is code-authored in `packages/game-logic`, including a hand-authored visual layout.
 - The research UI uses a tab system, with one tree per tab.
 - Each tree tab has its own color identity and background animation profile.
-- The research background should use the React Bits Dither background component, customized per active tab during implementation.
+- The research background should use `Dither` (`apps/web/src/components/Dither.jsx`), exported and imported as `Dither`, customized per active tab during implementation.
 - Buildings, facilities, ships, and defenses should unlock from specific research nodes, not from raw research facility level requirements.
 - Research nodes should use account-wide research site count for tier access, not local research facility levels.
 - The Research Directorate should be a one-time per-colony research site. Higher tiers require more built sites across owned colonies.
@@ -78,21 +78,21 @@ export const META_MATTER_RARITIES = ["common", "rare", "mythic"] as const;
 export type MetaMatterRarity = (typeof META_MATTER_RARITIES)[number];
 
 export type ResearchNodeDefinition = {
-  id: ResearchKey;
-  name: string;
-  branch: ResearchBranchKey;
-  tier: 1 | 2 | 3 | 4 | 5;
-  description: string;
-  position: { x: number; y: number };
-  prerequisites: ResearchKey[];
-  maxLevel: number;
-  requiredResearchNetworkSize: number;
-  costs: Array<{
-    metaMatter: Partial<Record<MetaMatterRarity, number>>;
-    resources?: Partial<ResourceBucket>;
-    seconds: number;
-  }>;
-  effects: ResearchEffect[];
+	id: ResearchKey;
+	name: string;
+	branch: ResearchBranchKey;
+	tier: 1 | 2 | 3 | 4 | 5;
+	description: string;
+	position: { x: number; y: number };
+	prerequisites: ResearchKey[];
+	maxLevel: number;
+	requiredResearchNetworkSize: number;
+	costs: Array<{
+		metaMatter: Partial<Record<MetaMatterRarity, number>>;
+		resources?: Partial<ResourceBucket>;
+		seconds: number;
+	}>;
+	effects: ResearchEffect[];
 };
 ```
 
@@ -382,6 +382,8 @@ Recommended metadata additions:
 
 Recommended effect types:
 
+This is a non-exhaustive V1 set. Keep the planned `ResearchEffect` union aligned with [Effect Model Gaps To Plan For](./research-tree-tier-three-first-pass.md#effect-model-gaps-to-plan-for) as tier-three effects are implemented.
+
 - `unlock_building`
 - `unlock_facility`
 - `unlock_ship`
@@ -396,7 +398,7 @@ Recommended effect types:
 - `contract_reward_meta_matter`
 - `research_network_synchronization`
 
-The effect list should stay narrow at first. Avoid a generic free-form scripting model in V1.
+`research_network_synchronization` increases account-wide research throughput based on the number of built research sites. The effect list should stay narrow at first. Avoid a generic free-form scripting model in V1.
 
 ### 2. Backend Data Model
 

@@ -92,13 +92,12 @@ function NeuralCircle({ data }: NodeProps) {
 			{/* Glow ring */}
 			{d.status !== "locked" && (
 				<div
+					data-neural-pulse={d.status === "researching" ? "slow" : undefined}
 					style={{
 						position: "absolute",
 						inset: -6,
 						borderRadius: "50%",
 						background: `radial-gradient(circle, ${c.stroke}18, transparent 70%)`,
-						animation:
-							d.status === "researching" ? "neuralPulse 3s ease-in-out infinite" : undefined,
 					}}
 				/>
 			)}
@@ -527,13 +526,13 @@ function QueueEconomyPanel() {
 						}}
 					>
 						<div
+							data-neural-pulse="fast"
 							style={{
 								width: 7,
 								height: 7,
 								borderRadius: "50%",
 								background: "#3dd9ff",
 								boxShadow: "0 0 8px rgba(61,217,255,0.6)",
-								animation: "neuralPulse 2s ease-in-out infinite",
 							}}
 						/>
 						<span
@@ -1370,6 +1369,17 @@ function Research3() {
         @keyframes neuralPulse {
           0%, 100% { opacity: 0.6; }
           50% { opacity: 1; }
+        }
+        [data-neural-pulse="slow"] {
+          animation: neuralPulse 3s ease-in-out infinite;
+        }
+        [data-neural-pulse="fast"] {
+          animation: neuralPulse 2s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [data-neural-pulse="slow"], [data-neural-pulse="fast"] {
+            animation: none;
+          }
         }
         @keyframes neuralOrbit {
           from { transform: rotate(0deg); }

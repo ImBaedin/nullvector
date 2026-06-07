@@ -104,7 +104,7 @@ export function ColonySwitcher({
 			window.removeEventListener("resize", updateMenuPosition);
 			window.removeEventListener("scroll", updateMenuPosition, true);
 		};
-	}, [isOpen]);
+	}, [isOpen, variant]);
 
 	const selectColony = (colonyId: string) => {
 		onColonyChange(colonyId);

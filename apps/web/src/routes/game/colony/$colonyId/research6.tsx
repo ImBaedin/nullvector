@@ -820,7 +820,7 @@ function TreeCanvas({
 }: {
 	branch: ResearchBranchKey;
 	onBranchChange: (b: ResearchBranchKey) => void;
-	onNodeSelect: (node: RadialNode, x: number, y: number) => void;
+	onNodeSelect: (node: RadialNode | null, x: number, y: number) => void;
 }) {
 	const containerRef = useRef<HTMLDivElement>(null);
 
@@ -859,7 +859,7 @@ function TreeCanvas({
 				nodeTypes={nodeTypes}
 				edgeTypes={edgeTypes}
 				onNodeClick={handleNodeClick}
-				onPaneClick={() => onNodeSelect(null as any, 0, 0)}
+				onPaneClick={() => onNodeSelect(null, 0, 0)}
 				fitView
 				fitViewOptions={{ padding: 0.2 }}
 				minZoom={0.2}

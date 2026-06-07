@@ -210,6 +210,10 @@ const clearAllPlayerDataDeletedValidator = v.object({
 	playerResearchMetrics: v.number(),
 	playerResearchRuntimeState: v.number(),
 	playerResearchRouteMetrics: v.number(),
+	playerResearchState: v.number(),
+	playerResearchBalances: v.number(),
+	playerResearchQueueItems: v.number(),
+	playerResearchScheduling: v.number(),
 	devConsoleActions: v.number(),
 	playerNotificationPreferences: v.number(),
 	notifications: v.number(),
@@ -1250,6 +1254,26 @@ export const clearAllPlayerData = internalMutation({
 				ctx,
 				dryRun,
 				queryFactory: (limit) => ctx.db.query("playerResearchRouteMetrics").take(limit),
+			}),
+			playerResearchState: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerResearchState").take(limit),
+			}),
+			playerResearchBalances: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerResearchBalances").take(limit),
+			}),
+			playerResearchQueueItems: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerResearchQueueItems").take(limit),
+			}),
+			playerResearchScheduling: await deleteAllTableRows({
+				ctx,
+				dryRun,
+				queryFactory: (limit) => ctx.db.query("playerResearchScheduling").take(limit),
 			}),
 			devConsoleActions: await deleteAllTableRows({
 				ctx,

@@ -35,7 +35,7 @@ export function IsolatedDither(props: DitherProps) {
 	// Re-render the Dither component whenever props change.
 	useEffect(() => {
 		rootRef.current?.render(<Dither {...props} />);
-	});
+	}, [props]);
 
 	return (
 		<div

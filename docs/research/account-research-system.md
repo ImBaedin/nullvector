@@ -320,42 +320,49 @@ Suggested shape:
 
 ```ts
 export const RESEARCH_KEYS = [
-  "applied_metallurgy",
-  "crystal_latticing",
-  "propulsion_theory",
-  "colonial_admin",
-  "targeting_arrays",
+	"appliedMetallurgy",
+	"crystalLatticing",
+	"propulsionTheory",
+	"colonialAdmin",
+	"targetingArrays",
 ] as const;
 
 export type ResearchKey = (typeof RESEARCH_KEYS)[number];
 
 export type ResearchEffect =
-  | { type: "resource_production_multiplier"; resource: "alloy" | "crystal" | "fuel"; multiplier: number }
-  | { type: "building_cost_multiplier"; buildingKey: BuildingKey; multiplier: number }
-  | { type: "building_time_multiplier"; buildingKey: BuildingKey; multiplier: number }
-  | { type: "facility_unlock"; facilityKey: FacilityKey }
-  | { type: "ship_unlock"; shipKey: ShipKey }
-  | { type: "defense_unlock"; defenseKey: DefenseKey }
-  | { type: "feature_unlock"; featureKey: "research" | "fleet" | "contracts" | "defenses" | "shipyard" }
-  | { type: "contract_task_force_bonus"; amount: number };
+	| {
+			type: "resource_production_multiplier";
+			resource: "alloy" | "crystal" | "fuel";
+			multiplier: number;
+	  }
+	| { type: "building_cost_multiplier"; buildingKey: BuildingKey; multiplier: number }
+	| { type: "building_time_multiplier"; buildingKey: BuildingKey; multiplier: number }
+	| { type: "facility_unlock"; facilityKey: FacilityKey }
+	| { type: "ship_unlock"; shipKey: ShipKey }
+	| { type: "defense_unlock"; defenseKey: DefenseKey }
+	| {
+			type: "feature_unlock";
+			featureKey: "research" | "fleet" | "contracts" | "defenses" | "shipyard";
+	  }
+	| { type: "contract_task_force_bonus"; amount: number };
 
 export type ResearchDefinition = {
-  key: ResearchKey;
-  name: string;
-  branch: "economy" | "logistics" | "military" | "colonization" | "science";
-  tier: number;
-  maxLevel: number;
-  baseDurationSeconds: number;
-  baseCost: {
-    resources: Partial<Record<ResourceKey, number>>;
-    credits: number;
-  };
-  prerequisites?: Array<
-    | { kind: "researchLevel"; researchKey: ResearchKey; minLevel: number }
-    | { kind: "facilityLevel"; facilityKey: FacilityKey; minLevel: number }
-    | { kind: "rank"; minRank: number }
-  >;
-  effectsByLevel: ResearchEffect[][];
+	key: ResearchKey;
+	name: string;
+	branch: "economy" | "logistics" | "military" | "colonization" | "science";
+	tier: number;
+	maxLevel: number;
+	baseDurationSeconds: number;
+	baseCost: {
+		resources: Partial<Record<ResourceKey, number>>;
+		credits: number;
+	};
+	prerequisites?: Array<
+		| { kind: "researchLevel"; researchKey: ResearchKey; minLevel: number }
+		| { kind: "facilityLevel"; facilityKey: FacilityKey; minLevel: number }
+		| { kind: "rank"; minRank: number }
+	>;
+	effectsByLevel: ResearchEffect[][];
 };
 ```
 

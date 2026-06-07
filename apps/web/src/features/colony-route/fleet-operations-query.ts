@@ -38,10 +38,14 @@ export function useSelfHealingFleetOperations(args: {
 		if (health?.nextEventAt === undefined) {
 			return;
 		}
-		const delayMs = Math.max(0, health.nextEventAt - Date.now());
-		const timeout = window.setTimeout(() => {
-			setNowMs(Date.now());
-		}, delayMs);
+		let timeout: number;
+		const scheduleWakeUp = (delayMs: number) => {
+			timeout = window.setTimeout(() => {
+				setNowMs(Date.now());
+				scheduleWakeUp(SELF_HEAL_RETRY_MS);
+			}, delayMs);
+		};
+		scheduleWakeUp(Math.min(Math.max(0, health.nextEventAt - Date.now()), SELF_HEAL_RETRY_MS));
 		return () => {
 			window.clearTimeout(timeout);
 		};

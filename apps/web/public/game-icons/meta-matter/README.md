@@ -60,7 +60,7 @@ Avoid: crystal cluster, gemstone, ore pile, rock, clutter, background scene, par
 From repo root, create a temporary JSONL file under `tmp/imagegen/` with one prompt per line, then run:
 
 ```bash
-python3 /Users/baedin/.codex/skills/imagegen/scripts/image_gen.py generate-batch \
+python3 "${CODEX_HOME:-$HOME/.codex}/skills/imagegen/scripts/image_gen.py" generate-batch \
   --input tmp/imagegen/<batch-file>.jsonl \
   --out-dir apps/web/public/game-icons/meta-matter \
   --model gpt-image-1.5 \
